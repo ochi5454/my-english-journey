@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store
+from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -449,10 +449,34 @@ async def recommend(req: ProductQuery, request: Request):
         search_results = search_items(all_keywords, db)
         print(f"✅ Found {len(search_results)} matching items")
 
-        # 10. ChatGPTでおすすめ生成
-        recommendations = recommend_items_with_llm(keywords, search_results, related_history)
+        #### 2025.7.10 Mod（generate items）START
+        # 10. もしヒットしなければ、商品をweb検索し自動生成
+        if len(search_results) == 0:
+            print("🔎 検索結果なし → ChatGPTで商品生成")
+            new_items = recommend_generate_items(keywords, related_history)
 
-        # 11. 返却予定の会話内容を先に保存
+            if new_items:
+                max_id = get_max_id_num(db) + 1  # 次の番号スタートを計算
+                new_items = assign_sequential_ids(new_items, max_id)
+
+                db.extend(new_items)
+                try:
+                    with open("products.json", "w", encoding="utf-8") as f:
+                        json.dump(db, f, ensure_ascii=False, indent=2)
+                    print("💾 新商品をDBに保存しました")
+                except Exception as e:
+                    print(f"❌ DB保存エラー: {e}")
+                    raise HTTPException(status_code=500, detail="商品データ保存エラー")
+
+                search_results = new_items
+                print(f"✅ 生成した商品: {search_results}")
+                #### 2025.7.10 Mod（generate items）END
+
+        # 11. ChatGPTでおすすめ生成
+        recommendations = recommend_items_with_llm(keywords, search_results, related_history)
+        print(f"✅ 生成した提案: {recommendations}")
+
+        # 12. 返却予定の会話内容を先に保存
         ## 🔄 要約生成
         summary = generate_summary(req.query, recommendations, query_text)
 
