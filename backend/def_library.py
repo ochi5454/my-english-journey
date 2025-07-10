@@ -1,4 +1,3 @@
-from typing import List, Optional
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from langchain.chains import ConversationChain
@@ -6,7 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.memory import BaseMemory
 from langchain.vectorstores import VectorStore, FAISS
 from langchain.memory import VectorStoreRetrieverMemory
-from backend.config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR
+from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR
 from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException
@@ -226,7 +225,7 @@ def generate_summary(user_message: str, ai_response: str, inferred_question: str
     
 # ユーザーのメモリを作成または取得する
 def get_memory_for_user(user_id: str, embedding, vectorstore: FAISS) -> VectorStoreRetrieverMemory:
-    from backend.main import user_memories
+    from main import user_memories
 
     """
     セッションID（ユーザーID）に関連するメモリを取得または作成する。
@@ -317,7 +316,7 @@ def get_user_memory_and_store(user_id: str, embedding) -> Tuple[VectorStoreRetri
 # ユーザーIDに紐づくメモリとベクトルストアを取得・初期化する
 
 def get_user_memory(user_id, embedding):
-    from backend.main import user_memories, user_vectorstores
+    from main import user_memories, user_vectorstores
 
     if user_id not in user_memories:
         # Get or create a vectorstore for this user

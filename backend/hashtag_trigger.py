@@ -6,7 +6,7 @@ import openai
 import os
 import inspect
 from dotenv import load_dotenv
-from backend.config import api_key_str  # llm_client の設定を想定
+from config import api_key_str  # llm_client の設定を想定
 from fastapi.routing import APIRoute
 
 # 環境変数ロード＆クライアント初期化
@@ -67,7 +67,7 @@ async def call_recommend_endpoint(text: str, user_id: str) -> str:
     for tag, details in hashtag_map.items():
         action_name = details.get("name")
         if action_name:
-            from backend.main import app as main_app # main.pyのFastAPIアプリをインポート
+            from main import app as main_app # main.pyのFastAPIアプリをインポート
             # main.pyの登録済みエンドポイントと比較
             for route in main_app.routes:
                 if isinstance(route, APIRoute) and route.name == action_name:
@@ -118,5 +118,5 @@ class RequestBody(BaseModel):
 app = FastAPI()
 
 # OpenAPI スキーマのカスタマイズ
-from backend.openai_config import create_custom_openapi
+from openai_config import create_custom_openapi
 app.openapi = lambda: create_custom_openapi(app)
