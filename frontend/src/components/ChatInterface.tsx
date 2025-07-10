@@ -80,6 +80,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
     }
   };
 
+  // 改行を保持してテキストを表示するためのヘルパー関数
+  const formatTextWithLineBreaks = (text: string) => {
+    return text.split('\n').map((line, index) => (
+      <span key={index}>
+        {line}
+        {index < text.split('\n').length - 1 && <br />}
+      </span>
+    ));
+  };
+
   return (
     <div className="chat-interface">
       <div className="chat-header">
@@ -102,7 +112,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
             </div>
             <div className="message-content">
               <div className="message-bubble">
-                {message.content}
+                {formatTextWithLineBreaks(message.content)}
               </div>
               <div className="timestamp">
                 {message.timestamp}
@@ -117,7 +127,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
         <textarea
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyPress}
           placeholder="メッセージを入力してください..."
           rows={1}
         />

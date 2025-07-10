@@ -62,6 +62,16 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
     }
   };
 
+  // 改行を保持してテキストを表示するためのヘルパー関数
+  const formatTextWithLineBreaks = (text: string) => {
+    return text.split('\n').map((line, index) => (
+      <span key={index}>
+        {line}
+        {index < text.split('\n').length - 1 && <br />}
+      </span>
+    ));
+  };
+
   return (
     <div className="product-recommendation">
       <div className="recommendation-header">
@@ -113,7 +123,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
                   カテゴリ: {product.category}
                 </div>
                 <div className="product-description">
-                  {product.description}
+                  {formatTextWithLineBreaks(product.description)}
                 </div>
                 <div className="product-price">
                   ¥{product.price.toLocaleString()}

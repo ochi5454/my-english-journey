@@ -55,6 +55,16 @@ const DocumentSearch: React.FC<DocumentSearchProps> = ({ userId }) => {
     }
   };
 
+  // 改行を保持してテキストを表示するためのヘルパー関数
+  const formatTextWithLineBreaks = (text: string) => {
+    return text.split('\n').map((line, index) => (
+      <span key={index}>
+        {line}
+        {index < text.split('\n').length - 1 && <br />}
+      </span>
+    ));
+  };
+
   return (
     <div className="document-search">
       <div className="search-header">
@@ -67,7 +77,7 @@ const DocumentSearch: React.FC<DocumentSearchProps> = ({ userId }) => {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyPress}
           placeholder="検索キーワードを入力してください..."
         />
         <button onClick={handleSearch} disabled={isLoading || !query.trim()}>
@@ -88,7 +98,10 @@ const DocumentSearch: React.FC<DocumentSearchProps> = ({ userId }) => {
             {results.map((result, index) => (
               <div key={index} className="result-item">
                 <h4>{result.title || result.name || `結果 ${index + 1}`}</h4>
-                <p>{result.description || result.content || JSON.stringify(result)}</p>
+                <div className="result-content">
+                  {/* 改行を保持してテキストを表示 */}
+                  {formatTextWithLineBreaks(result.description || result.content || JSON.stringify(result))}
+                </div>
                 {result.keywords && (
                   <div>
                     <strong>キーワード:</strong> {Array.isArray(result.keywords) ? result.keywords.join(', ') : result.keywords}
