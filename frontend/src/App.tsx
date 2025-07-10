@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import ChatInterface from './components/ChatInterface';
 import ProductRecommendation from './components/ProductRecommendation';
@@ -8,7 +8,17 @@ import ChatHistory from './components/ChatHistory';
 import './App.css';
 
 const App: React.FC = () => {
-  const [userId, setUserId] = useState<string>('');
+  const [userId, setUserId] = useState<string>(() => {
+    // 初期値としてローカルストレージから取得
+    return localStorage.getItem('userId') || '';
+  });
+
+  // ユーザーIDが変更されたらローカルストレージに保存
+  useEffect(() => {
+    if (userId) {
+      localStorage.setItem('userId', userId);
+    }
+  }, [userId]);
 
   return (
     <Router>

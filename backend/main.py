@@ -9,6 +9,7 @@ import openai
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException, RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OpenAIEmbeddings
@@ -19,7 +20,7 @@ from typing import Optional, List
 
 # 自作モジュール
 from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store
-from config import SAVE_DIR, VECTORSTORE_DIR
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
 from hashtag_trigger import ACTION_MAP, RequestBody
 from hashtag_config import load_hashtag_map
@@ -95,6 +96,15 @@ class RecommendationResponse(BaseModel):
     keywords: List[str]
     recommendations: str
 #### 2025.7.8 Add（recommend db）END
+
+# CORS設定を追加
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # フロントエンドのURL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # リクエストごとにuser_idを付与するミドルウェア（ヘッダー、パス、ボディから抽出／生成）
 @app.middleware("http")
@@ -428,7 +438,7 @@ async def recommend(req: ProductQuery, request: Request):
 
         # 8. DBを先に読み込む
         try:
-            db = load_json("products.json")
+            db = load_json(os.path.join(DATA_DIR, "products.json"))
         except Exception as e:
             print(f"商品データベースの読み込みエラー: {e}")
             raise HTTPException(status_code=500, detail="商品データベースの読み込みに失敗しました")
@@ -545,7 +555,7 @@ async def search_documents(req: ProductQuery, request: Request):
 
         # 3. 技術文書データベースを読み込む
         try:
-            tech_db = load_json("techdocumentDB.json")
+            tech_db = load_json(os.path.join(DATA_DIR, "techdocumentDB.json"))  # フォルダを指定
         except Exception as e:
             print(f"技術文書データベースの読み込みエラー: {e}")
             tech_db = []
@@ -562,7 +572,7 @@ async def search_documents(req: ProductQuery, request: Request):
 
         # 6. 商品データベースを読み込む（技術文書が見つかった場合でも検索する）
         try:
-            product_db = load_json("products.json")
+            product_db = load_json(os.path.join(DATA_DIR, "products.json"))  # フォルダを指定
         except Exception as e:
             print(f"商品データベースの読み込みエラー: {e}")
             product_db = []

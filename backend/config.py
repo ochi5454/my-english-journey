@@ -22,6 +22,7 @@ OPENAI_API_KEY = SecretStr(api_key_str)
 
 # ディレクトリの設定
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data") 
 SAVE_DIR = os.path.join(BASE_DIR, "savecontext")
 os.makedirs(SAVE_DIR, exist_ok=True)
 

@@ -27,7 +27,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
     setError(null);
 
     try {
-      const response = await fetch('/api/recommend', {
+      const response = await fetch('/recommend', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

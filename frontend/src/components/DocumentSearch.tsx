@@ -1,21 +1,12 @@
 import React, { useState } from 'react';
-import { chatApi } from '../services/api';
-import './DocumentSearch.css';
 
 interface DocumentSearchProps {
   userId: string;
 }
 
-interface SearchResult {
-  title: string;
-  content: string;
-  score: number;
-  source?: string;
-}
-
 const DocumentSearch: React.FC<DocumentSearchProps> = ({ userId }) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,15 +17,14 @@ const DocumentSearch: React.FC<DocumentSearchProps> = ({ userId }) => {
     setError(null);
 
     try {
-      // APIコールの例（実際のエンドポイントに合わせて調整）
-      const response = await fetch('/api/search_documents', {
+      const response = await fetch(`http://localhost:8000/search_documents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           query: query,
-          user_id: userId
+          user_id: userId,
         }),
       });
 
@@ -52,72 +42,34 @@ const DocumentSearch: React.FC<DocumentSearchProps> = ({ userId }) => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
-
   return (
     <div className="document-search">
-      <div className="search-header">
-        <h2>文書検索</h2>
-        <p>知識ベースから関連文書を検索します</p>
+      <h2>文書検索</h2>
+      <p>User ID: {userId}</p>
+      <div>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="検索キーワードを入力してください..."
+        />
+        <button onClick={handleSearch} disabled={isLoading}>
+          {isLoading ? '検索中...' : '検索'}
+        </button>
       </div>
-
-      <div className="search-input-section">
-        <div className="search-input-container">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="検索キーワードを入力してください..."
-            className="search-input"
-          />
-          <button
-            onClick={handleSearch}
-            disabled={isLoading || !query.trim()}
-            className="search-button"
-          >
-            {isLoading ? '検索中...' : '検索'}
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="error-message">
-          {error}
-        </div>
-      )}
-
-      {results.length > 0 && (
-        <div className="search-results">
-          <h3>検索結果 ({results.length}件)</h3>
-          {results.map((result, index) => (
-            <div key={index} className="search-result-item">
-              <div className="result-header">
-                <h4>{result.title}</h4>
-                <span className="result-score">スコア: {result.score.toFixed(2)}</span>
-              </div>
-              <div className="result-content">
-                {result.content}
-              </div>
-              {result.source && (
-                <div className="result-source">
-                  出典: {result.source}
-                </div>
-              )}
+      {error && <p>{error}</p>}
+      <div>
+        {results.length > 0 ? (
+          results.map((result, index) => (
+            <div key={index}>
+              <h3>{result.title}</h3>
+              <p>{result.content}</p>
             </div>
-          ))}
-        </div>
-      )}
-
-      {!isLoading && results.length === 0 && query && !error && (
-        <div className="no-results">
-          検索結果が見つかりませんでした。
-        </div>
-      )}
+          ))
+        ) : (
+          <p>検索結果がありません。</p>
+        )}
+      </div>
     </div>
   );
 };

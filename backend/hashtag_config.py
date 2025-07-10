@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 def load_hashtag_map() -> dict:
@@ -6,7 +7,7 @@ def load_hashtag_map() -> dict:
     # config.pyがある場合はそれを使用
     try:
         from config import DATA_DIR
-        json_file_path = DATA_DIR / "hashtag_actions.json"
+        json_file_path = os.path.join(DATA_DIR, "hashtag_actions.json")
     except ImportError:
         # config.pyがない場合は相対パスを使用
         current_dir = Path(__file__).parent

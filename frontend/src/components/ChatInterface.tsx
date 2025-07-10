@@ -1,86 +1,78 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { chatApi } from '../services/api';
-import './ChatInterface.css';
+import React, { useState } from 'react';
 
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-  summary?: string;
-  topics?: string[];
-}
-
-interface Props {
+interface ChatInterfaceProps {
   onUserIdChange: (userId: string) => void;
 }
 
-const ChatInterface: React.FC<Props> = ({ onUserIdChange }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [userId, setUserId] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+interface Message {
+  sender: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
+  const [inputMessage, setInputMessage] = useState<string>('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [userId, setUserId] = useState<string>(() => {
+    return localStorage.getItem('userId') || ''; // 初期値としてローカルストレージから取得
+  });
+
+  const handleUserIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newUserId = e.target.value;
+    setUserId(newUserId);
+    onUserIdChange(newUserId); // App.tsxの状態を更新
+    localStorage.setItem('userId', newUserId); // ローカルストレージに保存
   };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
 
-    const userMessage: ChatMessage = {
-      role: 'user',
+    const userMessage: Message = {
+      sender: 'user',
       content: inputMessage,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toLocaleString(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
+    setMessages((prev) => [...prev, userMessage]);
 
     try {
-      const response = await chatApi.sendMessage({
-        user_id: userId,
-        message: inputMessage
+      // API呼び出し
+      const response = await fetch(`http://localhost:8000/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          message: inputMessage,
+        }),
       });
 
-      const assistantMessage: ChatMessage = {
-        role: 'assistant',
-        content: response.assistant_message,
-        timestamp: new Date().toISOString(),
-        summary: response.summary,
-        topics: response.topics
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-      
-      // ユーザーIDを更新
-      if (response.user_id && response.user_id !== userId) {
-        setUserId(response.user_id);
-        onUserIdChange(response.user_id);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-    } catch (error) {
-      console.error('メッセージ送信エラー:', error);
-      const errorMessage: ChatMessage = {
-        role: 'assistant',
-        content: 'エラーが発生しました。再度お試しください。',
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-      setInputMessage('');
-    }
-  };
+      const data = await response.json();
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+      const assistantMessage: Message = {
+        sender: 'assistant',
+        content: data.assistant_message || 'エラーが発生しました。',
+        timestamp: new Date().toLocaleString(),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+
+      const errorMessage: Message = {
+        sender: 'assistant',
+        content: 'エラーが発生しました。再度お試しください。',
+        timestamp: new Date().toLocaleString(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setInputMessage('');
     }
   };
 
@@ -93,65 +85,28 @@ const ChatInterface: React.FC<Props> = ({ onUserIdChange }) => {
             type="text"
             placeholder="ユーザーID (空白で自動生成)"
             value={userId}
-            onChange={(e) => {
-              setUserId(e.target.value);
-              onUserIdChange(e.target.value);
-            }}
+            onChange={handleUserIdChange}
           />
         </div>
       </div>
-
       <div className="messages-container">
         {messages.map((message, index) => (
-          <div key={index} className={`message ${message.role}`}>
-            <div className="message-content">
-              {message.content}
-            </div>
-            <div className="message-meta">
-              <span className="timestamp">
-                {new Date(message.timestamp).toLocaleString('ja-JP')}
-              </span>
-              {message.topics && message.topics.length > 0 && (
-                <div className="topics">
-                  トピック: {message.topics.join(', ')}
-                </div>
-              )}
-              {message.summary && (
-                <div className="summary">
-                  要約: {message.summary}
-                </div>
-              )}
-            </div>
+          <div
+            key={index}
+            className={`message ${message.sender === 'user' ? 'user-message' : 'assistant-message'}`}
+          >
+            <p>{message.content}</p>
+            <span className="timestamp">{message.timestamp}</span>
           </div>
         ))}
-        {isLoading && (
-          <div className="message assistant loading">
-            <div className="loading-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
       </div>
-
       <div className="input-container">
         <textarea
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
           placeholder="メッセージを入力してください..."
-          rows={3}
-          disabled={isLoading}
         />
-        <button 
-          onClick={sendMessage} 
-          disabled={isLoading || !inputMessage.trim()}
-          className="send-button"
-        >
-          送信
-        </button>
+        <button onClick={sendMessage}>送信</button>
       </div>
     </div>
   );

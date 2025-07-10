@@ -30,7 +30,7 @@ const HashtagProcessor: React.FC<HashtagProcessorProps> = ({ userId }) => {
     setResult(null);
 
     try {
-      const response = await fetch('/api/process_hashtag', {
+      const response = await fetch('/process_hashtag', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
