@@ -20,6 +20,10 @@ const App: React.FC = () => {
     }
   }, [userId]);
 
+  const handleUserIdChange = (newUserId: string) => {
+    setUserId(newUserId);
+  };
+
   return (
     <Router>
       <div className="app">
@@ -43,7 +47,7 @@ const App: React.FC = () => {
           <Routes>
             <Route 
               path="/" 
-              element={<ChatInterface onUserIdChange={setUserId} />} 
+              element={<ChatInterface onUserIdChange={handleUserIdChange} />} 
             />
             <Route 
               path="/recommend" 

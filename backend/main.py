@@ -201,7 +201,7 @@ async def chat(req: ChatRequest, request: Request):
                 {"role": "system", "content": "あなたは、ユーザーの指示に従って会話を記録・保存できるアシスタントです。"},
                 {"role": "user", "content": req.message or req.question or ""}
             ],
-            max_tokens=300,
+            max_tokens=4000,
             temperature=0.7
         )
 
@@ -345,7 +345,36 @@ def get_chat_history(
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
+
+        # JSONファイルの実際の形式に合わせてデータを変換
+        formatted_messages = []
         
+        for conversation in data:
+            timestamp = conversation.get("timestamp", "")
+            messages = conversation.get("messages", [])
+            
+            # 各会話セッションから user と assistant のメッセージを抽出
+            user_message = ""
+            assistant_message = ""
+            summary = ""
+            
+            for msg in messages:
+                if msg.get("role") == "user":
+                    user_message = msg.get("content", "")
+                elif msg.get("role") == "assistant":
+                    assistant_message = msg.get("content", "")
+                elif msg.get("role") == "context":
+                    summary = msg.get("content", "").replace("要約: ", "")
+            
+            # フロントエンド用の形式に変換
+            if user_message or assistant_message:
+                formatted_messages.append({
+                    "user_message": user_message,
+                    "assistant_message": assistant_message,
+                    "timestamp": timestamp,
+                    "summary": summary
+                })
+
         # 🔄 アドオン: フィルタリング処理（オプション）
         if category or date_range:
             from def_library import filter_results
@@ -368,11 +397,12 @@ def get_chat_history(
         return {"messages": data}
     
     except Exception as e:
+        print(f"Error reading history file: {str(e)}")
         return JSONResponse(
             content={
-                "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }, 
+                "error": f"Failed to read history: {str(e)}",
+                "messages": []
+            },
             status_code=500
         )
 

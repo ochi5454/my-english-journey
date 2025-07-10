@@ -33,6 +33,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
     localStorage.setItem('userId', newUserId);
   };
 
+  // 改行を保持してテキストを表示するためのヘルパー関数
+  const formatTextWithLineBreaks = (text: string) => {
+    return text.split('\n').map((line, index) => (
+      <span key={index}>
+        {line}
+        {index < text.split('\n').length - 1 && <br />}
+      </span>
+    ));
+  };
+  
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
 
@@ -45,7 +55,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      // ← ここを変更
       const data = await chatApi.sendMessage({
         user_id: userId,
         message: inputMessage,
@@ -78,16 +87,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
       e.preventDefault();
       sendMessage();
     }
-  };
-
-  // 改行を保持してテキストを表示するためのヘルパー関数
-  const formatTextWithLineBreaks = (text: string) => {
-    return text.split('\n').map((line, index) => (
-      <span key={index}>
-        {line}
-        {index < text.split('\n').length - 1 && <br />}
-      </span>
-    ));
   };
 
   return (

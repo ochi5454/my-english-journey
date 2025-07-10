@@ -52,6 +52,23 @@ interface RecommendationResponse {
   recommendations: any[];
 }
 
+// Chat History API
+interface ChatHistoryItem {
+  user_message?: string;
+  assistant_message?: string;
+  message?: string;
+  response?: string;
+  timestamp?: string;
+  summary?: string;
+  file_name?: string;
+}
+
+interface ChatHistoryResponse {
+  messages: ChatHistoryItem[];  // バックエンドの実際のレスポンス形式に修正
+  total_count?: number;
+  message?: string;
+}
+
 class ChatApiService {
   async sendMessage(data: ChatRequest): Promise<ChatResponse> {
     try {
@@ -121,6 +138,29 @@ class RecommendationApiService {
   }
 }
 
+class ChatHistoryApiService {
+  async getChatHistory(userId: string): Promise<ChatHistoryResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/history/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Chat history API request failed:', error);
+      throw error;
+    }
+  }
+}
+
 export const chatApi = new ChatApiService();
 export const searchApi = new SearchApiService();
 export const recommendationApi = new RecommendationApiService();
+export const chatHistoryApi = new ChatHistoryApiService();

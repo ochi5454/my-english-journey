@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain.chains import ConversationChain
 from langchain.prompts import PromptTemplate
 from langchain_core.memory import BaseMemory
-from langchain.vectorstores import VectorStore, FAISS
+from langchain_community.vectorstores import VectorStore, FAISS
 from langchain.memory import VectorStoreRetrieverMemory
 from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR
 from typing import List, Tuple, Dict, Union, Optional
@@ -840,7 +840,7 @@ def recommend_generate_items(keywords: List[str], history: List[str]) -> List[Di
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=700
+            max_tokens=4000
         )
         content = (response.choices[0].message.content or "").strip()
 
