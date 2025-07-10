@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "recommend": {
+      "description": "商品検索を行い、推薦結果を返す",
+      "endpoint": "/recommend",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "検索キーワード" },
+          "session_id": { "type": "string", "description": "ユーザーセッションID" }
+        },
+        "required": ["query", "session_id"]
+      }
+    },
+    "create_ticket": {
+      "description": "サポートチケットを作成する",
+      "endpoint": "/tickets/create",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "description": "チケットタイトル" },
+          "body": { "type": "string", "description": "詳細内容" }
+        },
+        "required": ["title", "body"]
+      }
+    },
+    "search_documents": {
+      "description": "技術文書を検索する",
+      "endpoint": "/search_documents",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "検索キーワード" },
+          "session_id": { "type": "string", "description": "ユーザーセッションID" }
+        },
+        "required": ["query"]
+      }
+    }
+  },
+  "hashtags": {
+    "#商品検索": "recommend",
+    "#商品": "#商品検索",
+    "#チケット作成": "create_ticket",
+    "#技術文書検索": "search_documents",
+    "#文書検索": "#技術文書検索",
+    "#文書": "#技術文書検索"
+  }
+}
