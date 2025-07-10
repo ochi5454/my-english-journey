@@ -499,13 +499,16 @@ def save_conversation_to_file(
         print(f"❌ Error saving conversation: {str(e)}")
         raise
 
+#### 2025.7.10 Mod（generate items）START
 # Search products based on keywords
 def search_items(keywords: List[str], db: List[Dict]) -> List[Dict]:
     results = []
     for item in db:
-        if any(kw.lower() in item["description"].lower() for kw in keywords):
+        match_count = sum(kw.lower() in item["description"].lower() for kw in keywords)
+        if match_count >= 2:  # 2語以上一致したらヒット
             results.append(item)
     return results
+#### 2025.7.10 Mod（generate items）END
 
 # 汎用的なデータベース検索関数
 def search_database(database: List[Dict], keywords: List[str], field: str) -> List[Dict]:
@@ -616,3 +619,68 @@ def save_search_history(user_id: str, query: str, results: List[Dict]):
     data.append(history)
     with open(history_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+#### 2025.7.10 Add（generate items）START
+# check item number
+def get_max_id_num(items: List[Dict]) -> int:
+    max_num = 0
+    for item in items:
+        try:
+            num = int(item["id"].replace("item", ""))
+            if num > max_num:
+                max_num = num
+        except Exception:
+            continue
+    return max_num
+
+# save generated items
+def assign_sequential_ids(items: List[Dict], start_num: int) -> List[Dict]:
+    for i, item in enumerate(items, start=start_num):
+        item["id"] = f"item{i:03d}"
+        # sourceがなければgeneratedをつける
+        item.setdefault("source", "generated")
+    return items
+
+# ChatGPTで商品を構造化（JSON）生成
+def recommend_generate_items(keywords: List[str], history: List[str]) -> List[Dict]:
+    history_text = "\n".join(f"- {h}" for h in history)
+    prompt = f"""
+次の条件に基づいて、最大3つの架空の商品をJSON形式で出力してください。
+
+🔁 ユーザーの過去履歴:
+{history_text}
+
+🔑 キーワード: {', '.join(keywords)}
+
+📦 出力フォーマット（必ずリスト形式で3件まで）:
+[
+  {{
+    "id": "item999",
+    "name": "商品名",
+    "category": "カテゴリ名",
+    "description": "商品説明（日本語で自然に）",
+    "source": "generated"
+  }},
+  ...
+]
+"""
+
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "構造化されたJSON形式の商品を生成するアシスタントです。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        content = response.choices[0].message.content.strip()
+
+        # JSONとしてパースして返す
+        items = json.loads(content)
+        return items if isinstance(items, list) else []
+    except Exception as e:
+        print(f"❌ 商品生成失敗: {e}")
+        return []
+#### 2025.7.10 Add（generate items）END
