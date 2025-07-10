@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import os
 import openai
 import json
+import re
 
 # 新しいベクトルストアを作成して保存する
 def create_new_vectorstore(path: str, embedding) -> FAISS:
@@ -505,7 +506,7 @@ def search_items(keywords: List[str], db: List[Dict]) -> List[Dict]:
     results = []
     for item in db:
         match_count = sum(kw.lower() in item["description"].lower() for kw in keywords)
-        if match_count >= 2:  # 2語以上一致したらヒット
+        if match_count >= 3:  # 3語以上一致したらヒット
             results.append(item)
     return results
 #### 2025.7.10 Mod（generate items）END
@@ -641,46 +642,62 @@ def assign_sequential_ids(items: List[Dict], start_num: int) -> List[Dict]:
         item.setdefault("source", "generated")
     return items
 
-# ChatGPTで商品を構造化（JSON）生成
+# ChatGPTで商品をweb検索させ、商品DBに保存できる形にする
 def recommend_generate_items(keywords: List[str], history: List[str]) -> List[Dict]:
+    urls = [
+        "https://www.amazon.co.jp",
+        "https://www.rakuten.co.jp",
+        "https://shopping.yahoo.co.jp"
+    ]
+    
     history_text = "\n".join(f"- {h}" for h in history)
+    
     prompt = f"""
-次の条件に基づいて、最大3つの架空の商品をJSON形式で出力してください。
+以下のウェブサイトの情報を参考にして、商品情報を最大3件、JSON形式で出力してください。
 
-🔁 ユーザーの過去履歴:
-{history_text}
+🔗 参考URL:
+- {urls[0]}
+- {urls[1]}
+- {urls[2]}
 
-🔑 キーワード: {', '.join(keywords)}
+必ずJSON形式のみで返してください。説明文や補足は不要です。
 
-📦 出力フォーマット（必ずリスト形式で3件まで）:
+出力フォーマット（1〜3件）:
 [
   {{
     "id": "item999",
     "name": "商品名",
     "category": "カテゴリ名",
     "description": "商品説明（日本語で自然に）",
-    "source": "generated"
+    "source": "generated",
+    "url": "参考にしたURL"
   }},
   ...
 ]
 """
-
     try:
         response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": "構造化されたJSON形式の商品を生成するアシスタントです。"},
+                {"role": "system", "content": "あなたは構造化された商品データを生成するアシスタントです。最新のWeb情報を元に提案してください。"},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=500
+            max_tokens=700
         )
         content = response.choices[0].message.content.strip()
 
-        # JSONとしてパースして返す
-        items = json.loads(content)
+        # JSON部分だけ抜き出し（角括弧で囲まれた配列形式を想定）
+        match = re.search(r"\[.*\]", content, re.DOTALL)
+        if not match:
+            print("❌ JSON形式のデータが見つかりません")
+            return []
+
+        json_str = match.group(0)
+        items = json.loads(json_str)
         return items if isinstance(items, list) else []
+
     except Exception as e:
-        print(f"❌ 商品生成失敗: {e}")
+        print(f"❌ Web商品生成失敗: {e}")
         return []
 #### 2025.7.10 Add（generate items）END
