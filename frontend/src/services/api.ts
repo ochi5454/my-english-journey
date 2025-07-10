@@ -15,6 +15,7 @@ const getApiBaseUrl = (): string => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+// Chat API
 interface ChatRequest {
   user_id: string;
   message?: string;
@@ -28,6 +29,27 @@ interface ChatResponse {
   summary?: string;
   topics?: string[];
   user_question_inferred?: string;
+}
+
+// Search API
+interface SearchRequest {
+  query: string;
+  user_id: string;
+}
+
+interface SearchResponse {
+  matching_documents: any[];
+  matching_products: any[];
+}
+
+// Recommendation API
+interface RecommendationRequest {
+  session_id: string;
+  query: string;
+}
+
+interface RecommendationResponse {
+  recommendations: any[];
 }
 
 class ChatApiService {
@@ -53,4 +75,52 @@ class ChatApiService {
   }
 }
 
+class SearchApiService {
+  async searchDocuments(data: SearchRequest): Promise<SearchResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/search_documents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Search API request failed:', error);
+      throw error;
+    }
+  }
+}
+
+class RecommendationApiService {
+  async getRecommendations(data: RecommendationRequest): Promise<RecommendationResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/recommend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Recommendation API request failed:', error);
+      throw error;
+    }
+  }
+}
+
 export const chatApi = new ChatApiService();
+export const searchApi = new SearchApiService();
+export const recommendationApi = new RecommendationApiService();

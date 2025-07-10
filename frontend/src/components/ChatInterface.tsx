@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import './ChatInterface.css';
+import { chatApi } from '../services/api'; // ← 変更
 
 interface ChatInterfaceProps {
   onUserIdChange: (userId: string) => void;
@@ -14,14 +16,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
   const [inputMessage, setInputMessage] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [userId, setUserId] = useState<string>(() => {
-    return localStorage.getItem('userId') || ''; // 初期値としてローカルストレージから取得
+    return localStorage.getItem('userId') || '';
   });
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(scrollToBottom, [messages]);
 
   const handleUserIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newUserId = e.target.value;
     setUserId(newUserId);
-    onUserIdChange(newUserId); // App.tsxの状態を更新
-    localStorage.setItem('userId', newUserId); // ローカルストレージに保存
+    onUserIdChange(newUserId);
+    localStorage.setItem('userId', newUserId);
   };
 
   const sendMessage = async () => {
@@ -36,23 +45,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      // API呼び出し
-      const response = await fetch(`http://localhost:8000/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          message: inputMessage,
-        }),
+      // ← ここを変更
+      const data = await chatApi.sendMessage({
+        user_id: userId,
+        message: inputMessage,
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
 
       const assistantMessage: Message = {
         sender: 'assistant',
@@ -76,6 +73,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
     }
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
   return (
     <div className="chat-interface">
       <div className="chat-header">
@@ -83,30 +87,43 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onUserIdChange }) => {
         <div className="user-id-input">
           <input
             type="text"
-            placeholder="ユーザーID (空白で自動生成)"
+            placeholder="ユーザーID"
             value={userId}
             onChange={handleUserIdChange}
           />
         </div>
       </div>
+      
       <div className="messages-container">
         {messages.map((message, index) => (
-          <div
-            key={index}
-            className={`message ${message.sender === 'user' ? 'user-message' : 'assistant-message'}`}
-          >
-            <p>{message.content}</p>
-            <span className="timestamp">{message.timestamp}</span>
+          <div key={index} className={`message ${message.sender}-message`}>
+            <div className={`message-avatar ${message.sender}-avatar`}>
+              {message.sender === 'user' ? 'U' : 'AI'}
+            </div>
+            <div className="message-content">
+              <div className="message-bubble">
+                {message.content}
+              </div>
+              <div className="timestamp">
+                {message.timestamp}
+              </div>
+            </div>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </div>
+      
       <div className="input-container">
         <textarea
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
+          onKeyPress={handleKeyPress}
           placeholder="メッセージを入力してください..."
+          rows={1}
         />
-        <button onClick={sendMessage}>送信</button>
+        <button onClick={sendMessage} disabled={!inputMessage.trim()}>
+          送信
+        </button>
       </div>
     </div>
   );
