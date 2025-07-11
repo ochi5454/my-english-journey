@@ -29,14 +29,14 @@ const App: React.FC = () => {
       <div className="app">
         <nav className="navbar">
           <div className="nav-brand">
-            <h1>Memory Persistence Chat</h1>
+            <h1>RAG Testing Chat</h1>
           </div>
           <div className="nav-links">
             <Link to="/">チャット</Link>
+            <Link to="/history">チャット履歴</Link>
             <Link to="/recommend">商品推薦</Link>
             <Link to="/search">文書検索</Link>
             <Link to="/hashtag">ハッシュタグ処理</Link>
-            <Link to="/history">履歴</Link>
           </div>
           <div className="user-info">
             <span>User ID: {userId || '未設定'}</span>
