@@ -25,6 +25,7 @@ from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 from hashtag_trigger import ACTION_MAP, RequestBody
 from hashtag_config import load_hashtag_map
 
+
 hashtag_map = {}
 
 from contextlib import asynccontextmanager
@@ -112,60 +113,53 @@ async def assign_user_id(request: Request, call_next):
     try:
         user_id = None
 
-        # 1. ヘッダーからユーザーIDを取得
-        user_id = request.headers.get("X-User-ID")
-        if user_id and user_id.strip():
-            print(f"✅ ヘッダーから取得したユーザーID: {user_id}")
-        else:
-            print("❌ ヘッダーにユーザーIDがありません")
-
-        # 2. GETリクエストの場合、URLパスからユーザーIDを取得
-        if request.method == "GET" and not user_id:
+        if request.method == "GET":
             path = request.url.path
             match = re.search(r"/history/([a-zA-Z0-9_]+)", path)
             if match:
                 user_id = match.group(1)
-                print(f"✅ URLパスから取得したユーザーID: {user_id}")
             else:
-                print("❌ URLパスにユーザーIDがありません")
+                user_id = request.headers.get("X-User-ID")
+            print(f"Check1: {user_id}")
 
-        # 3. POSTリクエストの場合、リクエストボディからユーザーIDを取得
-        if request.method == "POST" and not user_id:
-            body_bytes = await request.body()
+        else:
+            user_id = request.headers.get("X-User-ID")
+            print(f"Check2: {user_id}")
 
-            # ボディをキャッシュ
-            async def receive():
-                return {"type": "http.request", "body": body_bytes}
+            if not user_id or user_id.strip() == "":
+                body_bytes = await request.body()
 
-            request._receive = receive
+                # ★重要：body をキャッシュ
+                async def receive():
+                    return {"type": "http.request", "body": body_bytes}
 
-            if body_bytes:
-                try:
-                    body = json.loads(body_bytes.decode("utf-8"))
-                    user_id = body.get("user_id") or body.get("session_id")
-                    print(f"✅ リクエストボディから取得したユーザーID: {user_id}")
-                except Exception as e:
-                    print(f"❌ リクエストボディの解析エラー: {str(e)}")
-            else:
-                print("❌ リクエストボディが空です")
+                request._receive = receive
 
-        # 4. ユーザーIDが取得できない場合、デフォルトのIDを生成
+                if body_bytes:
+                    try:
+                        body = json.loads(body_bytes.decode("utf-8"))
+                        user_id = body.get("user_id") or body.get("session_id") #### 2025.7.8 Mod (recommend db)
+                        print(f"Check3: {user_id}")
+                    except Exception as e:
+                        print(f"Error parsing body: {str(e)}")
+                        user_id = None
+                else:
+                    print("Body is empty")
+                    user_id = None
+
         if not user_id:
             user_id = get_next_interquest_id()
-            print(f"✅ 自動生成したユーザーID: {user_id}")
+            print(f"Generated user_id: {user_id}")
         else:
-            print(f"✅ 使用するユーザーID: {user_id}")
+            print(f"Using provided user_id: {user_id}")
 
-        # ユーザーIDをリクエストの状態に設定
         request.state.user_id = user_id
-
-        # レスポンスにユーザーIDを含める
         response = await call_next(request)
         response.headers["X-User-ID"] = user_id
         return response
 
     except Exception as e:
-        print(f"❌ assign_user_id ミドルウェアのエラー: {str(e)}")
+        print(f"Error in assign_user_id middleware: {str(e)}")
         return JSONResponse(
             content={"error": "Failed to process user ID"},
             status_code=500
@@ -415,15 +409,6 @@ async def recommend(req: ProductQuery, request: Request):
         query_text = req.query
         print(f"✅ query_text: {query_text}")
 
-        # if "#商品検索" not in query_text:
-        #     print("✅ not 商品検索")
-        #     return {
-        #         "user_id": request.state.user_id,
-        #         "message": req.query,
-        #         "keywords": [],
-        #         "recommendations": "このリクエストは商品検索ではないため、おすすめ情報の提供は行っていません。"
-        #     }
-
         # 1. 商品検索タグの除去
         query_text = query_text.replace("#商品検索", "", 1).strip()
 
@@ -503,9 +488,35 @@ async def recommend(req: ProductQuery, request: Request):
                 #### 2025.7.10 Mod（generate items）END
 
         # 11. ChatGPTでおすすめ生成
+        #### 2025.7.10 Mod（generate items）START
+        # 10. もしヒットしなければ、商品をweb検索し自動生成
+        if len(search_results) == 0:
+            print("🔎 検索結果なし → ChatGPTで商品生成")
+            new_items = recommend_generate_items(keywords, related_history)
+
+            if new_items:
+                max_id = get_max_id_num(db) + 1  # 次の番号スタートを計算
+                new_items = assign_sequential_ids(new_items, max_id)
+
+                db.extend(new_items)
+                try:
+                    with open("products.json", "w", encoding="utf-8") as f:
+                        json.dump(db, f, ensure_ascii=False, indent=2)
+                    print("💾 新商品をDBに保存しました")
+                except Exception as e:
+                    print(f"❌ DB保存エラー: {e}")
+                    raise HTTPException(status_code=500, detail="商品データ保存エラー")
+
+                search_results = new_items
+                print(f"✅ 生成した商品: {search_results}")
+                #### 2025.7.10 Mod（generate items）END
+
+        # 11. ChatGPTでおすすめ生成
         recommendations = recommend_items_with_llm(keywords, search_results, related_history)
         print(f"✅ 生成した提案: {recommendations}")
+        print(f"✅ 生成した提案: {recommendations}")
 
+        # 12. 返却予定の会話内容を先に保存
         # 12. 返却予定の会話内容を先に保存
         ## 🔄 要約生成
         summary = generate_summary(req.query, recommendations, query_text)
@@ -527,7 +538,7 @@ async def recommend(req: ProductQuery, request: Request):
         except Exception as e:
             print(f"💾 ベクトルストア保存エラー: {e}")
         
-        # 12. 結果を返却
+        # 13. 結果を返却
         return {
             "user_id": request.state.user_id,
             "message": req.query,

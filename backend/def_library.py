@@ -15,6 +15,7 @@ import os
 import openai
 import json
 import re
+import re
 
 # 新しいベクトルストアを作成して保存する
 def create_new_vectorstore(path: str, embedding) -> FAISS:
@@ -497,13 +498,16 @@ def save_conversation_to_file(
         print(f"❌ Error saving conversation: {str(e)}")
         raise
 
+#### 2025.7.10 Mod（generate items）START
 # Search products based on keywords
 def search_items(keywords: List[str], db: List[Dict]) -> List[Dict]:
     results = []
     for item in db:
-        if any(kw.lower() in item["description"].lower() for kw in keywords):
+        match_count = sum(kw.lower() in item["description"].lower() for kw in keywords)
+        if match_count >= 3:  # 3語以上一致したらヒット
             results.append(item)
     return results
+#### 2025.7.10 Mod（generate items）END
 
 # 汎用的なデータベース検索関数
 def search_database(database: List[Dict], keywords: List[str], field: str) -> List[Dict]:
