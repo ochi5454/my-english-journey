@@ -862,3 +862,32 @@ def recommend_generate_items(keywords: List[str], history: List[str]) -> List[Di
         print(f"❌ Web商品生成失敗: {e}")
         return []
 #### 2025.7.10 Add（generate items）END
+
+#### 2025.7.11 Mod（remove identify info）START
+EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
+PHONE_REGEX = re.compile(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?[\d.\s-]{5,15}')
+
+def mask_personal_info(text: str) -> str:
+    # メールアドレスと電話番号をマスク（例：＜メールアドレス削除＞）
+    text = EMAIL_REGEX.sub('＜メールアドレス削除＞', text)
+    text = PHONE_REGEX.sub('＜電話番号削除＞', text)
+
+    tokenizer = Tokenizer()
+    tokens = tokenizer.tokenize(text)
+    masked_words = []
+
+    for token in tokens:
+        if not isinstance(token, Token):
+            continue
+
+        pos_parts = token.part_of_speech.split(',')
+
+        # 固有名詞の人名・組織名はマスク
+        if pos_parts[0] == "名詞" and len(pos_parts) > 2 and pos_parts[1] == "固有名詞" and pos_parts[2] in ["人名", "組織"]:
+            masked_words.append('＜個人情報削除＞')
+        else:
+            masked_words.append(token.surface)
+
+    # 形態素単位で再構成（簡易的に連結）
+    return ''.join(masked_words)
+#### 2025.7.11 Mod（remove identify info）END
