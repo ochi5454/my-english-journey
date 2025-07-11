@@ -189,7 +189,11 @@ def generate_related_keywords_llm(keywords: List[str]) -> List[str]:
             return []
         
     except Exception as e:
-        print(f"関連キーワード生成エラー: {str(e)}")
+        status_code = getattr(e, "status_code", None)
+        if status_code == 401:
+            print("❌ LLM認証エラー: LLM APIキーが無効です。オフラインモードで実行します。")
+        else:
+            print(f"関連キーワード生成エラー: {str(e)}")
         return []
     
 # ユーザー入力・AI応答・推測質問から会話の要点を要約する
@@ -510,29 +514,34 @@ def search_items(keywords: List[str], db: List[Dict]) -> List[Dict]:
 #### 2025.7.10 Mod（generate items）END
 
 # 汎用的なデータベース検索関数
-def search_database(database: List[Dict], keywords: List[str], field: str) -> List[Dict]:
+def search_database(database: List[Dict], keywords: List[str], fields: Union[str, List[str]]) -> List[Dict]:
     """
-    汎用的なデータベース検索関数（型安全性を向上）
+    汎用的なデータベース検索関数（複数フィールド対応）
+    fields: 検索対象フィールド名（strまたはList[str]）
+    DB上に存在しないフィールドは無視する
     """
+    if isinstance(fields, str):
+        fields = [fields]
+    # DBに存在するフィールドのみ抽出
+    if database and isinstance(database, list):
+        valid_fields = set()
+        for entry in database:
+            valid_fields.update(entry.keys())
+        fields = [f for f in fields if f in valid_fields]
     results = []
     for entry in database:
-        field_value = entry.get(field, "")
-        
-        # フィールド値が文字列でない場合の処理
-        if isinstance(field_value, list):
-            # リストの場合、各要素を文字列として結合
-            search_text = " ".join(str(item) for item in field_value).lower()
-        elif isinstance(field_value, str):
-            # 文字列の場合、そのまま使用
-            search_text = field_value.lower()
-        else:
-            # その他の型の場合、文字列に変換
-            search_text = str(field_value).lower() if field_value else ""
-        
-        # キーワード検索を実行
-        if any(kw.lower() in search_text for kw in keywords):
+        search_texts = []
+        for field in fields:
+            field_value = entry.get(field, "")
+            if isinstance(field_value, list):
+                search_texts.append(" ".join(str(item) for item in field_value).lower())
+            elif isinstance(field_value, str):
+                search_texts.append(field_value.lower())
+            else:
+                search_texts.append(str(field_value).lower() if field_value else "")
+        combined_text = " ".join(search_texts)
+        if any(kw.lower() in combined_text for kw in keywords):
             results.append(entry)
-    
     return results
 
 def rank_results(results: List[Dict], keywords: List[str]) -> List[Dict]:
@@ -863,7 +872,22 @@ def recommend_generate_items(keywords: List[str], history: List[str]) -> List[Di
         return []
 #### 2025.7.10 Add（generate items）END
 
-#### 2025.7.11 Mod（remove identify info）START
+#### 2025.7.11 Add（一般性の高いキーワードの除外）START
+# 排除キーワードのロード関数
+def load_ignore_keywords(filepath):
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"ignorekeyword.jsonの読み込みエラー: {e}")
+        return []
+
+# 排除キーワードでフィルタリングする関数
+def filter_keywords(keywords, ignore_keywords):
+    return [kw for kw in keywords if kw not in ignore_keywords]
+#### 2025.7.11 Add（一般性の高いキーワードの除外）END
+
+#### 2025.7.11 Add（remove identify info）START
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
 PHONE_REGEX = re.compile(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?[\d.\s-]{5,15}')
 
@@ -890,4 +914,4 @@ def mask_personal_info(text: str) -> str:
 
     # 形態素単位で再構成（簡易的に連結）
     return ''.join(masked_words)
-#### 2025.7.11 Mod（remove identify info）END
+#### 2025.7.11 Add（remove identify info）END

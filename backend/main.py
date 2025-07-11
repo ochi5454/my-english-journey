@@ -25,7 +25,6 @@ from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 from hashtag_trigger import ACTION_MAP, RequestBody
 from hashtag_config import load_hashtag_map
 
-
 hashtag_map = {}
 
 from contextlib import asynccontextmanager
@@ -602,7 +601,7 @@ async def process(req: RequestBody, request: Request):
     return {"user_id": user_id, "original": req.text, "results": results}
 # 2025.7.9 Add（hashtag trigger）END
 
-# 2025.7.9 Add（search documents）START
+# 2025.7.11 Add（search documents Enhanced）START
 @app.post("/search_documents", summary="Search technical documents and products based on user keywords")
 async def search_documents(req: ProductQuery, request: Request):
     print("✅ Start of /search_documents")
@@ -615,10 +614,20 @@ async def search_documents(req: ProductQuery, request: Request):
         keywords = extract_keywords(query_text)
         print(f"🎯 抽出キーワード: {keywords}")
 
+        # 一般性の高いキーワードを除外
+        from def_library import load_ignore_keywords, filter_keywords
+        ignore_path = os.path.join(DATA_DIR, "ignorekeyword.json")
+        ignore_keywords = load_ignore_keywords(ignore_path)
+        keywords = filter_keywords(keywords, ignore_keywords)
+        print(f"🚫 排除後キーワード: {keywords}")
+
         # 2. 拡張キーワード生成
         try:
             raw_related = generate_related_keywords_llm(keywords)
             related_keywords = clean_related_keywords(raw_related)
+            # 🔄 keywordsをrelated_keywordsに追加（重複除去）
+            if isinstance(related_keywords, list):
+                related_keywords = list(set(related_keywords + keywords))
             print(f"🧠 拡張キーワード: {related_keywords}")
         except Exception as e:
             print(f"拡張キーワード生成に失敗: {str(e)}")
@@ -631,15 +640,15 @@ async def search_documents(req: ProductQuery, request: Request):
             print(f"技術文書データベースの読み込みエラー: {e}")
             tech_db = []
 
-        print(f"✅ Loaded {len(tech_db)} technical documents")
+        print(f"✅ 技術文書データベース {len(tech_db)} 件を読み込みました。")
 
         # 4. 技術文書データベース検索（拡張キーワードで検索）
-        tech_search_results = search_database(tech_db, related_keywords, "description")
-        print(f"✅ Found {len(tech_search_results)} matching technical documents")
+        tech_search_results = search_database(tech_db, related_keywords, ["name", "description", "keywords"])
+        print(f"✅ {len(tech_search_results)} 件の文書を見つけました。")
 
         # 5. 類似キーワードを持つ技術文書を検索
-        similar_tech_documents = search_database(tech_db, related_keywords, "keywords")
-        print(f"✅ Found {len(similar_tech_documents)} similar technical documents")
+        similar_tech_documents = search_database(tech_db, related_keywords, ["name", "description", "keywords"])
+        print(f"✅ {len(similar_tech_documents)} 件の類似文書を見つけました。")
 
         # 6. 商品データベースを読み込む（技術文書が見つかった場合でも検索する）
         try:
@@ -648,15 +657,15 @@ async def search_documents(req: ProductQuery, request: Request):
             print(f"商品データベースの読み込みエラー: {e}")
             product_db = []
 
-        print(f"✅ Loaded {len(product_db)} products")
+        print(f"✅ 商品データベース {len(product_db)} 件を読み込みました。")
 
         # 商品データベース検索（拡張キーワードで検索）
         product_search_results = search_database(product_db, related_keywords, "description")
-        print(f"✅ Found {len(product_search_results)} matching products")
+        print(f"✅ {len(product_search_results)} 件の商品を見つけました。")
 
         # 類似キーワードを持つ商品を検索
         similar_products = search_database(product_db, keywords, "description")
-        print(f"✅ Found {len(similar_products)} similar products")
+        print(f"✅ {len(similar_products)} 件の類似商品を見つけました。")
 
         # 🔄 フィルタリング処理を追加
         from def_library import filter_results
@@ -717,7 +726,7 @@ async def export_results(req: ProductQuery, request: Request):
     elif export_format == "json":
         # JSON形式でエクスポート
         return JSONResponse(content=results)
-# 2025.7.9 Add（search documents）END
+# 2025.7.11 Add（search documents Enhanced）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
 from openai_config import create_custom_openapi
