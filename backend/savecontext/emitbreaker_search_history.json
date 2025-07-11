@@ -403,5 +403,2222 @@
       }
     ],
     "timestamp": "2025-07-10T11:29:56.412595+00:00"
+  },
+  {
+    "query": "機械学習",
+    "results": [],
+    "timestamp": "2025-07-11T01:02:02.872556+00:00"
+  },
+  {
+    "query": "機械学習",
+    "results": [],
+    "timestamp": "2025-07-11T01:04:04.973279+00:00"
+  },
+  {
+    "query": "AI",
+    "results": [],
+    "timestamp": "2025-07-11T01:15:47.975716+00:00"
+  },
+  {
+    "query": "AI",
+    "results": [
+      {
+        "name": "技術文書B",
+        "description": "この文書は機械学習の基礎について解説しています。",
+        "keywords": [
+          "機械学習",
+          "基礎",
+          "解説"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "技術文書B",
+        "description": "この文書は機械学習の基礎について解説しています。",
+        "keywords": [
+          "機械学習",
+          "基礎",
+          "解説"
+        ],
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:16:22.633430+00:00"
+  },
+  {
+    "query": "AI",
+    "results": [
+      {
+        "name": "技術文書A",
+        "description": "この文書はAI技術について詳しく説明しています。",
+        "keywords": [
+          "AI",
+          "技術",
+          "説明"
+        ],
+        "score": 0.6931471805599453
+      },
+      {
+        "name": "技術文書B",
+        "description": "この文書は機械学習の基礎について解説しています。",
+        "keywords": [
+          "機械学習",
+          "基礎",
+          "解説"
+        ],
+        "score": 0.6931471805599453
+      },
+      {
+        "name": "技術文書A",
+        "description": "この文書はAI技術について詳しく説明しています。",
+        "keywords": [
+          "AI",
+          "技術",
+          "説明"
+        ],
+        "score": 0.6931471805599453
+      },
+      {
+        "name": "技術文書B",
+        "description": "この文書は機械学習の基礎について解説しています。",
+        "keywords": [
+          "機械学習",
+          "基礎",
+          "解説"
+        ],
+        "score": 0.6931471805599453
+      }
+    ],
+    "timestamp": "2025-07-11T01:19:44.315945+00:00"
+  },
+  {
+    "query": "BOM",
+    "results": [
+      {
+        "name": "BOM A",
+        "description": "これはXXプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "XXプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM B",
+        "description": "これはYYプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "YYプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM C",
+        "description": "これはZZプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "ZZプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM A",
+        "description": "これはXXプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "XXプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM B",
+        "description": "これはYYプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "YYプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM C",
+        "description": "これはZZプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "ZZプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:19:55.286332+00:00"
+  },
+  {
+    "query": "AI関連の文書って何かある？",
+    "results": [
+      {
+        "name": "技術文書A",
+        "description": "この文書はAI技術について詳しく説明しています。",
+        "keywords": [
+          "AI",
+          "技術",
+          "説明"
+        ],
+        "score": 1.3862943611198906
+      },
+      {
+        "name": "技術文書C",
+        "description": "この文書はデータサイエンスの応用について述べています。",
+        "keywords": [
+          "データサイエンス",
+          "応用",
+          "述べる"
+        ],
+        "score": 0.6931471805599453
+      },
+      {
+        "name": "技術文書B",
+        "description": "この文書は機械学習の基礎について解説しています。",
+        "keywords": [
+          "機械学習",
+          "基礎",
+          "解説"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "技術文書A",
+        "description": "この文書はAI技術について詳しく説明しています。",
+        "keywords": [
+          "AI",
+          "技術",
+          "説明"
+        ],
+        "score": 1.3862943611198906
+      },
+      {
+        "name": "技術文書C",
+        "description": "この文書はデータサイエンスの応用について述べています。",
+        "keywords": [
+          "データサイエンス",
+          "応用",
+          "述べる"
+        ],
+        "score": 0.6931471805599453
+      },
+      {
+        "id": "item062",
+        "name": "USBメモリ（64GB）",
+        "category": "ガジェット",
+        "description": "高速データ転送対応。小型で持ち運びに便利。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:20:17.340722+00:00"
+  },
+  {
+    "query": "夏関連の文書は？",
+    "results": [
+      {
+        "name": "技術文書A",
+        "description": "この文書はAI技術について詳しく説明しています。",
+        "keywords": [
+          "AI",
+          "技術",
+          "説明"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "技術文書B",
+        "description": "この文書は機械学習の基礎について解説しています。",
+        "keywords": [
+          "機械学習",
+          "基礎",
+          "解説"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "技術文書C",
+        "description": "この文書はデータサイエンスの応用について述べています。",
+        "keywords": [
+          "データサイエンス",
+          "応用",
+          "述べる"
+        ],
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:26:36.884087+00:00"
+  },
+  {
+    "query": "夏関連の文書は？",
+    "results": [
+      {
+        "name": "技術文書A",
+        "description": "この文書はAI技術について詳しく説明しています。",
+        "keywords": [
+          "AI",
+          "技術",
+          "説明"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "技術文書B",
+        "description": "この文書は機械学習の基礎について解説しています。",
+        "keywords": [
+          "機械学習",
+          "基礎",
+          "解説"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "技術文書C",
+        "description": "この文書はデータサイエンスの応用について述べています。",
+        "keywords": [
+          "データサイエンス",
+          "応用",
+          "述べる"
+        ],
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:32:55.176297+00:00"
+  },
+  {
+    "query": "夏関連の文書は？",
+    "results": [
+      {
+        "name": "技術文書A",
+        "description": "この文書はAI技術について詳しく説明しています。",
+        "keywords": [
+          "AI",
+          "技術",
+          "説明"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "技術文書B",
+        "description": "この文書は機械学習の基礎について解説しています。",
+        "keywords": [
+          "機械学習",
+          "基礎",
+          "解説"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "技術文書C",
+        "description": "この文書はデータサイエンスの応用について述べています。",
+        "keywords": [
+          "データサイエンス",
+          "応用",
+          "述べる"
+        ],
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item081",
+        "name": "手巻き寿司セット（4人前）",
+        "category": "食品",
+        "description": "海苔・酢飯の素・具材入りの便利なセット。家族やパーティーに。",
+        "source": "original",
+        "url": "",
+        "score": 2.4849066497880004
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:34:50.256944+00:00"
+  },
+  {
+    "query": "夏関連の文書は？",
+    "results": [
+      {
+        "id": "item004",
+        "name": "防水スピーカー",
+        "category": "ガジェット",
+        "description": "Bluetooth接続で屋外でも音楽を楽しめる防水スピーカー。キャンプやビーチに最適。",
+        "source": "original",
+        "url": "",
+        "score": 2.9755295662364714
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item042",
+        "name": "キャンプ用コンパクト焚き火台",
+        "category": "アウトドア",
+        "description": "折りたたみ式の軽量焚き火台。秋キャンプにおすすめ。",
+        "source": "original",
+        "url": "",
+        "score": 1.0296194171811581
+      },
+      {
+        "id": "item092",
+        "name": "折りたたみキャリーワゴン",
+        "category": "アウトドア",
+        "description": "キャンプや買い物に便利な大容量タイプ。",
+        "source": "original",
+        "url": "",
+        "score": 1.0296194171811581
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:35:16.498309+00:00"
+  },
+  {
+    "query": "夏関連の文書は？",
+    "results": [
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:37:41.956864+00:00"
+  },
+  {
+    "query": "BOM",
+    "results": [
+      {
+        "name": "BOM A",
+        "description": "これはXXプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "XXプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM B",
+        "description": "これはYYプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "YYプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM C",
+        "description": "これはZZプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "ZZプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "基礎工事BOM A",
+        "description": "建築物の基礎工事に必要な資材と数量をまとめたBOMドキュメント。",
+        "keywords": [
+          "資材コード",
+          "数量",
+          "単位",
+          "調達先"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "型枠工事BOM C",
+        "description": "型枠設計に基づく部材と部品の仕様を示したBOMリスト。",
+        "keywords": [
+          "規格",
+          "数量",
+          "発注ロット",
+          "施工手順"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "外装仕上げBOM E",
+        "description": "外壁仕上げ材の種類と数量をまとめたBOM。",
+        "keywords": [
+          "部材名",
+          "数量",
+          "納期",
+          "コスト"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "内装仕上げBOM F",
+        "description": "内装パネルや床材などの部材一覧を示すBOMドキュメント。",
+        "keywords": [
+          "仕上げ種別",
+          "数量",
+          "調達先",
+          "工程管理"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "空調機器BOM J",
+        "description": "空調システムに必要な機器と部品をまとめたBOMドキュメント。",
+        "keywords": [
+          "機器型番",
+          "数量",
+          "重量",
+          "施工手順"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "サッシ取付BOM L",
+        "description": "窓サッシ取付に必要なフレームと付属部品を示すBOM。",
+        "keywords": [
+          "サッシ型式",
+          "数量",
+          "材質",
+          "検査基準"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "足場設置BOM P",
+        "description": "工事用足場の部材と部品をまとめたBOMドキュメント。",
+        "keywords": [
+          "足場部品",
+          "数量",
+          "最大荷重",
+          "組立手順"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM A",
+        "description": "これはXXプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "XXプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM B",
+        "description": "これはYYプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "YYプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      },
+      {
+        "name": "BOM C",
+        "description": "これはZZプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "ZZプロジェクト",
+          "設計"
+        ],
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:45:14.542365+00:00"
+  },
+  {
+    "query": "夏の風物詩",
+    "results": [
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item001",
+        "name": "超軽量・遮熱クーラーバッグ",
+        "category": "アウトドア",
+        "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item011",
+        "name": "速乾冷感タオル",
+        "category": "日用品",
+        "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item012",
+        "name": "ポータブル扇風機（USB）",
+        "category": "ガジェット",
+        "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item013",
+        "name": "遮光・遮熱カーテン",
+        "category": "インテリア",
+        "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item014",
+        "name": "かき氷機（手動）",
+        "category": "家電",
+        "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item015",
+        "name": "虫よけ蚊帳テント",
+        "category": "アウトドア",
+        "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item029",
+        "name": "ビーチサンダル（夏限定カラー）",
+        "category": "ファッション",
+        "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item030",
+        "name": "カブトムシ観察キット",
+        "category": "キッズ・学習",
+        "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item034",
+        "name": "携帯用日傘（UV99%カット）",
+        "category": "ファッション",
+        "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item035",
+        "name": "夏の冷やし茶漬けセット",
+        "category": "食品",
+        "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      },
+      {
+        "id": "item038",
+        "name": "ひまわりの造花リース",
+        "category": "インテリア",
+        "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
+        "source": "original",
+        "url": "",
+        "score": 0.0
+      }
+    ],
+    "timestamp": "2025-07-11T01:49:55.916766+00:00"
+  },
+  {
+    "query": "BOM",
+    "results": [
+      {
+        "name": "BOM A",
+        "description": "これはXXプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "XXプロジェクト",
+          "設計"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "BOM B",
+        "description": "これはYYプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "YYプロジェクト",
+          "設計"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "BOM C",
+        "description": "これはZZプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "ZZプロジェクト",
+          "設計"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "基礎工事BOM A",
+        "description": "建築物の基礎工事に必要な資材と数量をまとめたBOMドキュメント。",
+        "keywords": [
+          "資材コード",
+          "数量",
+          "単位",
+          "調達先"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "型枠工事BOM C",
+        "description": "型枠設計に基づく部材と部品の仕様を示したBOMリスト。",
+        "keywords": [
+          "規格",
+          "数量",
+          "発注ロット",
+          "施工手順"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "外装仕上げBOM E",
+        "description": "外壁仕上げ材の種類と数量をまとめたBOM。",
+        "keywords": [
+          "部材名",
+          "数量",
+          "納期",
+          "コスト"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "内装仕上げBOM F",
+        "description": "内装パネルや床材などの部材一覧を示すBOMドキュメント。",
+        "keywords": [
+          "仕上げ種別",
+          "数量",
+          "調達先",
+          "工程管理"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "空調機器BOM J",
+        "description": "空調システムに必要な機器と部品をまとめたBOMドキュメント。",
+        "keywords": [
+          "機器型番",
+          "数量",
+          "重量",
+          "施工手順"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "サッシ取付BOM L",
+        "description": "窓サッシ取付に必要なフレームと付属部品を示すBOM。",
+        "keywords": [
+          "サッシ型式",
+          "数量",
+          "材質",
+          "検査基準"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "足場設置BOM P",
+        "description": "工事用足場の部材と部品をまとめたBOMドキュメント。",
+        "keywords": [
+          "足場部品",
+          "数量",
+          "最大荷重",
+          "組立手順"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "鉄筋配置BOM B",
+        "description": "鉄筋組立に必要な鉄筋材の型式・寸法・数量を一覧化したドキュメント。",
+        "keywords": [
+          "寸法",
+          "材質",
+          "重量",
+          "品質管理"
+        ],
+        "score": 0
+      },
+      {
+        "name": "コンクリート配合BOM D",
+        "description": "コンクリート配合比率と必要材料を詳細に記載したドキュメント。",
+        "keywords": [
+          "配合割合",
+          "強度",
+          "単位",
+          "品質管理"
+        ],
+        "score": 0
+      },
+      {
+        "name": "配管設備BOM G",
+        "description": "給排水配管に使用する管材と継手の仕様一覧。",
+        "keywords": [
+          "配管径",
+          "数量",
+          "材質",
+          "安全係数"
+        ],
+        "score": 0
+      },
+      {
+        "name": "電気配線BOM H",
+        "description": "電気配線工事で必要なケーブルと器具をまとめたリスト。",
+        "keywords": [
+          "線径",
+          "数量",
+          "材料区分",
+          "納期"
+        ],
+        "score": 0
+      },
+      {
+        "name": "給排水設備BOM I",
+        "description": "給排水設備の部品と接続部材を一覧化したドキュメント。",
+        "keywords": [
+          "パイプ種別",
+          "数量",
+          "単位",
+          "設計図参照"
+        ],
+        "score": 0
+      },
+      {
+        "name": "屋根防水BOM K",
+        "description": "屋根防水工事で使用する防水材と補修部品のリスト。",
+        "keywords": [
+          "防水層",
+          "面積",
+          "材質",
+          "耐久年数"
+        ],
+        "score": 0
+      },
+      {
+        "name": "塗装仕上げBOM M",
+        "description": "外装・内装塗装で使用する塗料と付帯資材をまとめたドキュメント。",
+        "keywords": [
+          "塗料種別",
+          "缶数",
+          "色番号",
+          "作業工程"
+        ],
+        "score": 0
+      },
+      {
+        "name": "断熱材BOM N",
+        "description": "建物の断熱工事に使用する断熱材の種類と数量を一覧化。",
+        "keywords": [
+          "断熱材厚",
+          "数量",
+          "熱伝導率",
+          "施工手順"
+        ],
+        "score": 0
+      },
+      {
+        "name": "鋼構造部材BOM O",
+        "description": "鋼構造建築に必要なビーム・カラムの資材一覧。",
+        "keywords": [
+          "ビーム寸法",
+          "数量",
+          "材質",
+          "耐荷重"
+        ],
+        "score": 0
+      },
+      {
+        "name": "外構工事BOM Q",
+        "description": "フェンス・門扉など外構部材の一覧を示すドキュメント。",
+        "keywords": [
+          "舗装材",
+          "数量",
+          "単位",
+          "路面仕様"
+        ],
+        "score": 0
+      },
+      {
+        "name": "タイル工事BOM R",
+        "description": "床・壁タイル施工に必要なタイルと接着剤のリスト。",
+        "keywords": [
+          "タイル種別",
+          "枚数",
+          "寸法",
+          "接着剤"
+        ],
+        "score": 0
+      },
+      {
+        "name": "ガラスカーテンウォールBOM S",
+        "description": "カーテンウォール用ガラスとフレーム部材をまとめたドキュメント。",
+        "keywords": [
+          "ガラス寸法",
+          "数量",
+          "型板情報",
+          "安全係数"
+        ],
+        "score": 0
+      },
+      {
+        "name": "防火設備BOM T",
+        "description": "防火シャッターや防火扉など防火設備の部材一覧。",
+        "keywords": [
+          "装置名称",
+          "数量",
+          "規格",
+          "防火性能"
+        ],
+        "score": 0
+      },
+      {
+        "name": "BOM A",
+        "description": "これはXXプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "XXプロジェクト",
+          "設計"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "BOM B",
+        "description": "これはYYプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "YYプロジェクト",
+          "設計"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "BOM C",
+        "description": "これはZZプロジェクトのBOMです。",
+        "keywords": [
+          "BOM",
+          "ZZプロジェクト",
+          "設計"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "基礎工事BOM A",
+        "description": "建築物の基礎工事に必要な資材と数量をまとめたBOMドキュメント。",
+        "keywords": [
+          "資材コード",
+          "数量",
+          "単位",
+          "調達先"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "型枠工事BOM C",
+        "description": "型枠設計に基づく部材と部品の仕様を示したBOMリスト。",
+        "keywords": [
+          "規格",
+          "数量",
+          "発注ロット",
+          "施工手順"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "外装仕上げBOM E",
+        "description": "外壁仕上げ材の種類と数量をまとめたBOM。",
+        "keywords": [
+          "部材名",
+          "数量",
+          "納期",
+          "コスト"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "内装仕上げBOM F",
+        "description": "内装パネルや床材などの部材一覧を示すBOMドキュメント。",
+        "keywords": [
+          "仕上げ種別",
+          "数量",
+          "調達先",
+          "工程管理"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "空調機器BOM J",
+        "description": "空調システムに必要な機器と部品をまとめたBOMドキュメント。",
+        "keywords": [
+          "機器型番",
+          "数量",
+          "重量",
+          "施工手順"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "サッシ取付BOM L",
+        "description": "窓サッシ取付に必要なフレームと付属部品を示すBOM。",
+        "keywords": [
+          "サッシ型式",
+          "数量",
+          "材質",
+          "検査基準"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "足場設置BOM P",
+        "description": "工事用足場の部材と部品をまとめたBOMドキュメント。",
+        "keywords": [
+          "足場部品",
+          "数量",
+          "最大荷重",
+          "組立手順"
+        ],
+        "score": 0.8329091229351039
+      },
+      {
+        "name": "鉄筋配置BOM B",
+        "description": "鉄筋組立に必要な鉄筋材の型式・寸法・数量を一覧化したドキュメント。",
+        "keywords": [
+          "寸法",
+          "材質",
+          "重量",
+          "品質管理"
+        ],
+        "score": 0
+      },
+      {
+        "name": "コンクリート配合BOM D",
+        "description": "コンクリート配合比率と必要材料を詳細に記載したドキュメント。",
+        "keywords": [
+          "配合割合",
+          "強度",
+          "単位",
+          "品質管理"
+        ],
+        "score": 0
+      },
+      {
+        "name": "配管設備BOM G",
+        "description": "給排水配管に使用する管材と継手の仕様一覧。",
+        "keywords": [
+          "配管径",
+          "数量",
+          "材質",
+          "安全係数"
+        ],
+        "score": 0
+      },
+      {
+        "name": "電気配線BOM H",
+        "description": "電気配線工事で必要なケーブルと器具をまとめたリスト。",
+        "keywords": [
+          "線径",
+          "数量",
+          "材料区分",
+          "納期"
+        ],
+        "score": 0
+      },
+      {
+        "name": "給排水設備BOM I",
+        "description": "給排水設備の部品と接続部材を一覧化したドキュメント。",
+        "keywords": [
+          "パイプ種別",
+          "数量",
+          "単位",
+          "設計図参照"
+        ],
+        "score": 0
+      },
+      {
+        "name": "屋根防水BOM K",
+        "description": "屋根防水工事で使用する防水材と補修部品のリスト。",
+        "keywords": [
+          "防水層",
+          "面積",
+          "材質",
+          "耐久年数"
+        ],
+        "score": 0
+      },
+      {
+        "name": "塗装仕上げBOM M",
+        "description": "外装・内装塗装で使用する塗料と付帯資材をまとめたドキュメント。",
+        "keywords": [
+          "塗料種別",
+          "缶数",
+          "色番号",
+          "作業工程"
+        ],
+        "score": 0
+      },
+      {
+        "name": "断熱材BOM N",
+        "description": "建物の断熱工事に使用する断熱材の種類と数量を一覧化。",
+        "keywords": [
+          "断熱材厚",
+          "数量",
+          "熱伝導率",
+          "施工手順"
+        ],
+        "score": 0
+      },
+      {
+        "name": "鋼構造部材BOM O",
+        "description": "鋼構造建築に必要なビーム・カラムの資材一覧。",
+        "keywords": [
+          "ビーム寸法",
+          "数量",
+          "材質",
+          "耐荷重"
+        ],
+        "score": 0
+      },
+      {
+        "name": "外構工事BOM Q",
+        "description": "フェンス・門扉など外構部材の一覧を示すドキュメント。",
+        "keywords": [
+          "舗装材",
+          "数量",
+          "単位",
+          "路面仕様"
+        ],
+        "score": 0
+      },
+      {
+        "name": "タイル工事BOM R",
+        "description": "床・壁タイル施工に必要なタイルと接着剤のリスト。",
+        "keywords": [
+          "タイル種別",
+          "枚数",
+          "寸法",
+          "接着剤"
+        ],
+        "score": 0
+      },
+      {
+        "name": "ガラスカーテンウォールBOM S",
+        "description": "カーテンウォール用ガラスとフレーム部材をまとめたドキュメント。",
+        "keywords": [
+          "ガラス寸法",
+          "数量",
+          "型板情報",
+          "安全係数"
+        ],
+        "score": 0
+      },
+      {
+        "name": "防火設備BOM T",
+        "description": "防火シャッターや防火扉など防火設備の部材一覧。",
+        "keywords": [
+          "装置名称",
+          "数量",
+          "規格",
+          "防火性能"
+        ],
+        "score": 0
+      }
+    ],
+    "timestamp": "2025-07-11T01:50:06.191312+00:00"
   }
 ]
