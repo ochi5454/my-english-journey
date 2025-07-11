@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids
+from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -100,7 +100,7 @@ class RecommendationResponse(BaseModel):
 # CORS設定を追加
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # フロントエンドのURL
+    allow_origins=["http://localhost:3001"],  # フロントエンドのURL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -408,19 +408,27 @@ async def recommend(req: ProductQuery, request: Request):
         query_text = req.query
         print(f"✅ query_text: {query_text}")
 
-        # 1. 商品検索タグの除去
-        query_text = query_text.replace("#商品検索", "", 1).strip()
+        #### 2025.7.11 Mod（remove identify info）START
+        # 0. まず個人情報をマスク（または除去）する
+        masked_user_query = mask_personal_info(req.query)
+        print(f"✅ masked_user_query: {masked_user_query}")
+
+        # 商品検索タグや個人情報マスクをまとめて削除
+        for token in ["#商品検索", "＜メールアドレス削除＞", "＜電話番号削除＞", "＜個人情報削除＞"]:
+            masked_user_query = masked_user_query.replace(token, "")
+        masked_user_query = masked_user_query.strip()
+        #### 2025.7.11 Mod（remove identify info）END
 
         # 2. 会話履歴ベクトルストアから関連履歴を取得
         memory, vectorstore = get_user_memory_and_store(request.state.user_id, embedding)
-        related_history = [doc.page_content for doc in vectorstore.similarity_search(query_text, k=3)]
+        related_history = [doc.page_content for doc in vectorstore.similarity_search(masked_user_query, k=3)] #### 2025.7.11 Mod（remove identify info）
 
-        print(f"🔍 Retrieved {len(related_history)} related history items for query: {query_text}")
+        print(f"🔍 Retrieved {len(related_history)} related history items for query: {masked_user_query}") #### 2025.7.11 Mod（remove identify info）
         for i, h in enumerate(related_history, 1):
             print(f"  [{i}] {h}")
 
         # 3. ユーザー入力からキーワードを抽出
-        keywords = extract_keywords(query_text)
+        keywords = extract_keywords(masked_user_query) #### 2025.7.11 Mod（remove identify info）
         print(f"🎯 抽出キーワード: {keywords}")
 
         # 4. 拡張キーワード生成
@@ -513,22 +521,20 @@ async def recommend(req: ProductQuery, request: Request):
         # 11. ChatGPTでおすすめ生成
         recommendations = recommend_items_with_llm(keywords, search_results, related_history)
         print(f"✅ 生成した提案: {recommendations}")
-        print(f"✅ 生成した提案: {recommendations}")
 
         # 12. 返却予定の会話内容を先に保存
-        # 12. 返却予定の会話内容を先に保存
         ## 🔄 要約生成
-        summary = generate_summary(req.query, recommendations, query_text)
+        summary = generate_summary(masked_user_query, recommendations, "") #### 2025.7.11 Mod（remove identify info）
 
         ## 💾 JSONに保存
         save_conversation_to_file(
             user_id=request.state.user_id,
-            user_message=req.query,
+            user_message=masked_user_query, #### 2025.7.11 Mod（remove identify info）
             assistant_response=recommendations,
             summary=summary
         )
         # 💬 ベクトルストアにも保存
-        conversation_text = f"ユーザー: {req.query}\nアシスタント: {recommendations}"
+        conversation_text = f"ユーザー: {masked_user_query}\nアシスタント: {recommendations}" #### 2025.7.11 Mod（remove identify info）
         vectorstore.add_texts([conversation_text])
         try:
             user_vs_path = os.path.join(VECTORSTORE_DIR, request.state.user_id)
@@ -540,7 +546,7 @@ async def recommend(req: ProductQuery, request: Request):
         # 13. 結果を返却
         return {
             "user_id": request.state.user_id,
-            "message": req.query,
+            "message": masked_user_query, #### 2025.7.11 Mod（remove identify info）
             "keywords": keywords,
             "recommendations": recommendations,
             "used_history": related_history
