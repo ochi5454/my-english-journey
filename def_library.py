@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import os
 import openai
 import json
+import re
 
 # 新しいベクトルストアを作成して保存する
 def create_new_vectorstore(path: str, embedding) -> FAISS:
@@ -499,13 +500,16 @@ def save_conversation_to_file(
         print(f"❌ Error saving conversation: {str(e)}")
         raise
 
+#### 2025.7.10 Mod（generate items）START
 # Search products based on keywords
 def search_items(keywords: List[str], db: List[Dict]) -> List[Dict]:
     results = []
     for item in db:
-        if any(kw.lower() in item["description"].lower() for kw in keywords):
+        match_count = sum(kw.lower() in item["description"].lower() for kw in keywords)
+        if match_count >= 3:  # 3語以上一致したらヒット
             results.append(item)
     return results
+#### 2025.7.10 Mod（generate items）END
 
 # 汎用的なデータベース検索関数
 def search_database(database: List[Dict], keywords: List[str], field: str) -> List[Dict]:
@@ -616,3 +620,84 @@ def save_search_history(user_id: str, query: str, results: List[Dict]):
     data.append(history)
     with open(history_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+#### 2025.7.10 Add（generate items）START
+# check item number
+def get_max_id_num(items: List[Dict]) -> int:
+    max_num = 0
+    for item in items:
+        try:
+            num = int(item["id"].replace("item", ""))
+            if num > max_num:
+                max_num = num
+        except Exception:
+            continue
+    return max_num
+
+# save generated items
+def assign_sequential_ids(items: List[Dict], start_num: int) -> List[Dict]:
+    for i, item in enumerate(items, start=start_num):
+        item["id"] = f"item{i:03d}"
+        # sourceがなければgeneratedをつける
+        item.setdefault("source", "generated")
+    return items
+
+# ChatGPTで商品をweb検索させ、商品DBに保存できる形にする
+def recommend_generate_items(keywords: List[str], history: List[str]) -> List[Dict]:
+    urls = [
+        "https://www.amazon.co.jp",
+        "https://www.rakuten.co.jp",
+        "https://shopping.yahoo.co.jp"
+    ]
+    
+    history_text = "\n".join(f"- {h}" for h in history)
+    
+    prompt = f"""
+以下のウェブサイトの情報を参考にして、商品情報を最大3件、JSON形式で出力してください。
+
+🔗 参考URL:
+- {urls[0]}
+- {urls[1]}
+- {urls[2]}
+
+必ずJSON形式のみで返してください。説明文や補足は不要です。
+
+出力フォーマット（1〜3件）:
+[
+  {{
+    "id": "item999",
+    "name": "商品名",
+    "category": "カテゴリ名",
+    "description": "商品説明（日本語で自然に）",
+    "source": "generated",
+    "url": "参考にしたURL"
+  }},
+  ...
+]
+"""
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "あなたは構造化された商品データを生成するアシスタントです。最新のWeb情報を元に提案してください。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=700
+        )
+        content = response.choices[0].message.content.strip()
+
+        # JSON部分だけ抜き出し（角括弧で囲まれた配列形式を想定）
+        match = re.search(r"\[.*\]", content, re.DOTALL)
+        if not match:
+            print("❌ JSON形式のデータが見つかりません")
+            return []
+
+        json_str = match.group(0)
+        items = json.loads(json_str)
+        return items if isinstance(items, list) else []
+
+    except Exception as e:
+        print(f"❌ Web商品生成失敗: {e}")
+        return []
+#### 2025.7.10 Add（generate items）END
