@@ -24,6 +24,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+storage/
+vectorstore/
+savecontext/
+frontend/node_modules/
 
 # ====================================
 # 仮想環境
