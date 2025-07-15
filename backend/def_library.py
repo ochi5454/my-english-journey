@@ -10,6 +10,9 @@ from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException
 from datetime import datetime, timezone
+import pandas as pd
+from PyPDF2 import PdfReader
+import docx
 
 import os
 import openai
@@ -914,3 +917,55 @@ def mask_personal_info(text: str) -> str:
     # 形態素単位で再構成（簡易的に連結）
     return ''.join(masked_words)
 #### 2025.7.11 Add（remove identify info）END
+
+#### 2025.7.15 Add（extract files）START
+def extract_text_from_excel(file_path):
+    try:
+        df = pd.read_excel(file_path)
+        return "\n".join(df.astype(str).values.flatten())  # すべて文字列に変換
+    except Exception as e:
+        return ""
+    
+def extract_text_from_pdf(file_path):
+    try:
+        reader = PdfReader(file_path)
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+    except Exception:
+        return ""
+
+def extract_text_from_docx(file_path):
+    try:
+        doc = docx.Document(file_path)
+        return "\n".join(p.text for p in doc.paragraphs)
+    except Exception:
+        return ""
+
+def load_all_documents_texts(folder_path):
+    result = []
+
+    for filename in os.listdir(folder_path):
+        filepath = os.path.join(folder_path, filename)
+        if filename.endswith(".xlsx"):
+            text = extract_text_from_excel(filepath)
+        elif filename.endswith(".pdf"):
+            text = extract_text_from_pdf(filepath)
+        elif filename.endswith(".docx"):
+            text = extract_text_from_docx(filepath)
+        else:
+            continue  # 対象外の拡張子はスキップ
+
+        if text:
+            result.append({
+                "file": filename,
+                "text": text
+            })
+
+    return result
+
+def search_items_in_documents(keywords, documents):
+    results = []
+    for doc in documents:
+        if any(kw in doc["text"] for kw in keywords):
+            results.append(doc)
+    return results
+#### 2025.7.15 Add（extract files）END

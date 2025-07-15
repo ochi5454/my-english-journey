@@ -20,7 +20,7 @@ from typing import Optional, List
 from routers import sharepoint 
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info
+from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -460,65 +460,58 @@ async def recommend(req: ProductQuery, request: Request):
         # all_keywords = list(set(keywords + related_nouns + top_history_keywords))
         print(f"🔍 検索用キーワード: {all_keywords}")
 
+#### 2025.7.15 Add（extract files）START
+    #### 以下 product.json 処理のBK
+        # # 8. DBを先に読み込む
+        # try:
+        #     db = load_json(os.path.join(DATA_DIR, "products.json"))
+        # except Exception as e:
+        #     print(f"商品データベースの読み込みエラー: {e}")
+        #     raise HTTPException(status_code=500, detail="商品データベースの読み込みに失敗しました")
+
+        # print(f"✅ Loaded {len(db)} products")
+
+        # # 9. DB検索（拡張キーワードで検索）
+        # search_results = search_items(all_keywords, db)
+        # print(f"✅ Found {len(search_results)} matching items")
+
+        # #### 2025.7.10 Mod（generate items）START
+        # # 10. もしヒットしなければ、商品をweb検索し自動生成
+        # if len(search_results) == 0:
+        #     print("🔎 検索結果なし → ChatGPTで商品生成")
+        #     new_items = recommend_generate_items(keywords, related_history)
+
+        #     if new_items:
+        #         max_id = get_max_id_num(db) + 1  # 次の番号スタートを計算
+        #         new_items = assign_sequential_ids(new_items, max_id)
+
+        #         db.extend(new_items)
+        #         try:
+        #             with open("products.json", "w", encoding="utf-8") as f:
+        #                 json.dump(db, f, ensure_ascii=False, indent=2)
+        #             print("💾 新商品をDBに保存しました")
+        #         except Exception as e:
+        #             print(f"❌ DB保存エラー: {e}")
+        #             raise HTTPException(status_code=500, detail="商品データ保存エラー")
+
+        #         search_results = new_items
+        #         print(f"✅ 生成した商品: {search_results}")
+        #         #### 2025.7.10 Mod（generate items）END
+
+    #### 以下 file 処理に差し替え版
         # 8. DBを先に読み込む
         try:
-            db = load_json(os.path.join(DATA_DIR, "products.json"))
+            documents = load_all_documents_texts(os.path.join(DATA_DIR, "products_docs"))
         except Exception as e:
             print(f"商品データベースの読み込みエラー: {e}")
             raise HTTPException(status_code=500, detail="商品データベースの読み込みに失敗しました")
 
-        print(f"✅ Loaded {len(db)} products")
+        print(f"✅ Loaded {len(documents)} products")
 
         # 9. DB検索（拡張キーワードで検索）
-        search_results = search_items(all_keywords, db)
+        search_results = search_items_in_documents(all_keywords, documents)
         print(f"✅ Found {len(search_results)} matching items")
-
-        #### 2025.7.10 Mod（generate items）START
-        # 10. もしヒットしなければ、商品をweb検索し自動生成
-        if len(search_results) == 0:
-            print("🔎 検索結果なし → ChatGPTで商品生成")
-            new_items = recommend_generate_items(keywords, related_history)
-
-            if new_items:
-                max_id = get_max_id_num(db) + 1  # 次の番号スタートを計算
-                new_items = assign_sequential_ids(new_items, max_id)
-
-                db.extend(new_items)
-                try:
-                    with open("products.json", "w", encoding="utf-8") as f:
-                        json.dump(db, f, ensure_ascii=False, indent=2)
-                    print("💾 新商品をDBに保存しました")
-                except Exception as e:
-                    print(f"❌ DB保存エラー: {e}")
-                    raise HTTPException(status_code=500, detail="商品データ保存エラー")
-
-                search_results = new_items
-                print(f"✅ 生成した商品: {search_results}")
-                #### 2025.7.10 Mod（generate items）END
-
-        # 11. ChatGPTでおすすめ生成
-        #### 2025.7.10 Mod（generate items）START
-        # 10. もしヒットしなければ、商品をweb検索し自動生成
-        if len(search_results) == 0:
-            print("🔎 検索結果なし → ChatGPTで商品生成")
-            new_items = recommend_generate_items(keywords, related_history)
-
-            if new_items:
-                max_id = get_max_id_num(db) + 1  # 次の番号スタートを計算
-                new_items = assign_sequential_ids(new_items, max_id)
-
-                db.extend(new_items)
-                try:
-                    with open("products.json", "w", encoding="utf-8") as f:
-                        json.dump(db, f, ensure_ascii=False, indent=2)
-                    print("💾 新商品をDBに保存しました")
-                except Exception as e:
-                    print(f"❌ DB保存エラー: {e}")
-                    raise HTTPException(status_code=500, detail="商品データ保存エラー")
-
-                search_results = new_items
-                print(f"✅ 生成した商品: {search_results}")
-                #### 2025.7.10 Mod（generate items）END
+        #### 2025.7.15 Mod（extract files）END
 
         # 11. ChatGPTでおすすめ生成
         recommendations = recommend_items_with_llm(keywords, search_results, related_history)
