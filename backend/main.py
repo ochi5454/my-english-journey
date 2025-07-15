@@ -17,13 +17,15 @@ from langdetect import detect
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import Optional, List
+from fastapi.staticfiles import StaticFiles
 
 # 自作モジュール
 from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
-from hashtag_trigger import ACTION_MAP, RequestBody
-from hashtag_config import load_hashtag_map
+
+from backend.hashtag_trigger import ACTION_MAP, RequestBody
+from backend.hashtag_config import load_hashtag_map
 
 hashtag_map = {}
 
@@ -38,9 +40,11 @@ async def lifespan(app: FastAPI):
     # Shutdown (必要に応じて)
 
 app = FastAPI(lifespan=lifespan)
+
 #### 2025.7.15 Add（attachment files）START
 router = APIRouter()
-#### 2025.7.15 Add（attachment files）END
+# app.mount("/", StaticFiles(directory="./frontend/build", html=True), name="static")
+
 
 #### 2025.7.8 Add（avoid error）START
 # OpenMP関連のエラー回避設定（FAISS対策）
@@ -383,7 +387,7 @@ def get_chat_history(
 
         # 🔄 アドオン: フィルタリング処理（オプション）
         if category or date_range:
-            from def_library import filter_results
+            from backend.def_library import filter_results
             
             # date_rangeがクエリパラメータとして文字列で渡される場合の処理
             processed_date_range = None
@@ -716,7 +720,7 @@ async def search_documents(req: ProductQuery, request: Request):
         print(f"🎯 抽出キーワード: {keywords}")
 
         # 一般性の高いキーワードを除外
-        from def_library import load_ignore_keywords, filter_keywords
+        from backend.def_library import load_ignore_keywords, filter_keywords
         ignore_path = os.path.join(DATA_DIR, "ignorekeyword.json")
         ignore_keywords = load_ignore_keywords(ignore_path)
         keywords = filter_keywords(keywords, ignore_keywords)
@@ -769,7 +773,7 @@ async def search_documents(req: ProductQuery, request: Request):
         print(f"✅ {len(similar_products)} 件の類似商品を見つけました。")
 
         # 🔄 フィルタリング処理を追加
-        from def_library import filter_results
+        from backend.def_library import filter_results
 
         category = req.category  # ユーザーが指定したカテゴリ
 
@@ -785,7 +789,7 @@ async def search_documents(req: ProductQuery, request: Request):
         similar_products = filter_results(similar_products, category=category, date_range=date_range)
 
         # 技術文書と商品検索結果をランク付け
-        from def_library import rank_results
+        from backend.def_library import rank_results
 
         tech_search_results = rank_results(tech_search_results, related_keywords)
         similar_tech_documents = rank_results(similar_tech_documents, related_keywords)
@@ -793,7 +797,7 @@ async def search_documents(req: ProductQuery, request: Request):
         similar_products = rank_results(similar_products, keywords)
 
         # 7. 結果を返却する前に検索履歴を保存
-        from def_library import save_search_history
+        from backend.def_library import save_search_history
         
         # 検索履歴を保存
         all_results = tech_search_results + similar_tech_documents + product_search_results + similar_products
@@ -830,5 +834,5 @@ async def export_results(req: ProductQuery, request: Request):
 # 2025.7.11 Add（search documents Enhanced）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
-from openai_config import create_custom_openapi
+from backend.openai_config import create_custom_openapi
 app.openapi = lambda: create_custom_openapi(app)

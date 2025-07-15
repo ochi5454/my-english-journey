@@ -185,3 +185,7 @@ frontend/static/
 .coverage
 htmlcov/
 .tox/
+
+./backend/.env
+./frontend/.env
+.vscode

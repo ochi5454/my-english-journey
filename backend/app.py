@@ -7,9 +7,9 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.chains.conversation.memory import ConversationBufferMemory
 from fastapi.responses import JSONResponse
 
-from main import get_chat_history
-from def_library import build_conversation_chain, initialize_vectorstore, save_conversation_to_file
-from embedding_config import get_embedding_model
+from backend.main import get_chat_history
+from backend.def_library import build_conversation_chain, initialize_vectorstore, save_conversation_to_file
+from backend.embedding_config import get_embedding_model
 
 if __name__ == "__main__":
     user_id = input("ユーザーIDを入力してください: ")

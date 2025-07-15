@@ -1,3 +1,8 @@
+# 最新の pip・setuptools・wheel を使って prebuilt wheel を優先する
+pip>=23
+setuptools>=65
+wheel
+
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 python-dotenv>=1.0.0
@@ -13,7 +18,10 @@ typing-extensions>=4.9.0
 numpy>=1.26.0
 janome==0.4.1
 langdetect==1.0.9
-transformers==4.31.0
+
+# transformers は対応するバージョン
+transformers==4.53.1
+
 pandas>=2.0.3
 openpyxl>=3.1.2
 python-docx>=0.8.11

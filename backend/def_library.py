@@ -5,7 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.memory import BaseMemory
 from langchain_community.vectorstores import VectorStore, FAISS
 from langchain.memory import VectorStoreRetrieverMemory
-from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR
+from backend.config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR
 from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException
@@ -149,7 +149,7 @@ def extract_keywords(text: str) -> List[str]:
             continue
 
         # ここでは tok が Token として扱われるので part_of_speech が認識される
-        part_of_speech = token.part_of_speech.split(',')[0]
+        part_of_speech = (token.part_of_speech or "").split(',')[0]
         if part_of_speech == "名詞":
             keywords.append(token.surface)
 

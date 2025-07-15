@@ -6,7 +6,7 @@ def load_hashtag_map() -> dict:
     """ハッシュタグマップを読み込む"""
     # config.pyがある場合はそれを使用
     try:
-        from config import DATA_DIR
+        from backend.config import DATA_DIR
         json_file_path = os.path.join(DATA_DIR, "hashtag_actions.json")
     except ImportError:
         # config.pyがない場合は相対パスを使用
