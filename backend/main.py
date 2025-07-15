@@ -17,10 +17,9 @@ from langdetect import detect
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import Optional, List
-from routers import sharepoint 
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents
+from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -39,9 +38,6 @@ async def lifespan(app: FastAPI):
     # Shutdown (必要に応じて)
 
 app = FastAPI(lifespan=lifespan)
-#### 2025.7.14 Add（sharepoint）START
-app.include_router(sharepoint.router)
-#### 2025.7.14 Add（sharepoint）END
 
 #### 2025.7.8 Add（avoid error）START
 # OpenMP関連のエラー回避設定（FAISS対策）
@@ -499,12 +495,23 @@ async def recommend(req: ProductQuery, request: Request):
         #         #### 2025.7.10 Mod（generate items）END
 
     #### 以下 file 処理に差し替え版
+        #### 以下 local の場合
         # 8. DBを先に読み込む
         try:
             documents = load_all_documents_texts(os.path.join(DATA_DIR, "products_docs"))
         except Exception as e:
             print(f"商品データベースの読み込みエラー: {e}")
             raise HTTPException(status_code=500, detail="商品データベースの読み込みに失敗しました")
+
+        #### 以下 sharepoint の場合
+        # # 8. DBを先に読み込む
+        # try:
+        #     site_url = os.getenv("SHAREPOINT_SITE_URL")  # ← 例: https://yourcompany.sharepoint.com/sites/your-site
+        #     folder_path = "products_docs"  # SharePoint上のフォルダ名
+        #     documents = load_sharepoint_document(site_url, folder_path)
+        # except Exception as e:
+        #     print(f"商品データベースの読み込みエラー: {e}")
+        #     raise HTTPException(status_code=500, detail="商品データベースの読み込みに失敗しました")
 
         print(f"✅ Loaded {len(documents)} products")
 
