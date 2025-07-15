@@ -1,46 +1,57 @@
-name: Deploy FastAPI App to Azure Web App
+name: Deploy FastAPI App to Azure Web App # ワークフローの名前
 
 on:
   push:
     branches:
-      - main
+      - main # mainブランチへのプッシュでこのワークフローを実行
 
 env:
-  AZURE_WEBAPP_NAME: RagTesting        # Azure Web App名に変更
-  PYTHON_VERSION: '3.13'
+  AZURE_WEBAPP_NAME: RagTesting # Azure Web App名
+  PYTHON_VERSION: '3.13'        # 使用するPythonのバージョン
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # ジョブを実行するOS環境
 
     steps:
-      - name: Checkout code
+      - name: Checkout code # GitHubリポジトリのコードをチェックアウト
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python # Python環境をセットアップ
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies
+      - name: Install dependencies # Pythonの依存関係をインストール (requirements.txtに基づく)
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip # pipを最新にアップグレード
+          pip install -r requirements.txt     # 依存関係をインストール
 
-      - name: Run tests (optional)
+      - name: Run tests (optional) # テスト実行ステップ (必要に応じて有効化)
         run: |
-          # pytest tests/  # テストがあれば有効化
+          # pytest tests/ # 例: pytestを使ったテストコマンド
 
-      - name: Archive project files
-        run: |
-          zip -r app.zip . -x "*.git*" "*.github*" "tests/*"
+      # ⭐ 以下の 'Archive project files' ステップは削除します。
+      #    azure/webapps-deploy アクションが自動的にパッケージングするため不要です。
+      # - name: Archive project files
+      #   run: |
+      #     zip -r app.zip . -x "*.git*" "*.github*" "tests/*"
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
+      - name: Deploy to Azure Web App # Azure Web Appへのデプロイ
+        uses: azure/webapps-deploy@v3 # Azure Web Appsデプロイ用のアクション
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: app.zip
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+          app-name: ${{ env.AZURE_WEBAPP_NAME }} # デプロイ先のApp Service名
+          # package: '.' は、このGitHub Actionsジョブのカレントディレクトリ (つまりリポジトリのルート)
+          # の内容をデプロイすることを意味します。
+          # OryxビルドシステムがこれをPythonプロジェクトとして認識し、
+          # requirements.txtに基づいて依存関係をインストールし、仮想環境を構築します。
+          package: '.'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }} # Azureへの認証情報
+          # ⭐ ここにスタートアップコマンドを追加します。
+          #    これがApp Serviceの起動コマンドとして使用されます。
+          startup-command: 'set -e && export PYTHONPATH=$PYTHONPATH:./backend && uvicorn backend.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 1'
 
-      - name: Show deployment files (debug)
-        run: unzip -l app.zip
+      # ⭐ 以下の 'Show deployment files (debug)' ステップは削除します。
+      #    デプロイされたファイルはSSHで確認できます。
+      # - name: Show deployment files (debug)
+      #   run: unzip -l app.zip
