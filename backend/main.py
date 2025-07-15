@@ -6,8 +6,8 @@ import logging
 import openai
 
 # サードパーティライブラリ
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document
+from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -38,6 +38,9 @@ async def lifespan(app: FastAPI):
     # Shutdown (必要に応じて)
 
 app = FastAPI(lifespan=lifespan)
+#### 2025.7.15 Add（attachment files）START
+router = APIRouter()
+#### 2025.7.15 Add（attachment files）END
 
 #### 2025.7.8 Add（avoid error）START
 # OpenMP関連のエラー回避設定（FAISS対策）
@@ -78,6 +81,17 @@ class ChatRequest(BaseModel):
     message: Optional[str] = None
     chat_history: Optional[List[ChatMessage]] = None
 
+#### 2025.7.15 Add（attachment files）START
+class Product(BaseModel):
+    id: str
+    name: str
+    description: str
+    price: float
+    category: str
+    score: Optional[float] = None
+    filename: Optional[str] = None
+#### 2025.7.15 Add（attachment files）END
+
 #### 2025.7.8 Add（recommend db）START
 # 商品推薦APIのリクエストモデル（セッションID・検索クエリ）
 class ProductQuery(BaseModel):    
@@ -92,7 +106,8 @@ class RecommendationResponse(BaseModel):
     user_id: str
     message: str
     keywords: List[str]
-    recommendations: str
+    recommendations: List[Product] #### 2025.7.15 Add（attachment files）
+    recommendation_text: str = None #### 2025.7.15 Add（attachment files）
 #### 2025.7.8 Add（recommend db）END
 
 # CORS設定を追加
@@ -456,7 +471,7 @@ async def recommend(req: ProductQuery, request: Request):
         # all_keywords = list(set(keywords + related_nouns + top_history_keywords))
         print(f"🔍 検索用キーワード: {all_keywords}")
 
-#### 2025.7.15 Add（extract files）START
+#### 2025.7.15 Add（search files）START
     #### 以下 product.json 処理のBK
         # # 8. DBを先に読み込む
         # try:
@@ -514,29 +529,31 @@ async def recommend(req: ProductQuery, request: Request):
         #     raise HTTPException(status_code=500, detail="商品データベースの読み込みに失敗しました")
 
         print(f"✅ Loaded {len(documents)} products")
+        for i, doc in enumerate(documents):
+            print(f"doc {i}: keys={list(doc.keys())}, id={doc.get('id')}")
 
         # 9. DB検索（拡張キーワードで検索）
         search_results = search_items_in_documents(all_keywords, documents)
         print(f"✅ Found {len(search_results)} matching items")
-        #### 2025.7.15 Mod（extract files）END
+        #### 2025.7.15 Mod（search files）END
 
         # 11. ChatGPTでおすすめ生成
-        recommendations = recommend_items_with_llm(keywords, search_results, related_history)
-        print(f"✅ 生成した提案: {recommendations}")
+        llm_generated_text = recommend_items_with_llm(keywords, search_results, related_history) #### 2025.7.15 Add（attachment files）
+        print(f"✅ 生成した提案: {llm_generated_text}") #### 2025.7.15 Add（attachment files）
 
         # 12. 返却予定の会話内容を先に保存
         ## 🔄 要約生成
-        summary = generate_summary(masked_user_query, recommendations, "") #### 2025.7.11 Mod（remove identify info）
+        summary = generate_summary(masked_user_query, llm_generated_text, "") #### 2025.7.11 Mod（remove identify info）
 
         ## 💾 JSONに保存
         save_conversation_to_file(
             user_id=request.state.user_id,
             user_message=masked_user_query, #### 2025.7.11 Mod（remove identify info）
-            assistant_response=recommendations,
+            assistant_response=llm_generated_text, #### 2025.7.15 Add（attachment files）
             summary=summary
         )
         # 💬 ベクトルストアにも保存
-        conversation_text = f"ユーザー: {masked_user_query}\nアシスタント: {recommendations}" #### 2025.7.11 Mod（remove identify info）
+        conversation_text = f"ユーザー: {masked_user_query}\nアシスタント: {llm_generated_text}" #### 2025.7.11 Mod（remove identify info）→#### 2025.7.15 Add（attachment files）
         vectorstore.add_texts([conversation_text])
         try:
             user_vs_path = os.path.join(VECTORSTORE_DIR, request.state.user_id)
@@ -545,12 +562,54 @@ async def recommend(req: ProductQuery, request: Request):
         except Exception as e:
             print(f"💾 ベクトルストア保存エラー: {e}")
         
+        #### 2025.7.15 Add（attachment files）START
+        # 変換: search_results を Product モデルの構造に整える
+        recommendation_items = []
+        for i, doc in enumerate(search_results):
+            recommendation_items.append(Product(
+                id=doc.get('id', ''),
+                name="商品",
+                description=doc.get("text", ""),
+                price=0.0,
+                category="未分類",
+                filename=doc.get("filename")
+            ))
+        # 正規化（小文字化してマッチング精度向上させてもよい）
+        recommended_ids = []
+        if llm_generated_text:
+            recommended_ids = extract_ids_from_llm_text(llm_generated_text)
+            recommended_ids = [rid.lower() for rid in recommended_ids]  # 小文字に統一
+        print(f"✅ 抽出されたID一覧: {recommended_ids}")
+
+        # ⛏️ 該当IDの商品だけを返す（なければ fallback）
+        filtered_items = [
+            item for item in recommendation_items
+            if item.id.strip().lower() in [rid.strip().lower() for rid in recommended_ids]
+        ]
+
+        # fallback: AIの出力にIDがなければ、最初の1件だけ表示（任意）
+        if not filtered_items and recommendation_items:
+            print("⚠️ IDがマッチしないため fallback で1件目を返却")
+            filtered_items = recommendation_items[:1]
+
+        print("✅ search_results の中身:")
+        for doc in search_results:
+            print(f"  - id: {doc.get('id', 'N/A')}, filename: {doc.get('filename', '')}")
+        print("✅ recommendation_items の中身:")
+        for item in recommendation_items:
+            print(f"  - id: {item.id}")
+        print(f"✅ filtered_items 件数: {len(filtered_items)}")
+        for item in filtered_items:
+            print(f"  - {item.id}")
+        #### 2025.7.15 Add（attachment files）END
+
         # 13. 結果を返却
         return {
             "user_id": request.state.user_id,
             "message": masked_user_query, #### 2025.7.11 Mod（remove identify info）
             "keywords": keywords,
-            "recommendations": recommendations,
+            "recommendations": filtered_items, #### 2025.7.15 Add（attachment files）
+            "recommendation_text": llm_generated_text, #### 2025.7.15 Add（attachment files）
             "used_history": related_history
         }
 
@@ -558,6 +617,46 @@ async def recommend(req: ProductQuery, request: Request):
         print(f"❌ Recommend endpoint error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 #### 2025.7.7 Add（recommend db）END
+
+#### 2025.7.15 Add（attachment files）START
+@router.post("/recommend/upload", summary="Upload product file for recommendation DB")
+async def upload_product_file(
+    request: Request,
+    session_id: str = Form(...),
+    file: UploadFile = File(...)
+):
+    try:
+        # 保存ディレクトリのパスを作成
+        save_dir = os.path.join(DATA_DIR, "products_docs")
+        os.makedirs(save_dir, exist_ok=True)
+
+        save_path = os.path.join(save_dir, file.filename)
+        content = await file.read()
+
+        # ファイル保存
+        with open(save_path, "wb") as f:
+            f.write(content)
+
+        print(f"✅ {file.filename} を保存しました")
+
+        return {
+            "user_id": session_id,
+            "message": f"✅ ファイル「{file.filename}」を商品DBに登録しました。次回の推薦に活用されます。",
+            "filename": file.filename
+        }
+
+    except Exception as e:
+        print(f"❌ ファイル保存エラー: {e}")
+        raise HTTPException(status_code=500, detail="ファイルの保存に失敗しました")
+app.include_router(router)
+
+@app.get("/recommend/download")
+async def download_file(filename: str):
+    file_path = os.path.join(DATA_DIR, "products_docs", filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+    return FileResponse(path=file_path, filename=filename, media_type='application/octet-stream')
+#### 2025.7.15 Add（attachment files）END
 
 #### 2025.7.7 Add（log）START
 # Add validation error handler

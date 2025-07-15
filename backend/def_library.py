@@ -926,7 +926,7 @@ def mask_personal_info(text: str) -> str:
     return ''.join(masked_words)
 #### 2025.7.11 Add（remove identify info）END
 
-#### 2025.7.15 Add（extract files）START
+#### 2025.7.15 Add（search files）START
 def extract_text_from_excel(file_path):
     try:
         df = pd.read_excel(file_path)
@@ -963,8 +963,10 @@ def load_all_documents_texts(folder_path):
             continue  # 対象外の拡張子はスキップ
 
         if text:
+            doc_id = extract_id_from_text(text)
             result.append({
-                "file": filename,
+                "id": doc_id,
+                "filename": filename,
                 "text": text
             })
 
@@ -974,6 +976,25 @@ def search_items_in_documents(keywords, documents):
     results = []
     for doc in documents:
         if any(kw in doc["text"] for kw in keywords):
-            results.append(doc)
+            results.append({
+                "id": doc.get("id", ""),
+                "text": doc["text"],
+                "filename": doc.get("filename", "不明")
+            })
     return results
-#### 2025.7.15 Add（extract files）END
+#### 2025.7.15 Add（search files）END
+
+#### 2025.7.15 Add（attachment files）START
+def extract_id_from_text(text: str) -> str:
+    match = re.search(r'item\d{3}', text)
+    return match.group(0) if match else ""
+
+def extract_ids_from_llm_text(text: str) -> list[str]:
+    # idのパターン例: "id=item001", "ID:item001", "ID: item001", "Id：item001", "id - item001", "「item001」"
+    pattern = r'(?:id|ID|Id)[\s:=\-：]*item\d{3}|"item\d{3}"|「item\d{3}」'
+    # 大文字小文字区別しないのでフラグre.Iをつける
+    matches = re.findall(pattern, text, re.I)
+    # 取得したマッチからitemXXX部分だけ抽出する処理を追加するのも良いです
+    cleaned_ids = [re.search(r'item\d{3}', m, re.I).group(0) for m in matches if re.search(r'item\d{3}', m, re.I)]
+    return cleaned_ids
+#### 2025.7.15 Add（attachment files）END
