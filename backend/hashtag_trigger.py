@@ -6,7 +6,7 @@ import openai
 import os
 import inspect
 from dotenv import load_dotenv
-from config import api_key_str  # llm_client の設定を想定
+from backend.config import api_key_str  # llm_client の設定を想定
 from fastapi.routing import APIRoute
 
 # 環境変数ロード＆クライアント初期化
@@ -54,7 +54,7 @@ async def send_alert(text: str) -> str:
     await alert_service.notify(text)
     return "Alert sent"
 
-from hashtag_config import load_hashtag_map
+from backend.hashtag_config import load_hashtag_map
 
 hashtag_map = load_hashtag_map()
 
@@ -118,5 +118,5 @@ class RequestBody(BaseModel):
 app = FastAPI()
 
 # OpenAPI スキーマのカスタマイズ
-from openai_config import create_custom_openapi
+from backend.openai_config import create_custom_openapi
 app.openapi = lambda: create_custom_openapi(app)
