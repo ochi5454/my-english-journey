@@ -10,11 +10,13 @@ from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException
 from datetime import datetime, timezone
+import pandas as pd
+from PyPDF2 import PdfReader
+import docx
 
 import os
 import openai
 import json
-import re
 import re
 
 # 新しいベクトルストアを作成して保存する
@@ -410,16 +412,24 @@ def recommend_items_with_llm(keywords: List[str], search_results: List[Dict], hi
 
 📝 以下のルールを**厳密に**守って商品をおすすめしてください：
 
-1. 商品は最大3つまで。
-2. ユーザーの履歴に言及してください（例：「以前〜とおっしゃっていましたね」）。
-3. 各商品には、必ず「id=itemXXX」の形式で**idを本文中に明記**してください。
-4. 商品の名前と説明、なぜおすすめなのかを自然な日本語で説明してください。
-5. **idを省略したり、idだけまとめて書いたりしないでください。必ず各商品の説明の中に含めてください。**
+1. 商品は search_results の中からのみ選んでください。**それ以外の商品を補完・追加してはいけません。**
+2. 商品の数は search_results の数と完全に一致させてください（最大3件まで）。1件しかなければ、1件のみを紹介してください。
+3. ユーザーの履歴に言及してください（例：「以前〜とおっしゃっていましたね」）。
+4. 各商品には、必ず「id=itemXXX」の形式で**idを本文中に明記**してください。
+5. 商品の名前・特徴・おすすめ理由を自然な日本語で説明してください。
+6. **idだけをまとめて書いたり、箇条書きから省略したりしないでください。**各商品の紹介文の中に組み込んでください。
 
-例：
-「以前、夏に使えるグッズをお探しとおっしゃっていましたね。id=item011『速乾冷感タオル』は...」
+【例①（1件のみの場合）】
+「以前、暑さ対策をお探しでしたね。id=item011『速乾冷感タオル』は、...」
 
-これを参考に、自然な文章でおすすめしてください。
+【例②（2件あった場合）】
+「以前、〇〇について話されていましたね。以下の2つの商品をおすすめします。
+
+1. id=item021『●●』は〜。
+2. id=item022『▲▲』は〜。
+」
+
+このルールに従って、おすすめ文を自然に生成してください。
 """
     try:
         chatgpt_response = openai.chat.completions.create(
@@ -871,6 +881,7 @@ def recommend_generate_items(keywords: List[str], history: List[str]) -> List[Di
         print(f"❌ Web商品生成失敗: {e}")
         return []
 #### 2025.7.10 Add（generate items）END
+
 #### 2025.7.11 Add（一般性の高いキーワードの除外）START
 # 排除キーワードのロード関数
 def load_ignore_keywords(filepath):
@@ -885,3 +896,105 @@ def load_ignore_keywords(filepath):
 def filter_keywords(keywords, ignore_keywords):
     return [kw for kw in keywords if kw not in ignore_keywords]
 #### 2025.7.11 Add（一般性の高いキーワードの除外）END
+
+#### 2025.7.11 Add（remove identify info）START
+EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
+PHONE_REGEX = re.compile(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?[\d.\s-]{5,15}')
+
+def mask_personal_info(text: str) -> str:
+    # メールアドレスと電話番号をマスク（例：＜メールアドレス削除＞）
+    text = EMAIL_REGEX.sub('＜メールアドレス削除＞', text)
+    text = PHONE_REGEX.sub('＜電話番号削除＞', text)
+
+    tokenizer = Tokenizer()
+    tokens = tokenizer.tokenize(text)
+    masked_words = []
+
+    for token in tokens:
+        if not isinstance(token, Token):
+            continue
+
+        pos_parts = token.part_of_speech.split(',')
+
+        # 固有名詞の人名・組織名はマスク
+        if pos_parts[0] == "名詞" and len(pos_parts) > 2 and pos_parts[1] == "固有名詞" and pos_parts[2] in ["人名", "組織"]:
+            masked_words.append('＜個人情報削除＞')
+        else:
+            masked_words.append(token.surface)
+
+    # 形態素単位で再構成（簡易的に連結）
+    return ''.join(masked_words)
+#### 2025.7.11 Add（remove identify info）END
+
+#### 2025.7.15 Add（search files）START
+def extract_text_from_excel(file_path):
+    try:
+        df = pd.read_excel(file_path)
+        return "\n".join(df.astype(str).values.flatten())  # すべて文字列に変換
+    except Exception as e:
+        return ""
+    
+def extract_text_from_pdf(file_path):
+    try:
+        reader = PdfReader(file_path)
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+    except Exception:
+        return ""
+
+def extract_text_from_docx(file_path):
+    try:
+        doc = docx.Document(file_path)
+        return "\n".join(p.text for p in doc.paragraphs)
+    except Exception:
+        return ""
+
+def load_all_documents_texts(folder_path):
+    result = []
+
+    for filename in os.listdir(folder_path):
+        filepath = os.path.join(folder_path, filename)
+        if filename.endswith(".xlsx"):
+            text = extract_text_from_excel(filepath)
+        elif filename.endswith(".pdf"):
+            text = extract_text_from_pdf(filepath)
+        elif filename.endswith(".docx"):
+            text = extract_text_from_docx(filepath)
+        else:
+            continue  # 対象外の拡張子はスキップ
+
+        if text:
+            doc_id = extract_id_from_text(text)
+            result.append({
+                "id": doc_id,
+                "filename": filename,
+                "text": text
+            })
+
+    return result
+
+def search_items_in_documents(keywords, documents):
+    results = []
+    for doc in documents:
+        if any(kw in doc["text"] for kw in keywords):
+            results.append({
+                "id": doc.get("id", ""),
+                "text": doc["text"],
+                "filename": doc.get("filename", "不明")
+            })
+    return results
+#### 2025.7.15 Add（search files）END
+
+#### 2025.7.15 Add（attachment files）START
+def extract_id_from_text(text: str) -> str:
+    match = re.search(r'item\d{3}', text)
+    return match.group(0) if match else ""
+
+def extract_ids_from_llm_text(text: str) -> list[str]:
+    # idのパターン例: "id=item001", "ID:item001", "ID: item001", "Id：item001", "id - item001", "「item001」"
+    pattern = r'(?:id|ID|Id)[\s:=\-：]*item\d{3}|"item\d{3}"|「item\d{3}」'
+    # 大文字小文字区別しないのでフラグre.Iをつける
+    matches = re.findall(pattern, text, re.I)
+    # 取得したマッチからitemXXX部分だけ抽出する処理を追加するのも良いです
+    cleaned_ids = [re.search(r'item\d{3}', m, re.I).group(0) for m in matches if re.search(r'item\d{3}', m, re.I)]
+    return cleaned_ids
+#### 2025.7.15 Add（attachment files）END

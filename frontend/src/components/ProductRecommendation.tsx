@@ -13,6 +13,7 @@ interface Product {
   price: number;
   category: string;
   score?: number;
+  filename?: string;
 }
 
 const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId }) => {
@@ -20,10 +21,40 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
   const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+// 2025.7.15 Add（attachment files）START
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [recommendationText, setRecommendationText] = useState<string | null>(null);
+  const [hasUploaded, setHasUploaded] = useState(false);
+
+  // ① ファイルアップロード関数をコンポーネント内に切り出し
+  const uploadFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append("session_id", userId);
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("http://localhost:8000/recommend/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      console.log("✅ アップロード結果:", data.message);
+      setUploadMessage(data.message); // 状態にセットしてUIに表示できる
+      setHasUploaded(true);
+    } catch (err) {
+      console.error("❌ アップロードエラー:", err);
+      setUploadMessage("ファイルのアップロードに失敗しました。");
+    }
+  };
+// 2025.7.15 Add（attachment files）END
 
   const handleRecommend = async () => {
     if (!query.trim()) return;
 
+    setHasUploaded(false); // 2025.7.15 Add（attachment files）
+    setUploadMessage(null); // 2025.7.15 Add（attachment files）
+    setRecommendationText(null); // 2025.7.15 Add（attachment files）
     setIsLoading(true);
     setError(null);
     setRecommendations([]); // 結果をリセット
@@ -52,6 +83,9 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
       } else {
         setRecommendations([]);
       }
+      // 2025.7.15 Add（attachment files）START
+      setRecommendationText(data.recommendation_text || null);
+      // 2025.7.15 Add（attachment files）END
 
     } catch (err) {
       console.error('Recommendation error:', err);
@@ -62,8 +96,11 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
     }
   };
 
+  // 2025.7.15 Mod（attachment files）START
   // 改行を保持してテキストを表示するためのヘルパー関数
-  const formatTextWithLineBreaks = (text: string) => {
+  const formatTextWithLineBreaks = (text?: string) => {
+    if (!text) return null;
+
     return text.split('\n').map((line, index) => (
       <span key={index}>
         {line}
@@ -71,6 +108,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
       </span>
     ));
   };
+  // 2025.7.15 Mod（attachment files）END
 
   return (
     <div className="product-recommendation">
@@ -85,17 +123,42 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
           <textarea
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="探している商品の特徴や用途を入力してください..."
+            placeholder="商品検索時は、特徴や用途を入力し「推薦」、商品登録時は「登録」ボタンを押下しファイルを選択してください。"
             className="recommendation-input"
             rows={3}
           />
-          <button
-            onClick={handleRecommend}
-            disabled={isLoading || !query.trim()}
-            className="recommend-button"
-          >
-            {isLoading ? '推薦中...' : '推薦を取得'}
-          </button>
+          {/* 2025.7.15 Mod（attachment files）START */}
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button
+              onClick={handleRecommend}
+              disabled={isLoading || !query.trim()}
+              className="recommend-button"
+            >
+              {isLoading ? '推薦中...' : '推薦'}
+            </button>
+            <label
+              className={`file-upload-button ${query.trim() ? 'disabled' : ''}`}
+            >
+              <span>登録</span>
+              <input
+                type="file"
+                style={{ display: 'none' }}
+                disabled={!!query.trim()} // ← 実際の file input もブロック
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    console.log('選択されたファイル:', file.name);
+                    uploadFile(file);
+                  }
+                }}
+              />
+            </label>          </div>
+          {uploadMessage && (
+            <div className="upload-message" style={{ color: 'green', marginTop: '8px' }}>
+              {uploadMessage}
+            </div>
+          )}
+          {/* 2025.7.15 Mod（attachment files）END */}
         </div>
       </div>
 
@@ -104,8 +167,15 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
           <p style={{ color: 'red' }}>{error}</p>
         </div>
       )}
-
-      {recommendations.length > 0 && (
+      {/* 2025.7.15 Mod（attachment files）START */}
+      {!hasUploaded && recommendationText && (
+        <div className="recommendation-text">
+          <h3>AIからの提案:</h3>
+          <div>{formatTextWithLineBreaks(recommendationText)}</div>
+        </div>
+      )}
+      {/* 2025.7.15 Mod（attachment files）END */}
+      {!hasUploaded && recommendations.length > 0 && (
         <div className="recommendations-list">
           <h3>推薦商品 ({recommendations.length}件)</h3>
           <div className="products-grid">
@@ -128,13 +198,25 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
                 <div className="product-price">
                   ¥{product.price.toLocaleString()}
                 </div>
+                {/* 2025.7.15 Mod（attachment files）START */}
+                {product.filename && (
+                  <a
+                    href={`http://localhost:8000/recommend/download?filename=${encodeURIComponent(product.filename)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="download-link"
+                  >
+                    {product.filename} をダウンロード
+                  </a>
+                )}
+                {/* 2025.7.15 Mod（attachment files）END */}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {!isLoading && recommendations.length === 0 && !error && (
+      {!isLoading && !hasUploaded && recommendations.length === 0 && !error && (
         <p>推薦結果がありません。</p>
       )}
     </div>
