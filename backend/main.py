@@ -17,6 +17,7 @@ from langdetect import detect
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import Optional, List
+from fastapi.staticfiles import StaticFiles
 
 # 自作モジュール
 from backend.def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
     # Shutdown (必要に応じて)
 
 app = FastAPI(lifespan=lifespan)
+app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="static")
 
 #### 2025.7.8 Add（avoid error）START
 # OpenMP関連のエラー回避設定（FAISS対策）
