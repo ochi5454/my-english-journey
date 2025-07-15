@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     # Shutdown (必要に応じて)
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="static")
+app.mount("/", StaticFiles(directory="./frontend/build", html=True), name="static")
 
 #### 2025.7.8 Add（avoid error）START
 # OpenMP関連のエラー回避設定（FAISS対策）
