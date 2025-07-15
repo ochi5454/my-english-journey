@@ -15,7 +15,6 @@ import os
 import openai
 import json
 import re
-import re
 
 # 新しいベクトルストアを作成して保存する
 def create_new_vectorstore(path: str, embedding) -> FAISS:

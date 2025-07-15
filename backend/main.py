@@ -6,7 +6,7 @@ import logging
 import openai
 
 # サードパーティライブラリ
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +17,7 @@ from langdetect import detect
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import Optional, List
+from routers import sharepoint 
 
 # 自作モジュール
 from def_library import generate_related_keywords_llm, search_items, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info
@@ -38,6 +39,9 @@ async def lifespan(app: FastAPI):
     # Shutdown (必要に応じて)
 
 app = FastAPI(lifespan=lifespan)
+#### 2025.7.14 Add（sharepoint）START
+app.include_router(sharepoint.router)
+#### 2025.7.14 Add（sharepoint）END
 
 #### 2025.7.8 Add（avoid error）START
 # OpenMP関連のエラー回避設定（FAISS対策）
@@ -56,8 +60,6 @@ embedding = OpenAIEmbeddings(api_key=api_key)
 # ユーザーごとのメモリ／ベクトルストアを管理する辞書
 user_memories = {}
 user_vectorstores = {}
-
-# ベクトルストアに最初に入れておくメッセージ群
 
 # 1回の発言を表すモデル（役割・内容・タイムスタンプ）
 class ChatTurn(BaseModel):
@@ -100,7 +102,7 @@ class RecommendationResponse(BaseModel):
 # CORS設定を追加
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"],  # フロントエンドのURL
+    allow_origins=["http://localhost:3000"],  # フロントエンドのURL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
