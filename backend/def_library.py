@@ -5,7 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.memory import BaseMemory
 from langchain_community.vectorstores import VectorStore, FAISS
 from langchain.memory import VectorStoreRetrieverMemory
-from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR
+from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR
 from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException
@@ -398,7 +398,11 @@ def load_json(file_path: str = "products.json") -> List[Dict]:
         raise HTTPException(status_code=404, detail="Product database not found")
 
 # Generate recommendations using ChatGPT
-def recommend_items_with_llm(keywords: List[str], search_results: List[Dict], history_snippets: List[str]) -> str:
+def recommend_items_with_llm(keywords: List[str], search_results: List[Dict], history_snippets: List[str]) -> str:    
+    # search_resultsが空である場合
+    if not search_results:
+        return "該当する商品は1件もありませんでした。"
+
     history_text = "\n".join(f"- {h}" for h in history_snippets)
     prompt = f"""
 
@@ -512,16 +516,14 @@ def save_conversation_to_file(
         print(f"❌ Error saving conversation: {str(e)}")
         raise
 
-#### 2025.7.10 Mod（generate items）START
 # Search products based on keywords
-def search_items(keywords: List[str], db: List[Dict]) -> List[Dict]:
+def search_items_in_json(keywords: List[str], db: List[Dict]) -> List[Dict]:
     results = []
     for item in db:
         match_count = sum(kw.lower() in item["description"].lower() for kw in keywords)
-        if match_count >= 3:  # 3語以上一致したらヒット
+        if match_count >= 2:  # 2語以上一致したらヒット　#### 2025.7.10 Mod（generate items）
             results.append(item)
     return results
-#### 2025.7.10 Mod（generate items）END
 
 # 汎用的なデータベース検索関数
 def search_database(database: List[Dict], keywords: List[str], fields: Union[str, List[str]]) -> List[Dict]:
@@ -897,15 +899,34 @@ def filter_keywords(keywords, ignore_keywords):
     return [kw for kw in keywords if kw not in ignore_keywords]
 #### 2025.7.11 Add（一般性の高いキーワードの除外）END
 
+#### 2025.7.16 Add（remove identify info）START
+def load_company_names() -> list[str]:
+    try:
+        company_file_path = BASE_DIR.parent / "data" / "ng_company_names.txt"
+        
+        with company_file_path.open("r", encoding="utf-8") as f:
+            return [line.strip() for line in f if line.strip()]
+    except Exception as e:
+        print(f"⚠️ 会社名ファイルの読み込み失敗: {e}")
+        return []
+
+def mask_company_names(text: str, company_names: list[str]) -> str:
+    for name in company_names:
+        if name in text:
+            text = text.replace(name, '＜会社名削除＞')
+    return text
+#### 2025.7.16 Add（remove identify info）END
+
 #### 2025.7.11 Add（remove identify info）START
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
 PHONE_REGEX = re.compile(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?[\d.\s-]{5,15}')
 
 def mask_personal_info(text: str) -> str:
-    # メールアドレスと電話番号をマスク（例：＜メールアドレス削除＞）
+    # メールアドレスと電話番号をマスク
     text = EMAIL_REGEX.sub('＜メールアドレス削除＞', text)
     text = PHONE_REGEX.sub('＜電話番号削除＞', text)
 
+    # 人名をマスク
     tokenizer = Tokenizer()
     tokens = tokenizer.tokenize(text)
     masked_words = []
@@ -916,24 +937,66 @@ def mask_personal_info(text: str) -> str:
 
         pos_parts = token.part_of_speech.split(',')
 
-        # 固有名詞の人名・組織名はマスク
-        if pos_parts[0] == "名詞" and len(pos_parts) > 2 and pos_parts[1] == "固有名詞" and pos_parts[2] in ["人名", "組織"]:
-            masked_words.append('＜個人情報削除＞')
+        if pos_parts[0] == "名詞" and len(pos_parts) > 2 and pos_parts[1] == "固有名詞" and pos_parts[2] == "人名":
+            masked_words.append('＜人名削除＞') #### 2025.7.16 Mod（remove identify info）
         else:
             masked_words.append(token.surface)
+    #### 2025.7.16 Mod（remove identify info）START
+    masked_text = ''.join(masked_words)
 
-    # 形態素単位で再構成（簡易的に連結）
-    return ''.join(masked_words)
+    # 会社名をマスク
+    company_names = load_company_names()
+    masked_text = mask_company_names(masked_text, company_names)
+
+    return masked_text
+    #### 2025.7.16 Mod（remove identify info）END
 #### 2025.7.11 Add（remove identify info）END
 
 #### 2025.7.15 Add（search files）START
-def extract_text_from_excel(file_path):
+#### 2025.7.16 Add（mapping input）START
+def extract_items_from_excel(filepath: str) -> list[dict]:
+    items = []
+
     try:
-        df = pd.read_excel(file_path)
-        return "\n".join(df.astype(str).values.flatten())  # すべて文字列に変換
+        df = pd.read_excel(filepath)
+
+        # 小文字で統一
+        df.columns = [str(c).strip().lower() for c in df.columns]
+
+        # 列名のマッピング（柔軟に対応）
+        column_map = {
+            "id": ["id", "商品id", "product_id", "ID", "Id"],
+            "name": ["name", "商品名", "title", "名前", "名"],
+            "category": ["category", "カテゴリ", "カテゴリー", "分類"],
+            "description": ["description", "説明", "詳細"],
+            "price": ["price", "価格", "値段", "金額"]
+        }
+
+        mapped = {}
+        for key, candidates in column_map.items():
+            for candidate in candidates:
+                if candidate.lower() in df.columns:
+                    mapped[key] = candidate.lower()
+                    break
+            else:
+                mapped[key] = None
+
+        for _, row in df.iterrows():
+            items.append({
+                "id": str(row.get(mapped["id"], "")).strip() if mapped["id"] else "",
+                "name": str(row.get(mapped["name"], "")).strip() if mapped["name"] else "",
+                "category": str(row.get(mapped["category"], "未分類")).strip() if mapped["category"] else "未分類",
+                "text": str(row.get(mapped["description"], "")).strip() if mapped["description"] else "",
+                "price": float(row[mapped["price"]]) if mapped["price"] and not pd.isna(row[mapped["price"]]) else 0,
+                "filename": os.path.basename(filepath)
+            })
+
     except Exception as e:
-        return ""
-    
+        print(f"❌ Excel読込エラー（{filepath}）: {e}")
+
+    return items
+#### 2025.7.16 Add（mapping input）END
+
 def extract_text_from_pdf(file_path):
     try:
         reader = PdfReader(file_path)
@@ -953,8 +1016,12 @@ def load_all_documents_texts(folder_path):
 
     for filename in os.listdir(folder_path):
         filepath = os.path.join(folder_path, filename)
+
+        #### 2025.7.16 Mod（mapping input）START
         if filename.endswith(".xlsx"):
-            text = extract_text_from_excel(filepath)
+            result.extend(extract_items_from_excel(filepath))  # Excelはすでに整形済みで返す
+            continue
+
         elif filename.endswith(".pdf"):
             text = extract_text_from_pdf(filepath)
         elif filename.endswith(".docx"):
@@ -964,11 +1031,19 @@ def load_all_documents_texts(folder_path):
 
         if text:
             doc_id = extract_id_from_text(text)
+
+            # 🔽 この時点で text の整形を実施
+            cleaned = clean_text_for_words_pdf(text)
+
             result.append({
                 "id": doc_id,
                 "filename": filename,
-                "text": text
+                "text": cleaned["text"],
+                "category": cleaned["category"],
+                "name": cleaned.get("name", "商品名無し"),
+                "price": cleaned.get("price", 0) 
             })
+            #### 2025.7.16 Mod（mapping input）END
 
     return result
 
@@ -978,8 +1053,11 @@ def search_items_in_documents(keywords, documents):
         if any(kw in doc["text"] for kw in keywords):
             results.append({
                 "id": doc.get("id", ""),
+                "name": doc.get("name", "商品名無し"), #### 2025.7.16 Add（mapping input）
                 "text": doc["text"],
-                "filename": doc.get("filename", "不明")
+                "category": doc.get("category", "未分類"), #### 2025.7.16 Add（mapping input）
+                "filename": doc.get("filename", "不明"), #### 2025.7.16 Add（mapping input）
+                "price": doc.get("price", 0) 
             })
     return results
 #### 2025.7.15 Add（search files）END
@@ -998,3 +1076,74 @@ def extract_ids_from_llm_text(text: str) -> list[str]:
     cleaned_ids = [re.search(r'item\d{3}', m, re.I).group(0) for m in matches if re.search(r'item\d{3}', m, re.I)]
     return cleaned_ids
 #### 2025.7.15 Add（attachment files）END
+
+#### 2025.7.16 Add（mapping input）START
+def clean_text_for_words_pdf(raw_text: str) -> dict:
+    result = {
+        "category": "未分類",
+        "text": raw_text.strip(),
+        "name": "商品名無し",
+        "price": 0  # 価格を初期化
+    }
+
+    lines = result["text"].splitlines()
+    cleaned_lines = []
+
+    category_keywords = ["カテゴリ", "カテゴリー", "分類", "category"]
+    name_keywords = ["商品名", "名前", "name", "title", "見出し（タイトル）", "見出し", "タイトル"]
+    price_keywords = ["価格", "値段", "price", "金額"]
+
+    ids = extract_ids_from_llm_text(raw_text)
+
+    for line in lines:
+        line_strip = line.strip()
+
+        # カテゴリ抽出
+        if result["category"] == "未分類":
+            for keyword in category_keywords:
+                cat_match = re.match(rf"{keyword}(?:\s*[：:;；]?\s*)(.+)", line_strip, re.IGNORECASE)
+                if cat_match:
+                    result["category"] = cat_match.group(1).strip()
+                    line_strip = ""
+                    break
+
+        # 名前抽出
+        if result["name"] == "商品名無し":
+            for keyword in name_keywords:
+                name_match = re.match(rf"{keyword}(?:\s*[：:;；]?\s*)(.+)", line_strip, re.IGNORECASE)
+                if name_match:
+                    result["name"] = name_match.group(1).strip()
+                    line_strip = ""
+                    break
+
+        # 価格抽出（数字を含む部分を抜き出す例）
+        if result["price"] == 0:
+            for keyword in price_keywords:
+                price_match = re.match(rf"{keyword}(?:\s*[：:;；]?\s*)(.+)", line_strip, re.IGNORECASE)
+                if price_match:
+                    # 数字だけ抽出（カンマや小数点も考慮）
+                    price_str = price_match.group(1).strip()
+                    price_num_match = re.search(r"[\d,\.]+", price_str)
+                    if price_num_match:
+                        price_val = price_num_match.group(0).replace(",", "")
+                        try:
+                            result["price"] = float(price_val)
+                        except:
+                            result["price"] = 0
+                    line_strip = ""
+                    break
+
+        # ID行の除去
+        id_line_match = re.match(r"(?:id|ID|Id)\s*[：:;；=‐\-]?\s*item\d{3}", line_strip, re.IGNORECASE)
+        if id_line_match:
+            continue
+
+        if any(id_val.lower() in line_strip.lower() for id_val in ids):
+            continue
+
+        if line_strip:
+            cleaned_lines.append(line_strip)
+
+    result["text"] = "\n".join(cleaned_lines).strip()
+    return result
+#### 2025.7.16 Add（mapping input）END

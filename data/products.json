@@ -5,7 +5,8 @@
     "category": "アウトドア",
     "description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1272
   },
   {
     "id": "item002",
@@ -13,7 +14,8 @@
     "category": "アウトドア",
     "description": "ワンタッチで設営できる遮光テント。紫外線カット率99%、持ち運びも簡単。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1417
   },
   {
     "id": "item003",
@@ -21,7 +23,8 @@
     "category": "アウトドア",
     "description": "ドリンクホルダー付きの折りたたみチェア。軽量で耐久性あり。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2562
   },
   {
     "id": "item004",
@@ -29,7 +32,8 @@
     "category": "ガジェット",
     "description": "Bluetooth接続で屋外でも音楽を楽しめる防水スピーカー。キャンプやビーチに最適。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2130
   },
   {
     "id": "item005",
@@ -37,7 +41,8 @@
     "category": "日用品",
     "description": "化学成分不使用の虫除けスプレー。赤ちゃんや敏感肌にも安心。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1547
   },
   {
     "id": "item006",
@@ -45,7 +50,8 @@
     "category": "ファッション",
     "description": "軽やかな春色のカーディガン。肌寒い春の日にぴったり。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1607
   },
   {
     "id": "item007",
@@ -53,7 +59,8 @@
     "category": "日用品",
     "description": "花粉の侵入を防ぐ春の必需品。曇りにくいレンズ仕様。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2450
   },
   {
     "id": "item008",
@@ -61,7 +68,8 @@
     "category": "アウトドア",
     "description": "防水＆コンパクト。桜の季節に欠かせないお花見用シート。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 729
   },
   {
     "id": "item009",
@@ -69,7 +77,8 @@
     "category": "家電",
     "description": "持ち運び可能なミニ空気清浄機。花粉の多い春に便利。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2404
   },
   {
     "id": "item010",
@@ -77,7 +86,8 @@
     "category": "日用品",
     "description": "ほんのり香る桜の香りで気分リフレッシュ。春限定。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2100
   },
   {
     "id": "item011",
@@ -85,7 +95,8 @@
     "category": "日用品",
     "description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2936
   },
   {
     "id": "item012",
@@ -93,7 +104,8 @@
     "category": "ガジェット",
     "description": "首にかけられるハンズフリー扇風機。真夏の通勤やアウトドアに。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2188
   },
   {
     "id": "item013",
@@ -101,7 +113,8 @@
     "category": "インテリア",
     "description": "太陽光をブロックして室内の温度上昇を防止。夏の節電に。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2015
   },
   {
     "id": "item014",
@@ -109,7 +122,8 @@
     "category": "家電",
     "description": "レトロな手動かき氷機。子どもと一緒に楽しめる夏の定番。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1371
   },
   {
     "id": "item015",
@@ -117,7 +131,8 @@
     "category": "アウトドア",
     "description": "寝具の上に設置できる蚊帳。夏のキャンプや昼寝に最適。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1367
   },
   {
     "id": "item016",
@@ -125,7 +140,8 @@
     "category": "ガーデン",
     "description": "落ち葉を簡単に集められるブロワー。秋の庭掃除に便利。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2249
   },
   {
     "id": "item017",
@@ -133,7 +149,8 @@
     "category": "ファッション",
     "description": "肌寒い秋の日にぴったりのチェック柄ストール。ユニセックス。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1840
   },
   {
     "id": "item018",
@@ -141,7 +158,8 @@
     "category": "家電",
     "description": "自宅で簡単にホクホクの焼き芋が作れる専用メーカー。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1660
   },
   {
     "id": "item019",
@@ -149,7 +167,8 @@
     "category": "ガジェット",
     "description": "秋の夜長に最適な柔らかい光の読書灯。クリップ式。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2138
   },
   {
     "id": "item020",
@@ -157,7 +176,8 @@
     "category": "インテリア",
     "description": "ガーランドやランタンなどの装飾がセットに。秋のイベントに！",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1569
   },
   {
     "id": "item021",
@@ -165,7 +185,8 @@
     "category": "家電",
     "description": "乾燥する冬にぴったりのアロマ対応加湿器。静音タイプ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1592
   },
   {
     "id": "item022",
@@ -173,7 +194,8 @@
     "category": "ファッション",
     "description": "薄くて暖かい機能性インナー。冬の重ね着に最適。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2177
   },
   {
     "id": "item023",
@@ -181,7 +203,8 @@
     "category": "家電",
     "description": "寒い夜に活躍するタイマー付き電気毛布。省エネ仕様。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1761
   },
   {
     "id": "item024",
@@ -189,7 +212,8 @@
     "category": "ファッション",
     "description": "滑り止め付きで雪道でも安心。おしゃれな防寒ブーツ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2531
   },
   {
     "id": "item025",
@@ -197,7 +221,8 @@
     "category": "インテリア",
     "description": "室内外どちらでも使えるLEDライト。冬の飾り付けに。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2773
   },
   {
     "id": "item026",
@@ -205,7 +230,8 @@
     "category": "家電",
     "description": "足元から暖まる冬の定番。節電モード付き。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2775
   },
   {
     "id": "item027",
@@ -213,7 +239,8 @@
     "category": "食品",
     "description": "国産そば粉使用。簡単調理で本格的な年越しそばを楽しめる。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2452
   },
   {
     "id": "item028",
@@ -221,7 +248,8 @@
     "category": "キッチン",
     "description": "春らしいデザインのステンレスタンブラー。保温保冷OK。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 644
   },
   {
     "id": "item029",
@@ -229,7 +257,8 @@
     "category": "ファッション",
     "description": "夏のビーチに映える限定カラー。軽量で履き心地◎",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1442
   },
   {
     "id": "item030",
@@ -237,7 +266,8 @@
     "category": "キッズ・学習",
     "description": "夏休みの自由研究にぴったりの観察キット。説明書付き。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1971
   },
   {
     "id": "item031",
@@ -245,7 +275,8 @@
     "category": "アクセサリー",
     "description": "春の装いにぴったりな桜デザインのピアス。上品で華やか。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2466
   },
   {
     "id": "item032",
@@ -253,7 +284,8 @@
     "category": "キッチン",
     "description": "お花見に便利な3段重箱。春の行楽に最適なサイズ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1029
   },
   {
     "id": "item033",
@@ -261,7 +293,8 @@
     "category": "食品",
     "description": "ふきのとう・こごみなど旬の山菜詰め合わせ。期間限定。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1888
   },
   {
     "id": "item034",
@@ -269,7 +302,8 @@
     "category": "ファッション",
     "description": "春夏の紫外線対策に最適な軽量日傘。収納ポーチ付き。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1727
   },
   {
     "id": "item035",
@@ -277,7 +311,8 @@
     "category": "食品",
     "description": "暑い夏でもさっぱり食べられる冷やし専用茶漬けセット。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2948
   },
   {
     "id": "item036",
@@ -285,7 +320,8 @@
     "category": "ファッション",
     "description": "吸湿速乾で涼しい着心地のルームウェア。男女兼用。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1052
   },
   {
     "id": "item037",
@@ -293,7 +329,8 @@
     "category": "ガジェット",
     "description": "ソーラー充電式のLEDランタン。停電や災害時にも活躍。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2306
   },
   {
     "id": "item038",
@@ -301,7 +338,8 @@
     "category": "インテリア",
     "description": "夏の玄関を明るく彩るひまわりモチーフのリース。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1309
   },
   {
     "id": "item039",
@@ -309,7 +347,8 @@
     "category": "食品",
     "description": "秋限定の味覚を詰め合わせた人気セット。贈り物にも。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 987
   },
   {
     "id": "item040",
@@ -317,7 +356,8 @@
     "category": "ファッション",
     "description": "秋の通勤に活躍する撥水素材のシンプルなトレンチ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1128
   },
   {
     "id": "item041",
@@ -325,7 +365,8 @@
     "category": "キッチン",
     "description": "秋らしい紅葉デザインのペア湯呑み。贈り物にも最適。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1599
   },
   {
     "id": "item042",
@@ -333,7 +374,8 @@
     "category": "アウトドア",
     "description": "折りたたみ式の軽量焚き火台。秋キャンプにおすすめ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1455
   },
   {
     "id": "item043",
@@ -341,7 +383,8 @@
     "category": "インテリア",
     "description": "ふわふわ素材で暖かい。冬支度に欠かせないこたつ布団。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 566
   },
   {
     "id": "item044",
@@ -349,7 +392,8 @@
     "category": "日用品",
     "description": "乾燥する季節にうれしい、しっとり系ハンドクリーム。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2164
   },
   {
     "id": "item045",
@@ -357,7 +401,8 @@
     "category": "ガジェット",
     "description": "かわいい雪だるま型のデザイン。冬のデスクに癒しを。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1723
   },
   {
     "id": "item046",
@@ -365,7 +410,8 @@
     "category": "インテリア",
     "description": "門松・しめ縄など正月用の和風飾り。毎年使えるタイプ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2316
   },
   {
     "id": "item047",
@@ -373,7 +419,8 @@
     "category": "食品",
     "description": "少人数にちょうど良いコンパクトおせち。冷蔵配送。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1645
   },
   {
     "id": "item048",
@@ -381,7 +428,8 @@
     "category": "ファッション",
     "description": "冷え性の方にも人気の冬用あったか靴下セット。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2757
   },
   {
     "id": "item049",
@@ -389,7 +437,8 @@
     "category": "文房具",
     "description": "オリジナル年賀状が作れる干支・梅などのスタンプ付き。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1148
   },
   {
     "id": "item050",
@@ -397,7 +446,8 @@
     "category": "アウトドア",
     "description": "スキーや雪遊びに。防水・防寒仕様のあったか手袋。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1823
   },
   {
     "id": "item051",
@@ -405,7 +455,8 @@
     "category": "ガジェット",
     "description": "Qi規格対応。スマホを置くだけで高速充電が可能。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 906
   },
   {
     "id": "item052",
@@ -413,7 +464,8 @@
     "category": "インテリア",
     "description": "座れる収納ボックス。玄関やリビングの片付けに便利。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2592
   },
   {
     "id": "item053",
@@ -421,7 +473,8 @@
     "category": "日用品",
     "description": "肌にやさしいオーガニック素材。贈り物にもおすすめ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2000
   },
   {
     "id": "item054",
@@ -429,7 +482,8 @@
     "category": "ガジェット",
     "description": "外出先でも快適な音楽体験。ケース付きで持ち運び簡単。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2334
   },
   {
     "id": "item055",
@@ -437,7 +491,8 @@
     "category": "インテリア",
     "description": "テレワークや勉強に最適。省スペース収納可能。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 809
   },
   {
     "id": "item056",
@@ -445,7 +500,8 @@
     "category": "キッチン",
     "description": "紅茶やハーブティーにぴったり。食洗機対応。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1501
   },
   {
     "id": "item057",
@@ -453,7 +509,8 @@
     "category": "文房具",
     "description": "読書やレシピ本の閲覧に便利。角度調節可。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1562
   },
   {
     "id": "item058",
@@ -461,7 +518,8 @@
     "category": "インテリア",
     "description": "しっかり支える快眠枕。洗えるカバー付き。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1048
   },
   {
     "id": "item059",
@@ -469,7 +527,8 @@
     "category": "家電",
     "description": "癒しの香りでリラックス空間に。LEDライト付き。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2207
   },
   {
     "id": "item060",
@@ -477,7 +536,8 @@
     "category": "ペット用品",
     "description": "ねこじゃらし・ボール・マットなどバリエーション豊富。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 789
   },
   {
     "id": "item061",
@@ -485,7 +545,8 @@
     "category": "キッズ・学習",
     "description": "肌にやさしいコットン100%。洗い替えに便利。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1474
   },
   {
     "id": "item062",
@@ -493,7 +554,8 @@
     "category": "ガジェット",
     "description": "高速データ転送対応。小型で持ち運びに便利。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1084
   },
   {
     "id": "item063",
@@ -501,7 +563,8 @@
     "category": "キッチン",
     "description": "デザイン性と機能性を両立。男女兼用。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2954
   },
   {
     "id": "item064",
@@ -509,7 +572,8 @@
     "category": "日用品",
     "description": "高い場所もラクラク掃除。取り外して洗浄可能。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2817
   },
   {
     "id": "item065",
@@ -517,7 +581,8 @@
     "category": "食品",
     "description": "自家焙煎のこだわりブレンド。コクのある味わい。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1629
   },
   {
     "id": "item066",
@@ -525,7 +590,8 @@
     "category": "インテリア",
     "description": "トイレ空間を有効活用できる便利グッズ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1702
   },
   {
     "id": "item067",
@@ -533,7 +599,8 @@
     "category": "アウトドア",
     "description": "懐中電灯・ラジオ・保存食などの基本セット。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2779
   },
   {
     "id": "item068",
@@ -541,7 +608,8 @@
     "category": "ペット用品",
     "description": "国産素材で安心・無添加。犬種問わず人気。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1987
   },
   {
     "id": "item069",
@@ -549,7 +617,8 @@
     "category": "ガジェット",
     "description": "夜道の安全確保に。USB充電式。防水仕様。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2597
   },
   {
     "id": "item070",
@@ -557,7 +626,8 @@
     "category": "インテリア",
     "description": "初心者でも育てやすい人気のグリーン。空気清浄効果も。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1026
   },
   {
     "id": "item071",
@@ -565,7 +635,8 @@
     "category": "文房具",
     "description": "書き込みスペース付き。ビジネスにも家庭にも。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2252
   },
   {
     "id": "item072",
@@ -573,7 +644,8 @@
     "category": "ファッション",
     "description": "履き心地抜群。シンプルで使いやすい。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 979
   },
   {
     "id": "item073",
@@ -581,7 +653,8 @@
     "category": "食品",
     "description": "さつまいも・にんじんなどを使った自然派スナック。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1936
   },
   {
     "id": "item074",
@@ -589,7 +662,8 @@
     "category": "食品",
     "description": "自然素材をブレンド。食事と一緒におすすめ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2176
   },
   {
     "id": "item075",
@@ -597,7 +671,8 @@
     "category": "インテリア",
     "description": "通気性の良いナチュラルデザイン。洗濯機OK。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1930
   },
   {
     "id": "item076",
@@ -605,7 +680,8 @@
     "category": "ガジェット",
     "description": "オフィスや寝室にちょうど良いミニ加湿器。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 526
   },
   {
     "id": "item077",
@@ -613,7 +689,8 @@
     "category": "ファッション",
     "description": "急な雨でも安心。軽量で持ち運び便利。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1543
   },
   {
     "id": "item078",
@@ -621,7 +698,8 @@
     "category": "キッチン",
     "description": "おにぎりが崩れず持ち運べるユニークな容器。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1195
   },
   {
     "id": "item079",
@@ -629,7 +707,8 @@
     "category": "ガジェット",
     "description": "カード収納付きで便利。シンプルなデザイン。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2376
   },
   {
     "id": "item080",
@@ -637,7 +716,8 @@
     "category": "ガジェット",
     "description": "コンパクトで省電力。オフィスや自宅に最適。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1837
   },
   {
     "id": "item081",
@@ -645,7 +725,8 @@
     "category": "食品",
     "description": "海苔・酢飯の素・具材入りの便利なセット。家族やパーティーに。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1611
   },
   {
     "id": "item082",
@@ -653,7 +734,8 @@
     "category": "キッチン",
     "description": "軽くて丈夫な天然竹を使用。抗菌仕様で衛生的。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2016
   },
   {
     "id": "item083",
@@ -661,7 +743,8 @@
     "category": "スポーツ",
     "description": "自宅で簡単トレーニング。軽量で持ち運びにも便利。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2318
   },
   {
     "id": "item084",
@@ -669,7 +752,8 @@
     "category": "コスメ",
     "description": "洗顔・化粧水・乳液の3点セット。乾燥対策に。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2940
   },
   {
     "id": "item085",
@@ -677,7 +761,8 @@
     "category": "日用品",
     "description": "コンパクトに収納できる大容量エコバッグ。レジ袋削減に。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1384
   },
   {
     "id": "item086",
@@ -685,7 +770,8 @@
     "category": "音楽・映像",
     "description": "自然音と優しいメロディーで快眠をサポート。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 648
   },
   {
     "id": "item087",
@@ -693,7 +779,8 @@
     "category": "ファッション",
     "description": "耐風構造で壊れにくい。男女兼用デザイン。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1098
   },
   {
     "id": "item088",
@@ -701,7 +788,8 @@
     "category": "アクセサリー",
     "description": "シンプルで上品なデザイン。日常使いにぴったり。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1855
   },
   {
     "id": "item089",
@@ -709,7 +797,8 @@
     "category": "キッズ・学習",
     "description": "安全素材使用。持ちやすい三角形状。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1185
   },
   {
     "id": "item090",
@@ -717,7 +806,8 @@
     "category": "ガジェット",
     "description": "目線を上げて姿勢改善。通気性にも優れた設計。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2322
   },
   {
     "id": "item091",
@@ -725,7 +815,8 @@
     "category": "日用品",
     "description": "毎分30,000回振動。歯垢をしっかり除去。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1121
   },
   {
     "id": "item092",
@@ -733,7 +824,8 @@
     "category": "アウトドア",
     "description": "キャンプや買い物に便利な大容量タイプ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2892
   },
   {
     "id": "item093",
@@ -741,7 +833,8 @@
     "category": "その他",
     "description": "選べる金額とデザイン。贈り物やお礼に便利。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1374
   },
   {
     "id": "item094",
@@ -749,7 +842,8 @@
     "category": "インテリア",
     "description": "ナチュラルで温かみのあるデザイン。壁掛け・卓上両対応。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2802
   },
   {
     "id": "item095",
@@ -757,7 +851,8 @@
     "category": "スポーツ",
     "description": "スマホ・鍵・カード収納可。夜間反射付き。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1269
   },
   {
     "id": "item096",
@@ -765,7 +860,8 @@
     "category": "食品",
     "description": "世界各国の紅茶を楽しめるティーバッグセット。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1811
   },
   {
     "id": "item097",
@@ -773,7 +869,8 @@
     "category": "インテリア",
     "description": "やわらかくて軽いフェルト素材。子ども部屋にも安心。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 2050
   },
   {
     "id": "item098",
@@ -781,7 +878,8 @@
     "category": "ガジェット",
     "description": "ワンタッチで装着可能。ダッシュボードやエアコン対応。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1976
   },
   {
     "id": "item099",
@@ -789,7 +887,8 @@
     "category": "ビジネス",
     "description": "シンプルで高級感あるデザイン。就職祝いや贈答にも。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1557
   },
   {
     "id": "item100",
@@ -797,7 +896,8 @@
     "category": "キッチン",
     "description": "こびりつきにくく、お手入れ簡単。時短調理におすすめ。",
     "source": "original",
-    "url": ""
+    "url": "",
+    "price": 1121
   },
   {
     "id": "item101",
@@ -805,7 +905,8 @@
     "category": "モバイルバッテリー",
     "description": "Ankerの超コンパクトなモバイルバッテリーで、10000mAhの大容量を持ち、急速充電をサポートします。",
     "source": "generated",
-    "url": "https://www.amazon.co.jp"
+    "url": "https://www.amazon.co.jp",
+    "price": 1369
   },
   {
     "id": "item102",
@@ -813,7 +914,8 @@
     "category": "掃除機",
     "description": "Dysonのコードレス掃除機で、パワフルな吸引力と長時間のバッテリー寿命を提供します。軽量で使いやすいデザインが特徴。",
     "source": "generated",
-    "url": "https://www.rakuten.co.jp"
+    "url": "https://www.rakuten.co.jp",
+    "price": 2591
   },
   {
     "id": "item103",
@@ -821,7 +923,8 @@
     "category": "ゲーム機",
     "description": "任天堂の人気ゲーム機で、携帯モードと据え置きモードの両方で楽しめます。多彩なゲームラインナップが魅力。",
     "source": "generated",
-    "url": "https://shopping.yahoo.co.jp"
+    "url": "https://shopping.yahoo.co.jp",
+    "price": 2350
   },
   {
     "id": "item104",
@@ -829,7 +932,8 @@
     "category": "スマートフォン",
     "description": "最新のチップと革新的なカメラ機能を搭載したiPhone 14は、洗練されたデザインと高性能を兼ね備えています。",
     "source": "generated",
-    "url": "https://www.amazon.co.jp"
+    "url": "https://www.amazon.co.jp",
+    "price": 2045
   },
   {
     "id": "item105",
@@ -837,7 +941,8 @@
     "category": "掃除機",
     "description": "Dysonの最新クリーナー、V12 Detect Slimは、軽量ながら強力な吸引力で、どんな場所でも簡単に掃除ができます。",
     "source": "generated",
-    "url": "https://www.rakuten.co.jp"
+    "url": "https://www.rakuten.co.jp",
+    "price": 959
   },
   {
     "id": "item106",
@@ -845,6 +950,7 @@
     "category": "ゲーム機",
     "description": "大人気のゲーム機、Nintendo Switchは、携帯モードと据え置きモードの両方で楽しむことができ、多彩なゲームラインナップが特徴です。",
     "source": "generated",
-    "url": "https://shopping.yahoo.co.jp"
+    "url": "https://shopping.yahoo.co.jp",
+    "price": 2835
   }
 ]

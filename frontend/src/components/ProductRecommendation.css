@@ -183,6 +183,14 @@
   margin-left: 10px;
 }
 
+/* 2025.7.16 Add（product ID）START */
+.product-id {
+  font-size: 0.85rem;
+  color: #999;
+  margin-bottom: 8px;
+}
+/* 2025.7.16 Add（product ID 表示）END */
+
 .product-category {
   color: #6c757d;
   font-size: 0.9rem;
