@@ -27,3 +27,5 @@ openpyxl>=3.1.2
 python-docx>=0.8.11
 pypdf>=3.12.1
 O365>=2.0.23
+PyPDF2>=3.0.1
+python-multipart>=0.0.20

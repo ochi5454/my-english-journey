@@ -10,8 +10,8 @@ def load_hashtag_map() -> dict:
         json_file_path = os.path.join(DATA_DIR, "hashtag_actions.json")
     except ImportError:
         # config.pyがない場合は相対パスを使用
-        current_dir = Path(__file__).parent
-        data_dir = current_dir / "data"
+        project_root = Path(__file__).parent.parent
+        data_dir = project_root / "data"
         data_dir.mkdir(exist_ok=True)  # dataフォルダーを自動作成
         json_file_path = data_dir / "hashtag_actions.json"
     

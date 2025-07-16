@@ -5,7 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.memory import BaseMemory
 from langchain_community.vectorstores import VectorStore, FAISS
 from langchain.memory import VectorStoreRetrieverMemory
-from backend.config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR
+from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR
 from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException

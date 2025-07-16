@@ -24,8 +24,8 @@ from def_library import generate_related_keywords_llm, search_items_in_json, sea
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
 
-from backend.hashtag_trigger import ACTION_MAP, RequestBody
-from backend.hashtag_config import load_hashtag_map
+from hashtag_trigger import ACTION_MAP, RequestBody
+from hashtag_config import load_hashtag_map
 
 hashtag_map = {}
 
@@ -846,5 +846,5 @@ async def export_results(req: ProductQuery, request: Request):
 # 2025.7.11 Add（search documents Enhanced）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
-from backend.openai_config import create_custom_openapi
+from openai_config import create_custom_openapi
 app.openapi = lambda: create_custom_openapi(app)
