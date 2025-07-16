@@ -112,7 +112,7 @@ class RecommendationResponse(BaseModel):
     message: str
     keywords: List[str]
     recommendations: List[Product] #### 2025.7.15 Add（attachment files）
-    recommendation_text: str = None #### 2025.7.15 Add（attachment files）
+    recommendation_text: str #### 2025.7.15 Add（attachment files）
 #### 2025.7.8 Add（recommend db）END
 
 # CORS設定を追加
@@ -388,7 +388,7 @@ def get_chat_history(
 
         # 🔄 アドオン: フィルタリング処理（オプション）
         if category or date_range:
-            from backend.def_library import filter_results
+            from def_library import filter_results
             
             # date_rangeがクエリパラメータとして文字列で渡される場合の処理
             processed_date_range = None
@@ -646,7 +646,11 @@ async def upload_product_file(
         save_dir = os.path.join(DATA_DIR, "products_docs")
         os.makedirs(save_dir, exist_ok=True)
 
-        save_path = os.path.join(save_dir, file.filename)
+        if save_dir is not None and file.filename is not None:
+            save_path = os.path.join(save_dir, file.filename)
+        else:
+            # Handle the error or provide a default value
+            raise ValueError("save_dir and file.filename must not be None")
         content = await file.read()
 
         # ファイル保存
@@ -732,7 +736,7 @@ async def search_documents(req: ProductQuery, request: Request):
         print(f"🎯 抽出キーワード: {keywords}")
 
         # 一般性の高いキーワードを除外
-        from backend.def_library import load_ignore_keywords, filter_keywords
+        from def_library import load_ignore_keywords, filter_keywords
         ignore_path = os.path.join(DATA_DIR, "ignorekeyword.json")
         ignore_keywords = load_ignore_keywords(ignore_path)
         keywords = filter_keywords(keywords, ignore_keywords)
@@ -785,7 +789,7 @@ async def search_documents(req: ProductQuery, request: Request):
         print(f"✅ {len(similar_products)} 件の類似商品を見つけました。")
 
         # 🔄 フィルタリング処理を追加
-        from backend.def_library import filter_results
+        from def_library import filter_results
 
         category = req.category  # ユーザーが指定したカテゴリ
 
@@ -801,7 +805,7 @@ async def search_documents(req: ProductQuery, request: Request):
         similar_products = filter_results(similar_products, category=category, date_range=date_range)
 
         # 技術文書と商品検索結果をランク付け
-        from backend.def_library import rank_results
+        from def_library import rank_results
 
         tech_search_results = rank_results(tech_search_results, related_keywords)
         similar_tech_documents = rank_results(similar_tech_documents, related_keywords)
@@ -809,7 +813,7 @@ async def search_documents(req: ProductQuery, request: Request):
         similar_products = rank_results(similar_products, keywords)
 
         # 7. 結果を返却する前に検索履歴を保存
-        from backend.def_library import save_search_history
+        from def_library import save_search_history
         
         # 検索履歴を保存
         all_results = tech_search_results + similar_tech_documents + product_search_results + similar_products
