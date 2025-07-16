@@ -13,7 +13,8 @@ interface Product {
   price: number;
   category: string;
   score?: number;
-  filename?: string;
+  filename?: string; //2025.7.15 Mod（attachment files）
+  sourceDb?: string; //2025.7.16 Mod（source db）
 }
 
 const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId }) => {
@@ -170,14 +171,14 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
       {/* 2025.7.15 Mod（attachment files）START */}
       {!hasUploaded && recommendationText && (
         <div className="recommendation-text">
-          <h3>AIからの提案:</h3>
+          <h3>AIからの提案</h3>
           <div>{formatTextWithLineBreaks(recommendationText)}</div>
         </div>
       )}
       {/* 2025.7.15 Mod（attachment files）END */}
       {!hasUploaded && recommendations.length > 0 && (
         <div className="recommendations-list">
-          <h3>推薦商品 ({recommendations.length}件)</h3>
+          <h3>該当商品 ({recommendations.length}件)</h3>
           <div className="products-grid">
             {recommendations.map((product, index) => (
               <div key={product.id || index} className="product-card">
@@ -189,6 +190,9 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
                     </span>
                   )}
                 </div>
+                {/* 2025.7.16 Mod（product ID）START */}
+                <div className="product-id">ID: {product.id}</div>
+                {/* 2025.7.16 Mod（product ID）END */}
                 <div className="product-category">
                   カテゴリ: {product.category}
                 </div>
@@ -198,6 +202,13 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
                 <div className="product-price">
                   ¥{product.price.toLocaleString()}
                 </div>
+                {/* 2025.7.16 Mod（source db）START */}
+                {product.sourceDb && (
+                  <div className="product-source-db" style={{ fontSize: '0.9em', color: '#666', marginBottom: '4px' }}>
+                    参照元DB: {product.sourceDb}
+                  </div>
+                )}
+                {/* 2025.7.16 Mod（source db）END */}
                 {/* 2025.7.15 Mod（attachment files）START */}
                 {product.filename && (
                   <a
