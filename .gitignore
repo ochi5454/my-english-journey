@@ -193,3 +193,4 @@ htmlcov/
 ./backend/.env
 ./frontend/.env
 .vscode
+./frontend/node_modules

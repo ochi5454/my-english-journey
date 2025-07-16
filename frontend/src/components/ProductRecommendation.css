@@ -82,40 +82,6 @@
   cursor: not-allowed;
 }
 
-/* 2025.7.15 Mod（attachment files）START */
-.file-upload-button {
-  background-color: #007bff;
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-  font-size: 12px;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  transition: background-color 0.2s;
-}
-
-.file-upload-button:hover {
-  background-color: #218838;
-}
-
-.file-upload-button.disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-  color: white;;
-}
-
-.file-upload-button.disabled:hover {
-  background-color: #ccc;
-}
-/* 2025.7.15 Mod（attachment files）END */
-
 .error-message {
   background-color: #f8d7da;
   color: #721c24;
@@ -202,33 +168,6 @@
   color: #28a745;
   text-align: right;
 }
-
-/* 2025.7.15 Mod（attachment files）START */
-.product-download-link {
-  color: #007bff;
-  text-decoration: underline;
-  cursor: pointer;
-  font-size: 14px;
-  display: inline-block;
-  margin-top: 8px;
-}
-
-.product-download-link:hover {
-  color: #0056b3;
-  text-decoration: none;
-}
-
-.recommendation-text {
-  background-color: #fff;
-  padding: 15px 20px;
-  border-radius: 12px;
-  margin-bottom: 16px;
-  font-size: 1rem;
-  color: #333;
-  border: 1px solid #e9ecef;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-/* 2025.7.15 Mod（attachment files）END */
 
 /* スクロールバーのスタイル */
 .recommendations-list::-webkit-scrollbar {
