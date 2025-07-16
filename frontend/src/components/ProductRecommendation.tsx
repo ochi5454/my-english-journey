@@ -25,6 +25,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [recommendationText, setRecommendationText] = useState<string | null>(null);
   const [hasUploaded, setHasUploaded] = useState(false);
+  const apiBaseUrl = import.meta.env.VITE_API_URL;
 
   // ① ファイルアップロード関数をコンポーネント内に切り出し
   const uploadFile = async (file: File) => {
@@ -33,9 +34,9 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/recommend/upload", {
-        method: "POST",
-        body: formData,
+        const res = await fetch(`${apiBaseUrl}/recommend/upload`, {
+          method: "POST",
+          body: formData,
       });
 
       const data = await res.json();
@@ -201,7 +202,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
                 {/* 2025.7.15 Mod（attachment files）START */}
                 {product.filename && (
                   <a
-                    href={`http://localhost:8000/recommend/download?filename=${encodeURIComponent(product.filename)}`}
+                    href={`${apiBaseUrl}/recommend/download?filename=${encodeURIComponent(product.filename)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="download-link"
