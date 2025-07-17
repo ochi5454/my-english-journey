@@ -1,9 +1,13 @@
 // src/services/api.ts
+import config from "../config";
+
+const VITE_API_URL = config.API_BASE_URL;
+
 const getApiBaseUrl = (): string => {
   try {
     // Vite環境変数を安全に取得
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      return (import.meta as any).env.VITE_API_URL || 'http://localhost:8000';
+    if (typeof import.meta !== 'undefined') {
+      return VITE_API_URL || 'http://localhost:8000';
     }
   } catch (error) {
     console.warn('Failed to access import.meta.env:', error);

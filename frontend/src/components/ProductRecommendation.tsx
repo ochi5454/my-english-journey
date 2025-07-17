@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import './ProductRecommendation.css';
 import { recommendationApi } from '../services/api';
 
+import config from "../config";
+
+const VITE_API_URL = config.API_BASE_URL;
+
 interface ProductRecommendationProps {
   userId: string;
 }
@@ -34,7 +38,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/recommend/upload", {
+      const res = await fetch("./recommend/upload", {
         method: "POST",
         body: formData,
       });
@@ -212,7 +216,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
                 {/* 2025.7.15 Mod（attachment files）START */}
                 {product.filename && (
                   <a
-                    href={`http://localhost:8000/recommend/download?filename=${encodeURIComponent(product.filename)}`}
+                    href={`./recommend/download?filename=${encodeURIComponent(product.filename)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="download-link"

@@ -17,10 +17,12 @@ from langdetect import detect
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import Optional, List
+from fastapi.staticfiles import StaticFiles
 
 # 自作モジュール
 from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
+
 
 from hashtag_trigger import ACTION_MAP, RequestBody
 from hashtag_config import load_hashtag_map
@@ -38,9 +40,11 @@ async def lifespan(app: FastAPI):
     # Shutdown (必要に応じて)
 
 app = FastAPI(lifespan=lifespan)
+
 #### 2025.7.15 Add（attachment files）START
 router = APIRouter()
-#### 2025.7.15 Add（attachment files）END
+# app.mount("/", StaticFiles(directory="./frontend/build", html=True), name="static")
+
 
 #### 2025.7.8 Add（avoid error）START
 # OpenMP関連のエラー回避設定（FAISS対策）
@@ -108,7 +112,7 @@ class RecommendationResponse(BaseModel):
     message: str
     keywords: List[str]
     recommendations: List[Product] #### 2025.7.15 Add（attachment files）
-    recommendation_text: str = None #### 2025.7.15 Add（attachment files）
+    recommendation_text: str #### 2025.7.15 Add（attachment files）
 #### 2025.7.8 Add（recommend db）END
 
 # CORS設定を追加
@@ -642,7 +646,11 @@ async def upload_product_file(
         save_dir = os.path.join(DATA_DIR, "products_docs")
         os.makedirs(save_dir, exist_ok=True)
 
-        save_path = os.path.join(save_dir, file.filename)
+        if save_dir is not None and file.filename is not None:
+            save_path = os.path.join(save_dir, file.filename)
+        else:
+            # Handle the error or provide a default value
+            raise ValueError("save_dir and file.filename must not be None")
         content = await file.read()
 
         # ファイル保存

@@ -149,7 +149,7 @@ def extract_keywords(text: str) -> List[str]:
             continue
 
         # ここでは tok が Token として扱われるので part_of_speech が認識される
-        part_of_speech = token.part_of_speech.split(',')[0]
+        part_of_speech = (token.part_of_speech or "").split(',')[0]
         if part_of_speech == "名詞":
             keywords.append(token.surface)
 
@@ -935,7 +935,8 @@ def mask_personal_info(text: str) -> str:
         if not isinstance(token, Token):
             continue
 
-        pos_parts = token.part_of_speech.split(',')
+        pos_parts_origina = token.part_of_speech
+        pos_parts = (pos_parts_origina or "").split(',')
 
         if pos_parts[0] == "名詞" and len(pos_parts) > 2 and pos_parts[1] == "固有名詞" and pos_parts[2] == "人名":
             masked_words.append('＜人名削除＞') #### 2025.7.16 Mod（remove identify info）
@@ -982,12 +983,19 @@ def extract_items_from_excel(filepath: str) -> list[dict]:
                 mapped[key] = None
 
         for _, row in df.iterrows():
+            price_val = row.get(mapped["price"], 0) if mapped["price"] else 0
+            if isinstance(price_val, pd.Series):
+                price_val = price_val.iloc[0]
+            try:
+                price = float(price_val) if not pd.isna(price_val) else 0
+            except Exception:
+                price = 0            
             items.append({
                 "id": str(row.get(mapped["id"], "")).strip() if mapped["id"] else "",
                 "name": str(row.get(mapped["name"], "")).strip() if mapped["name"] else "",
                 "category": str(row.get(mapped["category"], "未分類")).strip() if mapped["category"] else "未分類",
                 "text": str(row.get(mapped["description"], "")).strip() if mapped["description"] else "",
-                "price": float(row[mapped["price"]]) if mapped["price"] and not pd.isna(row[mapped["price"]]) else 0,
+                "price": price,
                 "filename": os.path.basename(filepath)
             })
 
@@ -1068,13 +1076,15 @@ def extract_id_from_text(text: str) -> str:
     return match.group(0) if match else ""
 
 def extract_ids_from_llm_text(text: str) -> list[str]:
-    # idのパターン例: "id=item001", "ID:item001", "ID: item001", "Id：item001", "id - item001", "「item001」"
-    pattern = r'(?:id|ID|Id)[\s:=\-：]*item\d{3}|"item\d{3}"|「item\d{3}」'
-    # 大文字小文字区別しないのでフラグre.Iをつける
-    matches = re.findall(pattern, text, re.I)
-    # 取得したマッチからitemXXX部分だけ抽出する処理を追加するのも良いです
-    cleaned_ids = [re.search(r'item\d{3}', m, re.I).group(0) for m in matches if re.search(r'item\d{3}', m, re.I)]
-    return cleaned_ids
+    raw_matches = re.findall(r'(?:id|ID|Id)[\s:=\-：]*item\d{3}|"item\d{3}"|「item\d{3}」',
+                             text, re.IGNORECASE)
+    ids: list[str] = []
+    for m in raw_matches:
+        match = re.search(r'item\d{3}', m, re.IGNORECASE)
+        if match:
+            ids.append(match.group(0))
+    return ids
+
 #### 2025.7.15 Add（attachment files）END
 
 #### 2025.7.16 Add（mapping input）START
