@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 import pandas as pd
 from PyPDF2 import PdfReader
 import docx
+from pptx.util import Pt
+from deep_translator import GoogleTranslator
 
 import os
 import openai
@@ -398,12 +400,41 @@ def load_json(file_path: str = "products.json") -> List[Dict]:
         raise HTTPException(status_code=404, detail="Product database not found")
 
 # Generate recommendations using ChatGPT
-def recommend_items_with_llm(keywords: List[str], search_results: List[Dict], history_snippets: List[str]) -> str:    
+def recommend_items_with_llm(keywords: List[str], search_results: List[Dict], history_snippets: List[str], search_level: str) -> str:    
     # search_resultsが空である場合
     if not search_results:
         return "該当する商品は1件もありませんでした。"
 
-    history_text = "\n".join(f"- {h}" for h in history_snippets)
+    #### 2025.7.17 Mod（radio checkbox）START
+    if search_level in ["basic", "expanded"]:
+        history_text = ""  # ← ここでブランクにする
+        history_mention = "ユーザーの過去の会話履歴への言及は不要です。"
+        example_text = """
+    【例①（1件のみの場合）】
+    「id=item011『速乾冷感タオル』は、...」
+
+    【例②（2件あった場合）】
+    「以下の2つの商品をおすすめします。
+
+    1. id=item021『●●』は〜。
+    2. id=item022『▲▲』は〜。
+    」
+    """
+    else:  # conversation
+        history_text = "\n".join(f"- {h}" for h in history_snippets)
+        history_mention = "以前、〇〇について話されていましたね。と伝えるようにしてください。"
+        example_text = """
+    【例①（1件のみの場合）】
+    「以前、暑さ対策をお探しでしたね。それも考慮すると、id=item011『速乾冷感タオル』は、...」
+
+    【例②（2件あった場合）】
+    「以前、〇〇について話されていましたね。過去の話も考慮すると、以下の2つの商品をおすすめします。
+
+    1. id=item021『●●』は〜。
+    2. id=item022『▲▲』は〜。
+    」
+    """
+
     prompt = f"""
 
 🔁 ユーザーの過去履歴:
@@ -418,23 +449,16 @@ def recommend_items_with_llm(keywords: List[str], search_results: List[Dict], hi
 
 1. 商品は search_results の中からのみ選んでください。**それ以外の商品を補完・追加してはいけません。**
 2. 商品の数は search_results の数と完全に一致させてください（最大3件まで）。1件しかなければ、1件のみを紹介してください。
-3. ユーザーの履歴に言及してください（例：「以前〜とおっしゃっていましたね」）。
+3. {history_mention}
 4. 各商品には、必ず「id=itemXXX」の形式で**idを本文中に明記**してください。
 5. 商品の名前・特徴・おすすめ理由を自然な日本語で説明してください。
 6. **idだけをまとめて書いたり、箇条書きから省略したりしないでください。**各商品の紹介文の中に組み込んでください。
 
-【例①（1件のみの場合）】
-「以前、暑さ対策をお探しでしたね。id=item011『速乾冷感タオル』は、...」
-
-【例②（2件あった場合）】
-「以前、〇〇について話されていましたね。以下の2つの商品をおすすめします。
-
-1. id=item021『●●』は〜。
-2. id=item022『▲▲』は〜。
-」
+{example_text}
 
 このルールに従って、おすすめ文を自然に生成してください。
-"""
+""" 
+#### 2025.7.17 Mod（radio checkbox）END
     try:
         chatgpt_response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -1157,3 +1181,8 @@ def clean_text_for_words_pdf(raw_text: str) -> dict:
     result["text"] = "\n".join(cleaned_lines).strip()
     return result
 #### 2025.7.16 Add（mapping input）END
+
+#### 2025.7.17 Mod（radio checkbox）START
+def translate_to_english(text: str) -> str:
+    return GoogleTranslator(source='ja', target='en').translate(text)
+#### 2025.7.17 Mod（radio checkbox）END

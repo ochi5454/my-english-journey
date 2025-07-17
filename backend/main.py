@@ -4,6 +4,7 @@ import re
 import json
 import logging
 import openai
+from collections import Counter
 
 # サードパーティライブラリ
 from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form
@@ -18,9 +19,10 @@ from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi.staticfiles import StaticFiles
+from pptx import Presentation
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
 
 
@@ -105,6 +107,8 @@ class ProductQuery(BaseModel):
     export_format: Optional[str] = None  # "csv" or "json"
     category: Optional[str] = None  # フィルタリング用カテゴリ
     date_range: Optional[List[str]] = ["2025-01-01", datetime.now().strftime("%Y-%m-%d")] # フィルタリング用日付範囲 ["YYYY-MM-DD", "YYYY-MM-DD"]
+    search_level: str = "expanded"  # "basic", "expanded", "conversation" のいずれか #### 2025.7.17 Mod（radio checkbox）
+    include_english: bool = False  # 英語データを含めるかどうか #### 2025.7.17 Mod（radio checkbox）
 
 # 商品推薦APIのレスポンスモデル（ユーザーID・メッセージ・キーワード・推薦内容）
 class RecommendationResponse(BaseModel):
@@ -463,18 +467,34 @@ async def recommend(req: ProductQuery, request: Request):
         related_nouns = extract_keywords(related_text)
         print(f"🧠 拡張キーワードから抽出された名詞: {related_nouns}")
 
-        # # 6. 会話履歴からキーワードを抽出する（頻出履歴キーワードだけに絞る）
-        # history_text_all = "。".join(related_history)
-        # raw_history_keywords = extract_keywords(history_text_all)
-        # keyword_counts = Counter(raw_history_keywords)
-        # top_history_keywords = [kw for kw, _ in keyword_counts.most_common(3)]
-        # print(f"📜 履歴から頻出キーワード上位3つ: {top_history_keywords}")
+    #### 2025.7.17 Mod（radio checkbox）START
+        # 6. 会話履歴からキーワードを抽出する（頻出履歴キーワードだけに絞る）
+        history_text_all = "。".join(related_history)
+        raw_history_keywords = extract_keywords(history_text_all)
+        keyword_counts = Counter(raw_history_keywords)
+        top_history_keywords = [kw for kw, _ in keyword_counts.most_common(3)]
+        print(f"📜 履歴から頻出キーワード上位3つ: {top_history_keywords}")
 
-        # 7. 抽出＋拡張のキーワードを統合
-        all_keywords = list(set(keywords + related_nouns))
-        # # 7. 抽出＋拡張＋会話履歴のキーワードを統合
-        # all_keywords = list(set(keywords + related_nouns + top_history_keywords))
-        print(f"🔍 検索用キーワード: {all_keywords}")
+        # 7. 検索キーワードを決定
+        # 7-1. ラジオボタンから検索キーワードを統合
+        if req.search_level == "basic":
+            all_keywords = keywords
+        elif req.search_level == "expanded":
+            all_keywords = list(set(keywords + related_nouns))
+        elif req.search_level == "conversation":
+            all_keywords = list(set(keywords + related_nouns + top_history_keywords))
+        print(f"🔍 検索用キーワード: {all_keywords}, ✅ ラジオボタン: {req.search_level}")
+
+        # 7-2. include_english が True なら、キーワードを英訳し、検索用キーワードに追加
+        if req.include_english:
+            try:
+                translated_keywords = [translate_to_english(kw) for kw in all_keywords]
+                all_keywords = list(set(all_keywords + translated_keywords))
+                print(f"🌐 英訳キーワード追加: {translated_keywords}")
+            except Exception as e:
+                print(f"❌ キーワード英訳に失敗: {e}")
+
+    #### 2025.7.17 Mod（radio checkbox）END
 
 #### 2025.7.15 Mod（search files）START
     #### 2025.7.16 Mod（search all db）START
@@ -552,7 +572,7 @@ async def recommend(req: ProductQuery, request: Request):
         # #### 2025.7.10 Mod（generate items）END
 
         # 11. ChatGPTでおすすめ生成
-        llm_generated_text = recommend_items_with_llm(keywords, search_results, related_history) #### 2025.7.15 Add（attachment files）
+        llm_generated_text = recommend_items_with_llm(keywords, search_results, related_history, req.search_level) #### 2025.7.15 Add（attachment files） #### 2025.7.17 Mod（radio checkbox）
         print(f"✅ 生成した提案: {llm_generated_text}") #### 2025.7.15 Add（attachment files）
 
         # 12. 返却予定の会話内容を先に保存

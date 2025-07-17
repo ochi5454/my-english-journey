@@ -50,6 +50,8 @@ interface SearchResponse {
 interface RecommendationRequest {
   session_id: string;
   query: string;
+  search_level?: 'basic' | 'expanded' | 'conversation';  // 2025.7.17 Mod（radio checkbox）
+  include_english: boolean; // 2025.7.17 Mod（radio checkbox）
 }
 
 interface RecommendationResponse {

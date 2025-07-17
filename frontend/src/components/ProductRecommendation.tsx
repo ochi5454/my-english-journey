@@ -2,10 +2,6 @@ import React, { useState } from 'react';
 import './ProductRecommendation.css';
 import { recommendationApi } from '../services/api';
 
-import config from "../config";
-
-const VITE_API_URL = config.API_BASE_URL;
-
 interface ProductRecommendationProps {
   userId: string;
 }
@@ -30,6 +26,8 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [recommendationText, setRecommendationText] = useState<string | null>(null);
   const [hasUploaded, setHasUploaded] = useState(false);
+  const [searchLevel, setSearchLevel] = useState<'basic' | 'expanded' | 'conversation'>('basic'); // 2025.7.17 Mod（radio checkbox）
+  const [includeEnglish, setIncludeEnglish] = useState(false); // 2025.7.17 Mod（radio checkbox）
 
   // ① ファイルアップロード関数をコンポーネント内に切り出し
   const uploadFile = async (file: File) => {
@@ -70,7 +68,9 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
       // ← ここを変更
       const data = await recommendationApi.getRecommendations({
         session_id: userId,
-        query: query
+        query: query,
+        search_level: searchLevel, // 2025.7.17 Mod（radio checkbox）
+        include_english: includeEnglish  // 2025.7.17 Mod（radio checkbox）
       });
 
       console.log('Response data:', data);
@@ -122,8 +122,50 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
         <p>User ID: {userId}</p>
         <p>あなたの好みに合った商品を推薦します</p>
       </div>
-
       <div className="recommendation-input-section">
+        {/* 2025.7.17 Mod（radio checkbox）START */}
+        <div className="recommendation-options-wrapper">
+          <div className="search-level-radio-group">
+            <label><strong>検索レベル:</strong></label>
+            <label>
+              <input
+                type="radio"
+                name="searchLevel"
+                value="basic"
+                checked={searchLevel === 'basic'}
+                onChange={(e) => setSearchLevel(e.target.value as any)}
+              /> 基本
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="searchLevel"
+                value="expanded"
+                checked={searchLevel === 'expanded'}
+                onChange={(e) => setSearchLevel(e.target.value as any)}
+              /> 拡張
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="searchLevel"
+                value="conversation"
+                checked={searchLevel === 'conversation'}
+                onChange={(e) => setSearchLevel(e.target.value as any)}
+              /> 履歴
+            </label>
+          </div>
+          <div className="additional-options-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={includeEnglish}
+                onChange={(e) => setIncludeEnglish(e.target.checked)}
+              /> 英語データも検索
+            </label>
+          </div>
+        </div>
+        {/* 2025.7.17 Mod（radio checkbox）END */}
         <div className="input-container">
           <textarea
             value={query}
