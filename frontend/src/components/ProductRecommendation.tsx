@@ -18,6 +18,7 @@ interface Product {
 }
 
 const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId }) => {
+  const [effectiveUserId, setEffectiveUserId] = useState<string>(userId || '');// 2025.7.18 Add（feedback）
   const [query, setQuery] = useState('');
   const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,11 +29,12 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
   const [hasUploaded, setHasUploaded] = useState(false);
   const [searchLevel, setSearchLevel] = useState<'basic' | 'expanded' | 'conversation'>('basic'); // 2025.7.17 Mod（radio checkbox）
   const [includeEnglish, setIncludeEnglish] = useState(false); // 2025.7.17 Mod（radio checkbox）
+  const [serverMessage, setServerMessage] = useState<string | null>(null); // 2025.7.18 Add（feedback）
 
   // ① ファイルアップロード関数をコンポーネント内に切り出し
   const uploadFile = async (file: File) => {
     const formData = new FormData();
-    formData.append("session_id", userId);
+    formData.append("session_id", effectiveUserId);
     formData.append("file", file);
 
     try {
@@ -52,9 +54,63 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
   };
 // 2025.7.15 Add（attachment files）END
 
+// 2025.7.18 Add（feedback）START
+const [likedProducts, setLikedProducts] = useState<string[]>([]);
+const [dislikedProducts, setDislikedProducts] = useState<string[]>([]);
+const handleFeedback = async (productId: string, feedback: 'like' | 'dislike', serverMessage: string, productName: string, description: string) => {
+  const isLiked = likedProducts.includes(productId);
+  const isDisliked = dislikedProducts.includes(productId);
+
+  let newLiked = [...likedProducts];
+  let newDisliked = [...dislikedProducts];
+
+  // トグル動作
+  if (feedback === 'like') {
+    if (isLiked) {
+      newLiked = newLiked.filter(id => id !== productId); // 取り消し
+    } else {
+      newLiked.push(productId);
+      newDisliked = newDisliked.filter(id => id !== productId); // dislike と排他
+    }
+  } else if (feedback === 'dislike') {
+    if (isDisliked) {
+      newDisliked = newDisliked.filter(id => id !== productId); // 取り消し
+    } else {
+      newDisliked.push(productId);
+      newLiked = newLiked.filter(id => id !== productId); // like と排他
+    }
+  }
+
+  setLikedProducts(newLiked);
+  setDislikedProducts(newDisliked);
+
+  // サーバー送信
+  try {
+      await fetch('/recommend/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: effectiveUserId,
+          message: serverMessage,
+          product_id: productId,
+          product_name: productName,
+          product_description: description, 
+          feedback: feedback,
+          timestamp: new Date().toISOString(),
+      }),
+    });
+    console.log(`✅ フィードバック送信: ${productId} - ${feedback}`);
+  } catch (err) {
+    console.error('❌ フィードバック送信エラー:', err);
+  }
+};
+// 2025.7.18 Add（feedback）END
+
   const handleRecommend = async () => {
     if (!query.trim()) return;
 
+    setLikedProducts([]); // 2025.7.18 Add（feedback）
+    setDislikedProducts([]); // 2025.7.18 Add（feedback）
     setHasUploaded(false); // 2025.7.15 Add（attachment files）
     setUploadMessage(null); // 2025.7.15 Add（attachment files）
     setRecommendationText(null); // 2025.7.15 Add（attachment files）
@@ -67,11 +123,19 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
 
       // ← ここを変更
       const data = await recommendationApi.getRecommendations({
-        session_id: userId,
+        session_id: effectiveUserId || '',  // 2025.7.18 Add（feedback）
         query: query,
         search_level: searchLevel, // 2025.7.17 Mod（radio checkbox）
         include_english: includeEnglish  // 2025.7.17 Mod（radio checkbox）
       });
+
+      // 2025.7.18 Add（feedback）START
+      setServerMessage(data.message || null);
+      // サーバー返却の user_id を常に使う
+      if (data.user_id) {
+        setEffectiveUserId(data.user_id);
+      }
+      // 2025.7.18 Add（feedback）END
 
       console.log('Response data:', data);
 
@@ -119,7 +183,9 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
     <div className="product-recommendation">
       <div className="recommendation-header">
         <h2>商品推薦</h2>
-        <p>User ID: {userId}</p>
+        {/* 2025.7.18 Add（feedback）START */}
+        <p>User ID: {effectiveUserId}</p>
+        {/* 2025.7.18 Add（feedback）END */}
         <p>あなたの好みに合った商品を推薦します</p>
       </div>
       <div className="recommendation-input-section">
@@ -175,7 +241,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
             rows={3}
           />
           {/* 2025.7.15 Mod（attachment files）START */}
-          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+          <div className="recommendation-button-group">
             <button
               onClick={handleRecommend}
               disabled={isLoading || !query.trim()}
@@ -201,7 +267,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
               />
             </label>          </div>
           {uploadMessage && (
-            <div className="upload-message" style={{ color: 'green', marginTop: '8px' }}>
+            <div className="upload-message">
               {uploadMessage}
             </div>
           )}
@@ -250,7 +316,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
                 </div>
                 {/* 2025.7.16 Mod（source db）START */}
                 {product.sourceDb && (
-                  <div className="product-source-db" style={{ fontSize: '0.9em', color: '#666', marginBottom: '4px' }}>
+                  <div className="product-source-db">
                     参照元DB: {product.sourceDb}
                   </div>
                 )}
@@ -267,6 +333,22 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
                   </a>
                 )}
                 {/* 2025.7.15 Mod（attachment files）END */}
+                {/* 2025.7.18 Mod（feedback）START */}
+                <div className="feedback-buttons">
+                  <button
+                    onClick={() => handleFeedback(product.id, 'like', serverMessage ?? '', product.name, product.description)}
+                    className={`like-button ${likedProducts.includes(product.id) ? 'active' : ''}`}
+                  >
+                    👍
+                  </button>
+                  <button
+                    onClick={() => handleFeedback(product.id, 'dislike', serverMessage ?? '', product.name, product.description)}
+                    className={`dislike-button ${dislikedProducts.includes(product.id) ? 'active' : ''}`}
+                  >
+                    👎
+                  </button>
+                </div>
+                {/* 2025.7.18 Mod（feedback）END */}
               </div>
             ))}
           </div>

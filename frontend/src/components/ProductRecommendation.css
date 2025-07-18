@@ -80,6 +80,14 @@
   box-sizing: border-box;
 }
 
+/* 2025.7.15 Mod（attachment files）START */
+.recommendation-button-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+/* 2025.7.15 Mod（attachment files）END */
+
 .recommend-button {
   background-color: #28a745;
   color: white;
@@ -137,6 +145,11 @@
 .file-upload-button.disabled:hover {
   background-color: #ccc;
 }
+
+.upload-message {
+  color: green;
+  margin-top: 8px;
+}
 /* 2025.7.15 Mod（attachment files）END */
 
 .error-message {
@@ -175,6 +188,9 @@
   border-radius: 12px;
   padding: 15px;
   transition: all 0.3s;
+  position: relative; /* 2025.7.18 Add（feedback） */
+  padding-bottom: 2rem; /* 2025.7.18 Add（feedback） */
+  justify-content: space-between;/* 2025.7.18 Add（feedback） */
 }
 
 .product-card:hover {
@@ -260,6 +276,64 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 /* 2025.7.15 Mod（attachment files）END */
+
+/* 2025.7.16 Mod（source db）START */
+.product-source-db {
+  font-size: 0.9em;
+  color: #666;
+  margin-bottom: 4px;
+}
+/* 2025.7.16 Mod（source db）END */
+
+/* 2025.7.18 Add（feedback）START */
+.feedback-buttons button {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.like-button,
+.dislike-button {
+  position: absolute;
+  bottom: 8px;
+  font-size: 3rem;
+  border: none;
+  background: #eee;
+  padding: 6px 10px;
+  margin: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.like-button {
+  right: 40px;
+}
+
+.dislike-button {
+  right: 8px;
+}
+
+.like-button.active {
+  background-color: #0070f3;
+  color: white;
+}
+
+.dislike-button.active {
+  background-color: #f33;
+  color: white;
+}
+
+.like-button:hover {
+  transform: scale(1.2);
+}
+
+.dislike-button:hover {
+  transform: scale(1.2);
+}
+/* 2025.7.18 Add（feedback）END */
 
 /* スクロールバーのスタイル */
 .recommendations-list::-webkit-scrollbar {

@@ -18,6 +18,7 @@ OPENAI_API_KEY = SecretStr(api_key_str)
 # プロジェクトのルートディレクトリを取得
 PROJECT_ROOT = Path(__file__).parent.parent  # MemoryPersistenceMaruyamaフォルダー（backendの親）
 DATA_DIR = PROJECT_ROOT / "data"
+FEEDBACK_DIR = DATA_DIR / "feedback" #### 2025.7.18 Add（feedback）
 
 BASE_DIR = Path(__file__).parent  # backendフォルダー
 SAVE_DIR = BASE_DIR / "savecontext"

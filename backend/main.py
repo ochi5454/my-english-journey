@@ -5,6 +5,7 @@ import json
 import logging
 import openai
 from collections import Counter
+import traceback
 
 # サードパーティライブラリ
 from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form
@@ -22,8 +23,8 @@ from fastapi.staticfiles import StaticFiles
 from pptx import Presentation
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -119,6 +120,17 @@ class RecommendationResponse(BaseModel):
     recommendation_text: str #### 2025.7.15 Add（attachment files）
 #### 2025.7.8 Add（recommend db）END
 
+#### 2025.7.18 Add（feedback）START
+class Feedback(BaseModel):
+    user_id: str
+    message: Optional[str] = None
+    product_id: str
+    product_name: Optional[str] = None
+    product_description: Optional[str] = None
+    feedback: str
+    timestamp: str
+#### 2025.7.18 Add（feedback）END
+
 # CORS設定を追加
 app.add_middleware(
     CORSMiddleware,
@@ -181,6 +193,7 @@ async def assign_user_id(request: Request, call_next):
 
     except Exception as e:
         print(f"Error in assign_user_id middleware: {str(e)}")
+        traceback.print_exc()
         return JSONResponse(
             content={"error": "Failed to process user ID"},
             status_code=500
@@ -426,74 +439,95 @@ def get_chat_history(
 async def recommend(req: ProductQuery, request: Request):
     print("✅ Start of /recommend")
     try:
-        print(f"✅ req: {req}")
         query_text = req.query
         print(f"✅ query_text: {query_text}")
 
+        #### 2025.7.18 Mod（radio checkbox）START
+        basic_keywords=""
+        expanded_keywords=""
+        history_keywords=""
+        #### 2025.7.18 Mod（radio checkbox）END
+
     #### 2025.7.11 Mod（remove identify info）START
-        # 0. まず個人情報をマスクする
+        # 0. 個人情報をマスクする
         masked_user_query = mask_personal_info(req.query)
         print(f"✅ masked_user_query: {masked_user_query}")
 
-        # 1. 商品検索タグや個人情報マスクをまとめて削除
+        # 1. 商品検索タグや個人情報マスクをユーザ入力テキスト上から削除
         for token in ["#商品検索", "＜メールアドレス削除＞", "＜電話番号削除＞", "＜人名削除＞", "＜会社名削除＞"]: #### 2025.7.16 Mod（remove identify info）
             masked_user_query = masked_user_query.replace(token, "")
         masked_user_query = masked_user_query.strip()
         #### 2025.7.11 Mod（remove identify info）END
 
-        # 2. 会話履歴ベクトルストアから関連履歴を取得
+        # 2. ユーザとの過去のやり取りを取得
+        # 2-1. 会話履歴ベクトルストアの取得
+        related_history = ""
         memory, vectorstore = get_user_memory_and_store(request.state.user_id, embedding)
-        related_history = [doc.page_content for doc in vectorstore.similarity_search(masked_user_query, k=3)] #### 2025.7.11 Mod（remove identify info）
 
-        print(f"🔍 Retrieved {len(related_history)} related history items for query: {masked_user_query}") #### 2025.7.11 Mod（remove identify info）
-        for i, h in enumerate(related_history, 1):
-            print(f"  [{i}] {h}")
+        # 2-2. 過去の類似チャットを取得（商品検索に限らず）
+        if req.search_level == "conversation": #### 2025.7.17 Mod（radio checkbox）
+            related_history = [doc.page_content for doc in vectorstore.similarity_search(masked_user_query, k=3)] #### 2025.7.11 Mod（remove identify info）
 
-        # 3. ユーザー入力からキーワードを抽出
-        keywords = extract_keywords(masked_user_query) #### 2025.7.11 Mod（remove identify info）
-        print(f"🎯 抽出キーワード: {keywords}")
+            print(f"🔍 Retrieved {len(related_history)} related history items for query: {masked_user_query}") #### 2025.7.11 Mod（remove identify info）
+            for i, h in enumerate(related_history, 1):
+                print(f"  [{i}] {h}")
+
+        #### 2025.7.18 Add（feedback）START
+        # 2-2. 過去のフィードバックを取得（商品検索における）
+        negative_feedbacks = get_negative_feedbacks(request.state.user_id, masked_user_query)
+        excluded_product_ids = set(fb["product_id"] for fb in negative_feedbacks)
+        #### 2025.7.18 Add（feedback）END
+
+        # 3. 基本キーワード生成
+        basic_keywords = extract_keywords(masked_user_query) #### 2025.7.11 Mod（remove identify info）
+        print(f"🎯 基本キーワード: {basic_keywords}")
 
         # 4. 拡張キーワード生成
-        try:
-            raw_related = generate_related_keywords_llm(keywords)
-            related_keywords = clean_related_keywords(raw_related)
-            print(f"🧠 拡張キーワード: {related_keywords}")
-        except Exception as e:
-            print(f"拡張キーワード生成に失敗: {str(e)}")
-            related_keywords = keywords  # fallback
+        if req.search_level != "basic": #### 2025.7.17 Mod（radio checkbox）
+            try:
+                raw_related = generate_related_keywords_llm(basic_keywords)
+                related_keywords = clean_related_keywords(raw_related)
+                print(f"🧠 拡張キーワード: {related_keywords}")
+            except Exception as e:
+                print(f"拡張キーワード生成に失敗: {str(e)}")
+                related_keywords = basic_keywords  # fallback
 
         # 5. 拡張キーワードを、さらに短いキーワードに切り分ける
-        related_text = "。".join(related_keywords)  # 句点でつないでも、空白でつないでもOK
-        related_nouns = extract_keywords(related_text)
-        print(f"🧠 拡張キーワードから抽出された名詞: {related_nouns}")
+            related_text = "。".join(related_keywords)  # 句点でつないでも、空白でつないでもOK
+            expanded_keywords = extract_keywords(related_text)
+            print(f"🧠 拡張キーワードから抽出された名詞: {expanded_keywords}")
 
     #### 2025.7.17 Mod（radio checkbox）START
         # 6. 会話履歴からキーワードを抽出する（頻出履歴キーワードだけに絞る）
-        history_text_all = "。".join(related_history)
-        raw_history_keywords = extract_keywords(history_text_all)
-        keyword_counts = Counter(raw_history_keywords)
-        top_history_keywords = [kw for kw, _ in keyword_counts.most_common(3)]
-        print(f"📜 履歴から頻出キーワード上位3つ: {top_history_keywords}")
+        if req.search_level == "conversation":
+            history_text_all = "。".join(related_history)
+            raw_history_keywords = extract_keywords(history_text_all)
+            keyword_counts = Counter(raw_history_keywords)
+            history_keywords = [kw for kw, _ in keyword_counts.most_common(3)]
+            print(f"📜 履歴から頻出キーワード上位3つ: {history_keywords}")
 
-        # 7. 検索キーワードを決定
-        # 7-1. ラジオボタンから検索キーワードを統合
-        if req.search_level == "basic":
-            all_keywords = keywords
-        elif req.search_level == "expanded":
-            all_keywords = list(set(keywords + related_nouns))
-        elif req.search_level == "conversation":
-            all_keywords = list(set(keywords + related_nouns + top_history_keywords))
-        print(f"🔍 検索用キーワード: {all_keywords}, ✅ ラジオボタン: {req.search_level}")
-
-        # 7-2. include_english が True なら、キーワードを英訳し、検索用キーワードに追加
+        #### 2025.7.18 Mod（feedback）START
+        # 7. 英語キーワードを追加する
         if req.include_english:
             try:
-                translated_keywords = [translate_to_english(kw) for kw in all_keywords]
-                all_keywords = list(set(all_keywords + translated_keywords))
-                print(f"🌐 英訳キーワード追加: {translated_keywords}")
+                # 各セットごとに英訳して追加
+                translated_basic = [translate_to_english(kw) for kw in basic_keywords]
+                basic_keywords = list(set(basic_keywords + translated_basic))
+                print(f"🌐 英訳キーワード追加（basic）: {translated_basic}")
+
+                if req.search_level != "basic":
+                    translated_expanded = [translate_to_english(kw) for kw in expanded_keywords]
+                    expanded_keywords = list(set(expanded_keywords + translated_expanded))
+                    print(f"🌐 英訳キーワード追加（expanded）: {translated_expanded}")
+
+                if req.search_level == "conversation":
+                    translated_history = [translate_to_english(kw) for kw in history_keywords]
+                    history_keywords = list(set(history_keywords + translated_history))
+                    print(f"🌐 英訳キーワード追加（history）: {translated_history}")
+
             except Exception as e:
                 print(f"❌ キーワード英訳に失敗: {e}")
-
+        #### 2025.7.18 Mod（feedback）END
     #### 2025.7.17 Mod（radio checkbox）END
 
 #### 2025.7.15 Mod（search files）START
@@ -526,11 +560,11 @@ async def recommend(req: ProductQuery, request: Request):
 
         # 9. DB検索
         # 9-1. products.jsonから検索
-        search_results_from_json  = search_items_in_json(all_keywords, products_json)
+        search_results_from_json  = search_items_in_json(basic_keywords, expanded_keywords, history_keywords, products_json)
         print(f"✅ Found {len(search_results_from_json)} matching items(products.json)")
 
         # 9-2. documentsから検索
-        search_results_from_documents = search_items_in_documents(all_keywords, documents)
+        search_results_from_documents = search_items_in_documents(basic_keywords, expanded_keywords, history_keywords, documents)
         print(f"✅ Found {len(search_results_from_documents)} matching items(documents)")
         
         # 9-3. sharepointから検索
@@ -543,9 +577,18 @@ async def recommend(req: ProductQuery, request: Request):
         for item in search_results_from_documents:
             item["sourceDb"] = "ローカルドキュメントフォルダ（products_docs）"
 
-        # 9-5. 結果を統合
+        # 9-5. 結果を統合してスコア順に並べ替え
         search_results = search_results_from_json + search_results_from_documents
+        search_results.sort(key=lambda x: x.get("score", 0), reverse=True)  # ★ スコア順ソート追加
         print(f"✅ Total matching items found: {len(search_results)}")
+
+        # 9-6. 除外フィルタ適用
+        search_results = [
+            item for item in search_results
+            if item.get("id") not in excluded_product_ids
+        ]
+        print(f"✅ Excluded {len(excluded_product_ids)} items based on user feedback")
+        print(f"✅ Finally matching items: {len(search_results)}")
 #### 2025.7.15 Mod（search files）END
 
         # #### 2025.7.10 Mod（generate items）START
@@ -572,8 +615,8 @@ async def recommend(req: ProductQuery, request: Request):
         # #### 2025.7.10 Mod（generate items）END
 
         # 11. ChatGPTでおすすめ生成
-        llm_generated_text = recommend_items_with_llm(keywords, search_results, related_history, req.search_level) #### 2025.7.15 Add（attachment files） #### 2025.7.17 Mod（radio checkbox）
-        print(f"✅ 生成した提案: {llm_generated_text}") #### 2025.7.15 Add（attachment files）
+        llm_generated_text = recommend_items_with_llm(basic_keywords, search_results, related_history, req.search_level) #### 2025.7.15 Add（attachment files） #### 2025.7.17 Mod（radio checkbox）
+        print(f"✅ 生成した提案: {llm_generated_text}")
 
         # 12. 返却予定の会話内容を先に保存
         # 12-1. 要約生成
@@ -614,7 +657,7 @@ async def recommend(req: ProductQuery, request: Request):
         recommended_ids = []
         if llm_generated_text:
             recommended_ids = extract_ids_from_llm_text(llm_generated_text)
-            recommended_ids = [rid.lower() for rid in recommended_ids]  # 小文字に統一
+            recommended_ids = [rid.lower() for rid in recommended_ids if rid is not None]  # 小文字に統一
         print(f"✅ 抽出されたID一覧: {recommended_ids}")
 
         # 13-3. 「該当商品」カードの商品IDを「AIからの提案」する商品IDでフィルタ
@@ -630,20 +673,22 @@ async def recommend(req: ProductQuery, request: Request):
 
         print("✅ search_results の中身:")
         for item in search_results:
-            print(f"  - id: {item.get('id', 'N/A')}, filename: {item.get('filename', '')}, category: {item.get('category', '')}")
+            print(f"  - id: {item.get('id', 'N/A')}, filename: {item.get('filename', '')}, category: {item.get('category', '')}, score: {item.get('score', 'N/A')}")
+
         print("✅ recommendation_items の中身:")
         for item in recommendation_items:
             print(f"  - id: {item.id}")
+
         print(f"✅ filtered_items 件数: {len(filtered_items)}")
         for item in filtered_items:
-            print(f"  - {item.id}")
+            print(f"  - id: {item.id}")
         #### 2025.7.15 Add（attachment files）END
 
         # 14. 結果を返却
         return {
             "user_id": request.state.user_id,
             "message": masked_user_query, #### 2025.7.11 Mod（remove identify info）
-            "keywords": keywords,
+            "keywords": basic_keywords,
             "recommendations": filtered_items, #### 2025.7.15 Add（attachment files）
             "recommendation_text": llm_generated_text, #### 2025.7.15 Add（attachment files）
             "used_history": related_history
@@ -697,6 +742,37 @@ async def download_file(filename: str):
         raise HTTPException(status_code=404, detail="ファイルが見つかりません")
     return FileResponse(path=file_path, filename=filename, media_type='application/octet-stream')
 #### 2025.7.15 Add（attachment files）END
+
+#### 2025.7.18 Add（feedback）START
+@app.post("/recommend/feedback")
+async def save_feedback(fb: Feedback):
+    file_path = os.path.join(FEEDBACK_DIR, f"{fb.user_id}.json")
+
+    # 既存データ読み込み
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        data = []
+
+    # 重複チェック → 更新 or 追加
+    updated = False
+    for item in data:
+        if item.get("message") == fb.message and item.get("product_id") == fb.product_id:
+            item["feedback"] = fb.feedback
+            item["timestamp"] = fb.timestamp
+            updated = True
+            break
+
+    if not updated:
+        data.append(fb.dict())
+
+    # 保存
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    return {"message": "フィードバック保存完了"}
+#### 2025.7.18 Add（feedback）END
 
 #### 2025.7.7 Add（log）START
 # Add validation error handler

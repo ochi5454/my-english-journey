@@ -5,7 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.memory import BaseMemory
 from langchain_community.vectorstores import VectorStore, FAISS
 from langchain.memory import VectorStoreRetrieverMemory
-from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR
+from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR, FEEDBACK_DIR
 from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException
@@ -15,11 +15,15 @@ from PyPDF2 import PdfReader
 import docx
 from pptx.util import Pt
 from deep_translator import GoogleTranslator
+from sentence_transformers import SentenceTransformer, util
+import torch
 
 import os
 import openai
 import json
 import re
+
+model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
 
 # 新しいベクトルストアを作成して保存する
 def create_new_vectorstore(path: str, embedding) -> FAISS:
@@ -442,8 +446,8 @@ def recommend_items_with_llm(keywords: List[str], search_results: List[Dict], hi
 
 🔑 キーワード: {', '.join(keywords)}
 
-📦 該当商品候補:
-{json.dumps(search_results, ensure_ascii=False)}
+📦 該当商品候補（スコアが高い順に最大3件まで表示）:
+{json.dumps(search_results[:3], ensure_ascii=False)}
 
 📝 以下のルールを**厳密に**守って商品をおすすめしてください：
 
@@ -453,6 +457,7 @@ def recommend_items_with_llm(keywords: List[str], search_results: List[Dict], hi
 4. 各商品には、必ず「id=itemXXX」の形式で**idを本文中に明記**してください。
 5. 商品の名前・特徴・おすすめ理由を自然な日本語で説明してください。
 6. **idだけをまとめて書いたり、箇条書きから省略したりしないでください。**各商品の紹介文の中に組み込んでください。
+7. 商品候補には「score」フィールドがあり、**数値が高いほど関連性が高いことを意味します。scoreの高い商品を優先的におすすめしてください。**
 
 {example_text}
 
@@ -540,14 +545,48 @@ def save_conversation_to_file(
         print(f"❌ Error saving conversation: {str(e)}")
         raise
 
+#### 2025.7.18 Mod（feedback）START
 # Search products based on keywords
-def search_items_in_json(keywords: List[str], db: List[Dict]) -> List[Dict]:
+def search_items_in_json(
+    basic_keywords: List[str],
+    expanded_keywords: List[str],
+    history_keywords: List[str],
+    db: List[Dict]
+) -> List[Dict]:
     results = []
+    
+    # 重み設定（必要に応じて調整）
+    weights = {
+        "basic": 3.0,
+        "expanded": 1.5,
+        "history": 1.0
+    }
+
     for item in db:
-        match_count = sum(kw.lower() in item["description"].lower() for kw in keywords)
-        if match_count >= 2:  # 2語以上一致したらヒット　#### 2025.7.10 Mod（generate items）
+        score = 0.0
+        text = f"{item.get('name', '')} {item.get('description', '')}".lower()
+
+        for kw in basic_keywords:
+            if kw.lower() in text:
+                score += weights["basic"]
+
+        for kw in expanded_keywords:
+            if kw.lower() in text:
+                score += weights["expanded"]
+
+        for kw in history_keywords:
+            if kw.lower() in text:
+                score += weights["history"]
+
+        if score > 0:
+            item["score"] = score
             results.append(item)
+
+    # スコアの高い順に並べる
+    results.sort(key=lambda x: x["score"], reverse=True)
+
     return results
+#### 2025.7.18 Mod（feedback）END
 
 # 汎用的なデータベース検索関数
 def search_database(database: List[Dict], keywords: List[str], fields: Union[str, List[str]]) -> List[Dict]:
@@ -1079,19 +1118,54 @@ def load_all_documents_texts(folder_path):
 
     return result
 
-def search_items_in_documents(keywords, documents):
+#### 2025.7.18 Mod（feedback）START
+def search_items_in_documents(
+    basic_keywords: List[str],
+    expanded_keywords: List[str],
+    history_keywords: List[str],
+    documents: List[Dict]
+) -> List[Dict]:
     results = []
+
+    weights = {
+        "basic": 3.0,
+        "expanded": 1.5,
+        "history": 1.0
+    }
+
     for doc in documents:
-        if any(kw in doc["text"] for kw in keywords):
-            results.append({
+        text = doc.get("text", "").lower()
+        score = 0.0
+
+        for kw in basic_keywords:
+            if kw.lower() in text:
+                score += weights["basic"]
+
+        for kw in expanded_keywords:
+            if kw.lower() in text:
+                score += weights["expanded"]
+
+        for kw in history_keywords:
+            if kw.lower() in text:
+                score += weights["history"]
+
+        if score > 0:
+            item = {
                 "id": doc.get("id", ""),
-                "name": doc.get("name", "商品名無し"), #### 2025.7.16 Add（mapping input）
+                "name": doc.get("name", "商品名無し"),  # 変更なし
                 "text": doc["text"],
-                "category": doc.get("category", "未分類"), #### 2025.7.16 Add（mapping input）
-                "filename": doc.get("filename", "不明"), #### 2025.7.16 Add（mapping input）
-                "price": doc.get("price", 0) 
-            })
+                "category": doc.get("category", "未分類"),
+                "filename": doc.get("filename", "不明"),
+                "price": doc.get("price", 0),
+                "score": score  # 👈 スコアを追加
+            }
+            results.append(item)
+
+    # スコア順に並べる（降順）
+    results.sort(key=lambda x: x["score"], reverse=True)
+
     return results
+#### 2025.7.18 Mod（feedback）END
 #### 2025.7.15 Add（search files）END
 
 #### 2025.7.15 Add（attachment files）START
@@ -1101,7 +1175,7 @@ def extract_id_from_text(text: str) -> str:
 
 def extract_ids_from_llm_text(text: str) -> list[str]:
     raw_matches = re.findall(r'(?:id|ID|Id)[\s:=\-：]*item\d{3}|"item\d{3}"|「item\d{3}」',
-                             text, re.IGNORECASE)
+    text, re.IGNORECASE)
     ids: list[str] = []
     for m in raw_matches:
         match = re.search(r'item\d{3}', m, re.IGNORECASE)
@@ -1186,3 +1260,46 @@ def clean_text_for_words_pdf(raw_text: str) -> dict:
 def translate_to_english(text: str) -> str:
     return GoogleTranslator(source='ja', target='en').translate(text)
 #### 2025.7.17 Mod（radio checkbox）END
+
+#### 2025.7.18 Add（feedback）START
+def get_negative_feedbacks(user_id: str, current_message: str, similarity_threshold: float = 0.7) -> List[Dict]:
+    """
+    指定ユーザーのフィードバック履歴から、現在の質問に意味的に類似し、
+    かつ「dislike」された商品を抽出する。
+    """
+    file_path = os.path.join(FEEDBACK_DIR, f"{user_id}.json")
+    if not os.path.exists(file_path):
+        return []
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        feedbacks = json.load(f)
+
+    # 現在の質問の埋め込みを取得
+    query_embedding = model.encode(current_message, convert_to_tensor=True)
+
+    similar_dislikes = []
+    for fb in feedbacks:
+        if fb.get("feedback") != "dislike":
+            continue
+
+        fb_message = fb.get("message", "")
+        if not fb_message.strip():
+            continue
+
+        # 埋め込みと類似度計算
+        fb_embedding = model.encode(fb_message, convert_to_tensor=True)
+        similarity = float(util.cos_sim(query_embedding, fb_embedding))
+
+        if similarity >= similarity_threshold:
+            similar_dislikes.append({
+                "question": fb_message,
+                "product_id": fb.get("product_id"),
+                "product_name": fb.get("product_name"),
+                "product_description": fb.get("product_description"),
+                "reason": "過去にミスマッチとフィードバックされました。",
+                "similarity": similarity
+            })
+
+    # 類似度でソート（高い順）
+    return sorted(similar_dislikes, key=lambda x: x["similarity"], reverse=True)   
+#### 2025.7.18 Add（feedback）END
