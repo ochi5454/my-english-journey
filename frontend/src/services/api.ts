@@ -57,6 +57,8 @@ interface RecommendationRequest {
 interface RecommendationResponse {
   recommendations: any[];
   recommendation_text?: string;   // 2025.7.15 Mod（attachment files）
+  message?: string;               // 2025.7.18 Add（feedback）
+  user_id?: string;            // 2025.7.18 Add（feedback）
 }
 
 // Chat History API
