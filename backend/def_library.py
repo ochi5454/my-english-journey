@@ -5,7 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.memory import BaseMemory
 from langchain_community.vectorstores import VectorStore, FAISS
 from langchain.memory import VectorStoreRetrieverMemory
-from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR, FEEDBACK_DIR
+from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR, FEEDBACK_DIR, FILESUMMARY_PATH
 from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException
@@ -17,6 +17,8 @@ from pptx.util import Pt
 from deep_translator import GoogleTranslator
 from sentence_transformers import SentenceTransformer, util
 import torch
+from pptx import Presentation
+import sqlite3
 
 import os
 import openai
@@ -1182,7 +1184,6 @@ def extract_ids_from_llm_text(text: str) -> list[str]:
         if match:
             ids.append(match.group(0))
     return ids
-
 #### 2025.7.15 Add（attachment files）END
 
 #### 2025.7.16 Add（mapping input）START
@@ -1303,3 +1304,29 @@ def get_negative_feedbacks(user_id: str, current_message: str, similarity_thresh
     # 類似度でソート（高い順）
     return sorted(similar_dislikes, key=lambda x: x["similarity"], reverse=True)   
 #### 2025.7.18 Add（feedback）END
+
+#### 2025.7.22 Add（summarize pptx）START
+def init_filedb():
+    conn = sqlite3.connect(FILESUMMARY_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS summaries (
+            id TEXT,
+            filename TEXT,
+            slide_index INTEGER,
+            summary TEXT,
+            embedding BLOB
+        );
+    """)
+    conn.close()
+
+def extract_text_from_pptx(path):
+    prs = Presentation(path)
+    slides = []
+    for slide in prs.slides:
+        text = ""
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text:
+                text += shape.text + "\n"
+        slides.append(text.strip())
+    return slides
+#### 2025.7.22 Add（summarize pptx）END

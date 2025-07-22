@@ -5,6 +5,7 @@ import ProductRecommendation from './components/ProductRecommendation';
 import DocumentSearch from './components/DocumentSearch';
 import HashtagProcessor from './components/HashtagProcessor';
 import ChatHistory from './components/ChatHistory';
+import PptxSummarizer from './components/PptxSummarizer';  // 2024.7.22 Add（summarize pptx）
 import './App.css';
 
 const App: React.FC = () => {
@@ -34,7 +35,10 @@ const App: React.FC = () => {
           <div className="nav-links">
             <Link to="/">チャット</Link>
             <Link to="/history">チャット履歴</Link>
-            <Link to="/recommend">商品推薦</Link>
+            <Link to="/recommend">商品推薦</Link> 
+            {/* 2024.7.22 Add（summarize pptx）START */}
+            <Link to="/pptx-summary">PPTX要約検索</Link>
+            {/* 2024.7.22 Add（summarize pptx）END */}
             <Link to="/search">文書検索</Link>
             <Link to="/hashtag">ハッシュタグ処理</Link>
           </div>
@@ -53,6 +57,12 @@ const App: React.FC = () => {
               path="/recommend" 
               element={<ProductRecommendation userId={userId} />} 
             />
+            {/* 2024.7.22 Add（summarize pptx）START */}
+            <Route 
+              path="/pptx-summary" 
+              element={<PptxSummarizer userId={userId} />} 
+            />
+            {/* 2024.7.22 Add（summarize pptx）END */}
             <Route 
               path="/search" 
               element={<DocumentSearch userId={userId} />} 
