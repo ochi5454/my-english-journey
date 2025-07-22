@@ -6,10 +6,15 @@ import logging
 import openai
 from collections import Counter
 import traceback
+from openai import OpenAI
+import asyncio
+import sqlite3 
+from uuid import uuid4
+import pickle
 
 # サードパーティライブラリ
-from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form, Query
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -21,10 +26,11 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi.staticfiles import StaticFiles
 from pptx import Presentation
+import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -59,6 +65,11 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("OPENAI_API_KEY が設定されていません。")
+
+#### 2025.7.22 Add（summarize pptx）START
+client = OpenAI(api_key=api_key)
+init_filedb()
+#### 2025.7.22 Add（summarize pptx）END
 
 # OpenAI埋め込みモデルの初期化
 embedding = OpenAIEmbeddings(api_key=api_key)
@@ -773,6 +784,133 @@ async def save_feedback(fb: Feedback):
 
     return {"message": "フィードバック保存完了"}
 #### 2025.7.18 Add（feedback）END
+
+#### 2025.7.22 Add（summarize pptx）START
+@app.post("/upload_and_index_pptx/")
+async def upload_and_index_pptx(file: UploadFile = File(...)):
+    file_id = str(uuid4())
+    temp_path = f"/tmp/{file.filename}"
+
+    content = await file.read()
+
+    with open(temp_path, "wb") as f:
+        f.write(content)
+
+    slides = extract_text_from_pptx(temp_path)
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    conn = sqlite3.connect(FILESUMMARY_PATH)
+
+    for i, slide in enumerate(slides[:10]):
+        if slide.strip():
+            # 要約
+            res = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "あなたは優秀な要約アシスタントです。"},
+                    {"role": "user", "content": f"このスライドを要約してください:\n{slide}"},
+                ],
+                max_tokens=500,
+                temperature=0.5
+            )
+            summary = res.choices[0].message.content
+
+            # embedding生成（要約の意味を表すベクトル）
+            emb_res = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=summary
+            )
+            embedding_vector = emb_res.data[0].embedding
+            embedding_blob = pickle.dumps(embedding_vector)
+
+            # 保存
+            conn.execute(
+                "INSERT INTO summaries (id, filename, slide_index, summary, embedding) VALUES (?, ?, ?, ?, ?)",
+                (file_id, file.filename, i + 1, summary, embedding_blob)
+            )
+
+    conn.commit()
+    conn.close()
+
+    # streaming用にも保存
+    with open("/tmp/latest_upload.pptx", "wb") as f:
+        f.write(content)
+
+    return {"success": True, "id": file_id}
+
+@app.get("/summarize_pptx_stream/")
+async def summarize_pptx_stream():
+    temp_path = "/tmp/latest_upload.pptx"
+    if not os.path.exists(temp_path):
+        return StreamingResponse(iter(["No PPTX file uploaded."]), media_type="text/event-stream")
+
+    async def event_generator():
+        slides = extract_text_from_pptx(temp_path)
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+        for i, slide in enumerate(slides[:10]):
+            if slide.strip():
+                res = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "あなたは優秀な要約アシスタントです。"},
+                        {"role": "user", "content": f"このスライドを要約してください:\n{slide}"},
+                    ],
+                    max_tokens=500,
+                    temperature=0.5
+                )
+                summary_piece = res.choices[0].message.content
+                yield f"data: 【スライド{i+1}】 {summary_piece}\n\n"
+                await asyncio.sleep(0.5)
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/search_summaries/")
+async def search_summaries(query: str = Query(...)):
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    # クエリをベクトル化
+    emb_res = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=query
+    )
+    query_vector = np.array(emb_res.data[0].embedding)
+
+    # DBからすべての summary & embedding を取得
+    conn = sqlite3.connect(FILESUMMARY_PATH)
+    cursor = conn.execute("SELECT filename, slide_index, summary, embedding FROM summaries")
+    
+    results = []
+    for row in cursor.fetchall():
+        filename, slide_index, summary, emb_blob = row
+
+        if emb_blob is None:
+            continue  # 古いデータのためスキップ
+
+        embedding_vector = pickle.loads(emb_blob)
+        embedding_vector = np.array(embedding_vector)
+
+        # コサイン類似度計算
+        similarity = np.dot(query_vector, embedding_vector) / (
+            np.linalg.norm(query_vector) * np.linalg.norm(embedding_vector)
+        )
+
+        results.append({
+            "filename": filename,
+            "slide_index": slide_index,
+            "summary": summary,
+            "score": similarity
+        })
+
+    conn.close()
+
+    # スコアでソートして上位を返す
+    results.sort(key=lambda x: x["score"], reverse=True)
+    top_results = results[:3]
+
+    return top_results
+#### 2025.7.22 Add（summarize pptx）END
 
 #### 2025.7.7 Add（log）START
 # Add validation error handler
