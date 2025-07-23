@@ -912,6 +912,28 @@ async def search_summaries(query: str = Query(...)):
     return top_results
 #### 2025.7.22 Add（summarize pptx）END
 
+#### 2025.7.23 Add（summarize pptx）START
+@app.get("/get_frequent_keywords/")
+async def get_frequent_keywords(limit: int = 10):
+    conn = sqlite3.connect(FILESUMMARY_PATH)
+    cursor = conn.execute("SELECT summary FROM summaries")
+    all_text = " ".join(row[0] for row in cursor.fetchall() if row[0])
+    conn.close()
+
+    # Janomeベースのキーワード抽出に切り替え
+    keywords = extract_keywords(all_text)
+
+    # ストップワードでフィルタリング（任意で拡張）
+    stopwords = {"こと", "よう", "これ", "それ", "ため", "など", "ある", "する"}
+    filtered_keywords = [w for w in keywords if w not in stopwords]
+
+    # 頻度計算
+    counter = Counter(filtered_keywords)
+    most_common = counter.most_common(limit)
+
+    return {"keywords": [word for word, _ in most_common]}
+#### 2025.7.23 Add（summarize pptx）END
+
 #### 2025.7.7 Add（log）START
 # Add validation error handler
 @app.exception_handler(RequestValidationError)

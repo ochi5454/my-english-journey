@@ -3,6 +3,7 @@
   margin: 0 auto;
   font-family: sans-serif;
   padding: 2rem;
+  padding-top: 5rem; /* ← これを追加してヘッダーとぶつからないように */
   background-color: #fdfdfd;
   border-radius: 12px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
@@ -81,3 +82,78 @@ mark {
   font-weight: 600;
   margin-bottom: 0.3rem;
 }
+
+/* 2025.7.23 Add（summarize pptx）START */
+.pptx-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.pptx-main {
+  flex: 3;
+}
+
+.pptx-sidebar {
+  flex: 1;
+  border-left: 1px solid #ccc;
+  padding-left: 1rem;
+}
+
+.keyword-list {
+  list-style: none;
+  padding: 0;
+}
+
+.keyword-button {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #007bff;
+  text-align: left;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.keyword-button:hover {
+  text-decoration: underline;
+}
+
+.keyword-button.selected {
+  font-weight: bold;
+  color: #0056b3;
+}
+
+.user-keywords-section {
+  margin-top: 2rem;
+}
+
+.add-keyword-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.add-keyword-form input {
+  flex: 1;
+  padding: 0.4rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.add-keyword-form button {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem; 
+  border: none;
+  background-color: #1976d2;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.add-keyword-form button:hover {
+  background-color: #1565c0;
+}
+/* 2025.7.23 Add（summarize pptx）END */
