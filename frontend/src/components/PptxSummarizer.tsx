@@ -124,7 +124,7 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="例：マーケティング戦略"
           />
-          <button onClick={handleSearch}>この内容で検索する</button>
+          <button className="search-button" onClick={handleSearch}>この内容で検索する</button>
         </div>
 
         {isSearching && <p>🔍 検索中です...</p>}
