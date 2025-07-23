@@ -42,9 +42,18 @@ const App: React.FC = () => {
             <Link to="/search">文書検索</Link>
             <Link to="/hashtag">ハッシュタグ処理</Link>
           </div>
+          {/* 2025.7.23 Add（summarize pptx）START */}
           <div className="user-info">
-            <span>User ID: {userId || '未設定'}</span>
+            <label htmlFor="userIdInput">User ID:</label>
+            <input
+              id="userIdInput"
+              type="text"
+              value={userId}
+              onChange={(e) => handleUserIdChange(e.target.value)}
+              placeholder="ユーザーIDを入力"
+            />
           </div>
+          {/* 2025.7.23 Add（summarize pptx）END */}
         </nav>
 
         <main className="main-content">
