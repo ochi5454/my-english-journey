@@ -265,7 +265,8 @@ const handleFeedback = async (productId: string, feedback: 'like' | 'dislike', s
                   }
                 }}
               />
-            </label>          </div>
+            </label>
+          </div>
           {uploadMessage && (
             <div className="upload-message">
               {uploadMessage}
