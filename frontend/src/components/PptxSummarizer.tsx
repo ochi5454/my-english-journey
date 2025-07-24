@@ -12,7 +12,8 @@ interface SearchResult {
 }
 
 const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
-    const [summary, setSummary] = useState<string | null>(null);
+    const [summary, setSummary] = useState<string | null>(null); // 全件用（裏で保持）
+    const [visibleSummary, setVisibleSummary] = useState<string | null>(null); // 表示用
     const [isUploading, setIsUploading] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -24,34 +25,33 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
     const [userKeywords, setUserKeywords] = useState<string[]>([]);
     const [newKeyword, setNewKeyword] = useState('');
+    const [searchMode, setSearchMode] = useState<'smart' | 'keyword' | null>(null); // 2025.7.24 Add（summarize pptx）
+    const [selectedKeywordHitCount, setSelectedKeywordHitCount] = useState<number | null>(null);// 2025.7.24 Add（summarize pptx）
 
+     // 2025.7.24 Mod（summarize pptx）START
     useEffect(() => {
         const fetchInitialData = async () => {
-        try {
-            const res = await fetch("/get_frequent_keywords/");
-            const data = await res.json();
-            setKeywords(data.keywords || []);
-        } catch (err) {
-            console.error("キーワードの取得に失敗しました", err);
-        }
-
-        try {
-            const stored = localStorage.getItem(`user_keywords_${userId}`);
-            if (stored) {
-            setUserKeywords(JSON.parse(stored));
+            try {
+                const stored = localStorage.getItem(`user_keywords_${userId}`);
+                if (stored) {
+                    setUserKeywords(JSON.parse(stored));
+                }
+            } catch (err) {
+                console.warn("保存済みキーワードの読み込みに失敗しました");
             }
-        } catch (err) {
-            console.warn("保存済みキーワードの読み込みに失敗しました");
-        }
+
+            if (!isUploading) {
+                await loadFrequentKeywords(); // アップロード中でないときのみ
+                await fetchAllSummaries();    // summaryの取得
+            }
         };
 
         fetchInitialData();
-    }, [userId]);
+    }, [userId, isUploading]);
 
-    const countOccurrences = (text: string, keyword: string): number => {
-        const regex = new RegExp(keyword, 'g');
-        return (text.match(regex) || []).length;
-    };
+    const escapeRegex = (str: string) =>
+        str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+     // 2025.7.24 Mod（summarize pptx）END
 
     const saveUserKeywords = (uid: string, keywords: string[]) => {
     localStorage.setItem(`user_keywords_${uid}`, JSON.stringify(keywords));
@@ -80,6 +80,40 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     };
     // 2025.7.23 Add（summarize pptx）END
 
+    // 2025.7.24 Add（summarize pptx）START
+    const fetchAllSummaries = async (): Promise<string | null> => {
+        try {
+            const res = await fetch("/get_all_summaries/");
+            const data = await res.json();
+            setSummary(data.summary); // グローバルにも保持
+            return data.summary;
+        } catch (err) {
+            console.error("全件summary取得失敗", err);
+            setError("要約の取得に失敗しました。");
+            return null;
+        }
+    };
+
+    // あるsummary内で、キーワードが含まれるスライド数を返す（スライド単位で重複排除）
+    const countKeywordInSlides = (summaryText: string, keyword: string): number => {
+        const slideRegex = /【ファイル名: (.*?)｜スライド\s*(\d+)】[\s\n]*([\s\S]*?)(?=【ファイル名: |$)/g;
+        const regex = new RegExp(escapeRegex(keyword), 'i');
+        const matchedSlides = new Set<string>();
+
+        let match;
+        while ((match = slideRegex.exec(summaryText)) !== null) {
+            const slideIndex = parseInt(match[2], 10);
+            const slideText = match[3].trim();
+            const slideKey = `${match[1].trim()}::${slideIndex}`;
+            if (regex.test(slideText)) {
+            matchedSlides.add(slideKey);
+            }
+        }
+
+        return matchedSlides.size;
+    };
+    // 2025.7.24 Add（summarize pptx）END
+
     const handleUpload = async (file: File) => {
         const formData = new FormData();
         formData.append("file", file);
@@ -96,12 +130,14 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
 
         const data = await res.json();
         if (data.success) {
-            startStream();
-            // 2025.7.23 Add（summarize pptx）START
-            const keywordRes = await fetch("/get_frequent_keywords/");
-            const keywordData = await keywordRes.json();
-            setKeywords(keywordData.keywords || []);
-            // 2025.7.23 Add（summarize pptx）END
+            const summaries = data.summaries; // 複数要約の配列
+            const combined = summaries
+            .map((s: SearchResult) => `【スライド${s.slide_index}】 ${s.summary}`)
+            .join('\n');
+
+            setSummary(combined);
+            setVisibleSummary(combined);
+            setIsUploading(false);
         } else {
             setError("アップロードに失敗しました。");
             setIsUploading(false);
@@ -113,42 +149,105 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
         }
     };
 
-    const startStream = () => {
-        const eventSource = new EventSource(`/summarize_pptx_stream/`);
+    // const startStream = () => {
+    //     const eventSource = new EventSource(`/summarize_pptx_stream/`);
 
-        eventSource.onmessage = (event) => {
-        const data = event.data;
-        if (data === "[DONE]") {
-            eventSource.close();
-            setIsUploading(false);
-        } else {
-            setSummary((prev) => (prev ? prev + "\n" + data : data));
-        }
-        };
+    //     eventSource.onmessage = (event) => {
+    //     const data = event.data;
+    //     if (data === "[DONE]") {
+    //         eventSource.close();
+    //         setIsUploading(false);
+    //     } else {
+    //         setSummary((prev) => (prev ? prev + "\n" + data : data));
+    //     }
+    //     };
 
-        eventSource.onerror = () => {
-        eventSource.close();
-        setError("ストリーミング中にエラーが発生しました。");
-        setIsUploading(false);
-        };
-    };
+    //     eventSource.onerror = () => {
+    //     eventSource.close();
+    //     setError("ストリーミング中にエラーが発生しました。");
+    //     setIsUploading(false);
+    //     };
+    // };
 
+    // 2025.7.24 Mod（summarize pptx）START
     const handleSearch = async () => {
         setIsSearching(true);
         setError(null);
         setSearchResults([]);
-
+        setSearchMode('smart');  // ← スマート検索であることを明示
         try {
-        const res = await fetch(`/search_summaries/?query=${encodeURIComponent(searchQuery)}`);
-        const data = await res.json();
-        setSearchResults(data);
+            const res = await fetch(`/search_summaries/?query=${encodeURIComponent(searchQuery)}`);
+            const data = await res.json();
+            setSearchResults(data);
         } catch (err) {
-        console.error(err);
-        setError("検索中にエラーが発生しました。");
+            console.error(err);
+            setError("検索中にエラーが発生しました。");
         } finally {
-        setIsSearching(false);
+            setIsSearching(false);
         }
     };
+    // 2025.7.24 Mod（summarize pptx）END
+
+    // 2025.7.24 Add（summarize pptx）END
+    const handleKeywordSearch = async (keyword: string) => {
+        console.log("🔍 handleKeywordSearch 開始: ", keyword);
+        setIsSearching(true);
+        setSearchResults([]);
+
+        let actualSummary = summary;
+        if (!actualSummary) {
+            actualSummary = await fetchAllSummaries();
+        }
+
+        if (!actualSummary) {
+            console.warn("summaryが取得できませんでした");
+            setIsSearching(false);
+            return;
+        }
+
+        const results: SearchResult[] = [];
+        const matchedSlides = new Set<string>(); // filename + slideIndex でユニークに管理
+
+        const slideRegex = /【ファイル名: (.*?)｜スライド\s*(\d+)】[\s\n]*([\s\S]*?)(?=【ファイル名: |$)/g;
+        const regex = new RegExp(escapeRegex(keyword), 'i');
+
+        let match;
+        while ((match = slideRegex.exec(actualSummary)) !== null) {
+            const filename = match[1].trim();
+            const slideIndex = parseInt(match[2], 10);
+            const slideSummary = match[3].trim();
+
+            if (regex.test(slideSummary)) {
+                const slideKey = `${filename}::${slideIndex}`;
+                if (!matchedSlides.has(slideKey)) {
+                    matchedSlides.add(slideKey);
+                    results.push({ filename, slide_index: slideIndex, summary: slideSummary });
+                }
+            }
+        }
+
+        console.log(`🔍 「${keyword}」にヒットしたスライド数: ${matchedSlides.size}`);
+        setSearchResults(results);
+        setSelectedKeywordHitCount(matchedSlides.size);
+        setIsSearching(false);
+    };
+
+    const handleDeleteKeyword = (keywordToDelete: string) => {
+        const updatedKeywords = userKeywords.filter(k => k !== keywordToDelete);
+        setUserKeywords(updatedKeywords);
+        saveUserKeywords(userId, updatedKeywords); // localStorage保存も統一関数で
+    };
+
+    const loadFrequentKeywords = async () => {
+        try {
+            const res = await fetch("/get_frequent_keywords/");
+            const data = await res.json();
+            setKeywords(data.keywords || []);
+        } catch (err) {
+            console.error("キーワードの取得に失敗しました", err);
+        }
+    };
+    // 2025.7.24 Add（summarize pptx）END
 
     const highlightQuery = (text: string, query: string) => {
         if (!query) return text;
@@ -176,7 +275,7 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                 {error && <p className="error-message">{error}</p>}
                 <div className="summary-result">
                 <h3>📝 要約結果</h3>
-                <p>{(summary || "まだ要約はありません。").split('\n').map((line, i) => (
+                <p>{(visibleSummary || "まだ要約はありません。").split('\n').map((line, i) => (
                     <span key={i}>{line}<br /></span>
                 ))}</p>
                 </div>
@@ -199,15 +298,33 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
 
                 {isSearching && <p>🔍 検索中です...</p>}
 
+                {searchMode === 'smart' && searchResults.length > 0 && (
                 <div className="search-results">
-                {searchResults.length === 0 && !isSearching && <p>該当する要約が見つかりませんでした。</p>}
-                {searchResults.map((result, index) => (
+                    <h4>🔍 スマート検索結果</h4>
+                    {searchResults.map((result, index) => (
                     <div key={index} className="result-card">
-                    <strong>{result.filename}（スライド {result.slide_index}）</strong>
-                    <p>{highlightQuery(result.summary, searchQuery)}</p>
+                        <strong>{result.filename}（スライド {result.slide_index}）</strong>
+                        <p>{highlightQuery(result.summary, searchQuery)}</p>
                     </div>
-                ))}
+                    ))}
                 </div>
+                )}
+
+                {searchMode === 'keyword' && searchResults.length > 0 && (
+                <div className="search-results keyword-search">
+                    <h4>🔑 「{selectedKeyword}」に関する結果（{selectedKeywordHitCount ?? 0}スライド）</h4>
+                    {searchResults.map((result, index) => (
+                    <div key={index} className="result-card">
+                        <strong>{result.filename}（スライド {result.slide_index}）</strong>
+                        <p>{highlightQuery(result.summary, selectedKeyword || '')}</p>
+                    </div>
+                    ))}
+                </div>
+                )}
+
+                {searchResults.length === 0 && !isSearching && searchMode && (
+                <p>該当する要約が見つかりませんでした。</p>
+                )}
             </section>
             </div>
         </div>
@@ -227,45 +344,65 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                 <button onClick={handleReloadKeywords}>読込</button> 
             </div>
             <ul className="keyword-list">
+            {/* 2025.7.24 Mod（summarize pptx）START */}
             {userKeywords.map((keyword, i) => {
-                const hitCount = summary ? countOccurrences(summary, keyword) : 0;
+                const hitCount = !isUploading && summary ? countKeywordInSlides(summary, keyword) : 0;
+
                 return (
-                <li key={i}>
-                    <button
-                    className={`keyword-button ${selectedKeyword === keyword ? "selected" : ""}`}
-                    onClick={() => {
-                        setSearchQuery(keyword);
-                        setSelectedKeyword(keyword);
-                        handleSearch();
-                    }}
-                    >
-                    {keyword} ({hitCount})
-                    </button>
-                </li>
+                    <li key={i}>
+                    <div className="keyword-item-row">
+                        <button
+                        className={`keyword-button ${selectedKeyword === keyword ? "selected" : ""}`}
+                        onClick={() => {
+                            setSearchQuery(keyword);
+                            setSelectedKeyword(keyword);
+                            setSearchMode('keyword');
+                            handleKeywordSearch(keyword);
+                        }}
+                        >
+                        {keyword} ({hitCount}スライド)
+                        </button>
+                        <button
+                        className="delete-button"
+                        onClick={() => handleDeleteKeyword(keyword)}
+                        aria-label={`Delete ${keyword}`}
+                        >
+                        🗑️
+                        </button>
+                    </div>
+                    </li>
                 );
             })}
+            {/* 2025.7.24 Mod（summarize pptx）END */}
             </ul>
             </div>
-            <h3>🔑 頻出キーワード</h3>
+            <div className="ai-keyword-header">
+                <h3>🔑 頻出キーワード</h3>
+                <button className="refresh-button" onClick={loadFrequentKeywords}>読込</button>
+            </div>
             {keywords.length === 0 && <p>キーワードはまだありません。</p>}
             <ul className="keyword-list">
-            {keywords.map((keyword, i) => {
-                const hitCount = summary ? countOccurrences(summary, keyword) : 0;
-                return (
-                <li key={i}>
-                    <button
-                    className={`keyword-button ${selectedKeyword === keyword ? "selected" : ""}`}
-                    onClick={() => {
-                        setSearchQuery(keyword);
-                        setSelectedKeyword(keyword);
-                        handleSearch();
-                    }}
-                    >
-                    {keyword} ({hitCount})
-                    </button>
-                </li>
-                );
-            })}
+            {keywords
+                .map((keyword) => ({
+                    keyword,
+                    hitCount: !isUploading && summary ? countKeywordInSlides(summary, keyword) : 0,
+                }))
+                .filter(({ hitCount }) => hitCount >= 2)
+                .map(({ keyword, hitCount }, i) => (
+                    <li key={i}>
+                        <button
+                            className={`keyword-button ${selectedKeyword === keyword ? "selected" : ""}`}
+                            onClick={() => {
+                                setSearchQuery(keyword);
+                                setSelectedKeyword(keyword);
+                                setSearchMode('keyword');
+                                handleKeywordSearch(keyword);
+                            }}
+                        >
+                            {keyword} ({hitCount}スライド)
+                        </button>
+                    </li>
+                ))}
             </ul>
         </div>
         </div>

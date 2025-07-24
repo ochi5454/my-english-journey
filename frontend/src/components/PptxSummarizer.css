@@ -143,17 +143,47 @@ mark {
   font-size: 0.85rem;
 }
 
-.add-keyword-form button {
-  padding: 0.3rem 0.8rem;
-  font-size: 0.85rem; 
+
+.add-keyword-form button, .refresh-button{
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 0.7rem;
+  line-height: 1.2;  
   border: none;
-  background-color: #1976d2;
+  background-color: #007bff;
   color: white;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
 }
 
-.add-keyword-form button:hover {
-  background-color: #1565c0;
+.add-keyword-form button:hover, .refresh-button:hover {
+  background-color: #0056b3;
 }
+
+.delete-button {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.delete-button:hover {
+  color: #d00;
+}
+
+.keyword-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ai-keyword-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* 2025.7.23 Add（summarize pptx）END */
