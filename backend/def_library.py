@@ -145,23 +145,37 @@ def enhance_retrieval_with_topics(
     similar_chunks = [doc.page_content for doc in similar_docs if doc.page_content not in INITIAL_MESSAGES]
     return topics, similar_chunks
 
+#### 2025.7.24 Mod（summarize pptx）START
 # Extract keywords using janome
 def extract_keywords(text: str) -> List[str]:
     tokenizer = Tokenizer()
     tokens = tokenizer.tokenize(text)
     keywords = []
 
+    # 品詞フィルタ（一般名詞や固有名詞など）
+    valid_pos_prefixes = ("名詞,一般", "名詞,固有名詞", "名詞,サ変接続")
+
+    # 拡張ストップワード（あとからJSON化や辞書ファイルにしてもOK）
+    stopwords = {
+        "こと", "もの", "これ", "それ", "ため", "よう", "ところ", "ほう", "あと", "とき",
+        "こちら", "どれ", "何", "誰", "私", "あなた", "する", "ある", "いる", "なる",
+        "及び", "および", "など", "ような", "について", "における", "のため", "により"
+    }
+
     for token in tokens:
-        # ① isinstance で Token 型を絞り込む
         if not isinstance(token, Token):
             continue
 
-        # ここでは tok が Token として扱われるので part_of_speech が認識される
-        part_of_speech = (token.part_of_speech or "").split(',')[0]
-        if part_of_speech == "名詞":
-            keywords.append(token.surface)
+        pos = token.part_of_speech.split(',')[0:2]
+        pos_prefix = ",".join(pos)
+
+        if pos_prefix.startswith(valid_pos_prefixes):
+            surface = token.surface
+            if surface not in stopwords and len(surface) > 1:
+                keywords.append(surface)
 
     return list(set(keywords))
+#### 2025.7.24 Mod（summarize pptx）END
 
 # クエリから簡易的にトピック（キーワード）を抽出する
 def extract_topics(text: str) -> List[str]:

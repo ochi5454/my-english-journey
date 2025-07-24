@@ -801,9 +801,10 @@ async def upload_and_index_pptx(file: UploadFile = File(...)):
 
     conn = sqlite3.connect(FILESUMMARY_PATH)
 
+    summaries = []
+
     for i, slide in enumerate(slides[:10]):
         if slide.strip():
-            # 要約
             res = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -815,7 +816,6 @@ async def upload_and_index_pptx(file: UploadFile = File(...)):
             )
             summary = res.choices[0].message.content
 
-            # embedding生成（要約の意味を表すベクトル）
             emb_res = client.embeddings.create(
                 model="text-embedding-3-small",
                 input=summary
@@ -823,48 +823,53 @@ async def upload_and_index_pptx(file: UploadFile = File(...)):
             embedding_vector = emb_res.data[0].embedding
             embedding_blob = pickle.dumps(embedding_vector)
 
-            # 保存
             conn.execute(
                 "INSERT INTO summaries (id, filename, slide_index, summary, embedding) VALUES (?, ?, ?, ?, ?)",
                 (file_id, file.filename, i + 1, summary, embedding_blob)
             )
 
+            summaries.append({
+                "filename": file.filename,
+                "slide_index": i + 1,
+                "summary": summary
+            })
+
     conn.commit()
     conn.close()
 
-    # streaming用にも保存
     with open("/tmp/latest_upload.pptx", "wb") as f:
         f.write(content)
 
-    return {"success": True, "id": file_id}
+    return {"success": True, "id": file_id, "summaries": summaries}
+    #### 2025.7.24 Mod（summarize pptx）END
 
-@app.get("/summarize_pptx_stream/")
-async def summarize_pptx_stream():
-    temp_path = "/tmp/latest_upload.pptx"
-    if not os.path.exists(temp_path):
-        return StreamingResponse(iter(["No PPTX file uploaded."]), media_type="text/event-stream")
+# @app.get("/summarize_pptx_stream/")
+# async def summarize_pptx_stream():
+#     temp_path = "/tmp/latest_upload.pptx"
+#     if not os.path.exists(temp_path):
+#         return StreamingResponse(iter(["No PPTX file uploaded."]), media_type="text/event-stream")
 
-    async def event_generator():
-        slides = extract_text_from_pptx(temp_path)
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+#     async def event_generator():
+#         slides = extract_text_from_pptx(temp_path)
+#         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-        for i, slide in enumerate(slides[:10]):
-            if slide.strip():
-                res = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "あなたは優秀な要約アシスタントです。"},
-                        {"role": "user", "content": f"このスライドを要約してください:\n{slide}"},
-                    ],
-                    max_tokens=500,
-                    temperature=0.5
-                )
-                summary_piece = res.choices[0].message.content
-                yield f"data: 【スライド{i+1}】 {summary_piece}\n\n"
-                await asyncio.sleep(0.5)
-        yield "data: [DONE]\n\n"
+#         for i, slide in enumerate(slides[:10]):
+#             if slide.strip():
+#                 res = client.chat.completions.create(
+#                     model="gpt-4",
+#                     messages=[
+#                         {"role": "system", "content": "あなたは優秀な要約アシスタントです。"},
+#                         {"role": "user", "content": f"このスライドを要約してください:\n{slide}"},
+#                     ],
+#                     max_tokens=500,
+#                     temperature=0.5
+#                 )
+#                 summary_piece = res.choices[0].message.content
+#                 yield f"data: 【スライド{i+1}】 {summary_piece}\n\n"
+#                 await asyncio.sleep(0.5)
+#         yield "data: [DONE]\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+#     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.get("/search_summaries/")
 async def search_summaries(query: str = Query(...)):
@@ -933,6 +938,24 @@ async def get_frequent_keywords(limit: int = 10):
 
     return {"keywords": [word for word, _ in most_common]}
 #### 2025.7.23 Add（summarize pptx）END
+
+#### 2025.7.24 Add（summarize pptx）START
+@app.get("/get_all_summaries/")
+async def get_all_summaries():
+    conn = sqlite3.connect(FILESUMMARY_PATH)
+    cursor = conn.execute("SELECT filename, slide_index, summary FROM summaries ORDER BY filename, slide_index")
+    
+    all_text_parts = []
+    for filename, slide_index, summary in cursor.fetchall():
+        if summary:
+            part = f"【ファイル名: {filename}｜スライド {slide_index}】\n{summary}"
+            all_text_parts.append(part)
+
+    conn.close()
+
+    result_text = "\n\n".join(all_text_parts)
+    return {"summary": result_text}
+#### 2025.7.24 Add（summarize pptx）END
 
 #### 2025.7.7 Add（log）START
 # Add validation error handler
