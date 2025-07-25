@@ -785,26 +785,34 @@ async def save_feedback(fb: Feedback):
     return {"message": "フィードバック保存完了"}
 #### 2025.7.18 Add（feedback）END
 
-#### 2025.7.22 Add（summarize pptx）START
+#### 2025.7.25 Mod（summarize pptx）START
 @app.post("/upload_and_index_pptx/")
 async def upload_and_index_pptx(file: UploadFile = File(...)):
+    print("✅ ファイル名:", file.filename)
+
+    # ✅ 一度だけ読み込む
+    content = await file.read()
+    print("📦 バイト数:", len(content))
+
     file_id = str(uuid4())
     temp_path = f"/tmp/{file.filename}"
 
-    content = await file.read()
-
+    # ✅ temp_path に保存
     with open(temp_path, "wb") as f:
         f.write(content)
 
+    # ✅ スライド抽出
     slides = extract_text_from_pptx(temp_path)
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    print(f"📊 スライド枚数: {len(slides)}")
 
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     conn = sqlite3.connect(FILESUMMARY_PATH)
 
     summaries = []
 
     for i, slide in enumerate(slides[:10]):
         if slide.strip():
+            print(f"📝 スライド {i+1} 要約開始")
             res = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -833,6 +841,7 @@ async def upload_and_index_pptx(file: UploadFile = File(...)):
                 "slide_index": i + 1,
                 "summary": summary
             })
+            print(f"✅ スライド {i+1} 要約完了")
 
     conn.commit()
     conn.close()
@@ -840,36 +849,10 @@ async def upload_and_index_pptx(file: UploadFile = File(...)):
     with open("/tmp/latest_upload.pptx", "wb") as f:
         f.write(content)
 
+    print(f"✅ 最終要約数: {len(summaries)} 件")
+    print("✅ summaries:", summaries)
     return {"success": True, "id": file_id, "summaries": summaries}
-    #### 2025.7.24 Mod（summarize pptx）END
-
-# @app.get("/summarize_pptx_stream/")
-# async def summarize_pptx_stream():
-#     temp_path = "/tmp/latest_upload.pptx"
-#     if not os.path.exists(temp_path):
-#         return StreamingResponse(iter(["No PPTX file uploaded."]), media_type="text/event-stream")
-
-#     async def event_generator():
-#         slides = extract_text_from_pptx(temp_path)
-#         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-#         for i, slide in enumerate(slides[:10]):
-#             if slide.strip():
-#                 res = client.chat.completions.create(
-#                     model="gpt-4",
-#                     messages=[
-#                         {"role": "system", "content": "あなたは優秀な要約アシスタントです。"},
-#                         {"role": "user", "content": f"このスライドを要約してください:\n{slide}"},
-#                     ],
-#                     max_tokens=500,
-#                     temperature=0.5
-#                 )
-#                 summary_piece = res.choices[0].message.content
-#                 yield f"data: 【スライド{i+1}】 {summary_piece}\n\n"
-#                 await asyncio.sleep(0.5)
-#         yield "data: [DONE]\n\n"
-
-#     return StreamingResponse(event_generator(), media_type="text/event-stream")
+#### 2025.7.25 Mod（summarize pptx）END
 
 @app.get("/search_summaries/")
 async def search_summaries(query: str = Query(...)):
