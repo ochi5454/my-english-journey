@@ -15,6 +15,11 @@ interface Product {
   score?: number;
   filename?: string; //2025.7.15 Mod（attachment files）
   sourceDb?: string; //2025.7.16 Mod（source db）
+  liked_feedbacks?: { //2025.7.25 Mod（public feedback）
+    message: string;
+    user_id?: string;
+    timestamp?: string;
+  }[];
 }
 
 const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId }) => {
@@ -30,6 +35,7 @@ const ProductRecommendation: React.FC<ProductRecommendationProps> = ({ userId })
   const [searchLevel, setSearchLevel] = useState<'basic' | 'expanded' | 'conversation'>('basic'); // 2025.7.17 Mod（radio checkbox）
   const [includeEnglish, setIncludeEnglish] = useState(false); // 2025.7.17 Mod（radio checkbox）
   const [serverMessage, setServerMessage] = useState<string | null>(null); // 2025.7.18 Add（feedback）
+  const [publicFeedbackFlags, setPublicFeedbackFlags] = useState<Record<string, boolean>>({}); // 2025.7.25 Add（public feedback）
 
   // ① ファイルアップロード関数をコンポーネント内に切り出し
   const uploadFile = async (file: File) => {
@@ -84,33 +90,79 @@ const handleFeedback = async (productId: string, feedback: 'like' | 'dislike', s
   setLikedProducts(newLiked);
   setDislikedProducts(newDisliked);
 
-  // サーバー送信
+  // 2025.7.25 Mod（public feedback）START
+  const publicFlag = publicFeedbackFlags[productId] || false;
+
   try {
-      await fetch('/recommend/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: effectiveUserId,
-          message: serverMessage,
-          product_id: productId,
-          product_name: productName,
-          product_description: description, 
-          feedback: feedback,
-          timestamp: new Date().toISOString(),
+    await fetch('/recommend/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: effectiveUserId,
+        message: serverMessage,
+        product_id: productId,
+        product_name: productName,
+        product_description: description,
+        feedback: feedback,
+        public: publicFlag, // ← ★ ここ追加！
+        timestamp: new Date().toISOString(),
       }),
     });
-    console.log(`✅ フィードバック送信: ${productId} - ${feedback}`);
+    console.log(`✅ フィードバック送信: ${productId} - ${feedback} - 公開: ${publicFlag}`);
   } catch (err) {
     console.error('❌ フィードバック送信エラー:', err);
   }
 };
+// 2025.7.25 Mod（public feedback）START
 // 2025.7.18 Add（feedback）END
+
+// 2025.7.25 Add（public feedback）START
+  const togglePublicFlag = async (productId: string) => {
+    const newFlag = !publicFeedbackFlags[productId]; // ← 反転後の状態
+
+    setPublicFeedbackFlags(prev => ({
+      ...prev,
+      [productId]: newFlag,
+    }));
+
+    // 既に👍か👎があるなら、即座に再送信
+    const isLiked = likedProducts.includes(productId);
+    const isDisliked = dislikedProducts.includes(productId);
+
+    if (isLiked || isDisliked) {
+      const feedbackType = isLiked ? 'like' : 'dislike';
+      const product = recommendations.find(p => p.id === productId);
+      if (!product) return;
+
+      try {
+        await fetch('/recommend/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: effectiveUserId,
+            message: serverMessage || '',
+            product_id: productId,
+            product_name: product.name,
+            product_description: product.description,
+            feedback: feedbackType,
+            public: newFlag,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+        console.log(`✅ 公開フラグ更新: ${productId} - 公開: ${newFlag}`);
+      } catch (err) {
+        console.error('❌ 公開フラグ送信エラー:', err);
+      }
+    }
+  };
+// 2025.7.25 Add（public feedback）END
 
   const handleRecommend = async () => {
     if (!query.trim()) return;
 
     setLikedProducts([]); // 2025.7.18 Add（feedback）
     setDislikedProducts([]); // 2025.7.18 Add（feedback）
+    setPublicFeedbackFlags({}); // 2025.7.25 Add（public feedback）
     setHasUploaded(false); // 2025.7.15 Add（attachment files）
     setUploadMessage(null); // 2025.7.15 Add（attachment files）
     setRecommendationText(null); // 2025.7.15 Add（attachment files）
@@ -334,20 +386,44 @@ const handleFeedback = async (productId: string, feedback: 'like' | 'dislike', s
                   </a>
                 )}
                 {/* 2025.7.15 Mod（attachment files）END */}
-                {/* 2025.7.18 Mod（feedback）START */}
-                <div className="feedback-buttons">
-                  <button
-                    onClick={() => handleFeedback(product.id, 'like', serverMessage ?? '', product.name, product.description)}
-                    className={`like-button ${likedProducts.includes(product.id) ? 'active' : ''}`}
-                  >
-                    👍
-                  </button>
-                  <button
-                    onClick={() => handleFeedback(product.id, 'dislike', serverMessage ?? '', product.name, product.description)}
-                    className={`dislike-button ${dislikedProducts.includes(product.id) ? 'active' : ''}`}
-                  >
-                    👎
-                  </button>
+                {/* 2025.7.25 Mod（public feedback）START */}
+                {/* 👍👎ボタン & 公開チェック、および 公開FB表示 */}
+                <div className="feedback-row">
+                  {product.liked_feedbacks && product.liked_feedbacks.length > 0 ? (
+                    <div className="public-feedback-section">
+                      <div className="public-feedback-label">公開👍FB</div>
+                      <ul className="public-feedback-list">
+                        {product.liked_feedbacks.map((fb, i) => (
+                          <li key={i} className="public-feedback-item">「{fb.message}」</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div style={{ minHeight: '2em' }}></div> // ← 高さを確保（何もないとき）
+                  )}
+
+                  <div className="feedback-buttons">
+                    <button
+                      onClick={() => handleFeedback(product.id, 'like', serverMessage ?? '', product.name, product.description)}
+                      className={`like-button ${likedProducts.includes(product.id) ? 'active' : ''}`}
+                    >
+                      👍
+                    </button>
+                    <button
+                      onClick={() => handleFeedback(product.id, 'dislike', serverMessage ?? '', product.name, product.description)}
+                      className={`dislike-button ${dislikedProducts.includes(product.id) ? 'active' : ''}`}
+                    >
+                      👎
+                    </button>
+                    <label className="public-flag-label">
+                      <input
+                        type="checkbox"
+                        checked={publicFeedbackFlags[product.id] || false}
+                        onChange={() => togglePublicFlag(product.id)}
+                      />
+                      FB公開
+                    </label>
+                  </div>
                 </div>
                 {/* 2025.7.18 Mod（feedback）END */}
               </div>
@@ -355,7 +431,6 @@ const handleFeedback = async (productId: string, feedback: 'like' | 'dislike', s
           </div>
         </div>
       )}
-
       {!isLoading && !hasUploaded && recommendations.length === 0 && !error && (
         <p>推薦結果がありません。</p>
       )}

@@ -29,7 +29,7 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH
 
 
@@ -99,6 +99,13 @@ class ChatRequest(BaseModel):
     message: Optional[str] = None
     chat_history: Optional[List[ChatMessage]] = None
 
+#### 2025.7.25 Add（public feedback）START
+class FeedbackLike(BaseModel):
+    message: str
+    user_id: Optional[str] = None
+    timestamp: Optional[str] = None
+#### 2025.7.25 Add（public feedback）END
+
 #### 2025.7.15 Add（attachment files）START
 class Product(BaseModel):
     id: str
@@ -109,6 +116,7 @@ class Product(BaseModel):
     score: Optional[float] = None
     filename: Optional[str] = None
     sourceDb: Optional[str] = None #### 2025.7.16 Add（source db）
+    liked_feedbacks: Optional[List[FeedbackLike]] = None #### 2025.7.25 Add（public feedback）
 #### 2025.7.15 Add（attachment files）END
 
 #### 2025.7.8 Add（recommend db）START
@@ -140,6 +148,7 @@ class Feedback(BaseModel):
     product_description: Optional[str] = None
     feedback: str
     timestamp: str
+    public: Optional[bool] = False  #### 2025.7.25 Mod（public feedback）
 #### 2025.7.18 Add（feedback）END
 
 # CORS設定を追加
@@ -692,10 +701,30 @@ async def recommend(req: ProductQuery, request: Request):
 
         print(f"✅ filtered_items 件数: {len(filtered_items)}")
         for item in filtered_items:
-            print(f"  - id: {item.id}")
+            print(f"🔍 filtered item: id={item.id}, name={item.name}")
+            print("🔍 filtered_items as dicts:")
+            print(item.dict(by_alias=True))
         #### 2025.7.15 Add（attachment files）END
 
-        # 14. 結果を返却
+        #### 2025.7.25 Add（public feedback）START
+        # 14. 公開likeフィードバックを取得
+        print(f"▶ get_public_like_feedbacks_by_product に渡すfiltered_items件数: {len(filtered_items)}")
+        public_like_feedbacks = get_public_like_feedbacks_by_product([
+            item.dict() for item in filtered_items
+        ])
+        print("▶ get_public_like_feedbacks_by_product 実行完了")
+        print("✅ 公開likeフィードバック:")
+        for pname, fbs in public_like_feedbacks.items():
+            print(f"  - {pname}: {len(fbs)} 件")
+
+        for item in filtered_items:
+            pid = item.id
+            if pid in public_like_feedbacks:
+                item.liked_feedbacks = public_like_feedbacks[pid]
+            print(f"✅ {pid} の公開likeフィードバック: {item.liked_feedbacks}")
+        #### 2025.7.25 Add（public feedback）END
+
+        # 15. 結果を返却
         return {
             "user_id": request.state.user_id,
             "message": masked_user_query, #### 2025.7.11 Mod（remove identify info）
@@ -772,6 +801,7 @@ async def save_feedback(fb: Feedback):
         if item.get("message") == fb.message and item.get("product_id") == fb.product_id:
             item["feedback"] = fb.feedback
             item["timestamp"] = fb.timestamp
+            item["public"] = fb.public
             updated = True
             break
 

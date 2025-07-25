@@ -1319,6 +1319,73 @@ def get_negative_feedbacks(user_id: str, current_message: str, similarity_thresh
     return sorted(similar_dislikes, key=lambda x: x["similarity"], reverse=True)   
 #### 2025.7.18 Add（feedback）END
 
+#### 2025.7.25 Add（public feedback）START
+def get_public_like_feedbacks_by_product(
+    filtered_items: List  # List[Dict] or List[Product]
+) -> Dict[str, List[Dict]]:
+    """
+    FEEDBACK_DIR配下のすべてのJSONファイルを読み込み、
+    filtered_items に含まれる product_name または product_id に一致し、
+    public かつ like なフィードバックを返す。
+
+    戻り値の形式：
+    {
+        "UVカット帽子": [ {...}, {...} ],
+        "冷感タオル": [ {...} ]
+    }
+    """
+
+    # ✅ すべてのJSONファイルからフィードバックを読み込む
+    all_feedbacks = []
+    for file in FEEDBACK_DIR.glob("*.json"):
+        try:
+            with open(file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    all_feedbacks.extend(data)
+                elif isinstance(data, dict):
+                    all_feedbacks.append(data)
+        except Exception as e:
+            print(f"❌ {file.name} の読み込みエラー: {e}")
+
+    print(f"📥 全フィードバック件数: {len(all_feedbacks)}")
+
+    result = {}
+
+    for item in filtered_items:
+        name = item.get("name") or ""
+        pid = item.get("id") or ""
+        print(f"🧪 item check: name={name}, id={pid}")
+
+        matches = []
+        for f in all_feedbacks:
+            if f.get("public") is not True:
+                continue
+            if f.get("feedback") != "like":
+                continue
+
+            fname = f.get("product_name", "")
+            fpid = f.get("product_id", "")
+
+            match_by_name = (fname != "" and name != "" and fname == name)
+            match_by_id = (fpid != "" and pid != "" and fpid == pid)
+
+            print(f"🔍 比較対象: product_name={fname}, product_id={fpid}")
+            print(f"   → 判定: by_name={match_by_name}, by_id={match_by_id}")
+
+            if match_by_name or match_by_id:
+                print("✅ マッチ！")
+                matches.append(f)
+
+            if matches:
+                result[pid] = matches
+            print(f"🎯 マッチ件数: {len(matches)}")
+        else:
+            print("❌ マッチなし")
+
+    return result
+#### 2025.7.25 Add（public feedback）END
+
 #### 2025.7.22 Add（summarize pptx）START
 def init_filedb():
     conn = sqlite3.connect(FILESUMMARY_PATH)
