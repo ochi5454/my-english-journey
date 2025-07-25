@@ -123,7 +123,8 @@
     "product_name": "速乾冷感タオル",
     "product_description": "濡らして絞るだけで冷たくなる夏の必需品。熱中症対策に。",
     "feedback": "like",
-    "timestamp": "2025-07-18T03:41:14.110Z"
+    "timestamp": "2025-07-18T03:41:14.110Z",
+    "public": true
   },
   {
     "user_id": "interquest_206",
@@ -132,7 +133,8 @@
     "product_name": "エアコン",
     "product_description": "冷房・暖房機能付き。夏にも冬にも使えます。",
     "feedback": "like",
-    "timestamp": "2025-07-18T03:41:15.320Z"
+    "timestamp": "2025-07-18T03:41:15.320Z",
+    "public": true
   },
   {
     "user_id": "interquest_206",
@@ -141,7 +143,8 @@
     "product_name": "超軽量・遮熱クーラーバッグ",
     "product_description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
     "feedback": "like",
-    "timestamp": "2025-07-18T05:41:01.689Z"
+    "timestamp": "2025-07-18T05:41:01.689Z",
+    "public": true
   },
   {
     "user_id": "interquest_206",
@@ -159,7 +162,8 @@
     "product_name": "スノーブーツ（防水・防寒）",
     "product_description": "滑り止め付きで雪道でも安心。おしゃれな防寒ブーツ。",
     "feedback": "like",
-    "timestamp": "2025-07-18T06:41:36.585Z"
+    "timestamp": "2025-07-18T06:41:36.585Z",
+    "public": true
   },
   {
     "user_id": "interquest_206",
@@ -195,7 +199,8 @@
     "product_name": "超軽量・遮熱クーラーバッグ",
     "product_description": "夏のキャンプに最適な超軽量クーラーバッグ。長時間保冷できる遮熱素材を使用。",
     "feedback": "like",
-    "timestamp": "2025-07-18T06:46:56.660Z"
+    "timestamp": "2025-07-18T06:46:56.660Z",
+    "public": true
   },
   {
     "user_id": "interquest_206",
