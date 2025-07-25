@@ -114,60 +114,65 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     };
     // 2025.7.24 Add（summarize pptx）END
 
+    // 2025.7.25 Mod（summarize pptx）START
     const handleUpload = async (file: File) => {
-        const formData = new FormData();
-        formData.append("file", file);
+    const formData = new FormData();
+    formData.append("file", file);
 
-        setIsUploading(true);
-        setError(null);
-        setSummary(null);
+    setIsUploading(true);
+    setError(null);
+    setSummary(null);
 
-        try {
+    try {
         const res = await fetch("/upload_and_index_pptx/", {
-            method: "POST",
-            body: formData,
+        method: "POST",
+        body: formData,
         });
 
-        const data = await res.json();
-        if (data.success) {
-            const summaries = data.summaries; // 複数要約の配列
-            const combined = summaries
+        if (!res.ok) {
+        console.error("❌ レスポンスNG:", res.status, res.statusText);
+        setError("サーバーからの応答が不正です。");
+        return;
+        }
+
+        const rawText = await res.text();
+        console.log("🧾 サーバーからの生レスポンス:", rawText);
+
+        let data: any;
+        try {
+        data = JSON.parse(rawText);
+        } catch (e) {
+        console.error("❌ JSON parse失敗:", e);
+        setError("サーバーレスポンスの解析に失敗しました。");
+        return;
+        }
+
+        if (data.success && Array.isArray(data.summaries)) {
+        const combined = data.summaries
             .map((s: SearchResult) => `【スライド${s.slide_index}】 ${s.summary}`)
-            .join('\n');
-
-            setSummary(combined);
-            setVisibleSummary(combined);
-            setIsUploading(false);
+            .join("\n");
+        setSummary(combined);
+        setVisibleSummary(combined);
         } else {
-            setError("アップロードに失敗しました。");
-            setIsUploading(false);
+        console.warn("⚠️ summaries 無し、または空。レスポンス:", data);
+        setError("アップロードは成功しましたが、要約が取得できませんでした。");
         }
-        } catch (err) {
-        console.error(err);
+    } catch (err) {
+        console.error("❗ fetch エラー:", err);
+
+        if (err instanceof Response) {
+        console.error("ステータス:", err.status);
+        const text = await err.text();
+        console.error("レスポンス本文:", text);
+        }
+
         setError("アップロード中にエラーが発生しました。");
+    } finally {
+        // ✅ どんな場合でも最後に isUploading を false に戻す
         setIsUploading(false);
-        }
+    }
     };
-
-    // const startStream = () => {
-    //     const eventSource = new EventSource(`/summarize_pptx_stream/`);
-
-    //     eventSource.onmessage = (event) => {
-    //     const data = event.data;
-    //     if (data === "[DONE]") {
-    //         eventSource.close();
-    //         setIsUploading(false);
-    //     } else {
-    //         setSummary((prev) => (prev ? prev + "\n" + data : data));
-    //     }
-    //     };
-
-    //     eventSource.onerror = () => {
-    //     eventSource.close();
-    //     setError("ストリーミング中にエラーが発生しました。");
-    //     setIsUploading(false);
-    //     };
-    // };
+    // 2025.7.25 Mod（summarize pptx）END
 
     // 2025.7.24 Mod（summarize pptx）START
     const handleSearch = async () => {
