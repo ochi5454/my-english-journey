@@ -19,7 +19,10 @@ OPENAI_API_KEY = SecretStr(api_key_str)
 PROJECT_ROOT = Path(__file__).parent.parent  # MemoryPersistenceMaruyamaフォルダー（backendの親）
 DATA_DIR = PROJECT_ROOT / "data"
 FEEDBACK_DIR = DATA_DIR / "feedback" #### 2025.7.18 Add（feedback）
-FILESUMMARY_PATH = DATA_DIR /  "file_summary.db" 
+FILESUMMARY_PATH = DATA_DIR /  "file_summary.db"
+PPTXUPLOAD_DIR = DATA_DIR / "pptx_files" #### 2025.7.28 Add（image pptx） 
+PDFUPLOAD_DIR = DATA_DIR / "pdf_files" #### 2025.7.28 Add（pdf download）
+
 
 BASE_DIR = Path(__file__).parent  # backendフォルダー
 SAVE_DIR = BASE_DIR / "savecontext"
