@@ -7,6 +7,7 @@ interface PptxSummarizerProps {
 
 interface SearchResult {
     filename: string;
+    pdfFilename: string;
     summary: string;
     slide_index: number;
 }
@@ -226,7 +227,13 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                 const slideKey = `${filename}::${slideIndex}`;
                 if (!matchedSlides.has(slideKey)) {
                     matchedSlides.add(slideKey);
-                    results.push({ filename, slide_index: slideIndex, summary: slideSummary });
+                    const generatedPdfFilename = filename.replace(/\.pptx$/i, '.pdf'); // ← 修正ポイント
+                    results.push({
+                        filename,
+                        pdfFilename: generatedPdfFilename,
+                        slide_index: slideIndex,
+                        summary: slideSummary
+                    });
                 }
             }
         }
@@ -303,6 +310,7 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
 
                 {isSearching && <p>🔍 検索中です...</p>}
 
+                {/* 2025.7.28 Add（image pptx）START *PDF変換はできているものの、UIで生成後のPDFに遷移できず。残課題* */}
                 {searchMode === 'smart' && searchResults.length > 0 && (
                 <div className="search-results">
                     <h4>🔍 スマート検索結果</h4>
@@ -310,6 +318,17 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                     <div key={index} className="result-card">
                         <strong>{result.filename}（スライド {result.slide_index}）</strong>
                         <p>{highlightQuery(result.summary, searchQuery)}</p>
+                        {result.pdfFilename ? (
+                        <a
+                            href={`/static/pdf_files/${encodeURIComponent(result.pdfFilename)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            PDFでスライドを開く
+                        </a>
+                        ) : (
+                        <p>PDFファイルがありません。</p>
+                        )}
                     </div>
                     ))}
                 </div>
@@ -322,10 +341,22 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                     <div key={index} className="result-card">
                         <strong>{result.filename}（スライド {result.slide_index}）</strong>
                         <p>{highlightQuery(result.summary, selectedKeyword || '')}</p>
+                        {result.pdfFilename ? (
+                        <a
+                            href={`/static/pdf_files/${encodeURIComponent(result.pdfFilename)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            PDFでスライドを開く
+                        </a>
+                        ) : (
+                        <p>PDFファイルがありません。</p>
+                        )}
                     </div>
                     ))}
                 </div>
                 )}
+                {/* 2025.7.28 Add（image pptx）END */}
 
                 {searchResults.length === 0 && !isSearching && searchMode && (
                 <p>該当する要約が見つかりませんでした。</p>

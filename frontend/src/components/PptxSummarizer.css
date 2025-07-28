@@ -185,5 +185,13 @@ mark {
   justify-content: space-between;
   align-items: center;
 }
-
 /* 2025.7.23 Add（summarize pptx）END */
+
+/* 2025.7.28 Add（image pptx）START */
+.slide-image img {
+  max-width: 100%;
+  margin-top: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+/* 2025.7.28 Add（image pptx）END */

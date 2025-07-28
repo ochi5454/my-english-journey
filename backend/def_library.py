@@ -19,6 +19,10 @@ from sentence_transformers import SentenceTransformer, util
 import torch
 from pptx import Presentation
 import sqlite3
+import subprocess
+from pathlib import Path
+import platform
+import time
 
 import os
 import openai
@@ -1411,3 +1415,60 @@ def extract_text_from_pptx(path):
         slides.append(text.strip())
     return slides
 #### 2025.7.22 Add（summarize pptx）END
+
+#### 2025.7.28 Add（image pptx）START
+def convert_pptx_to_pdf(pptx_path: Path, output_dir: Path) -> Path | None:
+    print(f"✅ convert_pptx_to_pdf called with {pptx_path}")
+    print(f"📂 pptx_path.exists(): {pptx_path.exists()}")
+    print(f"📂 pdf_output_dir.exists(): {output_dir.exists()}")
+
+    # 出力先を確実に作る
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    system_name = platform.system()
+    if system_name == "Darwin":  # macOS
+        print("✅OSチェック：mac")
+        libreoffice_path = "/opt/homebrew/bin/soffice"
+    else:
+        print("✅OSチェック：other")
+        libreoffice_path = "soffice"
+
+    cmd = [
+        libreoffice_path,
+        "--headless",
+        "--convert-to", "pdf",
+        "--outdir", str(output_dir),
+        str(pptx_path)
+    ]
+
+    print("📤 変換コマンド:", " ".join(cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    print("📤 stdout:", result.stdout)
+    print("📤 stderr:", result.stderr)
+
+    if result.returncode != 0:
+        print("❌ 変換エラー:", result.stderr)
+        return None
+
+    # 変換直後にファイルシステムへ反映が遅れるケースに備えて、少し待つ（任意）
+    time.sleep(0.2)
+
+    # stem で始まる pdf（拡張子大文字も考慮）
+    stem = pptx_path.stem
+    candidates = list(output_dir.glob(f"{stem}*.pdf")) + list(output_dir.glob(f"{stem}*.PDF"))
+
+    if not candidates:
+        # 念のため、出力ディレクトリ内の最近できた PDF を拾う fallback
+        pdfs = sorted(output_dir.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+        pdfs_upper = sorted(output_dir.glob("*.PDF"), key=lambda p: p.stat().st_mtime, reverse=True)
+        candidates = (pdfs + pdfs_upper)[:1]
+
+    if not candidates:
+        print("❌ PDF が見つかりませんでした")
+        return None
+
+    pdf_path = candidates[0]
+    print("✅ PDF保存済:", pdf_path)
+    return pdf_path
+#### 2025.7.28 Add（image pptx）END

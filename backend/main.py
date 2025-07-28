@@ -29,8 +29,8 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -45,6 +45,10 @@ async def lifespan(app: FastAPI):
     # Startup
     global hashtag_map
     hashtag_map = load_hashtag_map()
+
+    init_filedb() #### 2025.7.28 Add（image pptx）
+    print("✅ init_filedb() executed from lifespan")
+
     yield
     # Shutdown (必要に応じて)
 
@@ -68,8 +72,12 @@ if not api_key:
 
 #### 2025.7.22 Add（summarize pptx）START
 client = OpenAI(api_key=api_key)
-init_filedb()
 #### 2025.7.22 Add（summarize pptx）END
+
+#### 2025.7.28 Add（image pptx）START
+# /static/pdf_files/filename でアクセスできるようにマウント
+app.mount("/static/pdf_files", StaticFiles(directory=PDFUPLOAD_DIR), name="pdf_files")
+#### 2025.7.28 Add（image pptx）END
 
 # OpenAI埋め込みモデルの初期化
 embedding = OpenAIEmbeddings(api_key=api_key)
@@ -816,28 +824,44 @@ async def save_feedback(fb: Feedback):
 #### 2025.7.18 Add（feedback）END
 
 #### 2025.7.25 Mod（summarize pptx）START
+#### 2025.7.28 Mod（image pptx）START
 @app.post("/upload_and_index_pptx/")
 async def upload_and_index_pptx(file: UploadFile = File(...)):
     print("✅ ファイル名:", file.filename)
 
-    # ✅ 一度だけ読み込む
+    # 一度だけ読み込む
     content = await file.read()
     print("📦 バイト数:", len(content))
 
+    # ID生成・保存先パス
     file_id = str(uuid4())
-    temp_path = f"/tmp/{file.filename}"
+    os.makedirs(PPTXUPLOAD_DIR, exist_ok=True)
 
-    # ✅ temp_path に保存
-    with open(temp_path, "wb") as f:
+    # ✅ 保存名を明確に管理
+    original_filename = file.filename.replace("/", "_") # パス区切り対策
+    save_filename = original_filename  # 実際に保存するファイル名（＊重複考慮した方がいいが、一旦）
+    pptx_path = PPTXUPLOAD_DIR / save_filename
+
+    # PPTX保存
+    with open(pptx_path, "wb") as f:
         f.write(content)
 
-    # ✅ スライド抽出
-    slides = extract_text_from_pptx(temp_path)
+    # PPTX保存後にPDFに変換する
+    print("✅pptx保存済")
+    pdf_path = convert_pptx_to_pdf(pptx_path, PDFUPLOAD_DIR)
+    if pdf_path is None:
+        print("✅PDF保存失敗")
+        return {"success": False, "error": "PDF変換に失敗しました"}
+    print(f"✅ PDF保存済: {pdf_path}")
+
+    # スライドのテキスト抽出
+    slides = extract_text_from_pptx(pptx_path)
     print(f"📊 スライド枚数: {len(slides)}")
 
+    # 要約＆DB登録
+    # ❗️保存したファイル名（save_filename）をDBに記録する！
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     conn = sqlite3.connect(FILESUMMARY_PATH)
-
     summaries = []
 
     for i, slide in enumerate(slides[:10]):
@@ -863,25 +887,23 @@ async def upload_and_index_pptx(file: UploadFile = File(...)):
 
             conn.execute(
                 "INSERT INTO summaries (id, filename, slide_index, summary, embedding) VALUES (?, ?, ?, ?, ?)",
-                (file_id, file.filename, i + 1, summary, embedding_blob)
+                (file_id, save_filename, i + 1, summary, embedding_blob) 
             )
 
             summaries.append({
-                "filename": file.filename,
+                "id": file_id,
+                "filename": save_filename, # ←フロントで使うときのURL用にもこれが必要
                 "slide_index": i + 1,
-                "summary": summary
+                "summary": summary,
+                "pdf_filename": pdf_path.name,  # PDFファイル名も保存
             })
             print(f"✅ スライド {i+1} 要約完了")
 
     conn.commit()
     conn.close()
 
-    with open("/tmp/latest_upload.pptx", "wb") as f:
-        f.write(content)
-
-    print(f"✅ 最終要約数: {len(summaries)} 件")
-    print("✅ summaries:", summaries)
-    return {"success": True, "id": file_id, "summaries": summaries}
+    return {"success": True, "id": file_id, "summaries": summaries, "pdf_filename": pdf_path.name}
+#### 2025.7.28 Mod（image pptx）END
 #### 2025.7.25 Mod（summarize pptx）END
 
 @app.get("/search_summaries/")
@@ -897,8 +919,7 @@ async def search_summaries(query: str = Query(...)):
 
     # DBからすべての summary & embedding を取得
     conn = sqlite3.connect(FILESUMMARY_PATH)
-    cursor = conn.execute("SELECT filename, slide_index, summary, embedding FROM summaries")
-    
+    cursor = conn.execute("SELECT filename, slide_index, summary, embedding FROM summaries") 
     results = []
     for row in cursor.fetchall():
         filename, slide_index, summary, emb_blob = row
@@ -916,6 +937,7 @@ async def search_summaries(query: str = Query(...)):
 
         results.append({
             "filename": filename,
+            "pdf_filename": filename.replace(".pptx", ".pdf"),  #### 2025.7.28 Mod（image pptx）
             "slide_index": slide_index,
             "summary": summary,
             "score": similarity
