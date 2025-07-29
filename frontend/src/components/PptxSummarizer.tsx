@@ -184,7 +184,14 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
         try {
             const res = await fetch(`/search_summaries/?query=${encodeURIComponent(searchQuery)}`);
             const data = await res.json();
-            setSearchResults(data);
+
+        // ✅ここでpdfFilenameを後付け 2025.7.29 Mod
+        const updatedResults = data.map((result: SearchResult) => ({
+            ...result,
+            pdfFilename: result.filename.replace(/\.pptx$/i, '.pdf'),
+        }));
+
+            setSearchResults(updatedResults);
         } catch (err) {
             console.error(err);
             setError("検索中にエラーが発生しました。");
@@ -319,15 +326,17 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                         <strong>{result.filename}（スライド {result.slide_index}）</strong>
                         <p>{highlightQuery(result.summary, searchQuery)}</p>
                         {result.pdfFilename ? (
+                        // 2025.7.29 Mod（fix bug）START
                         <a
-                            href={`/static/pdf_files/${encodeURIComponent(result.pdfFilename)}`}
+                            href={`http://localhost:8000/static/pdf_files/${encodeURIComponent(result.pdfFilename)}#page=${result.slide_index}`}
                             target="_blank"
                             rel="noopener noreferrer"
                         >
-                            PDFでスライドを開く
+                            該当ページを参照
                         </a>
                         ) : (
-                        <p>PDFファイルがありません。</p>
+                        <p>スライドがありません。</p>
+                        // 2025.7.29 Mod（fix bug）END
                         )}
                     </div>
                     ))}
@@ -342,15 +351,17 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                         <strong>{result.filename}（スライド {result.slide_index}）</strong>
                         <p>{highlightQuery(result.summary, selectedKeyword || '')}</p>
                         {result.pdfFilename ? (
+                        // 2025.7.29 Mod（fix bug）START
                         <a
-                            href={`/static/pdf_files/${encodeURIComponent(result.pdfFilename)}`}
+                            href={`http://localhost:8000/static/pdf_files/${encodeURIComponent(result.pdfFilename)}#page=${result.slide_index}`}
                             target="_blank"
                             rel="noopener noreferrer"
                         >
-                            PDFでスライドを開く
+                            該当ページを参照
                         </a>
                         ) : (
-                        <p>PDFファイルがありません。</p>
+                        <p>スライドがありません。</p>
+                        // 2025.7.29 Mod（fix bug）END
                         )}
                     </div>
                     ))}
