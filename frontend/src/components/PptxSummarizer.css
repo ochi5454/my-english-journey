@@ -1,197 +1,259 @@
-.pptx-summarizer {
-  max-width: 800px;
-  margin: 0 auto;
-  font-family: sans-serif;
-  padding: 2rem;
-  padding-top: 5rem; /* ← これを追加してヘッダーとぶつからないように */
-  background-color: #fdfdfd;
-  border-radius: 12px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+/* 全体レイアウト */
+.summarizer-container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 24px;
+    font-family: 'Segoe UI', sans-serif;
 }
 
-h2 {
-  margin-bottom: 1rem;
-  color: #333;
+/* セクションタイトル */
+.summarizer-container h2 {
+  font-size: 1.6rem;
+  margin-bottom: 16px;
 }
 
-input[type="file"],
-input[type="text"] {
-  margin-bottom: 1rem;
-  padding: 0.5rem;
-  width: 100%;
+/* ファイルアップロード */
+.summarizer-container input[type="file"] {
+  padding: 10px;
   font-size: 1rem;
   border: 1px solid #ccc;
   border-radius: 6px;
+  background-color: #fff;
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 12px;
+}
+
+/* アップロードボタン */
+.summarizer-container button {
+  background-color: #3b82f6;
+  color: white;
+  padding: 10px 20px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-top: 8px;
+}
+
+.summarizer-container button:hover {
+  background-color: #2563eb;
+}
+
+/* 要約表示 */
+.summary-display {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 20px;
+}
+
+/* タブボタン */
+.search-tab-buttons {
+  display: flex;
+  gap: 12px;
+  margin: 30px 0 10px 0;
+}
+
+.search-tab-buttons button {
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  background-color: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+.search-tab-buttons button:hover {
+  background-color: #cbd5e1;
+}
+
+.search-tab-buttons .active-tab {
+  background-color: #2563eb;
+}
+
+/* タブの中身 */
+.search-tab-content {
+  margin-top: 20px;
+}
+
+/* 共通検索セクション（PptxSummaryBasedSearch / PptxBasedSearch） */
+.summary-search,
+.pptx-search {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px;
+  min-height: 300px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.input-box {
+  flex: 1;
+  min-width: 250px;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-box:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
 }
 
 .search-button {
-  padding: 0.6rem 1.2rem;
-  background-color: #007bff;
+  background-color: #3b82f6;
   color: white;
-  font-size: 1rem;
+  padding: 12px 20px;
+  font-size: 16px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  margin-top: 0.5rem;
+  white-space: nowrap;
+  transition: background-color 0.2s ease;
 }
 
-.search-button:hover {
-  background-color: #0056b3;
+.search-button:disabled {
+  background-color: #a5b4fc;
+  cursor: not-allowed;
 }
 
-.summary-result,
-.pptx-searcher {
-  margin-top: 2rem;
+.search-button:hover:not(:disabled) {
+  background-color: #2563eb;
 }
 
-.summary-result p,
-.search-results p {
-  background-color: #f7f9fa;
-  padding: 0.8rem;
-  border-radius: 6px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.error-message {
-  color: red;
-  font-weight: bold;
-  margin-top: 0.5rem;
-}
-
-mark {
-  background-color: #fff799;
-  padding: 0 0.2em;
-  border-radius: 3px;
-}
-
+/* 検索結果 */
 .search-results {
-  margin-top: 1rem;
+  margin-top: 12px;
 }
 
-.search-results div {
-  margin-bottom: 1.5rem;
-  border-left: 4px solid #007bff;
-  padding-left: 0.8rem;
-  background-color: #f4f8ff;
-  border-radius: 4px;
-}
-
-.search-results strong {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 0.3rem;
-}
-
-/* 2025.7.23 Add（summarize pptx）START */
-.pptx-layout {
-  display: flex;
-  gap: 2rem;
-  align-items: flex-start;
-}
-
-.pptx-main {
-  flex: 3;
-}
-
-.pptx-sidebar {
-  flex: 1;
-  border-left: 1px solid #ccc;
-  padding-left: 1rem;
-}
-
-.keyword-list {
-  list-style: none;
-  padding: 0;
-}
-
-.keyword-button {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  color: #007bff;
-  text-align: left;
-  padding: 4px 0;
-  cursor: pointer;
-}
-
-.keyword-button:hover {
-  text-decoration: underline;
-}
-
-.keyword-button.selected {
-  font-weight: bold;
-  color: #0056b3;
-}
-
-.user-keywords-section {
-  margin-top: 2rem;
-}
-
-.add-keyword-form {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.add-keyword-form input {
-  flex: 1;
-  padding: 0.4rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
-
-
-.add-keyword-form button, .refresh-button{
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-  font-size: 0.7rem;
-  line-height: 1.2;  
-  border: none;
-  background-color: #007bff;
-  color: white;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.add-keyword-form button:hover, .refresh-button:hover {
-  background-color: #0056b3;
-}
-
-.delete-button {
-  background: none;
-  border: none;
-  color: #888;
-  cursor: pointer;
-  font-size: 1.1rem;
-}
-
-.delete-button:hover {
-  color: #d00;
-}
-
-.keyword-item-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.ai-keyword-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-/* 2025.7.23 Add（summarize pptx）END */
-
-/* 2025.7.28 Add（image pptx）START */
-.slide-image img {
-  max-width: 100%;
-  margin-top: 10px;
-  border: 1px solid #ccc;
+.result-card {
+  background-color: #f1f5f9;
+  border: 1px solid #d1d5db;
   border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
-/* 2025.7.28 Add（image pptx）END */
+
+.result-card:hover {
+  background-color: #e0f2fe;
+}
+
+.filename {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 6px;
+  color: #1f2937;
+}
+
+.summary,
+.explanation {
+  font-size: 0.95rem;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.slide-number {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+/* インデックス更新セクション */
+.pptx-index-update {
+  margin-top: 24px;
+  text-align: center;
+}
+/* 差分取込ボタンとメッセージの配置 */
+.index-update-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.index-update-button {
+  background-color: #3b82f6;
+  color: white;
+  padding: 3px 6px;
+  font-size: 0.50rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  box-shadow: none;
+  white-space: nowrap;
+  line-height: 1.1; 
+  max-width: 100%; 
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+
+.index-update-button:hover {
+  background-color: #2563eb;
+}
+
+/* 既存の .search-tab-buttons の margin は不要になるので削除 or 変更 */
+.search-tab-buttons {
+  display: flex;
+  gap: 12px;
+  margin: 0; /* ← ここ修正 */
+}
+.pptx-summarizer .main-content {
+    display: flex;
+    gap: 24px;
+    width: 100%;
+    min-height: 400px;
+}
+
+/* 左側パネルは広めに */
+.left-panel {
+    flex: 4;
+    background: #f9fafb;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+}
+
+/* 右側パネルは狭めに */
+.right-panel {
+    flex: 1;
+    background: #fff;
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.keywords-container {
+    font-size: 14px;
+}
+
+.keywords-container h3 {
+    margin-bottom: 8px;
+}
+
+.keywords-container ul {
+    list-style-type: disc;
+    padding-left: 20px;
+}
+
+.keywords-container li {
+    margin-bottom: 4px;
+}
