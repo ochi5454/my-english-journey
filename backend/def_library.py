@@ -5,7 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.memory import BaseMemory
 from langchain_community.vectorstores import VectorStore, FAISS
 from langchain.memory import VectorStoreRetrieverMemory
-from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR, FEEDBACK_DIR, FILESUMMARY_PATH
+from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PPTX_INDEX_PATH
 from typing import List, Tuple, Dict, Union, Optional
 from janome.tokenizer import Tokenizer, Token
 from fastapi import HTTPException
@@ -23,6 +23,9 @@ import subprocess
 from pathlib import Path
 import platform
 import time
+import uuid
+import numpy as np
+from openai import OpenAI
 
 import os
 import openai
@@ -30,6 +33,8 @@ import json
 import re
 
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
+EMBEDDING_MODEL = "text-embedding-3-small" #### 2025.7.29 Add（search pptx from original not summarize）
+client = OpenAI() #### 2025.7.29 Add（search pptx from original not summarize）
 
 # 新しいベクトルストアを作成して保存する
 def create_new_vectorstore(path: str, embedding) -> FAISS:
@@ -1472,3 +1477,134 @@ def convert_pptx_to_pdf(pptx_path: Path, output_dir: Path) -> Path | None:
     print("✅ PDF保存済:", pdf_path)
     return pdf_path
 #### 2025.7.28 Add（image pptx）END
+
+#### 2025.7.29 Add（seaach pptx from original not summraize）START
+def extract_text_from_pptx(file_path: str) -> str:
+    prs = Presentation(file_path)
+    texts = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                texts.append(shape.text)
+    return "\n".join(texts)
+
+def build_pptx_index():
+    index = []
+
+    for filename in os.listdir(PPTXUPLOAD_DIR):
+        if filename.endswith(".pptx"):
+            file_path = PPTXUPLOAD_DIR / filename
+            prs = Presentation(file_path)
+
+            for i, slide in enumerate(prs.slides):
+                slide_text = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        slide_text.append(shape.text)
+                full_text = "\n".join(slide_text).strip()
+
+                if not full_text:
+                    continue  # 空スライドはスキップ
+
+                # トークン数チェック（オプション）
+                if len(full_text.split()) > 3000:  # ざっくり
+                    print(f"⚠️ スライド{i+1}が長すぎるためスキップされました: {filename}")
+                    continue
+
+                embedding = client.embeddings.create(
+                    model=EMBEDDING_MODEL,
+                    input=[full_text]
+                ).data[0].embedding
+
+                index.append({
+                    "id": str(uuid.uuid4()),
+                    "filename": filename,
+                    "slide_index": i,
+                    "text": full_text,
+                    "embedding": embedding
+                })
+
+    with open(PPTX_INDEX_PATH, "w") as f:
+        json.dump(index, f)
+
+def cosine_similarity(vec1, vec2):
+    vec1 = np.array(vec1)
+    vec2 = np.array(vec2)
+    return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+
+def search_similar_pptx(query: str, index_file: str):
+    # クエリをベクトル化
+    query_embedding = client.embeddings.create(
+        model=EMBEDDING_MODEL,
+        input=[query]
+    ).data[0].embedding
+
+    # インデックス読み込み
+    with open(index_file, "r") as f:
+        index = json.load(f)
+
+    # 類似度を計算して並べ替え
+    scored = []
+    for item in index:
+        sim = cosine_similarity(query_embedding, item["embedding"])
+        scored.append({
+            "filename": item["filename"],
+            "slide_index": item["slide_index"],
+            "text": item["text"],
+            "similarity": sim
+        })
+
+    # 類似度で降順ソートして上位3件返す
+    scored.sort(key=lambda x: x["similarity"], reverse=True)
+    return scored[:3]
+
+def build_pptx_index_incremental():
+    # 既存indexの読み込み
+    if PPTX_INDEX_PATH.exists():
+        with open(PPTX_INDEX_PATH, "r") as f:
+            index = json.load(f)
+    else:
+        index = []
+
+    indexed_files = {item["filename"] for item in index}
+    new_items = []
+
+    for filename in os.listdir(PPTXUPLOAD_DIR):
+        if filename.endswith(".pptx") and filename not in indexed_files:
+            file_path = PPTXUPLOAD_DIR / filename
+            prs = Presentation(file_path)
+
+            for i, slide in enumerate(prs.slides):
+                slide_text = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        slide_text.append(shape.text)
+                full_text = "\n".join(slide_text).strip()
+
+                if not full_text:
+                    continue  # 空スライドスキップ
+
+                if len(full_text.split()) > 3000:
+                    print(f"⚠️ スライド{i+1}が長すぎるためスキップされました: {filename}")
+                    continue
+
+                embedding = client.embeddings.create(
+                    model=EMBEDDING_MODEL,
+                    input=[full_text]
+                ).data[0].embedding
+
+                new_items.append({
+                    "id": str(uuid.uuid4()),
+                    "filename": filename,
+                    "slide_index": i,
+                    "text": full_text,
+                    "embedding": embedding
+                })
+
+    if new_items:
+        index.extend(new_items)
+        with open(PPTX_INDEX_PATH, "w") as f:
+            json.dump(index, f, ensure_ascii=False, indent=2)
+
+    print(f"✅ 新規PPTX {len(new_items)}件をインデックスに追加しました。")
+#### 2025.7.29 Add（seaach pptx from original not summraize）END

@@ -29,8 +29,8 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -991,6 +991,21 @@ async def get_all_summaries():
     result_text = "\n\n".join(all_text_parts)
     return {"summary": result_text}
 #### 2025.7.24 Add（summarize pptx）END
+
+#### 2025.7.29 Add（seaach pptx from original not summraize）START
+@app.get("/search_pptx/")
+async def search_pptx(query: str = Query(...)):
+    results = search_similar_pptx(query, index_file=str(PPTX_INDEX_PATH))
+    return results
+
+@app.post("/update_pptx_index")
+async def update_pptx_index():
+    try:
+        build_pptx_index_incremental()
+        return {"status": "success", "message": "PPTX index updated with new files."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+#### 2025.7.29 Add（seaach pptx from original not summraize）END
 
 #### 2025.7.7 Add（log）START
 # Add validation error handler
