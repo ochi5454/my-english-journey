@@ -29,7 +29,7 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH
 
 
@@ -823,180 +823,29 @@ async def save_feedback(fb: Feedback):
     return {"message": "フィードバック保存完了"}
 #### 2025.7.18 Add（feedback）END
 
-#### 2025.7.25 Mod（summarize pptx）START
-#### 2025.7.28 Mod（image pptx）START
+#### 2025.7.30 Mod（pptx defs maintenance）START
 @app.post("/upload_and_index_pptx/")
 async def upload_and_index_pptx(file: UploadFile = File(...)):
     print("✅ ファイル名:", file.filename)
 
-    # 一度だけ読み込む
     content = await file.read()
-    print("📦 バイト数:", len(content))
+    file_id, save_filename, pptx_path = save_pptx_file(file.filename, content)
 
-    # ID生成・保存先パス
-    file_id = str(uuid4())
-    os.makedirs(PPTXUPLOAD_DIR, exist_ok=True)
-
-    # ✅ 保存名を明確に管理
-    original_filename = file.filename.replace("/", "_") # パス区切り対策
-    save_filename = original_filename  # 実際に保存するファイル名（＊重複考慮した方がいいが、一旦）
-    pptx_path = PPTXUPLOAD_DIR / save_filename
-
-    # PPTX保存
-    with open(pptx_path, "wb") as f:
-        f.write(content)
-
-    # PPTX保存後にPDFに変換する
-    print("✅pptx保存済")
     pdf_path = convert_pptx_to_pdf(pptx_path, PDFUPLOAD_DIR)
     if pdf_path is None:
-        print("✅PDF保存失敗")
         return {"success": False, "error": "PDF変換に失敗しました"}
-    print(f"✅ PDF保存済: {pdf_path}")
 
-    # スライドのテキスト抽出
     slides = extract_text_from_pptx(pptx_path)
     print(f"📊 スライド枚数: {len(slides)}")
 
-    # 要約＆DB登録
-    # ❗️保存したファイル名（save_filename）をDBに記録する！
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    conn = sqlite3.connect(FILESUMMARY_PATH)
-    summaries = []
+    summaries = summarize_and_store_slides(file_id, save_filename, slides)
 
-    for i, slide in enumerate(slides[:10]):
-        if slide.strip():
-            print(f"📝 スライド {i+1} 要約開始")
-            res = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "あなたは優秀な要約アシスタントです。"},
-                    {"role": "user", "content": f"このスライドを要約してください:\n{slide}"},
-                ],
-                max_tokens=500,
-                temperature=0.5
-            )
-            summary = res.choices[0].message.content
-
-            emb_res = client.embeddings.create(
-                model="text-embedding-3-small",
-                input=summary
-            )
-            embedding_vector = emb_res.data[0].embedding
-            embedding_blob = pickle.dumps(embedding_vector)
-
-            conn.execute(
-                "INSERT INTO summaries (id, filename, slide_index, summary, embedding) VALUES (?, ?, ?, ?, ?)",
-                (file_id, save_filename, i + 1, summary, embedding_blob) 
-            )
-
-            summaries.append({
-                "id": file_id,
-                "filename": save_filename, # ←フロントで使うときのURL用にもこれが必要
-                "slide_index": i + 1,
-                "summary": summary,
-                "pdf_filename": pdf_path.name,  # PDFファイル名も保存
-            })
-            print(f"✅ スライド {i+1} 要約完了")
-
-    conn.commit()
-    conn.close()
-
-    return {"success": True, "id": file_id, "summaries": summaries, "pdf_filename": pdf_path.name}
-#### 2025.7.28 Mod（image pptx）END
-#### 2025.7.25 Mod（summarize pptx）END
-
-@app.get("/search_summaries/")
-async def search_summaries(query: str = Query(...)):
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-    # クエリをベクトル化
-    emb_res = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=query
-    )
-    query_vector = np.array(emb_res.data[0].embedding)
-
-    # DBからすべての summary & embedding を取得
-    conn = sqlite3.connect(FILESUMMARY_PATH)
-    cursor = conn.execute("SELECT filename, slide_index, summary, embedding FROM summaries") 
-    results = []
-    for row in cursor.fetchall():
-        filename, slide_index, summary, emb_blob = row
-
-        if emb_blob is None:
-            continue  # 古いデータのためスキップ
-
-        embedding_vector = pickle.loads(emb_blob)
-        embedding_vector = np.array(embedding_vector)
-
-        # コサイン類似度計算
-        similarity = np.dot(query_vector, embedding_vector) / (
-            np.linalg.norm(query_vector) * np.linalg.norm(embedding_vector)
-        )
-
-        results.append({
-            "filename": filename,
-            "pdf_filename": filename.replace(".pptx", ".pdf"),  #### 2025.7.28 Mod（image pptx）
-            "slide_index": slide_index,
-            "summary": summary,
-            "score": similarity
-        })
-
-    conn.close()
-
-    # スコアでソートして上位を返す
-    results.sort(key=lambda x: x["score"], reverse=True)
-    top_results = results[:3]
-
-    return top_results
-#### 2025.7.22 Add（summarize pptx）END
-
-#### 2025.7.23 Add（summarize pptx）START
-@app.get("/get_frequent_keywords/")
-async def get_frequent_keywords(limit: int = 10):
-    conn = sqlite3.connect(FILESUMMARY_PATH)
-    cursor = conn.execute("SELECT summary FROM summaries")
-    all_text = " ".join(row[0] for row in cursor.fetchall() if row[0])
-    conn.close()
-
-    # Janomeベースのキーワード抽出に切り替え
-    keywords = extract_keywords(all_text)
-
-    # ストップワードでフィルタリング（任意で拡張）
-    stopwords = {"こと", "よう", "これ", "それ", "ため", "など", "ある", "する"}
-    filtered_keywords = [w for w in keywords if w not in stopwords]
-
-    # 頻度計算
-    counter = Counter(filtered_keywords)
-    most_common = counter.most_common(limit)
-
-    return {"keywords": [word for word, _ in most_common]}
-#### 2025.7.23 Add（summarize pptx）END
-
-#### 2025.7.24 Add（summarize pptx）START
-@app.get("/get_all_summaries/")
-async def get_all_summaries():
-    conn = sqlite3.connect(FILESUMMARY_PATH)
-    cursor = conn.execute("SELECT filename, slide_index, summary FROM summaries ORDER BY filename, slide_index")
-    
-    all_text_parts = []
-    for filename, slide_index, summary in cursor.fetchall():
-        if summary:
-            part = f"【ファイル名: {filename}｜スライド {slide_index}】\n{summary}"
-            all_text_parts.append(part)
-
-    conn.close()
-
-    result_text = "\n\n".join(all_text_parts)
-    return {"summary": result_text}
-#### 2025.7.24 Add（summarize pptx）END
-
-#### 2025.7.29 Add（seaach pptx from original not summraize）START
-@app.get("/search_pptx/")
-async def search_pptx(query: str = Query(...)):
-    results = search_similar_pptx(query, index_file=str(PPTX_INDEX_PATH))
-    return results
+    return {
+        "success": True,
+        "id": file_id,
+        "summaries": summaries,
+        "pdf_filename": pdf_path.name
+    }
 
 @app.post("/update_pptx_index")
 async def update_pptx_index():
@@ -1005,7 +854,44 @@ async def update_pptx_index():
         return {"status": "success", "message": "PPTX index updated with new files."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-#### 2025.7.29 Add（seaach pptx from original not summraize）END
+
+@app.get("/search_summaries/")
+async def search_summaries(query: str = Query(...)):
+    results = search_similar_summaries(query)
+
+    #### 2025.7.30 Mod（ai comment）START
+    comment = ""
+    if results:
+        top_summary = results[0]["summary"]
+        comment = generate_ai_reason_comment(query, top_summary, content_type="summary")
+
+    return {"results": results, "comment": comment} # 戻り値を results から型変更
+    # return results
+    #### 2025.7.30 Mod（ai comment）END
+
+@app.get("/search_pptx/")
+async def search_pptx(query: str = Query(...)):
+    results = search_similar_pptx(query, index_file=str(PPTX_INDEX_PATH))
+
+    #### 2025.7.30 Mod（ai comment）START
+    explanation = ""
+    if results:
+        top_text = results[0]["text"]
+        explanation = generate_ai_reason_comment(query, top_text, content_type="slide")
+
+    return {"results": results, "comment": explanation} # 戻り値を results から型変更
+    # return results
+    #### 2025.7.30 Mod（ai comment）END
+
+@app.get("/get_theme/")
+async def get_theme(limit: int = 5):
+    summaries_text = load_valid_summaries()
+    if not summaries_text:
+        return {"themes": [], "message": "要約がありません"}
+
+    themes = extract_themes_from_text(summaries_text, limit=limit)
+    return {"themes": themes}
+#### 2025.7.30 Mod（pptx defs maintenance）END
 
 #### 2025.7.7 Add（log）START
 # Add validation error handler

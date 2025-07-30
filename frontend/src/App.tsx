@@ -37,7 +37,7 @@ const App: React.FC = () => {
             <Link to="/history">チャット履歴</Link>
             <Link to="/recommend">商品推薦</Link> 
             {/* 2024.7.22 Add（summarize pptx）START */}
-            <Link to="/pptx-summary">PPTX要約検索</Link>
+            <Link to="/pptx-summary">PPTX検索</Link>
             {/* 2024.7.22 Add（summarize pptx）END */}
             <Link to="/search">文書検索</Link>
             <Link to="/hashtag">ハッシュタグ処理</Link>
