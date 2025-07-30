@@ -29,7 +29,7 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH
 
 
@@ -838,12 +838,25 @@ async def upload_and_index_pptx(file: UploadFile = File(...)):
     slides = extract_text_from_pptx(pptx_path)
     print(f"📊 スライド枚数: {len(slides)}")
 
-    summaries = summarize_and_store_slides(file_id, save_filename, slides)
+    #### 2025.7.30 Add（vision ai）START
+    # テキストベース要約
+    summaries_from_text = summarize_and_store_slides(file_id, save_filename, slides)
+    print(f'✅textベース要約結果👉:{summaries_from_text}')
+
+    # Vision（画像）ベース要約
+    summaries_from_image = summarize_pdf_slides_with_vision(file_id, pdf_path, save_filename)
+    print(f'✅Visionベース要約結果👉:{summaries_from_image}')
+
+    # slide_index をキーに統合（画像→テキスト優先など判断可能）
+    merged_summaries = merge_summaries_by_slide_index(summaries_from_text, summaries_from_image)
+    merged_summaries_list = list(merged_summaries.values()) 
+    print(f'✅統合した要約結果👉:{summaries_from_image}')
+    #### 2025.7.30 Add（vision ai）END
 
     return {
         "success": True,
         "id": file_id,
-        "summaries": summaries,
+        "summaries": merged_summaries_list,
         "pdf_filename": pdf_path.name
     }
 
@@ -871,15 +884,15 @@ async def search_summaries(query: str = Query(...)):
 
 @app.get("/search_pptx/")
 async def search_pptx(query: str = Query(...)):
-    results = search_similar_pptx(query, index_file=str(PPTX_INDEX_PATH))
+    results = search_similar_pptx(query)
 
     #### 2025.7.30 Mod（ai comment）START
-    explanation = ""
+    comment = ""
     if results:
-        top_text = results[0]["text"]
-        explanation = generate_ai_reason_comment(query, top_text, content_type="slide")
+        top_summary = results[0]["summary"]
+        comment = generate_ai_reason_comment(query, top_summary, content_type="slide")
 
-    return {"results": results, "comment": explanation} # 戻り値を results から型変更
+    return {"results": results, "comment": comment} # 戻り値を results から型変更
     # return results
     #### 2025.7.30 Mod（ai comment）END
 
