@@ -1,38 +1,66 @@
-from langchain_core.messages import BaseMessage
-from langchain_openai import ChatOpenAI
-from langchain.chains import ConversationChain
-from langchain.prompts import PromptTemplate
-from langchain_core.memory import BaseMemory
-from langchain_community.vectorstores import VectorStore, FAISS
-from langchain.memory import VectorStoreRetrieverMemory
-from config import OPENAI_API_KEY,INITIAL_MESSAGES, COUNTER_FILE, VECTORSTORE_DIR, SAVE_DIR, BASE_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PPTX_INDEX_PATH
-from typing import List, Tuple, Dict, Union, Optional
-from janome.tokenizer import Tokenizer, Token
-from fastapi import HTTPException
-from datetime import datetime, timezone
-import pandas as pd
-from PyPDF2 import PdfReader
-import docx
-from pptx.util import Pt
-from deep_translator import GoogleTranslator
-from sentence_transformers import SentenceTransformer, util
-import torch
-from pptx import Presentation
+# 標準ライブラリ
+import base64
+import io
+import json
+import os
+import pickle
+import platform
+import re
 import sqlite3
 import subprocess
-from pathlib import Path
-import platform
+import tempfile
 import time
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
-import numpy as np
-from openai import OpenAI
-import pickle
 
-import os
+# サードパーティライブラリ
+import docx
+import numpy as np
 import openai
-import json
-import re
+import pandas as pd
+import pytesseract
+import torch
+from PIL import Image
+from PyPDF2 import PdfReader
+from deep_translator import GoogleTranslator
+from fastapi import HTTPException
+from janome.tokenizer import Tokenizer, Token
+from pdf2image import convert_from_path
+from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
+from pptx.util import Pt
+from sentence_transformers import SentenceTransformer, util
+from openai import OpenAI
+
+# LangChain関連
+from langchain.chains import ConversationChain
+from langchain.memory import VectorStoreRetrieverMemory
+from langchain.prompts import PromptTemplate
+from langchain_core.memory import BaseMemory
+from langchain_core.messages import BaseMessage
+from langchain_community.vectorstores import FAISS, VectorStore
+from langchain_openai import ChatOpenAI
+
+# 設定ファイルなど
+from config import (
+    OPENAI_API_KEY,
+    INITIAL_MESSAGES,
+    IMGUPLOAD_DIR,
+    COUNTER_FILE,
+    VECTORSTORE_DIR,
+    SAVE_DIR,
+    BASE_DIR,
+    FEEDBACK_DIR,
+    FILESUMMARY_PATH,
+    PPTXUPLOAD_DIR,
+    PDFUPLOAD_DIR,
+    PPTX_INDEX_PATH
+)
+
+# 型定義
+from typing import List, Tuple, Dict, Union, Optional
 
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
 EMBEDDING_MODEL = "text-embedding-3-small" #### 2025.7.29 Add（search pptx from original not summarize）
@@ -1398,7 +1426,7 @@ def get_public_like_feedbacks_by_product(
 #### 2025.7.25 Add（public feedback）END
 
 #### 2025.7.30 Mod（pptx defs maintenance）START
-# DB取得作業
+# DB初期化・読込作業
 def init_filedb():
     conn = sqlite3.connect(FILESUMMARY_PATH)
     #### 2025.7.30 Mod（hard filter）
@@ -1416,54 +1444,118 @@ def init_filedb():
     conn.close()
 
 def build_pptx_index_incremental():
-    # 既存indexの読み込み
+    print("🔍 インデックス更新処理開始")
+
     if PPTX_INDEX_PATH.exists():
         with open(PPTX_INDEX_PATH, "r") as f:
             index = json.load(f)
+        print(f"📁 既存インデックス読み込み: {len(index)}件")
     else:
         index = []
+        print("📁 新規インデックス作成")
 
     indexed_files = {item["filename"] for item in index}
     new_items = []
 
     for filename in os.listdir(PPTXUPLOAD_DIR):
+        print(f"📝 チェック中: {filename}")
         if filename.endswith(".pptx") and filename not in indexed_files:
-            file_path = PPTXUPLOAD_DIR / filename
-            prs = Presentation(file_path)
+            pptx_path = PPTXUPLOAD_DIR / filename
+            print(f"✅ 新規ファイル検出: {filename}")
+
+            pdf_filename = filename.rsplit(".", 1)[0] + ".pdf"
+            pdf_path = PDFUPLOAD_DIR / pdf_filename
+
+            if not pdf_path.exists():
+                print(f"❌ PDFファイルが見つかりません: {pdf_path}")
+                continue
+            else:
+                print(f"📄 対応PDFファイル発見: {pdf_path}")
+
+            image_output_dir = IMGUPLOAD_DIR / pdf_filename.replace(".pdf", "")
+            if not image_output_dir.exists() or not any(image_output_dir.glob("*.png")):
+                print(f"⚠️ 画像フォルダがないか空なので画像生成します: {image_output_dir}")
+                image_paths = convert_pdf_to_images(pdf_path, image_output_dir)
+            else:
+                image_paths = sorted(image_output_dir.glob("*.png"))
+                print(f"🖼️ 既存画像を利用します: {len(image_paths)}枚")
+            if not image_paths:
+                print(f"❌ スライド画像生成失敗: {filename}")
+                continue
+            else:
+                print(f"🖼️ スライド画像数: {len(image_paths)}")
+
+            try:
+                prs = Presentation(pptx_path)
+            except Exception as e:
+                print(f"❌ プレゼン読み込み失敗: {e}")
+                continue
 
             for i, slide in enumerate(prs.slides):
+                print(f"🧩 スライド{i+1} 処理中")
+
+                # --- PPTXテキスト抽出 ---
                 slide_text = []
                 for shape in slide.shapes:
                     if hasattr(shape, "text"):
                         slide_text.append(shape.text)
                 full_text = "\n".join(slide_text).strip()
+                print(f"📝 テキスト抽出（{len(full_text)}文字）")
 
-                if not full_text:
-                    continue  # 空スライドスキップ
+                # --- OCR処理 ---
+                image_text = ""
+                if i < len(image_paths):
+                    try:
+                        image = Image.open(image_paths[i])
+                        image_text = pytesseract.image_to_string(image, lang="jpn+eng").strip()
+                        print(f"🔡 OCR文字数（スライド{i+1}）: {len(image_text)}")
+                    except Exception as e:
+                        print(f"⚠️ OCRエラー（{filename} スライド{i+1}）: {e}")
+                else:
+                    print(f"⚠️ OCR対象画像なし（スライド{i+1}）")
 
-                if len(full_text.split()) > 3000:
-                    print(f"⚠️ スライド{i+1}が長すぎるためスキップされました: {filename}")
+                if not full_text and not image_text:
+                    print(f"⚠️ スライド{i+1}はテキストも画像も空のためスキップ")
                     continue
 
-                embedding = client.embeddings.create(
-                    model=EMBEDDING_MODEL,
-                    input=[full_text]
-                ).data[0].embedding
+                if len(full_text.split()) > 3000:
+                    print(f"⚠️ スライド{i+1}が長すぎるためスキップ: {filename}")
+                    continue
+
+                try:
+                    text_embedding = client.embeddings.create(
+                        model=EMBEDDING_MODEL,
+                        input=[full_text or ""]
+                    ).data[0].embedding
+
+                    image_embedding = client.embeddings.create(
+                        model=EMBEDDING_MODEL,
+                        input=[image_text or ""]
+                    ).data[0].embedding
+                except Exception as e:
+                    print(f"❌ 埋め込み生成失敗（スライド{i+1}）: {e}")
+                    continue
 
                 new_items.append({
                     "id": str(uuid.uuid4()),
                     "filename": filename,
                     "slide_index": i,
                     "text": full_text,
-                    "embedding": embedding
+                    "image_text": image_text,
+                    "embedding_text": text_embedding,
+                    "embedding_image_text": image_embedding
                 })
 
     if new_items:
         index.extend(new_items)
-        with open(PPTX_INDEX_PATH, "w") as f:
-            json.dump(index, f, ensure_ascii=False, indent=2)
-
-    print(f"✅ 新規PPTX {len(new_items)}件をインデックスに追加しました。")
+        try:
+            with open(PPTX_INDEX_PATH, "w") as f:
+                json.dump(index, f, ensure_ascii=False, indent=2)
+            print(f"✅ 新規PPTX {len(new_items)}件をインデックスに追加しました。")
+        except Exception as e:
+            print(f"❌ インデックス保存失敗: {e}")
+    else:
+        print("ℹ️ 追加すべき新規PPTXはありませんでした。")
 
 def load_valid_summaries() -> str:
     conn = sqlite3.connect(FILESUMMARY_PATH)
@@ -1472,17 +1564,20 @@ def load_valid_summaries() -> str:
     conn.close()
     return all_text.strip()
 
-# 変換・DB保存作業
-def extract_text_from_pptx(path):
-    prs = Presentation(path)
-    slides = []
-    for slide in prs.slides:
-        text = ""
-        for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text:
-                text += shape.text + "\n"
-        slides.append(text.strip())
-    return slides
+# ファイル生成・保存作業
+def save_pptx_file(filename: str, content: bytes):
+    file_id = str(uuid4())
+    os.makedirs(PPTXUPLOAD_DIR, exist_ok=True)
+
+    original_filename = filename.replace("/", "_")
+    save_filename = original_filename
+    pptx_path = PPTXUPLOAD_DIR / save_filename
+
+    with open(pptx_path, "wb") as f:
+        f.write(content)
+
+    print("✅ pptx保存済")
+    return file_id, save_filename, pptx_path
 
 def convert_pptx_to_pdf(pptx_path: Path, output_dir: Path) -> Path | None:
     print(f"✅ convert_pptx_to_pdf called with {pptx_path}")
@@ -1539,42 +1634,83 @@ def convert_pptx_to_pdf(pptx_path: Path, output_dir: Path) -> Path | None:
     print("✅ PDF保存済:", pdf_path)
     return pdf_path
 
-def save_pptx_file(filename: str, content: bytes):
-    file_id = str(uuid4())
-    os.makedirs(PPTXUPLOAD_DIR, exist_ok=True)
+def convert_pdf_to_images(pdf_path: Path, output_dir: Path) -> list[Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    images = convert_from_path(str(pdf_path), dpi=150)
+    image_paths = []
 
-    original_filename = filename.replace("/", "_")
-    save_filename = original_filename
-    pptx_path = PPTXUPLOAD_DIR / save_filename
+    for i, image in enumerate(images):
+        image_path = output_dir / f"slide_{i + 1}.png"
+        image.save(image_path, "PNG")
+        image_paths.append(image_path)
 
-    with open(pptx_path, "wb") as f:
-        f.write(content)
+    return image_paths
 
-    print("✅ pptx保存済")
-    return file_id, save_filename, pptx_path
+# テキスト/画像抽出・ファイルの解釈作業
+def extract_text_from_pptx(path):
+    prs = Presentation(path)
+    slides = []
+    for slide in prs.slides:
+        text = ""
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text:
+                text += shape.text + "\n"
+        slides.append(text.strip())
+    return slides
 
-def summarize_and_store_slides(file_id: str, save_filename: str, slides: list[str]) -> list[dict]:
-    from itertools import islice
+def summarize_slide_image(client: OpenAI, image_path: Path) -> tuple[str | None, int]:
+    with open(image_path, "rb") as f:
+        image_bytes = f.read()
+
+    base64_image = base64.b64encode(image_bytes).decode("utf-8")
+    image_data = {
+        "type": "image_url",
+        "image_url": {"url": f"data:image/png;base64,{base64_image}"}
+    }
+
+    try:
+        res = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": (
+                    "あなたは優秀なスライド要約アシスタントです。画像内の内容を要約し、"
+                    "有効かどうかを JSON で答えてください（例：{\"summary\": \"...\", \"is_valid\": true}）。"
+                )},
+                {"role": "user", "content": [
+                    {"type": "text", "text": "このスライドを要約してください。"},
+                    image_data
+                ]}
+            ],
+            max_tokens=500,
+            temperature=0.5,
+        )
+
+        response_text = res.choices[0].message.content.strip()
+        parsed = json.loads(response_text)
+        summary = parsed.get("summary", "").strip()
+        is_valid = 1 if parsed.get("is_valid", False) else 0
+
+        return summary, is_valid
+
+    except Exception as e:
+        print(f"⚠️ Vision要約失敗: {e}")
+        return None, 0
+    
+def summarize_pdf_slides_with_vision(file_id: str, pdf_path: Path, save_filename: str) -> list[dict]:
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    image_dir = IMGUPLOAD_DIR / file_id
+    image_paths = convert_pdf_to_images(pdf_path, image_dir)
+
     conn = sqlite3.connect(FILESUMMARY_PATH)
     summaries = []
 
     MAX_VALID_SUMMARIES = 10
-    # MAX_TOTAL_SLIDES = len(slides)  # 一旦、20で制限
-    MAX_TOTAL_SLIDES = 20
-
     valid_count = 0
-    slide_index = 0
 
-    while slide_index < MAX_TOTAL_SLIDES and valid_count < MAX_VALID_SUMMARIES:
-        slide = slides[slide_index]
-        slide_index += 1  # 必ずインクリメント
+    for i, image_path in enumerate(image_paths[:20]):  # 最大20枚
+        print(f"🖼 Visionでスライド{i+1}を要約中...")
 
-        if not slide.strip():
-            continue  # 空白スライドはスキップ
-
-        print(f"📝 スライド {slide_index} 要約開始")
-        summary, is_valid = summarize_slide_with_validation(client, slide)
+        summary, is_valid = summarize_slide_image(client, image_path)
 
         embedding_blob = None
         if is_valid and summary:
@@ -1585,27 +1721,89 @@ def summarize_and_store_slides(file_id: str, save_filename: str, slides: list[st
             embedding_vector = emb_res.data[0].embedding
             embedding_blob = pickle.dumps(embedding_vector)
 
-        # DB保存（有効・無効問わず記録）
+        # DB保存
         conn.execute(
             "INSERT INTO summaries (id, filename, slide_index, summary, embedding, is_summary_valid) VALUES (?, ?, ?, ?, ?, ?)",
-            (file_id, save_filename, slide_index, summary, embedding_blob, is_valid)
+            (file_id, save_filename, i + 1, summary, embedding_blob, is_valid)
         )
 
-        if is_valid == 0:
-            print(f"⚠️ スライド {slide_index} は無効（is_valid = 0）: 要約失敗または情報不足のため")
-
-        # 有効な要約だけ返すリストに追加
         if is_valid:
-            valid_count += 1
             summaries.append({
                 "id": file_id,
                 "filename": save_filename,
-                "slide_index": slide_index,
+                "slide_index": i + 1,
                 "summary": summary,
-                "pdf_filename": save_filename.replace(".pptx", ".pdf"),
+                "pdf_filename": pdf_path.name,
             })
+            valid_count += 1
 
-        print(f"✅ スライド {slide_index} 処理完了（valid: {is_valid}）")
+        else:
+            print(f"⚠️ スライド {i+1} 無効: {summary}")
+
+        if valid_count >= MAX_VALID_SUMMARIES:
+            break
+
+    conn.commit()
+    conn.close()
+    return summaries
+
+def summarize_and_store_slides(file_id: str, save_filename: str, slides: list[str]) -> list[dict]:
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    summaries = []
+    conn = sqlite3.connect(FILESUMMARY_PATH)
+
+    # for slide_index, slide_text in enumerate(slides):
+    for slide_index, slide_text in enumerate(slides[:10]):  # 👈 最大10枚に制限
+        print(f"📝 スライド {slide_index + 1} 要約開始")
+        if not slide_text.strip():
+            print(f"⚠️ スライド {slide_index + 1} は空のためスキップ")
+            continue
+
+        try:
+            res = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": (
+                        "あなたは優秀なスライド要約アシスタントです。与えられたスライドテキストを要約し、"
+                        "JSON形式で {\"summary\": \"...\", \"is_valid\": true} のように返答してください。"
+                    )},
+                    {"role": "user", "content": f"スライドの内容: {slide_text}"}
+                ],
+                max_tokens=500,
+                temperature=0.5
+            )
+
+            response_text = res.choices[0].message.content.strip()
+            parsed = json.loads(response_text)
+            summary = parsed.get("summary", "").strip()
+            is_valid = 1 if parsed.get("is_valid", False) else 0
+
+            embedding_blob = None
+            if is_valid and summary:
+                emb_res = client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=summary
+                )
+                embedding_vector = emb_res.data[0].embedding
+                embedding_blob = pickle.dumps(embedding_vector)
+
+            conn.execute(
+                "INSERT INTO summaries (id, filename, slide_index, summary, embedding, is_summary_valid) VALUES (?, ?, ?, ?, ?, ?)",
+                (file_id, save_filename, slide_index + 1, summary, embedding_blob, is_valid)
+            )
+
+            if is_valid:
+                summaries.append({
+                    "id": file_id,
+                    "filename": save_filename,
+                    "slide_index": slide_index + 1,
+                    "summary": summary,
+                })
+
+            print(f"✅ スライド {slide_index + 1} 処理完了（valid: {is_valid}）")
+
+        except Exception as e:
+            print(f"⚠️ スライド {slide_index + 1} の要約失敗: {e}")
 
     conn.commit()
     conn.close()
@@ -1644,6 +1842,34 @@ def summarize_slide_with_validation(client: OpenAI, slide_text: str) -> tuple[st
     except Exception as e:
         print(f"⚠️ 要約失敗: {e}")
         return None, 0
+
+def merge_summaries_by_slide_index(
+    summaries_from_text: list[dict],
+    summaries_from_image: list[dict]
+) -> dict[int, dict]:
+    """
+    slide_index をキーにテキストと画像の要約を統合する。
+
+    - テキスト要約を優先。
+    - 同一スライドに画像要約があれば `summary_image` として追記。
+
+    Returns:
+        統合されたスライド要約の辞書。
+    """
+    merged = {}
+
+    for s in summaries_from_text:
+        merged[s["slide_index"]] = s
+
+    for s in summaries_from_image:
+        idx = s["slide_index"]
+        if idx not in merged:
+            merged[idx] = s
+        else:
+            # summary_image として画像からの要約を追加
+            merged[idx]["summary_image"] = s["summary"]
+
+    return merged
 
 # 検索・整形作業
 def cosine_similarity(vec1, vec2):
@@ -1692,36 +1918,67 @@ def search_similar_summaries(query: str):
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:3]
 
-def search_similar_pptx(query: str, index_file: str):
-    # クエリをベクトル化
+def search_similar_pptx(query: str, k: int = 5):
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     query_embedding = client.embeddings.create(
-        model=EMBEDDING_MODEL,
+        model="text-embedding-3-small",
         input=[query]
     ).data[0].embedding
 
-    # インデックス読み込み
-    with open(index_file, "r") as f:
-        index = json.load(f)
+    with open(PPTX_INDEX_PATH, "r", encoding="utf-8") as f:
+        index_data = json.load(f)
 
-    scored = []
-    #### 2025.7.30 Mod（hard filter）START
-    SIMILARITY_THRESHOLD = 0.45
-    for item in index:
-        sim = cosine_similarity(query_embedding, item["embedding"])
-        
-        # 閾値以上だけ追加
-        if sim >= SIMILARITY_THRESHOLD:
-            print(f'👍閾値をクリアした😃:{sim}')
-            scored.append({
-                "filename": item["filename"],
-                "slide_index": item["slide_index"],
-                "text": item["text"],
-                "similarity": sim
+    combined_scores = []
+
+    for entry in index_data:
+        # --- text embedding ---
+        try:
+            text_emb = np.array(entry["embedding_text"])
+            if text_emb.shape[0] != len(query_embedding):
+                continue
+
+            score_text = np.dot(query_embedding, text_emb) / (
+                np.linalg.norm(query_embedding) * np.linalg.norm(text_emb)
+            )
+            combined_scores.append({
+                "filename": entry["filename"],
+                "slide_index": entry["slide_index"],
+                "summary": entry["text"],
+                "score": score_text,
+                "source": "text"
             })
-    #### 2025.7.30 Mod（hard filter）END
-    # 類似度で降順ソートして上位3件返す
-    scored.sort(key=lambda x: x["similarity"], reverse=True)
-    return scored[:3]
+        except Exception as e:
+            print(f"Text embedding error in entry {entry.get('filename')}: {e}")
+            continue
+
+        # --- image embedding ---
+        try:
+            image_emb_raw = entry.get("embedding_image_text")
+            if image_emb_raw is None:
+                continue
+
+            image_emb = np.array(image_emb_raw)
+            if image_emb.shape[0] != len(query_embedding):
+                continue
+
+            score_img = np.dot(query_embedding, image_emb) / (
+                np.linalg.norm(query_embedding) * np.linalg.norm(image_emb)
+            )
+            combined_scores.append({
+                "filename": entry["filename"],
+                "slide_index": entry["slide_index"],
+                "summary": entry["image_text"],
+                "score": score_img,
+                "source": "image"
+            })
+        except Exception as e:
+            print(f"Image embedding error in entry {entry.get('filename')}: {e}")
+            continue
+
+    # スコア順に k 件取得して返す
+    top_results = sorted(combined_scores, key=lambda x: x["score"], reverse=True)[:k]
+
+    return top_results
 
 def extract_themes_from_text(text: str, limit: int = 5) -> list[str]:
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -1766,35 +2023,57 @@ def parse_theme_list(text: str, limit: int = 5) -> list[str]:
     return themes
 
 # 理由づけ作業
-def generate_ai_reason_comment(query: str, content: str, content_type: str = "summary") -> str:
+def generate_ai_reason_comment(
+    query: str,
+    content: Optional[str] = None,
+    top_results: Optional[List[dict]] = None,
+    content_type: str = "summary"
+) -> str:
     """
-    クエリと対象テキストに基づき、AIによる関連性の理由コメントを生成する。
+    クエリと検索結果に基づいて、AIによる関連性の理由コメントを生成する。
 
     Args:
-        query (str): ユーザーの検索クエリ。
-        content (str): 一番関連性が高いテキスト（summary または slide の内容）。
-        content_type (str): "summary" または "slide" を指定。
+        query (str): ユーザーの検索クエリ
+        content (Optional[str]): summary用の単体テキスト（優先される）
+        top_results (Optional[List[dict]]): スライド検索用の結果リスト（テキスト/画像混合）
+        content_type (str): "summary" または "slide"
 
     Returns:
-        str: GPTモデルによるコメント。
+        str: コメント文
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    if content_type == "summary":
+    if content_type == "summary" and content:
         prompt = f"""ユーザーが「{query}」と検索しました。以下のサマリーが特に関連性が高いと考えられる理由を一言で説明してください。
 
 サマリー:
 {content}"""
+
+    elif content_type == "slide" and top_results:
+        slide_samples = "\n".join(
+            f"- {truncate(item['summary'])}" for item in top_results
+        )
+
+        prompt = f"""ユーザーが「{query}」と検索しました。以下のスライド情報との関連性が高いと判断された理由を要約してください。
+
+スライド候補:
+{slide_samples}
+
+簡潔に一言で説明してください。
+"""
+
     else:
-        prompt = f"""ユーザーが「{query}」と検索しました。以下のスライドの内容が特に関連性が高いと考えられる理由を一言で説明してください。
+        return "説明用の情報が不足しています。"
 
-スライドの内容:
-{content}"""
-
-    chat_res = client.chat.completions.create(
+    res = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
     )
-    return chat_res.choices[0].message.content.strip()
+
+    return res.choices[0].message.content.strip()
+
+
+def truncate(text: str, max_chars: int = 300) -> str:
+    return text[:max_chars] + "..." if len(text) > max_chars else text
 #### 2025.7.30 Mod（pptx defs maintenance）END
