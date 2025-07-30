@@ -208,11 +208,10 @@
   background-color: #2563eb;
 }
 
-/* 既存の .search-tab-buttons の margin は不要になるので削除 or 変更 */
 .search-tab-buttons {
   display: flex;
   gap: 12px;
-  margin: 0; /* ← ここ修正 */
+  margin: 0;
 }
 .pptx-summarizer .main-content {
     display: flex;
@@ -232,7 +231,7 @@
 
 /* 右側パネルは狭めに */
 .right-panel {
-    flex: 1;
+    flex: 1.5;
     background: #fff;
     padding: 16px;
     border-radius: 8px;
@@ -241,19 +240,34 @@
     overflow-y: auto;
 }
 
-.keywords-container {
+.keywords-themes {
     font-size: 14px;
 }
 
-.keywords-container h3 {
+.keywords-themes h3 {
     margin-bottom: 8px;
 }
 
-.keywords-container ul {
+.keywords-themes ul {
     list-style-type: disc;
     padding-left: 20px;
 }
 
-.keywords-container li {
+.keywords-themes li {
     margin-bottom: 4px;
 }
+
+/* 2025.7.30 Mod（ai comment）START */
+.ai-comment-box {
+    background-color: #f1f5f9;
+    padding: 12px;
+    margin-top: 12px;
+    border-left: 4px solid #38bdf8;
+    border-radius: 8px;
+}
+
+.ai-comment {
+    font-style: italic;
+    color: #334155;
+}
+/* 2025.7.30 Mod（ai comment）END */

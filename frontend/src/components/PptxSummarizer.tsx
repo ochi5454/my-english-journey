@@ -14,40 +14,41 @@ interface SearchResult {
     slide_index: number;
 }
 
-interface FrequentKeywordsProps {
-    onKeywordClick: (keyword: string) => void;
+// 2025.7.30 Add（themes）START
+interface FrequentThemesProps {
+    onThemeClick: (theme: string) => void;
 }
 
-const FrequentKeywords: React.FC<FrequentKeywordsProps> = ({ onKeywordClick }) => {
-    const [keywords, setKeywords] = useState<string[]>([]);
+const FrequentThemes: React.FC<FrequentThemesProps> = ({ onThemeClick }) => {
+    const [themes, setThemes] = useState<string[]>([]);
 
     useEffect(() => {
-        const fetchKeywords = async () => {
+        const fetchThemes = async () => {
             try {
-                const res = await fetch('/get_frequent_keywords?limit=10');
+                const res = await fetch('/get_theme?limit=5');
                 const data = await res.json();
-                setKeywords(data.keywords);
+                setThemes(data.themes);
             } catch (e) {
-                console.error('キーワード取得エラー:', e);
+                console.error('テーマ取得エラー:', e);
             }
         };
-        fetchKeywords();
+        fetchThemes();
     }, []);
 
     return (
-        <div className="keywords-container">
-            <h3>頻出キーワード</h3>
+        <div className="themes-container">
+            <h3>頻出テーマ</h3>
             <ul>
-                {keywords.map((kw, idx) => (
+                {themes.map((theme, idx) => (
                     <li key={idx}>
                         <a
                             href="#"
                             onClick={(e) => {
                                 e.preventDefault();
-                                onKeywordClick(kw);
+                                onThemeClick(theme);
                             }}
                         >
-                            {kw}
+                            {theme}
                         </a>
                     </li>
                 ))}
@@ -55,6 +56,7 @@ const FrequentKeywords: React.FC<FrequentKeywordsProps> = ({ onKeywordClick }) =
         </div>
     );
 };
+// 2025.7.30 Add（themes）END
 
 const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -65,8 +67,8 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleKeywordClick = (keyword: string) => {
-        setExternalSearchKeyword(keyword); // 検索トリガーとして子に渡す
+    const handleThemeClick = (theme: string) => {
+        setExternalSearchKeyword(theme); // 検索トリガーとして子に渡す
         setTimeout(() => setExternalSearchKeyword(undefined), 100);
     };
 
@@ -230,7 +232,7 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                     </button>
                 </div>
                     {/* ここに頻出キーワードやユーザーキーワードを表示 */}
-                    <FrequentKeywords onKeywordClick={handleKeywordClick} />
+                    <FrequentThemes onThemeClick={handleThemeClick} />
                     {/* 将来的にユーザ登録キーワードコンポーネントもここに追加可能 */}
                 </div>
             </div>

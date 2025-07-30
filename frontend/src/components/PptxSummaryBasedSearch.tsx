@@ -16,6 +16,7 @@ const PptxSummaryBasedSearch: React.FC<Props> = ({ userId, triggerSearchKeyword 
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [comment, setComment] = useState<string | null>(null); // 2025.7.30 Mod（ai comment）
 
     const handleSearch = useCallback(async (keyword?: string) => {
         const q = keyword ?? query;
@@ -23,11 +24,14 @@ const PptxSummaryBasedSearch: React.FC<Props> = ({ userId, triggerSearchKeyword 
         try {
             const response = await fetch(`/search_summaries/?query=${encodeURIComponent(q)}`);
             const data = await response.json();
-            const updatedResults = data.map((result: SearchResult) => ({
+            // 2025.7.30 Mod（ai comment）
+            // const updatedResults = data.map((result: SearchResult) => ({
+            const updatedResults = data.results.map((result: SearchResult) => ({ // data.map から data.results.map に変更
                 ...result,
                 pdfFilename: result.filename.replace(/\.pptx$/i, '.pdf'),
             }));
             setResults(updatedResults);
+            setComment(data.comment);  // 2025.7.30 Mod（ai comment）
         } catch (error) {
             console.error('Search failed:', error);
         } finally {
@@ -61,6 +65,13 @@ const PptxSummaryBasedSearch: React.FC<Props> = ({ userId, triggerSearchKeyword 
                 {isLoading ? 'Searching...' : 'Search'}
             </button>
         </div>
+        {/* 2025.7.30 Mod（ai comment）START */}
+        {comment && (
+            <div className="ai-comment-box">
+                <p className="ai-comment">💡 AI’s comment: {comment}</p>
+            </div>
+        )}
+        {/* 2025.7.30 Mod（ai comment）END */}
         <div className="search-results">
             {results.map((result, idx) => (
             <div key={idx} className="result-card" onClick={() => openPdf(result.pdfFilename, result.slide_index)}>
