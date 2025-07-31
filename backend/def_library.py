@@ -1426,7 +1426,7 @@ def get_public_like_feedbacks_by_product(
 #### 2025.7.25 Add（public feedback）END
 
 #### 2025.7.30 Mod（pptx defs maintenance）START
-# DB初期化・読込作業
+# ----- DB初期化・読込作業 ------
 def init_filedb():
     conn = sqlite3.connect(FILESUMMARY_PATH)
     #### 2025.7.30 Mod（hard filter）
@@ -1442,6 +1442,28 @@ def init_filedb():
         );
     """)
     conn.close()
+
+def is_informative(text: str, min_char: int = 30) -> bool:
+    text = text.strip()
+
+    # 文字数でざっくり情報量を判断（日本語は単語分割が難しいため）
+    if len(text) < min_char:
+        return False
+
+    # 除外すべき一般的なスライドタイトル（日本語＋英語）
+    common_titles = [
+        "タイトル", "目次", "表紙", "概要", "agenda", "title", "contents"
+    ]
+    
+    # 完全一致または単独行での除外（大文字・小文字・全角半角無視）
+    normalized = re.sub(r'\s+', '', text).lower()
+
+    for keyword in common_titles:
+        keyword_normalized = keyword.lower()
+        if keyword_normalized in normalized:
+            return False
+
+    return True
 
 def build_pptx_index_incremental():
     print("🔍 インデックス更新処理開始")
@@ -1518,6 +1540,16 @@ def build_pptx_index_incremental():
                     print(f"⚠️ スライド{i+1}はテキストも画像も空のためスキップ")
                     continue
 
+                # --- 情報量フィルタ（スキップ条件） --- #### 2025.7.31 Mod（filter before save json）
+                if not is_informative(full_text) and not is_informative(image_text):
+                    print(f"⚠️ スライド{i+1} 情報量が少ないためスキップ")
+                    continue
+
+                # OCRが多すぎる or 無意味そうなら捨てる
+                if len(image_text) > 2000 and len(set(image_text)) < 20:
+                    print(f"⚠️ OCRノイズっぽいのでスキップ（スライド{i+1}）")
+                    continue
+
                 if len(full_text.split()) > 3000:
                     print(f"⚠️ スライド{i+1}が長すぎるためスキップ: {filename}")
                     continue
@@ -1564,7 +1596,7 @@ def load_valid_summaries() -> str:
     conn.close()
     return all_text.strip()
 
-# ファイル生成・保存作業
+# ----- ファイル生成・保存作業 -----
 def save_pptx_file(filename: str, content: bytes):
     file_id = str(uuid4())
     os.makedirs(PPTXUPLOAD_DIR, exist_ok=True)
@@ -1646,7 +1678,7 @@ def convert_pdf_to_images(pdf_path: Path, output_dir: Path) -> list[Path]:
 
     return image_paths
 
-# テキスト/画像抽出・ファイルの解釈作業
+# ----- テキスト/画像抽出・ファイルの解釈作業 -----
 def extract_text_from_pptx(path):
     prs = Presentation(path)
     slides = []
@@ -1712,6 +1744,11 @@ def summarize_pdf_slides_with_vision(file_id: str, pdf_path: Path, save_filename
 
         summary, is_valid = summarize_slide_image(client, image_path)
 
+        # ここでフィルタリングを追加（要約があっても無内容な場合に除外） #### 2025.7.31 Mod（filter before save json）
+        if summary and not is_informative(summary):
+            print(f"⚠️ スライド {i+1} の要約は情報量不足のためスキップ")
+            continue
+
         embedding_blob = None
         if is_valid and summary:
             emb_res = client.embeddings.create(
@@ -1757,6 +1794,11 @@ def summarize_and_store_slides(file_id: str, save_filename: str, slides: list[st
         print(f"📝 スライド {slide_index + 1} 要約開始")
         if not slide_text.strip():
             print(f"⚠️ スライド {slide_index + 1} は空のためスキップ")
+            continue
+
+        # 情報量チェックを先に追加（textベース）#### 2025.7.31 Mod（filter before save json）
+        if not is_informative(slide_text):
+            print(f"⚠️ スライド {slide_index + 1} は情報量が少ないためスキップ")
             continue
 
         try:
@@ -1871,7 +1913,7 @@ def merge_summaries_by_slide_index(
 
     return merged
 
-# 検索・整形作業
+# ----- 検索・整形作業 -----
 def cosine_similarity(vec1, vec2):
     vec1 = np.array(vec1)
     vec2 = np.array(vec2)
@@ -1928,6 +1970,8 @@ def search_similar_pptx(query: str, k: int = 5):
     with open(PPTX_INDEX_PATH, "r", encoding="utf-8") as f:
         index_data = json.load(f)
 
+    SIMILARITY_THRESHOLD = 0.45  # 🎯 類似度の閾値（summary側と揃える）
+
     combined_scores = []
 
     for entry in index_data:
@@ -1940,13 +1984,17 @@ def search_similar_pptx(query: str, k: int = 5):
             score_text = np.dot(query_embedding, text_emb) / (
                 np.linalg.norm(query_embedding) * np.linalg.norm(text_emb)
             )
-            combined_scores.append({
-                "filename": entry["filename"],
-                "slide_index": entry["slide_index"],
-                "summary": entry["text"],
-                "score": score_text,
-                "source": "text"
-            })
+
+            if score_text >= SIMILARITY_THRESHOLD:
+                print(f'👍Text閾値クリア: {score_text}')
+                combined_scores.append({
+                    "filename": entry["filename"],
+                    "slide_index": entry["slide_index"],
+                    "summary": entry["text"],
+                    "score": score_text,
+                    "source": "text"
+                })
+
         except Exception as e:
             print(f"Text embedding error in entry {entry.get('filename')}: {e}")
             continue
@@ -1964,13 +2012,17 @@ def search_similar_pptx(query: str, k: int = 5):
             score_img = np.dot(query_embedding, image_emb) / (
                 np.linalg.norm(query_embedding) * np.linalg.norm(image_emb)
             )
-            combined_scores.append({
-                "filename": entry["filename"],
-                "slide_index": entry["slide_index"],
-                "summary": entry["image_text"],
-                "score": score_img,
-                "source": "image"
-            })
+
+            if score_img >= SIMILARITY_THRESHOLD:
+                print(f'👍Image閾値クリア: {score_img}')
+                combined_scores.append({
+                    "filename": entry["filename"],
+                    "slide_index": entry["slide_index"],
+                    "summary": entry["image_text"],
+                    "score": score_img,
+                    "source": "image"
+                })
+
         except Exception as e:
             print(f"Image embedding error in entry {entry.get('filename')}: {e}")
             continue
@@ -2022,7 +2074,7 @@ def parse_theme_list(text: str, limit: int = 5) -> list[str]:
             break
     return themes
 
-# 理由づけ作業
+# ----- 理由づけ作業 -----
 def generate_ai_reason_comment(
     query: str,
     content: Optional[str] = None,
@@ -2072,7 +2124,6 @@ def generate_ai_reason_comment(
     )
 
     return res.choices[0].message.content.strip()
-
 
 def truncate(text: str, max_chars: int = 300) -> str:
     return text[:max_chars] + "..." if len(text) > max_chars else text

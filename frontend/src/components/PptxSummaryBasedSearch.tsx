@@ -37,7 +37,8 @@ const PptxSummaryBasedSearch: React.FC<Props> = ({ userId, triggerSearchKeyword 
         } finally {
             setIsLoading(false);
         }
-    }, [query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // [query]→[] に訂正（頻出テーマからの遷移時2回検索されることを防ぐため）
 
     useEffect(() => {
         if (triggerSearchKeyword) {
@@ -61,7 +62,7 @@ const PptxSummaryBasedSearch: React.FC<Props> = ({ userId, triggerSearchKeyword 
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search in summaries..."
             />
-            <button className="search-button" onClick={() => handleSearch()} disabled={isLoading}>
+            <button className="search-button" onClick={() => handleSearch(query)} disabled={isLoading}>
                 {isLoading ? 'Searching...' : 'Search'}
             </button>
         </div>
