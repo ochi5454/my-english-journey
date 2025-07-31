@@ -37,10 +37,10 @@ const FrequentThemes: React.FC<FrequentThemesProps> = ({ onThemeClick }) => {
 
     return (
         <div className="themes-container">
-            <h3>頻出テーマ</h3>
             <ul>
                 {themes.map((theme, idx) => (
                     <li key={idx}>
+                        {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
                         <a
                             href="#"
                             onClick={(e) => {
@@ -61,7 +61,7 @@ const FrequentThemes: React.FC<FrequentThemesProps> = ({ onThemeClick }) => {
 const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [summary, setSummary] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'summarySearch' | 'pptxSearch'>('summarySearch');
+    const [activeTab, setActiveTab] = useState<'summarySearch' | 'pptxSearch'>('pptxSearch');
     const [indexStatus, setIndexStatus] = useState<'idle' | 'updating' | 'success' | 'error'>('idle');
     const [externalSearchKeyword, setExternalSearchKeyword] = useState<string | undefined>(undefined);
     const [isUploading, setIsUploading] = useState(false);
@@ -146,7 +146,7 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
             case 'error':
                 return '❌ 更新失敗';
             default:
-                return '📌 pptxDB読込';
+                return '📌 取り込み';
         }
     };
 
@@ -169,11 +169,20 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     };
 
     return (
-        <div className="summarizer-container pptx-summarizer">
-            {/* 横並びレイアウト */}
+            <div className="summarizer-container pptx-summarizer">
             <div className="main-content">
                 <div className="left-panel">
-                    <h2>Upload and Summarize PPTX</h2>
+
+                {/* DB準備セクション */}
+                <div className="group-section">
+                    <h1 className="group-title">📥 データ準備・登録</h1>
+
+                    {/* Uploadセクション */}
+                    <section className="pptx-upload-section">
+                    <h2>📤 要約DBに取り込み</h2>
+                    <span className="reload-note">
+                    pptxから要約DBへ取り込みます。要約DBから検索する場合は事前に要約生成が必要です。
+                    </span>
                     <input type="file" accept=".pptx" onChange={handleFileChange} />
                     <button onClick={handleUpload}>Summarize</button>
                     {isUploading && <p>🔄 要約中です...</p>}
@@ -181,59 +190,71 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
 
                     {summary && (
                         <div className="summary-display">
-                            <h3>📝 要約結果</h3>
-                            <h3>Summary:</h3>
-                            <p>{summary}</p>
+                        <h3>📝 要約結果</h3>
+                        <p>{summary}</p>
                         </div>
                     )}
+                    </section>
 
-                    <hr style={{ margin: '30px 0' }} />
-
-                    <div className="search-tab-buttons">
+                    {/* Reloadセクション */}
+                    <section className="pptx-reload-section">
+                    <h2>📌 pptxDBに取り込み</h2>
+                    <div className="index-update-wrapper-vertical">
+                        <span className="reload-note">
+                        pptxフォルダからpptxDBへ取り込みます。pptxDBから検索する場合は一度押下してください。
+                        </span>
                         <button
-                            className={activeTab === 'summarySearch' ? 'active-tab' : ''}
-                            onClick={() => setActiveTab('summarySearch')}
+                        className="index-update-button"
+                        onClick={handleUpdatePptxIndex}
+                        disabled={indexStatus === 'updating'}
                         >
-                            🔍 要約DBから検索
-                        </button>
-                        <button
-                            className={activeTab === 'pptxSearch' ? 'active-tab' : ''}
-                            onClick={() => setActiveTab('pptxSearch')}
-                        >
-                            📊 pptxDBから検索
+                        {getIndexButtonLabel()}
                         </button>
                     </div>
+                    </section>
+                </div>
 
-                <div className="search-tab-content">
+                {/* 検索セクション */}
+                <div className="group-section search-scroll-section">
+                    <h1 className="group-title">🔎 PPTX・要約DBから検索</h1>
+
+                    <div className="search-tab-buttons">
+                    <button
+                        className={activeTab === 'pptxSearch' ? 'active-tab' : ''}
+                        onClick={() => setActiveTab('pptxSearch')}
+                    >
+                        📊 pptxDBから検索
+                    </button>
+                    <button
+                        className={activeTab === 'summarySearch' ? 'active-tab' : ''}
+                        onClick={() => setActiveTab('summarySearch')}
+                    >
+                        🔍 要約DBから検索
+                    </button>
+                    </div>
+
+                    <div className="search-tab-content">
                     {activeTab === 'summarySearch' && (
                         <PptxSummaryBasedSearch
-                            userId={userId}
-                            triggerSearchKeyword={externalSearchKeyword}
+                        userId={userId}
+                        triggerSearchKeyword={externalSearchKeyword}
                         />
                     )}
                     {activeTab === 'pptxSearch' && (
                         <PptxBasedSearch
-                            userId={userId}
-                            triggerSearchKeyword={externalSearchKeyword}
+                        userId={userId}
+                        triggerSearchKeyword={externalSearchKeyword}
                         />
                     )}
+                    </div>
                 </div>
                 </div>
 
                 <div className="right-panel">
-
-                <div className="index-update-wrapper" style={{ marginBottom: '20px' }}>
-                    <button
-                    className="index-update-button"
-                    onClick={handleUpdatePptxIndex}
-                    disabled={indexStatus === 'updating'}
-                    >
-                    {getIndexButtonLabel()}
-                    </button>
-                </div>
-                    {/* ここに頻出キーワードやユーザーキーワードを表示 */}
-                    <FrequentThemes onThemeClick={handleThemeClick} />
-                    {/* 将来的にユーザ登録キーワードコンポーネントもここに追加可能 */}
+                    <div className="group-section">
+                        <div className="group-title">🏷️ 頻出テーマ</div>
+                        <FrequentThemes onThemeClick={handleThemeClick} />
+                    </div>
                 </div>
             </div>
         </div>

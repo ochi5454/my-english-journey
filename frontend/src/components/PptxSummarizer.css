@@ -2,34 +2,42 @@
 .summarizer-container {
     max-width: 100%;
     margin: 0 auto;
-    padding: 24px;
+    padding: 12px 24px;
     font-family: 'Segoe UI', sans-serif;
+    font-size: 15px; /* ベースサイズ */
+    line-height: 1.5;
+    color: #1f2937;
 }
 
 /* セクションタイトル */
 .summarizer-container h2 {
-  font-size: 1.6rem;
-  margin-bottom: 16px;
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+
+.summary-display h3 {
+  font-size: 0.95rem;
+  margin-bottom: 6px;
 }
 
 /* ファイルアップロード */
 .summarizer-container input[type="file"] {
-  padding: 10px;
-  font-size: 1rem;
+  padding: 8px;
+  font-size: 0.95rem;
   border: 1px solid #ccc;
   border-radius: 6px;
   background-color: #fff;
   width: 100%;
   max-width: 400px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 /* アップロードボタン */
 .summarizer-container button {
   background-color: #3b82f6;
   color: white;
-  padding: 10px 20px;
-  font-size: 1rem;
+  padding: 8px 14px;
+  font-size: 0.95rem;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -58,7 +66,7 @@
 }
 
 .search-tab-buttons button {
-  padding: 10px 16px;
+  padding: 8px 14px;
   font-size: 0.95rem;
   background-color: #e2e8f0;
   border: none;
@@ -117,8 +125,8 @@
 .search-button {
   background-color: #3b82f6;
   color: white;
-  padding: 12px 20px;
-  font-size: 16px;
+  padding: 8px 14px; 
+  font-size: 0.95rem; 
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -189,10 +197,10 @@
 .index-update-button {
   background-color: #3b82f6;
   color: white;
-  padding: 3px 6px;
-  font-size: 0.50rem;
+  padding: 8px 14px;
+  font-size: 0.95rem; 
   border: none;
-  border-radius: 3px;
+  border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s ease;
   box-shadow: none;
@@ -232,29 +240,27 @@
 /* 右側パネルは狭めに */
 .right-panel {
     flex: 1.5;
-    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* ← 左寄せ */
+    background-color: #f9fafb;
     padding: 16px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    max-height: 600px;
-    overflow-y: auto;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    width: 100%; /* モバイル対応も考慮する場合 */
 }
 
-.keywords-themes {
-    font-size: 14px;
+.themes-container ul li a {
+  font-size: 0.95rem;
+  color: #1f2937;
+  text-decoration: none;
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
 }
 
-.keywords-themes h3 {
-    margin-bottom: 8px;
-}
-
-.keywords-themes ul {
-    list-style-type: disc;
-    padding-left: 20px;
-}
-
-.keywords-themes li {
-    margin-bottom: 4px;
+.themes-container ul li a:hover {
+  background-color: #e5e7eb;
 }
 
 /* 2025.7.30 Mod（ai comment）START */
@@ -271,3 +277,73 @@
     color: #334155;
 }
 /* 2025.7.30 Mod（ai comment）END */
+
+/* 2つのセクションを見やすく分ける */
+.pptx-reload-section,
+.pptx-upload-section {
+  margin-bottom: 16px;
+}
+
+.pptx-reload-section h2,
+.pptx-upload-section h2 {
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+
+/* 縦方向に注釈→ボタンの順で並べる */
+.index-update-wrapper-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;  /* ← 左寄せ */
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.reload-note,
+.error-message,
+.summary-display p {
+  font-size: 0.9rem;
+  color: #374151;
+  line-height: 1.4;
+}
+
+/* グループセクションの見た目を分ける */
+.group-section {
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* グループタイトル */
+.group-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 12px;
+  color: #1f2937;
+  border-left: 4px solid #2563eb;
+  padding-left: 12px;
+  background: linear-gradient(to right, #eff6ff, transparent);
+}
+
+.search-scroll-section {
+  max-height: 500px;        /* 高さを制限（必要に応じて調整） */
+  overflow-y: auto;         /* 縦スクロールを有効に */
+  scrollbar-width: thin;    /* Firefox向けの細いスクロールバー */
+}
+
+/* Chrome/Safari向けのスクロールバー装飾 */
+.search-scroll-section::-webkit-scrollbar {
+  width: 6px;
+}
+
+.search-scroll-section::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 6px;
+}
+
+.search-scroll-section::-webkit-scrollbar-track {
+  background-color: #f1f5f9;
+}

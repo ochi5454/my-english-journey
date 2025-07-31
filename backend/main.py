@@ -889,8 +889,7 @@ async def search_pptx(query: str = Query(...)):
     #### 2025.7.30 Mod（ai comment）START
     comment = ""
     if results:
-        top_summary = results[0]["summary"]
-        comment = generate_ai_reason_comment(query, top_summary, content_type="slide")
+        comment = generate_ai_reason_comment(query, top_results=results, content_type="slide")
 
     return {"results": results, "comment": comment} # 戻り値を results から型変更
     # return results
