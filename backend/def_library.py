@@ -14,6 +14,9 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+import unicodedata
+import hashlib
+import logging
 
 # サードパーティライブラリ
 import docx
@@ -33,6 +36,7 @@ from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.util import Pt
 from sentence_transformers import SentenceTransformer, util
 from openai import OpenAI
+from dotenv import load_dotenv
 
 # LangChain関連
 from langchain.chains import ConversationChain
@@ -65,6 +69,36 @@ from typing import List, Tuple, Dict, Union, Optional
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
 EMBEDDING_MODEL = "text-embedding-3-small" #### 2025.7.29 Add（search pptx from original not summarize）
 client = OpenAI() #### 2025.7.29 Add（search pptx from original not summarize）
+
+#### 2025.8.1 Add（reduce api consumption）START
+# 必要な初期設定
+if Path(".env").exists():
+    load_dotenv()
+
+# オプションで画像テキストEmbeddingを制御
+ENABLE_IMAGE_EMBEDDING = os.getenv("ENABLE_IMAGE_EMBEDDING", "true").lower() == "true"
+
+# ログ設定
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 埋め込みキャッシュをグローバルに
+embedding_cache = {}
+CACHE_PATH = Path("embedding_cache.json")
+
+# 起動時にロード
+if CACHE_PATH.exists():
+    try:
+        with open(CACHE_PATH, "r") as f:
+            embedding_cache = json.load(f)
+    except Exception as e:
+        logger.warning(f"⚠️ 埋め込みキャッシュの読み込みに失敗しました: {e}")
+        embedding_cache = {}
+#### 2025.8.1 Add（reduce api consumption）END
+
+#### 2025.7.11 Add（remove identify info）START
+EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
+PHONE_REGEX = re.compile(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?[\d.\s-]{5,15}')
 
 # 新しいベクトルストアを作成して保存する
 def create_new_vectorstore(path: str, embedding) -> FAISS:
@@ -1035,10 +1069,6 @@ def mask_company_names(text: str, company_names: list[str]) -> str:
     return text
 #### 2025.7.16 Add（remove identify info）END
 
-#### 2025.7.11 Add（remove identify info）START
-EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
-PHONE_REGEX = re.compile(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?[\d.\s-]{5,15}')
-
 def mask_personal_info(text: str) -> str:
     # メールアドレスと電話番号をマスク
     text = EMAIL_REGEX.sub('＜メールアドレス削除＞', text)
@@ -1426,6 +1456,32 @@ def get_public_like_feedbacks_by_product(
 #### 2025.7.25 Add（public feedback）END
 
 #### 2025.7.30 Mod（pptx defs maintenance）START
+#### 2025.8.1 Add（reduce api consumption）START
+# ----- API過剰消費対策 ------
+def normalize_text(text: str) -> str: 
+    text = unicodedata.normalize('NFKC', text)
+    text = re.sub(r'\s+', '', text).lower()
+    return re.sub(r'[^\w\u4E00-\u9FFF]', '', text)  # 記号削除（オプション）
+
+def text_hash(text):
+    return hashlib.md5(text.encode('utf-8')).hexdigest()
+
+def file_hash(content: bytes) -> str:
+    return hashlib.md5(content).hexdigest()
+
+def get_embedding(text):
+    h = text_hash(text)
+    if h in embedding_cache:
+        return embedding_cache[h]
+    else:
+        embedding = client.embeddings.create(
+            model=EMBEDDING_MODEL,
+            input=[text]
+        ).data[0].embedding
+        embedding_cache[h] = embedding
+        return embedding
+#### 2025.8.1 Add（reduce api consumption）END
+
 # ----- DB初期化・読込作業 ------
 def init_filedb():
     conn = sqlite3.connect(FILESUMMARY_PATH)
@@ -1441,27 +1497,33 @@ def init_filedb():
             is_summary_valid INTEGER
         );
     """)
+    #### 2025.8.1 Mod（reduce api consumption）
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_valid_summary ON summaries(is_summary_valid);")
     conn.close()
 
 def is_informative(text: str, min_char: int = 30) -> bool:
     text = text.strip()
-
-    # 文字数でざっくり情報量を判断（日本語は単語分割が難しいため）
+    
     if len(text) < min_char:
         return False
 
-    # 除外すべき一般的なスライドタイトル（日本語＋英語）
+    normalized = unicodedata.normalize('NFKC', text)  #### 2025.8.1 Mod（reduce api consumption）
+    normalized = re.sub(r'\s+', '', normalized).lower()
+
     common_titles = [
-        "タイトル", "目次", "表紙", "概要", "agenda", "title", "contents"
+        "タイトル", "目次", "表紙", "概要", "参考資料", "謝辞", "ご清聴ありがとうございました",
+        "agenda", "title", "contents", "references", "thank you", "thanks"
     ]
-    
-    # 完全一致または単独行での除外（大文字・小文字・全角半角無視）
-    normalized = re.sub(r'\s+', '', text).lower()
 
     for keyword in common_titles:
-        keyword_normalized = keyword.lower()
-        if keyword_normalized in normalized:
+        if keyword.lower() in normalized:
             return False
+
+    # 記号のみ or 1語しかない短いものの除外 #### 2025.8.1 Mod（reduce api consumption）
+    if re.fullmatch(r'[^\w\u4E00-\u9FFF]+', text):
+        return False
+    if len(text.split()) == 1 and len(text) < 10:
+        return False
 
     return True
 
@@ -1555,15 +1617,14 @@ def build_pptx_index_incremental():
                     continue
 
                 try:
-                    text_embedding = client.embeddings.create(
-                        model=EMBEDDING_MODEL,
-                        input=[full_text or ""]
-                    ).data[0].embedding
-
-                    image_embedding = client.embeddings.create(
-                        model=EMBEDDING_MODEL,
-                        input=[image_text or ""]
-                    ).data[0].embedding
+                    #### 2025.8.1 Add（reduce api consumption）START
+                    text_embedding = get_embedding(full_text or "")
+                    # OCRテキストのEmbeddingは条件付き（無ければスキップ or 代用）
+                    if image_text:
+                        image_embedding = get_embedding(image_text)
+                    else:
+                        image_embedding = text_embedding  # fallbackやNoneでも可
+                        #### 2025.8.1 Add（reduce api consumption）END
                 except Exception as e:
                     print(f"❌ 埋め込み生成失敗（スライド{i+1}）: {e}")
                     continue
@@ -1584,26 +1645,50 @@ def build_pptx_index_incremental():
             with open(PPTX_INDEX_PATH, "w") as f:
                 json.dump(index, f, ensure_ascii=False, indent=2)
             print(f"✅ 新規PPTX {len(new_items)}件をインデックスに追加しました。")
+
+            #### 2025.8.1 Add（reduce api consumption）START
+            # ←★ここでembedding_cacheを保存する
+            with open(CACHE_PATH, "w") as f:
+                json.dump(embedding_cache, f)
+            print("🧠 埋め込みキャッシュを保存しました。")
+            #### 2025.8.1 Add（reduce api consumption）END
+
         except Exception as e:
             print(f"❌ インデックス保存失敗: {e}")
     else:
         print("ℹ️ 追加すべき新規PPTXはありませんでした。")
 
-def load_valid_summaries() -> str:
+def load_valid_summaries(limit: int = 50) -> str:
     conn = sqlite3.connect(FILESUMMARY_PATH)
-    cursor = conn.execute("SELECT summary FROM summaries WHERE is_summary_valid = 1")
-    all_text = " ".join(row[0] for row in cursor.fetchall() if row[0])
+    cursor = conn.execute(
+        "SELECT summary FROM summaries WHERE is_summary_valid = 1 ORDER BY RANDOM() LIMIT ?", 
+        (limit,)
+    )
+    
+    seen = set()
+    unique_summaries = []
+    for row in cursor.fetchall():
+        s = row[0].strip()
+        if s and s not in seen:
+            seen.add(s)
+            unique_summaries.append(s[:500])  # 長さ制限 #### 2025.8.1 Mod（reduce api consumption）
+
     conn.close()
-    return all_text.strip()
+    return " ".join(unique_summaries).strip()
 
 # ----- ファイル生成・保存作業 -----
 def save_pptx_file(filename: str, content: bytes):
     file_id = str(uuid4())
     os.makedirs(PPTXUPLOAD_DIR, exist_ok=True)
 
-    original_filename = filename.replace("/", "_")
-    save_filename = original_filename
+    #### 2025.8.1 Mod（reduce api consumption）START
+    file_md5 = file_hash(content)
+    save_filename = f"{file_md5}_{filename.replace('/', '_')}"
     pptx_path = PPTXUPLOAD_DIR / save_filename
+
+    if pptx_path.exists():
+        print("⚠️ 同一内容のpptxが既に存在しています（スキップ可能）")
+    #### 2025.8.1 Mod（reduce api consumption）END
 
     with open(pptx_path, "wb") as f:
         f.write(content)
@@ -1618,6 +1703,14 @@ def convert_pptx_to_pdf(pptx_path: Path, output_dir: Path) -> Path | None:
 
     # 出力先を確実に作る
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    #### 2025.8.1 Add（reduce api consumption）START
+    stem = pptx_path.stem
+    pdf_path = output_dir / f"{stem}.pdf"
+    if pdf_path.exists():
+        print(f"📄 既存PDFを再利用します: {pdf_path}")
+        return pdf_path
+    #### 2025.8.1 Add（reduce api consumption）END
 
     system_name = platform.system()
     if system_name == "Darwin":  # macOS
@@ -1668,6 +1761,15 @@ def convert_pptx_to_pdf(pptx_path: Path, output_dir: Path) -> Path | None:
 
 def convert_pdf_to_images(pdf_path: Path, output_dir: Path) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
+    #### 2025.8.1 Add（reduce api consumption）START
+    existing_images = sorted(output_dir.glob("slide_*.png"))
+    
+    if len(existing_images) > 0:
+        print(f"🖼️ 既存スライド画像 {len(existing_images)} 枚を再利用します")
+        return existing_images
+
+    print(f"🛠️ PDFからスライド画像を生成します: {pdf_path}")
+    #### 2025.8.1 Add（reduce api consumption）END
     images = convert_from_path(str(pdf_path), dpi=150)
     image_paths = []
 
@@ -1739,26 +1841,55 @@ def summarize_pdf_slides_with_vision(file_id: str, pdf_path: Path, save_filename
     MAX_VALID_SUMMARIES = 10
     valid_count = 0
 
+    #### 2025.8.1 Mod（reduce api consumption）START
+    vision_cache_dir = Path("vision_cache")
+    vision_cache_dir.mkdir(exist_ok=True)
+
+    def image_hash(image_path: Path) -> str:
+        with open(image_path, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()
+    #### 2025.8.1 Mod（reduce api consumption）END
+
     for i, image_path in enumerate(image_paths[:20]):  # 最大20枚
         print(f"🖼 Visionでスライド{i+1}を要約中...")
 
-        summary, is_valid = summarize_slide_image(client, image_path)
+        #### 2025.8.1 Mod（reduce api consumption）START
+        # ハッシュベースでキャッシュ確認
+        img_hash = image_hash(image_path)
+        cache_file = vision_cache_dir / f"{img_hash}.json"
 
-        # ここでフィルタリングを追加（要約があっても無内容な場合に除外） #### 2025.7.31 Mod（filter before save json）
+        if cache_file.exists():
+            with open(cache_file, "r") as f:
+                cached = json.load(f)
+            summary = cached.get("summary")
+            is_valid = cached.get("is_valid", 0)
+            print(f"📦 キャッシュから要約取得（スライド{i+1}）")
+        else:
+            summary, is_valid = summarize_slide_image(client, image_path)
+            with open(cache_file, "w") as f:
+                json.dump({"summary": summary, "is_valid": is_valid}, f, ensure_ascii=False)
+        #### 2025.8.1 Mod（reduce api consumption）END
+
         if summary and not is_informative(summary):
             print(f"⚠️ スライド {i+1} の要約は情報量不足のためスキップ")
             continue
 
         embedding_blob = None
         if is_valid and summary:
-            emb_res = client.embeddings.create(
-                model="text-embedding-3-small",
-                input=summary
-            )
-            embedding_vector = emb_res.data[0].embedding
+            #### 2025.8.1 Mod（reduce api consumption）START
+            h = text_hash(summary)
+            if h in embedding_cache:
+                embedding_vector = embedding_cache[h]
+            else:
+                emb_res = client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=summary
+                )
+                embedding_vector = emb_res.data[0].embedding
+                embedding_cache[h] = embedding_vector
+            #### 2025.8.1 Mod（reduce api consumption）END
             embedding_blob = pickle.dumps(embedding_vector)
 
-        # DB保存
         conn.execute(
             "INSERT INTO summaries (id, filename, slide_index, summary, embedding, is_summary_valid) VALUES (?, ?, ?, ?, ?, ?)",
             (file_id, save_filename, i + 1, summary, embedding_blob, is_valid)
@@ -1774,14 +1905,18 @@ def summarize_pdf_slides_with_vision(file_id: str, pdf_path: Path, save_filename
             })
             valid_count += 1
 
-        else:
-            print(f"⚠️ スライド {i+1} 無効: {summary}")
-
         if valid_count >= MAX_VALID_SUMMARIES:
+            print(f"✅ 有効スライドが上限 {MAX_VALID_SUMMARIES} に達したため終了")
             break
 
     conn.commit()
     conn.close()
+
+    #### 2025.8.1 Add（reduce api consumption）START
+    # ✅ 追加：キャッシュ保存
+    with open(CACHE_PATH, "w") as f:
+        json.dump(embedding_cache, f)
+    #### 2025.8.1 Add（reduce api consumption）END
     return summaries
 
 def summarize_and_store_slides(file_id: str, save_filename: str, slides: list[str]) -> list[dict]:
@@ -1789,69 +1924,109 @@ def summarize_and_store_slides(file_id: str, save_filename: str, slides: list[st
     summaries = []
     conn = sqlite3.connect(FILESUMMARY_PATH)
 
-    # for slide_index, slide_text in enumerate(slides):
-    for slide_index, slide_text in enumerate(slides[:10]):  # 👈 最大10枚に制限
-        print(f"📝 スライド {slide_index + 1} 要約開始")
-        if not slide_text.strip():
-            print(f"⚠️ スライド {slide_index + 1} は空のためスキップ")
-            continue
+    #### 2025.8.1 Mod（reduce api consumption）START
+    summary_cache_dir = Path("text_summary_cache")
+    summary_cache_dir.mkdir(exist_ok=True)
 
-        # 情報量チェックを先に追加（textベース）#### 2025.7.31 Mod（filter before save json）
-        if not is_informative(slide_text):
+    for slide_index, slide_text in enumerate(slides[:10]):  # 最大10枚
+        print(f"📝 スライド {slide_index + 1} 要約開始")
+
+        if not slide_text.strip() or not is_informative(slide_text):
             print(f"⚠️ スライド {slide_index + 1} は情報量が少ないためスキップ")
             continue
 
-        try:
-            res = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": (
-                        "あなたは優秀なスライド要約アシスタントです。与えられたスライドテキストを要約し、"
-                        "JSON形式で {\"summary\": \"...\", \"is_valid\": true} のように返答してください。"
-                    )},
-                    {"role": "user", "content": f"スライドの内容: {slide_text}"}
-                ],
-                max_tokens=500,
-                temperature=0.5
-            )
+        h = text_hash(slide_text)
+        cache_file = summary_cache_dir / f"{h}.json"
 
-            response_text = res.choices[0].message.content.strip()
-            parsed = json.loads(response_text)
-            summary = parsed.get("summary", "").strip()
-            is_valid = 1 if parsed.get("is_valid", False) else 0
+        if cache_file.exists():
+            with open(cache_file, "r") as f:
+                cached = json.load(f)
+            summary = cached.get("summary")
+            is_valid = cached.get("is_valid", 0)
+            print(f"📦 キャッシュから要約取得（スライド{slide_index + 1}）")
+        else:
+            try:
+                res = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": (
+                            "あなたは優秀なスライド要約アシスタントです。与えられたスライドテキストを要約し、"
+                            "JSON形式で {\"summary\": \"...\", \"is_valid\": true} のように返答してください。"
+                        )},
+                        {"role": "user", "content": f"スライドの内容: {slide_text}"}
+                    ],
+                    max_tokens=500,
+                    temperature=0.5
+                )
 
-            embedding_blob = None
-            if is_valid and summary:
+                response_text = res.choices[0].message.content.strip()
+                parsed = json.loads(response_text)
+                summary = parsed.get("summary", "").strip()
+                is_valid = 1 if parsed.get("is_valid", False) else 0
+                with open(cache_file, "w") as f:
+                    json.dump({"summary": summary, "is_valid": is_valid}, f, ensure_ascii=False)
+
+            except Exception as e:
+                print(f"⚠️ スライド {slide_index + 1} の要約失敗: {e}")
+                continue
+
+        embedding_blob = None
+        if is_valid and summary:
+            eh = text_hash(summary)
+            if eh in embedding_cache:
+                embedding_vector = embedding_cache[eh]
+            else:
                 emb_res = client.embeddings.create(
                     model="text-embedding-3-small",
                     input=summary
                 )
                 embedding_vector = emb_res.data[0].embedding
-                embedding_blob = pickle.dumps(embedding_vector)
+                embedding_cache[eh] = embedding_vector
 
-            conn.execute(
-                "INSERT INTO summaries (id, filename, slide_index, summary, embedding, is_summary_valid) VALUES (?, ?, ?, ?, ?, ?)",
-                (file_id, save_filename, slide_index + 1, summary, embedding_blob, is_valid)
-            )
+            embedding_blob = pickle.dumps(embedding_vector)
 
-            if is_valid:
-                summaries.append({
-                    "id": file_id,
-                    "filename": save_filename,
-                    "slide_index": slide_index + 1,
-                    "summary": summary,
-                })
+        conn.execute(
+            "INSERT INTO summaries (id, filename, slide_index, summary, embedding, is_summary_valid) VALUES (?, ?, ?, ?, ?, ?)",
+            (file_id, save_filename, slide_index + 1, summary, embedding_blob, is_valid)
+        )
 
-            print(f"✅ スライド {slide_index + 1} 処理完了（valid: {is_valid}）")
+        if is_valid:
+            summaries.append({
+                "id": file_id,
+                "filename": save_filename,
+                "slide_index": slide_index + 1,
+                "summary": summary,
+            })
 
-        except Exception as e:
-            print(f"⚠️ スライド {slide_index + 1} の要約失敗: {e}")
+        print(f"✅ スライド {slide_index + 1} 処理完了（valid: {is_valid}）")
+        #### 2025.8.1 Mod（reduce api consumption）END
 
     conn.commit()
     conn.close()
+
+    #### 2025.8.1 Add（reduce api consumption）START
+    # ✅ 追加：キャッシュ保存
+    with open(CACHE_PATH, "w") as f:
+        json.dump(embedding_cache, f)
+    #### 2025.8.1 Add（reduce api consumption）END
     return summaries
 
 def summarize_slide_with_validation(client: OpenAI, slide_text: str) -> tuple[str | None, int]:
+    #### 2025.8.1 Add（reduce api consumption）START
+    summary_cache_dir = Path("text_summary_cache")
+    summary_cache_dir.mkdir(exist_ok=True)
+    
+    h = text_hash(slide_text)
+    cache_file = summary_cache_dir / f"{h}.json"
+
+    if cache_file.exists():
+        with open(cache_file, "r") as f:
+            cached = json.load(f)
+        summary = cached.get("summary")
+        is_valid = cached.get("is_valid", 0)
+        print("📦 要約キャッシュを利用しました")
+        return summary, is_valid
+    #### 2025.8.1 Add（reduce api consumption）END
     try:
         res = client.chat.completions.create(
             model="gpt-4",
@@ -1868,18 +2043,23 @@ def summarize_slide_with_validation(client: OpenAI, slide_text: str) -> tuple[st
             temperature=0.5
         )
         response_text = res.choices[0].message.content.strip()
+
         try:
             parsed = json.loads(response_text)
             summary = parsed.get("summary", "").strip()
             is_valid = 1 if parsed.get("is_valid", False) else 0
+
+        #### 2025.8.1 Add（reduce api consumption）START
+            # キャッシュ保存
+            with open(cache_file, "w") as f:
+                json.dump({"summary": summary, "is_valid": is_valid}, f, ensure_ascii=False)
+
+            return summary, is_valid
+
         except json.JSONDecodeError:
             print(f"⚠️ JSON解析失敗: {response_text}")
             return None, 0
-
-        if not summary or len(summary) < 10:
-            return None, 0
-
-        return summary, is_valid
+        #### 2025.8.1 Add（reduce api consumption）END
 
     except Exception as e:
         print(f"⚠️ 要約失敗: {e}")
@@ -1922,30 +2102,23 @@ def cosine_similarity(vec1, vec2):
 def search_similar_summaries(query: str):
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    # クエリをベクトル化
-    emb_res = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=query
-    )
-    query_vector = np.array(emb_res.data[0].embedding)
+    query_vector = np.array(get_embedding(query)) #### 2025.8.1 Add（reduce api consumption）
 
-    # DB から summary と埋め込みを取得
+    # --- データベースから有効なsummary情報を取得
     conn = sqlite3.connect(FILESUMMARY_PATH)
     cursor = conn.execute(
         "SELECT filename, slide_index, summary, embedding FROM summaries WHERE is_summary_valid = 1"
     )
 
-    SIMILARITY_THRESHOLD = 0.45  # 🎯 類似度フィルター
-
+    SIMILARITY_THRESHOLD = 0.45
     results = []
+
     for filename, slide_index, summary, emb_blob in cursor.fetchall():
         embedding_vector = np.array(pickle.loads(emb_blob))
-
-        # コサイン類似度計算
         similarity = cosine_similarity(query_vector, embedding_vector)
 
         if similarity >= SIMILARITY_THRESHOLD:
-            print(f'👍閾値をクリアした😃:{similarity}')
+            print(f'👍類似度クリア: {similarity:.4f}')
             results.append({
                 "filename": filename,
                 "pdf_filename": filename.replace(".pptx", ".pdf"),
@@ -1955,38 +2128,31 @@ def search_similar_summaries(query: str):
             })
 
     conn.close()
-
-    # スコア降順で上位3件を返す
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:3]
 
 def search_similar_pptx(query: str, k: int = 5):
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    query_embedding = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=[query]
-    ).data[0].embedding
+
+    # --- クエリのベクトル（キャッシュ対応）
+    query_embedding = np.array(get_embedding(query)) #### 2025.8.1 Add（reduce api consumption）
 
     with open(PPTX_INDEX_PATH, "r", encoding="utf-8") as f:
         index_data = json.load(f)
 
-    SIMILARITY_THRESHOLD = 0.45  # 🎯 類似度の閾値（summary側と揃える）
-
+    SIMILARITY_THRESHOLD = 0.45
     combined_scores = []
 
     for entry in index_data:
-        # --- text embedding ---
+        # --- テキストEmbedding
         try:
             text_emb = np.array(entry["embedding_text"])
             if text_emb.shape[0] != len(query_embedding):
                 continue
 
-            score_text = np.dot(query_embedding, text_emb) / (
-                np.linalg.norm(query_embedding) * np.linalg.norm(text_emb)
-            )
-
+            score_text = cosine_similarity(query_embedding, text_emb)
             if score_text >= SIMILARITY_THRESHOLD:
-                print(f'👍Text閾値クリア: {score_text}')
+                print(f'👍Text類似度クリア: {score_text:.4f}')
                 combined_scores.append({
                     "filename": entry["filename"],
                     "slide_index": entry["slide_index"],
@@ -1994,12 +2160,11 @@ def search_similar_pptx(query: str, k: int = 5):
                     "score": score_text,
                     "source": "text"
                 })
-
         except Exception as e:
-            print(f"Text embedding error in entry {entry.get('filename')}: {e}")
+            print(f"⚠️ Text embedding error: {e}")
             continue
 
-        # --- image embedding ---
+        # --- OCR画像Embedding（任意）
         try:
             image_emb_raw = entry.get("embedding_image_text")
             if image_emb_raw is None:
@@ -2009,12 +2174,9 @@ def search_similar_pptx(query: str, k: int = 5):
             if image_emb.shape[0] != len(query_embedding):
                 continue
 
-            score_img = np.dot(query_embedding, image_emb) / (
-                np.linalg.norm(query_embedding) * np.linalg.norm(image_emb)
-            )
-
+            score_img = cosine_similarity(query_embedding, image_emb)
             if score_img >= SIMILARITY_THRESHOLD:
-                print(f'👍Image閾値クリア: {score_img}')
+                print(f'👍Image類似度クリア: {score_img:.4f}')
                 combined_scores.append({
                     "filename": entry["filename"],
                     "slide_index": entry["slide_index"],
@@ -2022,18 +2184,28 @@ def search_similar_pptx(query: str, k: int = 5):
                     "score": score_img,
                     "source": "image"
                 })
-
         except Exception as e:
-            print(f"Image embedding error in entry {entry.get('filename')}: {e}")
+            print(f"⚠️ Image embedding error: {e}")
             continue
 
-    # スコア順に k 件取得して返す
     top_results = sorted(combined_scores, key=lambda x: x["score"], reverse=True)[:k]
-
     return top_results
 
 def extract_themes_from_text(text: str, limit: int = 5) -> list[str]:
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    #### 2025.8.1 Add（reduce api consumption）START
+    theme_cache_dir = Path("theme_cache")
+    theme_cache_dir.mkdir(exist_ok=True)
+
+    th = text_hash(text)
+    cache_file = theme_cache_dir / f"{th}.json"
+
+    if cache_file.exists():
+        with open(cache_file, "r") as f:
+            themes = json.load(f).get("themes", [])
+        print("📦 テーマキャッシュ使用")
+        return themes[:limit]
+    #### 2025.8.1 Add（reduce api consumption）END
 
     prompt = (
         "以下の文章全体のテーマを、簡潔な日本語のキーワードまたはフレーズで5つ挙げてください。\n\n"
@@ -2050,12 +2222,17 @@ def extract_themes_from_text(text: str, limit: int = 5) -> list[str]:
             stop=["\n\n"]
         )
         raw_output = res.choices[0].message.content.strip()
+        #### 2025.8.1 Add（reduce api consumption）START
+        themes = parse_theme_list(raw_output, limit)
 
+        with open(cache_file, "w") as f:
+            json.dump({"themes": themes}, f, ensure_ascii=False)
+
+        return themes
+        #### 2025.8.1 Add（reduce api consumption）END
     except Exception as e:
         print(f"⚠️ OpenAIリクエスト失敗: {e}")
         return []
-
-    return parse_theme_list(raw_output, limit)
 
 def parse_theme_list(text: str, limit: int = 5) -> list[str]:
     themes = []
@@ -2082,30 +2259,40 @@ def generate_ai_reason_comment(
     content_type: str = "summary"
 ) -> str:
     """
-    クエリと検索結果に基づいて、AIによる関連性の理由コメントを生成する。
-
-    Args:
-        query (str): ユーザーの検索クエリ
-        content (Optional[str]): summary用の単体テキスト（優先される）
-        top_results (Optional[List[dict]]): スライド検索用の結果リスト（テキスト/画像混合）
-        content_type (str): "summary" または "slide"
-
-    Returns:
-        str: コメント文
+    クエリと検索結果に基づいて、AIによる関連性の理由コメントを生成する（キャッシュ対応版）。
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    #### 2025.8.1 Mod（reduce api consumption）START
+    cache_dir = Path("reason_cache")
+    cache_dir.mkdir(exist_ok=True)
 
+    # --- キャッシュキー作成
     if content_type == "summary" and content:
+        key_source = f"{query}||{normalize_text(content)}"
+    elif content_type == "slide" and top_results:
+        key_source = query + "||" + "||".join(normalize_text(item["summary"]) for item in top_results)
+    else:
+        return "説明用の情報が不足しています。"
+
+    cache_hash = text_hash(key_source)
+    cache_file = cache_dir / f"{cache_hash}.txt"
+
+    if cache_file.exists():
+        with open(cache_file, "r") as f:
+            print("📦 理由コメントキャッシュ利用")
+            return f.read().strip()
+
+    #### 2025.8.1 Mod（reduce api consumption）END
+    # --- プロンプト生成
+    if content_type == "summary":
         prompt = f"""ユーザーが「{query}」と検索しました。以下のサマリーが特に関連性が高いと考えられる理由を一言で説明してください。
 
 サマリー:
 {content}"""
-
-    elif content_type == "slide" and top_results:
+    else:  # content_type == "slide"
         slide_samples = "\n".join(
             f"- {truncate(item['summary'])}" for item in top_results
         )
-
         prompt = f"""ユーザーが「{query}」と検索しました。以下のスライド情報との関連性が高いと判断された理由を要約してください。
 
 スライド候補:
@@ -2114,16 +2301,21 @@ def generate_ai_reason_comment(
 簡潔に一言で説明してください。
 """
 
-    else:
-        return "説明用の情報が不足しています。"
-
+    # --- GPT実行
     res = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
     )
+    result = res.choices[0].message.content.strip()
 
-    return res.choices[0].message.content.strip()
+    #### 2025.8.1 Add（reduce api consumption）START
+    # --- キャッシュ保存
+    with open(cache_file, "w") as f:
+        f.write(result)
+    #### 2025.8.1 Add（reduce api consumption）END
+
+    return result
 
 def truncate(text: str, max_chars: int = 300) -> str:
     return text[:max_chars] + "..." if len(text) > max_chars else text
