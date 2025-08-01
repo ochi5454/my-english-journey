@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import PptxSummaryBasedSearch from './PptxSummaryBasedSearch';
 import PptxBasedSearch from './PptxBasedSearch';
+import PptxFrequentThemes, { PptxFrequentThemesRef } from './PptxFrequentThemes';
 import './PptxSummarizer.css';
 
 interface PptxSummarizerProps {
@@ -14,50 +15,6 @@ interface SearchResult {
     slide_index: number;
 }
 
-// 2025.7.30 Add（themes）START
-interface FrequentThemesProps {
-    onThemeClick: (theme: string) => void;
-}
-
-const FrequentThemes: React.FC<FrequentThemesProps> = ({ onThemeClick }) => {
-    const [themes, setThemes] = useState<string[]>([]);
-
-    useEffect(() => {
-        const fetchThemes = async () => {
-            try {
-                const res = await fetch('/get_theme?limit=5');
-                const data = await res.json();
-                setThemes(data.themes);
-            } catch (e) {
-                console.error('テーマ取得エラー:', e);
-            }
-        };
-        fetchThemes();
-    }, []);
-
-    return (
-        <div className="themes-container">
-            <ul>
-                {themes.map((theme, idx) => (
-                    <li key={idx}>
-                        {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
-                        <a
-                            href="#"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                onThemeClick(theme);
-                            }}
-                        >
-                            {theme}
-                        </a>
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-};
-// 2025.7.30 Add（themes）END
-
 const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [summary, setSummary] = useState<string | null>(null);
@@ -66,10 +23,15 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
     const [externalSearchKeyword, setExternalSearchKeyword] = useState<string | undefined>(undefined);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const pptxFrequentThemesRef = useRef<PptxFrequentThemesRef>(null);
 
     const handleThemeClick = (theme: string) => {
         setExternalSearchKeyword(theme); // 検索トリガーとして子に渡す
         setTimeout(() => setExternalSearchKeyword(undefined), 100);
+    };
+
+    const handleLoadThemes = () => {
+        pptxFrequentThemesRef.current?.fetchThemes();
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -253,7 +215,10 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                 <div className="right-panel">
                     <div className="group-section">
                         <div className="group-title">🏷️ 頻出テーマ</div>
-                        <FrequentThemes onThemeClick={handleThemeClick} />
+                        {/* 2025.8.1 Mod（reduce api consumption）START */}
+                        <button onClick={handleLoadThemes}>📥 テーマ読み込み</button>
+                        <PptxFrequentThemes ref={pptxFrequentThemesRef} onThemeClick={handleThemeClick} />
+                        {/* 2025.8.1 Mod（reduce api consumption）END */}
                     </div>
                 </div>
             </div>
