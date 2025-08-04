@@ -5,7 +5,8 @@ import ProductRecommendation from './components/ProductRecommendation';
 import DocumentSearch from './components/DocumentSearch';
 import HashtagProcessor from './components/HashtagProcessor';
 import ChatHistory from './components/ChatHistory';
-import PptxSummarizer from './components/PptxSummarizer';  // 2024.7.22 Add（summarize pptx）
+import PptxSummarizer from './components/PptxSummarizer';  // 2025.7.22 Add（summarize pptx）
+import ResumeScoring from './components/ResumeScoring';  // 2025.8.4 Add（Resume）
 import './App.css';
 
 const App: React.FC = () => {
@@ -36,10 +37,13 @@ const App: React.FC = () => {
             <Link to="/">チャット</Link>
             <Link to="/history">チャット履歴</Link>
             <Link to="/recommend">商品推薦</Link> 
-            {/* 2024.7.22 Add（summarize pptx）START */}
+            {/* 2025.7.22 Add（summarize pptx）START */}
             <Link to="/pptx-summary">PPTX検索</Link>
-            {/* 2024.7.22 Add（summarize pptx）END */}
+            {/* 2025.7.22 Add（summarize pptx）END */}
             <Link to="/search">文書検索</Link>
+            {/* 2025.8.4 Add（Resume）START */}
+            <Link to="/ResumeScoring">候補者判定</Link>
+            {/* 2025.8.4 Add（Resume）END */}
             <Link to="/hashtag">ハッシュタグ処理</Link>
           </div>
           {/* 2025.7.23 Add（summarize pptx）START */}
@@ -66,16 +70,22 @@ const App: React.FC = () => {
               path="/recommend" 
               element={<ProductRecommendation userId={userId} />} 
             />
-            {/* 2024.7.22 Add（summarize pptx）START */}
+            {/* 2025.7.22 Add（summarize pptx）START */}
             <Route 
               path="/pptx-summary" 
               element={<PptxSummarizer userId={userId} />} 
             />
-            {/* 2024.7.22 Add（summarize pptx）END */}
+            {/* 2025.7.22 Add（summarize pptx）END */}
             <Route 
               path="/search" 
               element={<DocumentSearch userId={userId} />} 
             />
+            {/* 2025.8.4 Add（Resume）START */}
+            <Route 
+              path="/ResumeScoring" 
+              element={<ResumeScoring userId={userId} />} 
+            />
+            {/* 2025.8.4 Add（Resume）END */}
             <Route 
               path="/hashtag" 
               element={<HashtagProcessor userId={userId} />} 
