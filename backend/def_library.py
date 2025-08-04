@@ -1676,6 +1676,31 @@ def load_valid_summaries(limit: int = 50) -> str:
     conn.close()
     return " ".join(unique_summaries).strip()
 
+def load_pptx_index_text(limit: int = 50) -> str:
+    if not PPTX_INDEX_PATH.exists():
+        return ""
+
+    import json
+    with open(PPTX_INDEX_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    summaries = []
+    seen = set()
+
+    for item in data:
+        text = item.get("text", "").strip()
+        image_text = item.get("image_text", "").strip()
+        combined = (text + " " + image_text).strip()
+
+        if combined and combined not in seen:
+            seen.add(combined)
+            summaries.append(combined[:500])  # 長さ制限
+
+        if len(summaries) >= limit:
+            break
+
+    return " ".join(summaries).strip()
+
 # ----- ファイル生成・保存作業 -----
 def save_pptx_file(filename: str, content: bytes):
     file_id = str(uuid4())

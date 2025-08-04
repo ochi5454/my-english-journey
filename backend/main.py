@@ -29,7 +29,7 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH
 
 
@@ -896,12 +896,19 @@ async def search_pptx(query: str = Query(...)):
     #### 2025.7.30 Mod（ai comment）END
 
 @app.get("/get_theme/")
-async def get_theme(limit: int = 5):
-    summaries_text = load_valid_summaries()
-    if not summaries_text:
+async def get_theme(limit: int = 5, source: str = "summary"):
+    #### 2025.8.4 Mod（change db for themes）START
+    if source == "pptx":
+        print("pptxDBから読み込み")
+        text = load_pptx_index_text(limit)
+    else:
+        print("要約DBから読み込み")
+        text = load_valid_summaries(limit)
+    #### 2025.8.4 Mod（change db for themes）END
+    if not text:
         return {"themes": [], "message": "要約がありません"}
 
-    themes = extract_themes_from_text(summaries_text, limit=limit)
+    themes = extract_themes_from_text(text, limit=limit)
     return {"themes": themes}
 #### 2025.7.30 Mod（pptx defs maintenance）END
 

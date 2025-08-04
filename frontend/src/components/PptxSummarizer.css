@@ -347,3 +347,10 @@
 .search-scroll-section::-webkit-scrollbar-track {
   background-color: #f1f5f9;
 }
+
+.db-info {
+    font-size: 0.85rem;
+    color: #444;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}

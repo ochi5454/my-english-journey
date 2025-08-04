@@ -217,7 +217,11 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                         <div className="group-title">🏷️ 頻出テーマ</div>
                         {/* 2025.8.1 Mod（reduce api consumption）START */}
                         <button onClick={handleLoadThemes}>📥 テーマ読み込み</button>
-                        <PptxFrequentThemes ref={pptxFrequentThemesRef} onThemeClick={handleThemeClick} />
+                        <PptxFrequentThemes
+                            ref={pptxFrequentThemesRef}
+                            onThemeClick={handleThemeClick}
+                            sourceType={activeTab === 'pptxSearch' ? 'pptx' : 'summary'}  //2025.8.4 Mod（change db for themes）
+                        />
                         {/* 2025.8.1 Mod（reduce api consumption）END */}
                     </div>
                 </div>
