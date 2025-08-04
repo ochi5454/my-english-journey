@@ -8,22 +8,12 @@ interface PptxSummarizerProps {
     userId: string;
 }
 
-interface SearchResult {
-    filename: string;
-    pdfFilename: string;
-    summary: string;
-    slide_index: number;
-}
-
 const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [summary, setSummary] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'summarySearch' | 'pptxSearch'>('pptxSearch');
     const [indexStatus, setIndexStatus] = useState<'idle' | 'updating' | 'success' | 'error'>('idle');
     const [externalSearchKeyword, setExternalSearchKeyword] = useState<string | undefined>(undefined);
-    const [isUploading, setIsUploading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const pptxFrequentThemesRef = useRef<PptxFrequentThemesRef>(null);
+    const [summaryIndexStatus, setSummaryIndexStatus] = useState<'idle' | 'updating' | 'success' | 'error'>('idle'); // 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
 
     const handleThemeClick = (theme: string) => {
         setExternalSearchKeyword(theme); // 検索トリガーとして子に渡す
@@ -32,71 +22,6 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
 
     const handleLoadThemes = () => {
         pptxFrequentThemesRef.current?.fetchThemes();
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files?.length) {
-            setSelectedFile(e.target.files[0]);
-        }
-    };
-
-    const handleUpload = async () => {
-        if (!selectedFile) return;
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('userId', userId);
-
-        setIsUploading(true);
-        setError(null);
-        setSummary(null);
-
-        try {
-            const res = await fetch("/upload_and_index_pptx/", {
-            method: "POST",
-            body: formData,
-            });
-
-            if (!res.ok) {
-            console.error("❌ レスポンスNG:", res.status, res.statusText);
-            setError("サーバーからの応答が不正です。");
-            return;
-            }
-
-            const rawText = await res.text();
-            console.log("🧾 サーバーからの生レスポンス:", rawText);
-
-            let data: any;
-            try {
-            data = JSON.parse(rawText);
-            } catch (e) {
-            console.error("❌ JSON parse失敗:", e);
-            setError("サーバーレスポンスの解析に失敗しました。");
-            return;
-            }
-
-            if (data.success && Array.isArray(data.summaries)) {
-            const combined = data.summaries
-                .map((s: SearchResult) => `【スライド${s.slide_index}】 ${s.summary}`)
-                .join("\n");
-            setSummary(combined);
-            } else {
-            console.warn("⚠️ summaries 無し、または空。レスポンス:", data);
-            setError("アップロードは成功しましたが、要約が取得できませんでした。");
-            }
-        } catch (err) {
-            console.error("❗ fetch エラー:", err);
-
-            if (err instanceof Response) {
-            console.error("ステータス:", err.status);
-            const text = await err.text();
-            console.error("レスポンス本文:", text);
-            }
-
-            setError("アップロード中にエラーが発生しました。");
-        } finally {
-            // ✅ どんな場合でも最後に isUploading を false に戻す
-            setIsUploading(false);
-        }
     };
 
     const getIndexButtonLabel = () => {
@@ -108,9 +33,24 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
             case 'error':
                 return '❌ 更新失敗';
             default:
-                return '📌 取り込み';
+                return '📌 pptxDB更新';
         }
     };
+
+    // 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）START
+    const getSummaryIndexButtonLabel = () => {
+        switch (summaryIndexStatus) {
+            case 'updating':
+                return '🔄 要約中...';
+            case 'success':
+                return '✅ 要約完了！';
+            case 'error':
+                return '❌ 要約失敗';
+            default:
+                return '📑 要約DB更新';
+        }
+    };
+     // 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）END
 
     const handleUpdatePptxIndex = async () => {
         setIndexStatus('updating');
@@ -130,6 +70,28 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
         }
     };
 
+    // 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）START
+    const handleUpdateSummaryIndex = async () => {
+        setSummaryIndexStatus('updating');
+        try {
+            const res = await fetch('/update_summary_index', { method: 'POST' });
+            const data = await res.json();
+
+            if (data.success) {
+                setSummaryIndexStatus('success');
+            } else {
+                setSummaryIndexStatus('error');
+            }
+        } catch (err) {
+            console.error('要約インデックス更新エラー:', err);
+            setSummaryIndexStatus('error');
+        } finally {
+            setTimeout(() => setSummaryIndexStatus('idle'), 3000);
+        }
+    };
+    // 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）END
+
+
     return (
             <div className="summarizer-container pptx-summarizer">
             <div className="main-content">
@@ -139,41 +101,29 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                 <div className="group-section">
                     <h1 className="group-title">📥 データ準備・登録</h1>
 
-                    {/* Uploadセクション */}
-                    <section className="pptx-upload-section">
-                    <h2>📤 要約DBに取り込み</h2>
-                    <span className="reload-note">
-                    pptxから要約DBへ取り込みます。要約DBから検索する場合は事前に要約生成が必要です。
-                    </span>
-                    <input type="file" accept=".pptx" onChange={handleFileChange} />
-                    <button onClick={handleUpload}>Summarize</button>
-                    {isUploading && <p>🔄 要約中です...</p>}
-                    {error && <p className="error-message">{error}</p>}
+                        {/* pptxDB / summaryDB 取り込みセクション：横並び（コンパクト） */}
+                        <div className="dual-buttons">
+                        <section className="pptx-reload-section no-heading">
+                            <button
+                            className="index-update-button"
+                            onClick={handleUpdatePptxIndex}
+                            disabled={indexStatus === 'updating'}
+                            >
+                            {getIndexButtonLabel()}
+                            </button>
+                        </section>
 
-                    {summary && (
-                        <div className="summary-display">
-                        <h3>📝 要約結果</h3>
-                        <p>{summary}</p>
+                        <section className="pptx-reload-section no-heading">
+                            <button
+                            className="index-update-button"
+                            onClick={handleUpdateSummaryIndex}
+                            disabled={summaryIndexStatus === 'updating'}
+                            >
+                            {getSummaryIndexButtonLabel()}
+                            </button>
+                        </section>
                         </div>
-                    )}
-                    </section>
 
-                    {/* Reloadセクション */}
-                    <section className="pptx-reload-section">
-                    <h2>📌 pptxDBに取り込み</h2>
-                    <div className="index-update-wrapper-vertical">
-                        <span className="reload-note">
-                        pptxフォルダからpptxDBへ取り込みます。pptxDBから検索する場合は一度押下してください。
-                        </span>
-                        <button
-                        className="index-update-button"
-                        onClick={handleUpdatePptxIndex}
-                        disabled={indexStatus === 'updating'}
-                        >
-                        {getIndexButtonLabel()}
-                        </button>
-                    </div>
-                    </section>
                 </div>
 
                 {/* 検索セクション */}
@@ -216,7 +166,7 @@ const PptxSummarizer: React.FC<PptxSummarizerProps> = ({ userId }) => {
                     <div className="group-section">
                         <div className="group-title">🏷️ 頻出テーマ</div>
                         {/* 2025.8.1 Mod（reduce api consumption）START */}
-                        <button onClick={handleLoadThemes}>📥 テーマ読み込み</button>
+                        <button onClick={handleLoadThemes}>📥 テーマ取得</button>
                         <PptxFrequentThemes
                             ref={pptxFrequentThemesRef}
                             onThemeClick={handleThemeClick}

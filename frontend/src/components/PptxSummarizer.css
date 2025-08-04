@@ -1,15 +1,19 @@
-/* 全体レイアウト */
+/* ------------------------
+   全体レイアウト
+------------------------ */
 .summarizer-container {
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 12px 24px;
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 15px; /* ベースサイズ */
-    line-height: 1.5;
-    color: #1f2937;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 12px 24px;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #1f2937;
 }
 
-/* セクションタイトル */
+/* ------------------------
+   セクションタイトル
+------------------------ */
 .summarizer-container h2 {
   font-size: 1rem;
   margin-bottom: 10px;
@@ -20,45 +24,59 @@
   margin-bottom: 6px;
 }
 
-/* ファイルアップロード */
+/* ------------------------
+   ファイルアップロード
+------------------------ */
 .summarizer-container input[type="file"] {
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 10px;
   padding: 8px;
   font-size: 0.95rem;
   border: 1px solid #ccc;
   border-radius: 6px;
   background-color: #fff;
-  width: 100%;
-  max-width: 400px;
-  margin-bottom: 10px;
 }
 
-/* アップロードボタン */
+/* ------------------------
+   アップロードボタン
+------------------------ */
 .summarizer-container button {
-  background-color: #3b82f6;
-  color: white;
+  margin-top: 8px;
   padding: 8px 14px;
   font-size: 0.95rem;
+  background-color: #3b82f6;
+  color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  margin-top: 8px;
 }
 
 .summarizer-container button:hover {
   background-color: #2563eb;
 }
 
-/* 要約表示 */
+/* ------------------------
+   要約表示エリア
+------------------------ */
 .summary-display {
+  margin-top: 20px;
+  padding: 16px;
   background-color: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 16px;
-  margin-top: 20px;
 }
 
-/* タブボタン */
+.summary-display p {
+  font-size: 0.9rem;
+  color: #374151;
+  line-height: 1.4;
+}
+
+/* ------------------------
+   タブボタン
+------------------------ */
 .search-tab-buttons {
   display: flex;
   gap: 12px;
@@ -67,12 +85,11 @@
 
 .search-tab-buttons button {
   padding: 8px 14px;
-  font-size: 0.95rem;
+  font-size: 1rem;
   background-color: #e2e8f0;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 1rem;
   transition: background-color 0.2s ease;
 }
 
@@ -84,21 +101,33 @@
   background-color: #2563eb;
 }
 
-/* タブの中身 */
+/* 再定義防止：上書きマージ */
+.search-tab-buttons {
+  margin: 0;
+}
+
+/* ------------------------
+   タブ中身エリア
+------------------------ */
 .search-tab-content {
   margin-top: 20px;
 }
 
-/* 共通検索セクション（PptxSummaryBasedSearch / PptxBasedSearch） */
+/* ------------------------
+   共通検索セクション
+------------------------ */
 .summary-search,
 .pptx-search {
+  padding: 20px;
+  min-height: 300px;
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 20px;
-  min-height: 300px;
 }
 
+/* ------------------------
+   検索バー
+------------------------ */
 .search-bar {
   display: flex;
   gap: 12px;
@@ -123,10 +152,10 @@
 }
 
 .search-button {
+  padding: 8px 14px;
+  font-size: 0.95rem;
   background-color: #3b82f6;
   color: white;
-  padding: 8px 14px; 
-  font-size: 0.95rem; 
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -143,17 +172,19 @@
   background-color: #2563eb;
 }
 
-/* 検索結果 */
+/* ------------------------
+   検索結果
+------------------------ */
 .search-results {
   margin-top: 12px;
 }
 
 .result-card {
+  padding: 16px;
+  margin-bottom: 12px;
   background-color: #f1f5f9;
   border: 1px solid #d1d5db;
   border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
@@ -180,161 +211,126 @@
   font-size: 0.85rem;
   color: #64748b;
 }
-/* インデックス更新セクション */
+
+/* ------------------------
+   インデックス更新エリア
+------------------------ */
 .pptx-index-update {
   margin-top: 24px;
   text-align: center;
 }
-/* 差分取込ボタンとメッセージの配置 */
-.index-update-wrapper {
+
+.index-update-wrapper,
+.index-update-wrapper-vertical {
   display: flex;
-  justify-content: center;
-  align-items: center;
   gap: 12px;
   margin-bottom: 20px;
 }
 
+.index-update-wrapper {
+  justify-content: center;
+  align-items: center;
+}
+
+.index-update-wrapper-vertical {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .index-update-button {
+  display: inline-block;
+  min-width: 140px;
+  max-width: 160px;
+  padding: 6px 14px;
+  font-size: 0.95rem;
   background-color: #3b82f6;
   color: white;
-  padding: 8px 14px;
-  font-size: 0.95rem; 
   border: none;
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  box-shadow: none;
+  line-height: 1.2;
   white-space: nowrap;
-  line-height: 1.1; 
-  max-width: 100%; 
   overflow: hidden;
   text-overflow: ellipsis;
-  display: inline-block;
 }
 
 .index-update-button:hover {
   background-color: #2563eb;
 }
 
-.search-tab-buttons {
-  display: flex;
-  gap: 12px;
-  margin: 0;
+.index-update-button.fixed-width {
+  padding: 0.4rem 0.8rem;
 }
+
+/* ------------------------
+   2ペインレイアウト
+------------------------ */
 .pptx-summarizer .main-content {
-    display: flex;
-    gap: 24px;
-    width: 100%;
-    min-height: 400px;
+  display: flex;
+  gap: 24px;
+  width: 100%;
+  min-height: 400px;
 }
 
-/* 左側パネルは広めに */
 .left-panel {
-    flex: 4;
-    background: #f9fafb;
-    padding: 16px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+  flex: 4;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
 }
 
-/* 右側パネルは狭めに */
 .right-panel {
-    flex: 1.5;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start; /* ← 左寄せ */
-    background-color: #f9fafb;
-    padding: 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    width: 100%; /* モバイル対応も考慮する場合 */
-}
-
-.themes-container ul li a {
-  font-size: 0.95rem;
-  color: #1f2937;
-  text-decoration: none;
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 6px;
-}
-
-.themes-container ul li a:hover {
-  background-color: #e5e7eb;
-}
-
-/* 2025.7.30 Mod（ai comment）START */
-.ai-comment-box {
-    background-color: #f1f5f9;
-    padding: 12px;
-    margin-top: 12px;
-    border-left: 4px solid #38bdf8;
-    border-radius: 8px;
-}
-
-.ai-comment {
-    font-style: italic;
-    color: #334155;
-}
-/* 2025.7.30 Mod（ai comment）END */
-
-/* 2つのセクションを見やすく分ける */
-.pptx-reload-section,
-.pptx-upload-section {
-  margin-bottom: 16px;
-}
-
-.pptx-reload-section h2,
-.pptx-upload-section h2 {
-  font-size: 1.2rem;
-  margin-bottom: 8px;
-}
-
-/* 縦方向に注釈→ボタンの順で並べる */
-.index-update-wrapper-vertical {
+  flex: 1.5;
+  width: 100%;
+  padding: 16px;
+  background-color: #f9fafb;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
-  align-items: flex-start;  /* ← 左寄せ */
-  gap: 8px;
-  margin-bottom: 20px;
+  align-items: flex-start;
 }
 
-.reload-note,
-.error-message,
-.summary-display p {
-  font-size: 0.9rem;
-  color: #374151;
-  line-height: 1.4;
+.right-panel .group-section {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-/* グループセクションの見た目を分ける */
+/* ------------------------
+   グループセクション
+------------------------ */
 .group-section {
   margin-bottom: 8px;
   padding: 12px 14px;
+  background-color: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  background-color: #ffffff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
-/* グループタイトル */
 .group-title {
+  margin-bottom: 12px;
+  padding-left: 12px;
   font-size: 1.1rem;
   font-weight: bold;
-  margin-bottom: 12px;
   color: #1f2937;
   border-left: 4px solid #2563eb;
-  padding-left: 12px;
   background: linear-gradient(to right, #eff6ff, transparent);
 }
 
+/* ------------------------
+   スクロールエリア
+------------------------ */
 .search-scroll-section {
-  max-height: 500px;        /* 高さを制限（必要に応じて調整） */
-  overflow-y: auto;         /* 縦スクロールを有効に */
-  scrollbar-width: thin;    /* Firefox向けの細いスクロールバー */
+  max-height: 500px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-/* Chrome/Safari向けのスクロールバー装飾 */
 .search-scroll-section::-webkit-scrollbar {
   width: 6px;
 }
@@ -348,9 +344,67 @@
   background-color: #f1f5f9;
 }
 
+/* ------------------------
+   テーマリンク
+------------------------ */
+.themes-container ul li a {
+  display: block;
+  max-width: 100%;
+  padding: 4px 8px;
+  font-size: 0.95rem;
+  color: #1f2937;
+  text-decoration: none;
+  border-radius: 6px;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.themes-container ul li a:hover {
+  background-color: #e5e7eb;
+}
+
+/* ------------------------
+   補助情報・コメント
+------------------------ */
 .db-info {
-    font-size: 0.85rem;
-    color: #444;
-    margin-bottom: 8px;
-    line-height: 1.4;
+  font-size: 0.85rem;
+  color: #444;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.reload-note,
+.error-message {
+  font-size: 0.9rem;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.dual-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.pptx-reload-section.no-heading {
+  padding: 0;
+  margin: 0;
+}
+
+/* ------------------------
+   AIコメント（2025.7.30 追加）
+------------------------ */
+.ai-comment-box {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #f1f5f9;
+  border-left: 4px solid #38bdf8;
+  border-radius: 8px;
+}
+
+.ai-comment {
+  font-style: italic;
+  color: #334155;
 }
