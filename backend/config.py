@@ -24,6 +24,9 @@ PPTXUPLOAD_DIR = DATA_DIR / "pptx_files" #### 2025.7.28 Add（image pptx）
 PDFUPLOAD_DIR = DATA_DIR / "pdf_files" #### 2025.7.28 Add（pdf download）
 IMGUPLOAD_DIR = DATA_DIR / "image_files" #### 2025.7.30 Add（vision ai）
 PPTX_INDEX_PATH = DATA_DIR / "pptx_index.json" #### 2025.7.29 Add（seaach pptx from original not summraize）
+RESUME_PATH = DATA_DIR / "candidate_resume_files" #### 2025.8.4 Add（Resume）
+SKILLS_PATH = DATA_DIR / "candidate_mustskills_files" #### 2025.8.4 Add（Resume）
+RESULT_PATH = DATA_DIR / "candidate_result_files" #### 2025.8.4 Add（Resume）
 
 
 BASE_DIR = Path(__file__).parent  # backendフォルダー

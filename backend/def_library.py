@@ -20,6 +20,7 @@ import logging
 
 # サードパーティライブラリ
 import docx
+import docx2txt
 import numpy as np
 import openai
 import pandas as pd
@@ -37,6 +38,7 @@ from pptx.util import Pt
 from sentence_transformers import SentenceTransformer, util
 from openai import OpenAI
 from dotenv import load_dotenv
+import fitz
 
 # LangChain関連
 from langchain.chains import ConversationChain
@@ -60,7 +62,10 @@ from config import (
     FILESUMMARY_PATH,
     PPTXUPLOAD_DIR,
     PDFUPLOAD_DIR,
-    PPTX_INDEX_PATH
+    PPTX_INDEX_PATH,
+    RESUME_PATH,
+    SKILLS_PATH,
+    RESULT_PATH
 )
 
 # 型定義
@@ -2450,3 +2455,159 @@ def generate_ai_reason_comment(
 def truncate(text: str, max_chars: int = 300) -> str:
     return text[:max_chars] + "..." if len(text) > max_chars else text
 #### 2025.7.30 Mod（pptx defs maintenance）END
+
+#### 2025.8.4 Add（Resume）START
+# scoring.py（マスト要件の理由付き LLM 判定対応）
+def extract_text_from_pdf_resume(file_path: str) -> str:
+    doc = fitz.open(file_path)
+    text = "\n".join(page.get_text() for page in doc)
+    doc.close()
+    return text
+
+
+def extract_text_from_docx_resume(file_path: str) -> str:
+    return docx2txt.process(file_path)
+
+
+def extract_text_from_xlsx_resume(file_path: str) -> str:
+    try:
+        dfs = pd.read_excel(file_path, sheet_name=None)
+        text = ""
+        for sheet_name, df in dfs.items():
+            text += f"[{sheet_name}]\n"
+            text += df.astype(str).to_string(index=False)
+            text += "\n"
+        return text
+    except Exception as e:
+        return f"Excel読み込みエラー: {str(e)}"
+
+
+def extract_text_from_resume(file_path: str) -> str:
+    ext = Path(file_path).suffix.lower()
+    if ext == ".pdf":
+        return extract_text_from_pdf_resume(file_path)
+    elif ext == ".docx":
+        return extract_text_from_docx_resume(file_path)
+    elif ext in [".xls", ".xlsx"]:
+        return extract_text_from_xlsx_resume(file_path)
+    else:
+        return "対応していないファイル形式です。"
+
+
+def check_must_requirements_llm(content: str, common_path: Path) -> dict:
+    with open(common_path, encoding='utf-8') as f:
+        data = json.load(f)
+    must_keywords = data.get("must_requirements", [])
+
+    prompt = f"""
+以下はある候補者の履歴書情報です：
+---
+{content}
+---
+
+以下のマスト条件を満たしているか、それぞれTrueまたはFalseで判定し、その根拠となる理由も併記してください。
+
+条件: {', '.join(must_keywords)}
+
+回答形式:
+JSON形式で次のように返してください：
+{{
+  "大卒": {{"result": true, "reason": "東京大学卒業と明記されているため"}},
+  "3年以上の職務経験": {{"result": true, "reason": "合計6年の職歴が記載されているため"}},
+  ...
+}}
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    try:
+        result = json.loads(response.choices[0].message.content)
+        return result
+    except Exception as e:
+        return {k: {"result": False, "reason": "判定失敗"} for k in must_keywords}
+
+
+def load_division_profiles(skills_dir: Path) -> list:
+    profiles = []
+    for json_file in skills_dir.glob("*.json"):
+        if json_file.name == "common.json":
+            continue
+        with open(json_file, encoding='utf-8') as f:
+            data = json.load(f)
+            profiles.append(data)
+    return profiles
+
+
+def save_result_to_file(result: dict, candidate_id: str):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = RESULT_PATH / f"{candidate_id}_{timestamp}.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+
+def score_resume(file_path: str, candidate_id: str) -> dict:
+    content = extract_text_from_resume(file_path)
+    common_path = SKILLS_PATH / "common.json"
+    must_results = check_must_requirements_llm(content, common_path)
+
+    if not all(item["result"] for item in must_results.values()):
+        result = {
+            "user_id": candidate_id,
+            "timestamp": datetime.now().isoformat(),
+            "must_check": must_results,
+            "scores": [],
+            "recommended_division": None
+        }
+        save_result_to_file(result, candidate_id)
+        return result
+
+    division_profiles = load_division_profiles(SKILLS_PATH)
+    scores = []
+
+    for profile in division_profiles:
+        prompt = f"""
+あなたは人事担当者です。
+以下の履歴書情報を読み、部門「{profile['division']}」の人物像にどの程度合致するかを10点満点で評価してください。
+理想の特徴: {', '.join(profile['desired_traits'])}
+
+候補者の履歴書:
+{content}
+
+回答形式:
+JSONで以下のように返してください：
+{{"division": "{profile['division']}", "score": 数値, "reason": "理由"}}
+"""
+
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2
+        )
+
+        try:
+            json_data = json.loads(response.choices[0].message.content)
+            scores.append(json_data)
+        except Exception as e:
+            scores.append({
+                "division": profile["division"],
+                "score": 0,
+                "reason": f"解析エラー: {str(e)}"
+            })
+
+    recommended = max(scores, key=lambda x: x["score"])
+
+    result = {
+        "user_id": candidate_id,
+        "timestamp": datetime.now().isoformat(),
+        "must_check": must_results,
+        "scores": scores,
+        "recommended_division": recommended["division"]
+    }
+    save_result_to_file(result, candidate_id)
+    return result
+#### 2025.8.4 Add（Resume）END

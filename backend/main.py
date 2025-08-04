@@ -11,6 +11,7 @@ import asyncio
 import sqlite3 
 from uuid import uuid4
 import pickle
+import shutil
 
 # サードパーティライブラリ
 from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form, Query
@@ -29,8 +30,8 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -1100,6 +1101,50 @@ async def export_results(req: ProductQuery, request: Request):
         # JSON形式でエクスポート
         return JSONResponse(content=results)
 # 2025.7.11 Add（search documents Enhanced）END
+
+#### 2025.8.4 Add（Resume）START
+@app.post("/resume-score")
+async def resume_score(file: UploadFile = File(...), candidate_id: str = Form(...)):
+    save_filename = f"{candidate_id}_{file.filename}"
+    save_path = RESUME_PATH / save_filename
+
+    # ファイル保存
+    with open(save_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        # スコア処理 + 結果保存
+        result = score_resume(str(save_path), candidate_id)
+        return JSONResponse(content=result)
+    except Exception as e:
+        return JSONResponse(
+            content={"error": f"処理中に例外が発生しました: {str(e)}"},
+            status_code=500
+        )
+    
+
+@app.get("/resume-results")
+async def get_resume_results():
+    results = []
+    for file in RESULT_PATH.glob("*.json"):
+        try:
+            with open(file, encoding='utf-8') as f:
+                results.append(json.load(f))
+        except Exception as e:
+            continue
+    return JSONResponse(content=results)
+
+@app.get("/resume-result/{candidate_id}")
+async def get_result_by_candidate_id(candidate_id: str):
+    files = sorted(RESULT_PATH.glob(f"{candidate_id}_*.json"), reverse=True)
+    if not files:
+        return JSONResponse(content={"error": "結果が見つかりません"}, status_code=404)
+    try:
+        with open(files[0], encoding="utf-8") as f:
+            return JSONResponse(content=json.load(f))
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+#### 2025.8.4 Add（Resume）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
 from openai_config import create_custom_openapi
