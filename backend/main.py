@@ -29,7 +29,7 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH
 
 
@@ -824,7 +824,7 @@ async def save_feedback(fb: Feedback):
 #### 2025.7.18 Add（feedback）END
 
 #### 2025.7.30 Mod（pptx defs maintenance）START
-@app.post("/upload_and_index_pptx/")
+@app.post("/upload_and_index_pptx/") #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
 async def upload_and_index_pptx(file: UploadFile = File(...)):
     print("✅ ファイル名:", file.filename)
 
@@ -858,6 +858,24 @@ async def upload_and_index_pptx(file: UploadFile = File(...)):
         "id": file_id,
         "summaries": merged_summaries_list,
         "pdf_filename": pdf_path.name
+    }
+
+@app.post("/update_summary_index") #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
+async def update_summary_index():
+    new_summaries = []
+
+    for filename in os.listdir(PPTXUPLOAD_DIR):
+        if not filename.endswith(".pptx"):
+            continue
+
+        result = process_single_file(filename)
+        if result:
+            new_summaries.append(result)
+
+    return {
+        "success": True,
+        "processed_files": new_summaries,
+        "message": f"{len(new_summaries)} 件のpptxファイルを要約DBに追加しました。"
     }
 
 @app.post("/update_pptx_index")

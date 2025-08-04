@@ -1527,6 +1527,43 @@ def is_informative(text: str, min_char: int = 30) -> bool:
 
     return True
 
+def is_already_summarized(filename: str) -> bool: #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
+    conn = sqlite3.connect(FILESUMMARY_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(1) FROM summaries WHERE filename = ?", (filename,))
+        count = cur.fetchone()[0]
+        return count > 0
+    finally:
+        conn.close()
+
+def process_single_file(filename: str) -> dict | None: #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
+    if is_already_summarized(filename):
+        print(f"✅ 要約済みスキップ: {filename}")
+        return None
+
+    pptx_path = PPTXUPLOAD_DIR / filename
+    pdf_path = convert_pptx_to_pdf(pptx_path, PDFUPLOAD_DIR)
+    if not pdf_path:
+        return None
+
+    slides = get_valid_slides(pptx_path)
+    if not slides:
+        print(f"⚠️ 有効なスライドなし（スキップ）: {filename}")
+        return None
+
+    file_id = str(uuid.uuid4())
+    merged_summaries = summarize_file(file_id, filename, slides, pdf_path)
+    if not merged_summaries:
+        return None
+
+    save_summary(filename, merged_summaries)
+
+    return {
+        "filename": filename,
+        "summary_count": len(merged_summaries)
+    }
+
 def build_pptx_index_incremental():
     print("🔍 インデックス更新処理開始")
 
@@ -1804,6 +1841,74 @@ def convert_pdf_to_images(pdf_path: Path, output_dir: Path) -> list[Path]:
         image_paths.append(image_path)
 
     return image_paths
+
+def save_summary(filename: str, merged_summaries: list): #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
+    """
+    要約済スライド（merged_summaries）を SQLite に保存し、
+    embedding_cache を永続化して APIコストを最小化する。
+    """
+    file_id = str(uuid4())
+    conn = sqlite3.connect(FILESUMMARY_PATH)
+
+    for item in merged_summaries:
+        slide_index = item.get("slide_index")
+        summary = item.get("summary", "").strip()
+
+        if not summary:
+            print(f"⚠️ スライド{slide_index} に summary がないためスキップ")
+            continue
+
+        try:
+            embedding_vector = get_embedding(summary)  # キャッシュ付き
+            embedding_blob = pickle.dumps(embedding_vector)
+        except Exception as e:
+            print(f"⚠️ embedding生成失敗（スライド{slide_index}）: {e}")
+            embedding_blob = None
+
+        conn.execute(
+            """
+            INSERT INTO summaries (
+                id, filename, slide_index, summary, embedding, is_summary_valid
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (file_id, filename, slide_index, summary, embedding_blob, 1)
+        )
+
+    conn.commit()
+    conn.close()
+
+    # ✅ 埋め込みキャッシュを永続化
+    try:
+        with open(CACHE_PATH, "w") as f:
+            json.dump(embedding_cache, f)
+        print("🧠 embedding_cache を保存しました。")
+    except Exception as e:
+        print(f"⚠️ embedding_cache 保存失敗: {e}")
+
+    print(f"✅ 要約DBに保存完了: {filename}")
+
+def get_valid_slides(pptx_path: Path) -> list[str]: #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
+    slides = extract_text_from_pptx(pptx_path)
+    if isinstance(slides[0], str):
+        return [s for s in slides if is_informative(s)]
+    else:
+        return [s["text"] for s in slides if is_informative(s.get("text", ""))]
+
+def summarize_file(file_id: str, filename: str, slides: list[str], pdf_path: Path) -> list[dict]: #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
+    try:
+        summaries_from_text = summarize_and_store_slides(file_id, filename, slides)
+    except Exception as e:
+        print(f"❌ テキスト要約失敗: {e}")
+        return []
+
+    try:
+        summaries_from_image = summarize_pdf_slides_with_vision(file_id, pdf_path, filename)
+    except Exception as e:
+        print(f"⚠️ Vision要約失敗: {e}")
+        summaries_from_image = []
+
+    merged = merge_summaries_by_slide_index(summaries_from_text, summaries_from_image)
+    return list(merged.values())
 
 # ----- テキスト/画像抽出・ファイルの解釈作業 -----
 def extract_text_from_pptx(path):
