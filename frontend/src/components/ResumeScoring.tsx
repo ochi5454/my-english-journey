@@ -27,6 +27,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('candidate_id', candidateId);
+        formData.append('uploader_id', userId); // 2025.8.5 Add（uploader id）
 
         try {
         const response = await fetch('/resume-score', {

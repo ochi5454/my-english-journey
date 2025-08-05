@@ -276,3 +276,97 @@
   background-color: rgba(100, 100, 100, 0.5);
   border-radius: 4px;
 }
+
+.resume-detail-split {
+  display: flex;
+  gap: 24px;
+  max-width: 1000px;
+}
+
+.resume-detail-left {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.resume-detail-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #f4f4f4;
+  padding: 16px;
+  border-radius: 8px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* チャットヘッダーにスタンプも横並び */
+.resume-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+/* チャットボックス：上に余白を足す */
+.resume-chat-box {
+  flex-grow: 1;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  margin-top: 4px; /* スタンプとの間隔 */
+  border: 1px solid #ccc;
+  background: white;
+  padding: 8px;
+  border-radius: 8px;
+  max-height: 300px;
+}
+
+.resume-chat-msg {
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+}
+
+.resume-chat-msg.user {
+  text-align: right;
+}
+
+.resume-chat-msg.ai {
+  text-align: left;
+}
+
+/* テキストエリアのフォント統一 */
+.resume-chat-input {
+  width: 100%;
+  min-height: 60px;
+  padding: 0.5rem;
+  font-size: 1rem;
+  font-family: inherit;  /* 他と同じフォントに揃える */
+  margin-bottom: 8px;
+}
+
+/* スタンプボックス本体 */
+.resume-stamp-box {
+  background-color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #333;
+  box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.15);
+  max-width: 200px;
+}
+
+/* 右上に浮かせて配置（チャット枠の中） */
+.floating-stamp {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  background-color: #fff;
+  pointer-events: none; /* ユーザー操作をブロック（誤クリック防止） */
+}
+
+.resume-stamp-box p {
+    margin: 2px 0;
+}

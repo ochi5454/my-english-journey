@@ -30,8 +30,8 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustment, load_division_profiles, extract_original_scores_from_message, load_latest_result, save_result_with_timestamp, update_score_in_result, update_recommended_division
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -159,6 +159,21 @@ class Feedback(BaseModel):
     timestamp: str
     public: Optional[bool] = False  #### 2025.7.25 Mod（public feedback）
 #### 2025.7.18 Add（feedback）END
+
+#### 2025.8.5 Add（resume review）START
+class ScoreChatRequest(BaseModel):
+    candidate_id: str
+    reviewer_id: str
+    phase: Optional[str] = "2nd_review"
+    messages: List[ChatTurn]
+
+class ScoreUpdateRequest(BaseModel):
+    candidate_id: str
+    division: str
+    score: int          # ← 修正
+    reason: str         # ← 修正
+    reviewer_id: Optional[str] = None
+#### 2025.8.5 Add（resume review）END
 
 # CORS設定を追加
 app.add_middleware(
@@ -1104,7 +1119,7 @@ async def export_results(req: ProductQuery, request: Request):
 
 #### 2025.8.4 Add（Resume）START
 @app.post("/resume-score")
-async def resume_score(file: UploadFile = File(...), candidate_id: str = Form(...)):
+async def resume_score(file: UploadFile = File(...), candidate_id: str = Form(...), uploader_id: str = Form(...) ): #### 2025.8.5 Mod（uploader id）
     save_filename = f"{candidate_id}_{file.filename}"
     save_path = RESUME_PATH / save_filename
 
@@ -1115,6 +1130,16 @@ async def resume_score(file: UploadFile = File(...), candidate_id: str = Form(..
     try:
         # スコア処理 + 結果保存
         result = score_resume(str(save_path), candidate_id)
+
+        #### 2025.8.5 Mod（uploader id）START
+        result["uploader_id"] = uploader_id
+
+        # JSON結果を保存
+        result_path = RESULT_PATH / f"{candidate_id}_result.json"
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        #### 2025.8.5 Mod（uploader id）END
+
         return JSONResponse(content=result)
     except Exception as e:
         return JSONResponse(
@@ -1144,6 +1169,59 @@ async def get_result_by_candidate_id(candidate_id: str):
             return JSONResponse(content=json.load(f))
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+#### 2025.8.5 Add（resume review）START
+@app.post("/chat-score-review")
+async def chat_score_review(payload: ScoreChatRequest):
+    messages = [m.dict() for m in payload.messages]
+    division_profiles = load_division_profiles(SKILLS_PATH)
+    valid_divisions = [p["division"] for p in division_profiles]
+
+    # 最新のuserメッセージから元スコアを抽出
+    last_user_msg = next((m for m in reversed(messages) if m["role"] == "user"), None)
+    original_scores = extract_original_scores_from_message(last_user_msg["content"]) if last_user_msg else {}
+
+    # プロンプト生成 → 応答 → スコア解析
+    prompt = generate_score_review_prompt(messages, valid_divisions)
+    reply = call_openai_chat(prompt)
+    adjusted_score = parse_score_adjustment(reply, original_scores)
+
+    return {
+        "reply": reply,
+        "adjusted_score": adjusted_score
+    }
+
+@app.post("/update-score")
+async def update_score(payload: ScoreUpdateRequest):
+    candidate_id = payload.candidate_id
+    division = payload.division
+    score = payload.score
+    reason = payload.reason
+    reviewer_id = payload.reviewer_id  # 👈 2次評価者
+
+    result = load_latest_result(candidate_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="候補者データが見つかりません")
+
+    if not update_score_in_result(
+        result,
+        division,
+        score,
+        reason,
+        second_reviewer=reviewer_id,
+        second_reviewed_at=datetime.now().isoformat()
+    ):
+        raise HTTPException(status_code=400, detail=f"部門「{division}」が見つかりません")
+
+    # ✅ 👇ここでルートに追加
+    result["updated_by"] = reviewer_id
+    result["updated_at"] = datetime.now().isoformat()
+
+    update_recommended_division(result)
+    saved_filename = save_result_with_timestamp(result, candidate_id)
+
+    return JSONResponse(content=result)  # ✅ result全体を返す
+#### 2025.8.5 Add（resume review）END
 #### 2025.8.4 Add（Resume）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
