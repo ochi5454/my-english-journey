@@ -2457,17 +2457,14 @@ def truncate(text: str, max_chars: int = 300) -> str:
 #### 2025.7.30 Mod（pptx defs maintenance）END
 
 #### 2025.8.4 Add（Resume）START
-# scoring.py（マスト要件の理由付き LLM 判定対応）
 def extract_text_from_pdf_resume(file_path: str) -> str:
     doc = fitz.open(file_path)
     text = "\n".join(page.get_text() for page in doc)
     doc.close()
     return text
 
-
 def extract_text_from_docx_resume(file_path: str) -> str:
     return docx2txt.process(file_path)
-
 
 def extract_text_from_xlsx_resume(file_path: str) -> str:
     try:
@@ -2481,7 +2478,6 @@ def extract_text_from_xlsx_resume(file_path: str) -> str:
     except Exception as e:
         return f"Excel読み込みエラー: {str(e)}"
 
-
 def extract_text_from_resume(file_path: str) -> str:
     ext = Path(file_path).suffix.lower()
     if ext == ".pdf":
@@ -2492,7 +2488,6 @@ def extract_text_from_resume(file_path: str) -> str:
         return extract_text_from_xlsx_resume(file_path)
     else:
         return "対応していないファイル形式です。"
-
 
 def check_must_requirements_llm(content: str, common_path: Path) -> dict:
     with open(common_path, encoding='utf-8') as f:
@@ -2530,7 +2525,6 @@ JSON形式で次のように返してください：
     except Exception as e:
         return {k: {"result": False, "reason": "判定失敗"} for k in must_keywords}
 
-
 def load_division_profiles(skills_dir: Path) -> list:
     profiles = []
     for json_file in skills_dir.glob("*.json"):
@@ -2541,14 +2535,12 @@ def load_division_profiles(skills_dir: Path) -> list:
             profiles.append(data)
     return profiles
 
-
 def save_result_to_file(result: dict, candidate_id: str):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_path = RESULT_PATH / f"{candidate_id}_{timestamp}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
-
 
 def score_resume(file_path: str, candidate_id: str) -> dict:
     content = extract_text_from_resume(file_path)
@@ -2610,4 +2602,124 @@ JSONで以下のように返してください：
     }
     save_result_to_file(result, candidate_id)
     return result
+
+#### 2025.8.5 Add（resume review）START
+def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str]) -> list[dict]:
+    system_prompt = {
+        "role": "system",
+        "content": (
+            "あなたは人事のサポートAIとして、候補者のスコア評価の再検討を支援します。\n"
+            "以下の部門に限り、0〜10点で再評価してください：\n"
+            f"{', '.join(valid_divisions)}\n"
+            "人事担当者からのコメントを受けて、点数を変更する必要がある場合、以下の形式で出力してください：\n"
+            "[スコア調整]: 部門=◯◯, 変更後スコア=◯, 理由=◯◯\n"
+            "- 指示が「下げて」のような場合、実際に点数を下げてください。\n"
+            "- 元のスコアが既に低い場合は、そのままで良いと応答してください。\n"
+            "- 回答に複数の部門が含まれても構いません。"
+        )
+    }
+    return [system_prompt] + messages[-5:]
+
+def call_openai_chat(prompt: list[dict], model: str = "gpt-3.5-turbo") -> str:
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=prompt,
+            temperature=0.3
+        )
+        # contentがNoneでもstrとして返すように防御
+        return response.choices[0].message.content or ""
+    except Exception as e:
+        return f"AI応答に失敗しました: {str(e)}"
+
+def parse_score_adjustment(reply: Optional[str], original_scores: dict) -> Optional[dict]:
+    if not reply or not isinstance(reply, str):
+        return None
+
+    match = re.search(
+        r"\[スコア調整\]: 部門=(.+?), 変更後スコア=(\d+), 理由=(.+)",
+        reply
+    )
+    if not match:
+        return None
+
+    division = match.group(1).strip()
+    new_score = int(match.group(2))
+    reason = match.group(3).strip()
+    old_score = original_scores.get(division)
+
+    # 元スコアと同じなら無意味な変更として無視（オプション）
+    if old_score is not None and new_score == old_score:
+        return None
+
+    return {
+        "division": division,
+        "score": new_score,
+        "reason": reason
+    }
+
+def extract_original_scores_from_message(text: str) -> dict:
+    """
+    「【部門名】現在スコア: X点, 理由: ...」という形式から部門ごとのスコアを抽出
+    """
+    results = {}
+    lines = text.splitlines()
+    for line in lines:
+        match = re.match(r"【(.+?)】現在スコア: (\d+)点", line)
+        if match:
+            division = match.group(1).strip()
+            score = int(match.group(2))
+            results[division] = score
+    return results
+
+def load_latest_result(candidate_id: str) -> Optional[dict]:
+    """候補者の最新スコアファイルを読み込む"""
+    files = sorted(RESULT_PATH.glob(f"{candidate_id}_*.json"), reverse=True)
+    if not files:
+        return None
+
+    try:
+        with open(files[0], encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def save_result_with_timestamp(result: dict, candidate_id: str) -> str:
+    """タイムスタンプ付きで保存し、ファイル名を返す"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = RESULT_PATH / f"{candidate_id}_{timestamp}.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    return out_path.name
+
+def update_score_in_result(result: dict, division: str, new_score: int, new_reason: str,
+                            second_reviewer: Optional[str] = None,
+                            second_reviewed_at: Optional[str] = None) -> bool:
+    for s in result.get("scores", []):
+        if s["division"] == division:
+            # 保存前に元の値を original_〜 に残す（なければ）
+            if "original_score" not in s:
+                s["original_score"] = s["score"]
+            if "original_reason" not in s:
+                s["original_reason"] = s["reason"]
+
+            s["score"] = new_score
+            s["reason"] = new_reason
+
+            if second_reviewer:
+                s["second_reviewer"] = second_reviewer
+            if second_reviewed_at:
+                s["second_reviewed_at"] = second_reviewed_at
+            return True
+    return False
+
+def update_recommended_division(result: dict):
+    """推奨部門を再評価"""
+    if result.get("scores"):
+        recommended = max(result["scores"], key=lambda x: x["score"])
+        result["recommended_division"] = recommended["division"]
+#### 2025.8.5 Add（resume review）END
 #### 2025.8.4 Add（Resume）END
