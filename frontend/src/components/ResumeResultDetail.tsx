@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ResumeInterviewSetupSlidePanel from './ResumeInterviewSetupSlidePanel';
 
 const formatDate = (isoStr: string): string => {
     if (!isoStr) return '日時不明';
@@ -11,6 +12,18 @@ const formatDate = (isoStr: string): string => {
         minute: '2-digit',
     });
 };
+
+const statusSteps = [
+    "書類選考・1次",
+    "書類選考・2次",
+    "面談・1次",
+    "面談・2次",
+    "最終面談",
+    "待遇検討",
+    "内定通知",
+    "内定受諾",
+    "内定辞退"
+];
 
 type ChatMessage = {
     role: 'user' | 'assistant';
@@ -26,13 +39,13 @@ interface Props {
 const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }) => {
     const [chatInput, setChatInput] = useState('');
     const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
-    const [localResult, setLocalResult] = useState<any>(result); // ✅ ローカルにコピー
+    const [localResult, setLocalResult] = useState<any>(result);
+    const [isSending, setIsSending] = useState(false);
+    const [showInterviewModal, setShowInterviewModal] = useState(false);
 
     useEffect(() => {
-        setLocalResult(result); // 外部更新があれば反映
+        setLocalResult(result);
     }, [result]);
-
-    const [isSending, setIsSending] = useState(false);
 
     const generateContextualMessage = (scores: any[], comment: string): string => {
         const scoreLines = scores.map(s =>
@@ -104,91 +117,186 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
         }
     };
 
+    const isDocumentReview2Done = !!localResult.updated_at;
+
     return (
         <>
             <div className="resume-modal-overlay" onClick={onClose}></div>
-            <div className="resume-modal resume-detail-split">
-                <div className="resume-detail-left">
-                    <button onClick={onClose} className="resume-close-button">✖ 閉じる</button>
-                    <h3>候補者: {localResult.user_id}</h3>
-                    <p>推奨部門: {localResult.recommended_division}</p>
-
-                    <h4>マスト要件チェック:</h4>
-                    <ul>
-                        {localResult.must_check && Object.entries(localResult.must_check).map(([key, val]: any) => (
-                            <li key={key} style={{ color: val.result ? 'green' : 'red' }}>
-                                {key}: {val.result ? '✅' : '❌'} - {val.reason}
-                            </li>
-                        ))}
-                    </ul>
-
-                    <h4>スコア評価:</h4>
-                    {Array.isArray(localResult.scores) && localResult.scores.map((s: any) => {
-                        const hasSecondReview = s.second_reviewer && s.second_reviewed_at;
-                        const originalScore = s.original_score ?? s.score;
-                        const originalReason = s.original_reason ?? s.reason;
-                        const isChanged = hasSecondReview && s.score !== originalScore;
-
-                        return (
-                            <div key={s.division} className="resume-score-item">
-                                <p><strong>{s.division}</strong>:</p>
-
-                                {/* 1次評価 */}
-                                <p>
-                                    <span>1次スコア: {originalScore}点</span><br />
-                                    <span style={{ fontSize: '0.9em', color: '#666' }}>理由: {originalReason}</span>
-                                </p>
-
-                                {/* 2次評価があり、スコアに変化があれば表示 */}
-                                {isChanged && (
-                                    <div style={{ marginTop: '4px', paddingLeft: '10px', borderLeft: '2px solid #ccc' }}>
-                                        <p>
-                                            <span style={{ textDecoration: 'line-through', color: 'gray' }}>{originalScore}点</span>
-                                            → <span style={{ color: 'blue' }}>{s.score}点</span>
-                                        </p>
-                                        <p style={{ fontSize: '0.9em', color: '#333' }}>
-                                            修正理由: {s.reason}
-                                        </p>
-                                        <p style={{ fontSize: '0.85em', color: '#888' }}>
-                                            修正担当: {s.second_reviewer}（{formatDate(s.second_reviewed_at)}）
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                <div className="resume-detail-right">
-                    <div className="resume-chat-header">
-                        <h4>AIとのスコア精査チャット</h4>
-                        <div className="resume-stamp-box">
-                            <p><strong>1次日時:</strong> {formatDate(localResult.timestamp)}</p>
-                            <p><strong>1次担当:</strong> {localResult.uploader_id || '不明'}</p>
-                            <p><strong>2次日時:</strong> {formatDate(localResult.updated_at)}</p>
-                            <p><strong>2次担当:</strong> {localResult.updated_by || '未入力'}</p>
+            <div className="resume-modal">
+                <div className="resume-fixed-header">
+                    <button onClick={onClose} className="resume-close-button-absolute">✖ 閉じる</button>
+                    <div className="resume-header">
+                        <div className="resume-header-info">
+                            <h3>候補者: {localResult.user_id}</h3>
+                            <p>推奨部門: {localResult.recommended_division}</p>
                         </div>
                     </div>
 
-                    <div className="resume-chat-box">
-                        {chatLog.map((msg, i) => (
-                            <div key={i} className={`resume-chat-msg ${msg.role}`}>
-                                <strong>{msg.role === 'user' ? '👤' : '🤖'}:</strong> {msg.content}
-                            </div>
-                        ))}
+                    <div className="resume-status-header">
+                        <h3>選考ステータス</h3>
+                        <div className="status-bar-horizontal">
+                            {statusSteps.map((step, idx) => {
+                                const isActive = localResult.status === step;
+                                const isStepDone =
+                                    (step === '書類選考・1次' && !!localResult.timestamp) ||
+                                    (step === '書類選考・2次' && !!localResult.updated_at);
+
+                                const handleClick = () => {
+                                    if (step === '面談・1次' && isDocumentReview2Done) {
+                                        setShowInterviewModal(true);
+                                    }
+                                };
+
+                                return (
+                                    <div
+                                        key={idx}
+                                        className={`status-step-horizontal ${isActive ? 'active' : ''} ${isStepDone ? 'status-done' : ''}`}
+                                        onClick={handleClick}
+                                    >
+                                        {step}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="status-extra-info-box">
+                            {localResult.timestamp && (
+                                <div className="status-extra-info-item">
+                                    <div className="line">
+                                        <span className="label">📅</span>
+                                        <span className="value">{formatDate(localResult.timestamp)}</span>
+                                    </div>
+                                    <div className="line">
+                                        <span className="label">👤</span>
+                                        <span className="value">{localResult.uploader_id || '不明'}</span>
+                                    </div>
+                                </div>
+                            )}
+                            {localResult.updated_at && (
+                                <div className="status-extra-info-item">
+                                    <div className="line">
+                                        <span className="label">📅</span>
+                                        <span className="value">{formatDate(localResult.updated_at)}</span>
+                                    </div>
+                                    <div className="line">
+                                        <span className="label">👤</span>
+                                        <span className="value">{localResult.updated_by || '不明'}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="resume-detail-split">
+                    <div className="resume-detail-left">
+                        <h3>スコア</h3>
+                        <h4>マスト要件チェック:</h4>
+                        <ul>
+                            {localResult.must_check && Object.entries(localResult.must_check).map(([key, val]: any) => (
+                                <li key={key} style={{ color: val.result ? 'green' : 'red' }}>
+                                    {key}: {val.result ? '✅' : '❌'} - {val.reason}
+                                </li>
+                            ))}
+                        </ul>
+
+                        <h4>スコア評価:</h4>
+                        {Array.isArray(localResult.scores) && localResult.scores.map((s: any) => {
+                            const hasSecondReview = s.second_reviewer && s.second_reviewed_at;
+                            const originalScore = s.original_score ?? s.score;
+                            const originalReason = s.original_reason ?? s.reason;
+                            const isChanged = hasSecondReview && s.score !== originalScore;
+
+                            return (
+                                <div key={s.division} className="resume-score-item">
+                                    <p><strong>{s.division}</strong>:</p>
+                                    <p>
+                                        <span>1次スコア: {originalScore}点</span><br />
+                                        <span style={{ fontSize: '0.9em', color: '#666' }}>理由: {originalReason}</span>
+                                    </p>
+                                    {isChanged && (
+                                        <div style={{ marginTop: '4px', paddingLeft: '10px', borderLeft: '2px solid #ccc' }}>
+                                            <p>
+                                                <span style={{ textDecoration: 'line-through', color: 'gray' }}>{originalScore}点</span>
+                                                → <span style={{ color: 'blue' }}>{s.score}点</span>
+                                            </p>
+                                            <p style={{ fontSize: '0.9em', color: '#333' }}>
+                                                修正理由: {s.reason}
+                                            </p>
+                                            <p style={{ fontSize: '0.85em', color: '#888' }}>
+                                                修正担当: {s.second_reviewer}（{formatDate(s.second_reviewed_at)}）
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
-                    <textarea
-                        className="resume-chat-input"
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        placeholder="質問・修正依頼を入力..."
-                    />
-                    <button onClick={handleSend} disabled={isSending} className="resume-submit">
-                        {isSending ? '送信中...' : '送信'}
-                    </button>
+                    <div className="resume-detail-right">
+                        <div className="resume-chat-header">
+                            <h4>AIとのスコア精査チャット</h4>
+                        </div>
+
+                        <div className="resume-chat-box">
+                            {chatLog.map((msg, i) => (
+                                <div key={i} className={`resume-chat-msg ${msg.role}`}>
+                                    <strong>{msg.role === 'user' ? '👤' : '🤖'}:</strong> {msg.content}
+                                </div>
+                            ))}
+                        </div>
+
+                        <textarea
+                            className="resume-chat-input"
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            placeholder="質問・修正依頼を入力..."
+                        />
+                        <button onClick={handleSend} disabled={isSending} className="resume-submit">
+                            {isSending ? '送信中...' : '送信'}
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            {showInterviewModal && (
+                <ResumeInterviewSetupSlidePanel
+                candidateId={localResult.user_id}
+                isOpen={showInterviewModal}
+                onClose={() => setShowInterviewModal(false)}
+                onSubmit={async (data) => {
+                    try {
+                    const res = await fetch('/interview/setup', {
+                        method: 'POST',
+                        headers: {
+                        'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                        candidate: localResult.user_id,
+                        interviewer: data.interviewer,
+                        interviewDate: data.interviewDate,
+                        todo: data.todo,
+                        candidateMail: data.candidateMail,
+                        interviewerMail: data.interviewerMail
+                        })
+                    });
+
+                    if (!res.ok) throw new Error(`送信エラー: ${res.status}`);
+
+                    const result = await res.json();
+                    console.log('✅ メール送信成功:', result.message);
+
+                    alert("面談メールを送信しました");
+
+                    } catch (err: any) {
+                    console.error("⚠ 面談送信失敗:", err);
+                    alert(`送信エラー: ${err.message || err.toString()}`);
+                    } finally {
+                    setShowInterviewModal(false);
+                    }
+                }}
+                />
+            )}
         </>
     );
 };

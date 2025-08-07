@@ -65,7 +65,11 @@ from config import (
     PPTX_INDEX_PATH,
     RESUME_PATH,
     SKILLS_PATH,
-    RESULT_PATH
+    RESULT_PATH,
+    INTERVIEWER_PATH,
+    INTERVIEW_TODO_PATH,
+    INTERVIEWER_EMAIL_PATH,
+    CANDIDATE_EMAIL_PATH
 )
 
 # 型定義
@@ -1700,6 +1704,75 @@ def build_pptx_index_incremental():
     else:
         print("ℹ️ 追加すべき新規PPTXはありませんでした。")
 
+# pending #
+def build_text_only_pptx_index(): #### 2025.8.6 Add（no use image）
+    print("📂 テキスト専用PPTXインデックス作成開始")
+
+    if PPTX_INDEX_PATH.exists():
+        with open(PPTX_INDEX_PATH, "r") as f:
+            index = json.load(f)
+        print(f"📁 既存インデックス読み込み: {len(index)}件")
+    else:
+        index = []
+        print("📁 新規インデックス作成")
+
+    indexed_files = {item["filename"] for item in index}
+    new_items = []
+
+    for filename in os.listdir(PPTXUPLOAD_DIR):
+        if not filename.endswith(".pptx") or filename in indexed_files:
+            continue
+
+        pptx_path = PPTXUPLOAD_DIR / filename
+        print(f"✅ 新規ファイル検出: {filename}")
+
+        try:
+            prs = Presentation(pptx_path)
+        except Exception as e:
+            print(f"❌ プレゼン読み込み失敗: {e}")
+            continue
+
+        for i, slide in enumerate(prs.slides):
+            slide_text = []
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    slide_text.append(shape.text)
+            full_text = "\n".join(slide_text).strip()
+
+            if not is_informative(full_text):
+                print(f"⚠️ スライド{i+1} 情報量が少ないためスキップ")
+                continue
+
+            try:
+                embedding = get_embedding(full_text)
+            except Exception as e:
+                print(f"❌ 埋め込み生成失敗（スライド{i+1}）: {e}")
+                continue
+
+            new_items.append({
+                "id": str(uuid.uuid4()),
+                "filename": filename,
+                "slide_index": i,
+                "text": full_text,
+                "embedding_text": embedding
+            })
+
+    if new_items:
+        index.extend(new_items)
+        try:
+            with open(PPTX_INDEX_PATH, "w") as f:
+                json.dump(index, f, ensure_ascii=False, indent=2)
+            print(f"✅ テキスト専用インデックスに{len(new_items)}件追加")
+
+            with open(CACHE_PATH, "w") as f:
+                json.dump(embedding_cache, f)
+            print("🧠 埋め込みキャッシュ保存完了")
+        except Exception as e:
+            print(f"❌ インデックス保存失敗: {e}")
+    else:
+        print("ℹ️ 新規追加対象のPPTXはありませんでした。")
+# pending #
+
 def load_valid_summaries(limit: int = 50) -> str:
     conn = sqlite3.connect(FILESUMMARY_PATH)
     cursor = conn.execute(
@@ -2326,6 +2399,34 @@ def search_similar_pptx(query: str, k: int = 5):
     top_results = sorted(combined_scores, key=lambda x: x["score"], reverse=True)[:k]
     return top_results
 
+# pending #
+def search_text_pptx_index(query: str, top_k: int = 5): #### 2025.8.6 Add（no use image）
+    if not PPTX_INDEX_PATH.exists():
+        raise FileNotFoundError("PPTXインデックスが存在しません。")
+
+    with open(PPTX_INDEX_PATH, "r") as f:
+        index = json.load(f)
+
+    query_embedding = get_embedding(query)
+
+    results = []
+    for item in index:
+        emb = item.get("embedding_text")
+        if not emb:
+            continue
+        score = cosine_similarity(query_embedding, emb)
+        results.append({
+            "filename": item["filename"],
+            "slide_index": item["slide_index"],
+            "text": item["text"],
+            "score": round(score, 4)
+        })
+
+    # スコアで降順ソートして上位K件返す
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:top_k]
+# pending #
+
 def extract_themes_from_text(text: str, limit: int = 5) -> list[str]:
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     #### 2025.8.1 Add（reduce api consumption）START
@@ -2723,3 +2824,42 @@ def update_recommended_division(result: dict):
         result["recommended_division"] = recommended["division"]
 #### 2025.8.5 Add（resume review）END
 #### 2025.8.4 Add（Resume）END
+
+#### 2025.8.7 Add（interview modal）START
+def load_interview_config() -> dict:
+    """UI用：設定取得"""
+    try:
+        with open(INTERVIEWER_PATH, "r", encoding="utf-8") as f:
+            interviewers = json.load(f)
+        with open(INTERVIEW_TODO_PATH, "r", encoding="utf-8") as f:
+            todos = json.load(f)
+        with open(INTERVIEWER_EMAIL_PATH, "r", encoding="utf-8") as f:
+            template_interviewer = json.load(f)
+        with open(CANDIDATE_EMAIL_PATH, "r", encoding="utf-8") as f:
+            template_candidate = json.load(f)
+
+        return {
+            "interviewers": interviewers,
+            "todos": todos,
+            "email_templates": {
+                "to_interviewer": template_interviewer,
+                "to_candidate": template_candidate
+            }
+        }
+
+    except Exception as e:
+        raise RuntimeError(f"設定ファイルの読み込みに失敗: {str(e)}")
+
+def send_email(email: dict):
+    """
+    email = {
+        "to": "example@example.com",
+        "subject": "件名",
+        "body": "本文"
+    }
+    """
+    print(f"📧 Sending email to: {email['to']}")
+    print(f"📨 Subject: {email['subject']}")
+    print(f"📝 Body:\n{email['body']}")
+    # 実際の送信処理（SMTPなど）はここに追加
+#### 2025.8.7 Add（interview modal）END
