@@ -27,6 +27,11 @@ PPTX_INDEX_PATH = DATA_DIR / "pptx_index.json" #### 2025.7.29 Add（seaach pptx 
 RESUME_PATH = DATA_DIR / "candidate_resume_files" #### 2025.8.4 Add（Resume）
 SKILLS_PATH = DATA_DIR / "candidate_mustskills_files" #### 2025.8.4 Add（Resume）
 RESULT_PATH = DATA_DIR / "candidate_result_files" #### 2025.8.4 Add（Resume）
+INTERVIEW_PATH = DATA_DIR / "candidate_interview_db"
+INTERVIEWER_PATH = INTERVIEW_PATH / "interviewer.json"
+INTERVIEW_TODO_PATH = INTERVIEW_PATH / "todo.json"
+INTERVIEWER_EMAIL_PATH = INTERVIEW_PATH / "template_to_interviewer.json"
+CANDIDATE_EMAIL_PATH = INTERVIEW_PATH / "template_to_candidate.json"
 
 
 BASE_DIR = Path(__file__).parent  # backendフォルダー

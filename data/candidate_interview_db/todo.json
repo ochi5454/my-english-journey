@@ -1,0 +1,5 @@
+[
+    { "id": "resume_review", "label": "履歴書の事前確認" },
+    { "id": "portfolio_check", "label": "ポートフォリオ精査" },
+    { "id": "question_list", "label": "質問リスト準備" }
+]

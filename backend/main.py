@@ -30,7 +30,7 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustment, load_division_profiles, extract_original_scores_from_message, load_latest_result, save_result_with_timestamp, update_score_in_result, update_recommended_division
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustment, load_division_profiles, extract_original_scores_from_message, load_latest_result, save_result_with_timestamp, update_score_in_result, update_recommended_division, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_email
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH
 
 
@@ -174,6 +174,30 @@ class ScoreUpdateRequest(BaseModel):
     reason: str         # ← 修正
     reviewer_id: Optional[str] = None
 #### 2025.8.5 Add（resume review）END
+
+# pending #
+#### 2025.8.6 Add（no use image）START
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+class SearchResult(BaseModel):
+    filename: str
+    slide_index: int
+    text: str
+    score: float
+#### 2025.8.6 Add（no use image）END
+# pending #
+
+#### 2025.8.7 Add（interview modal）START
+class InterviewSetupRequest(BaseModel):
+    interviewDate: str
+    interviewer: str    # email アドレスを期待
+    candidate: str      # email アドレスを期待
+    todo: str
+    candidateMail: str
+    interviewerMail: str
+#### 2025.8.7 Add（interview modal）END
 
 # CORS設定を追加
 app.add_middleware(
@@ -902,6 +926,16 @@ async def update_pptx_index():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+# pending #
+@app.post("/update_text_only_pptx_index") #### 2025.8.6 Add（no use image）
+async def update_text_only_pptx_index():
+    try:
+        build_text_only_pptx_index()
+        return {"status": "success", "message": "Text-only PPTX index updated."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+# pending #
+
 @app.get("/search_summaries/")
 async def search_summaries(query: str = Query(...)):
     results = search_similar_summaries(query)
@@ -928,6 +962,17 @@ async def search_pptx(query: str = Query(...)):
     return {"results": results, "comment": comment} # 戻り値を results から型変更
     # return results
     #### 2025.7.30 Mod（ai comment）END
+
+# pending #
+@router.post("/search_text_pptx_index", response_model=List[SearchResult]) #### 2025.8.6 Add（no use image）
+async def search_text_pptx_index_api(req: SearchRequest):
+    try:
+        results = search_text_pptx_index(req.query, top_k=req.top_k)
+        return results
+    except Exception as e:
+        print(f"❌ 検索失敗: {e}")
+        return []
+# pending #
 
 @app.get("/get_theme/")
 async def get_theme(limit: int = 5, source: str = "summary"):
@@ -1223,6 +1268,36 @@ async def update_score(payload: ScoreUpdateRequest):
     return JSONResponse(content=result)  # ✅ result全体を返す
 #### 2025.8.5 Add（resume review）END
 #### 2025.8.4 Add（Resume）END
+
+#### 2025.8.7 Add（interview modal）START
+@app.get("/interview/config")
+def get_config():
+    try:
+        return load_interview_config()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/interview/setup")
+def post_setup(req: InterviewSetupRequest):
+    try:
+        send_email({
+            "to": req.interviewer,
+            "subject": "【面談のご案内】",
+            "body": req.interviewerMail
+        })
+
+        send_email({
+            "to": req.candidate,
+            "subject": "【面談のご案内】",
+            "body": req.candidateMail
+        })
+
+        return { "message": "面談設定・送信成功" }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"処理エラー: {str(e)}")
+#### 2025.8.7 Add（interview modal）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
 from openai_config import create_custom_openapi
