@@ -39,6 +39,7 @@ from sentence_transformers import SentenceTransformer, util
 from openai import OpenAI
 from dotenv import load_dotenv
 import fitz
+from pydantic import BaseModel
 
 # LangChain関連
 from langchain.chains import ConversationChain
@@ -69,11 +70,13 @@ from config import (
     INTERVIEWER_PATH,
     INTERVIEW_TODO_PATH,
     INTERVIEWER_EMAIL_PATH,
-    CANDIDATE_EMAIL_PATH
+    CANDIDATE_EMAIL_PATH,
+    CANDIDATE_DATA_PATH,
+    INTERVIEW_QA_PATH
 )
 
 # 型定義
-from typing import List, Tuple, Dict, Union, Optional
+from typing import List, Tuple, Dict, Union, Optional, Any
 
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
 EMBEDDING_MODEL = "text-embedding-3-small" #### 2025.7.29 Add（search pptx from original not summarize）
@@ -108,6 +111,17 @@ if CACHE_PATH.exists():
 #### 2025.7.11 Add（remove identify info）START
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
 PHONE_REGEX = re.compile(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?[\d.\s-]{5,15}')
+
+#### 2025.8.8 Add（resume）START
+class InterviewSetupRequest(BaseModel):
+    interviewDate: str
+    interviewer: str 
+    candidate: str 
+    todo: str
+    candidateMail: str
+    interviewerMail: str
+    stage: str 
+#### 2025.8.8 Add（resume）END
 
 # 新しいベクトルストアを作成して保存する
 def create_new_vectorstore(path: str, embedding) -> FAISS:
@@ -2637,8 +2651,7 @@ def load_division_profiles(skills_dir: Path) -> list:
     return profiles
 
 def save_result_to_file(result: dict, candidate_id: str):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_path = RESULT_PATH / f"{candidate_id}_{timestamp}.json"
+    out_path = RESULT_PATH / f"{candidate_id}_result.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -2709,14 +2722,18 @@ def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str
     system_prompt = {
         "role": "system",
         "content": (
-            "あなたは人事のサポートAIとして、候補者のスコア評価の再検討を支援します。\n"
-            "以下の部門に限り、0〜10点で再評価してください：\n"
-            f"{', '.join(valid_divisions)}\n"
-            "人事担当者からのコメントを受けて、点数を変更する必要がある場合、以下の形式で出力してください：\n"
+            "あなたは人事のサポートAIで、候補者の部門別スコア評価の再検討を行います。\n\n"
+            "以下の情報をもとに、候補者のスコアを再評価してください：\n"
+            "- 対象部門一覧（スコア評価対象）: " + ", ".join(valid_divisions) + "\n"
+            "- 各部門の現在スコアと理由（形式: 【部門】現在スコア: ◯点, 理由: ◯◯）\n"
+            "- 人事担当者によるコメント（評価変更の意図が含まれることがあります）\n\n"
+            "コメントをもとにスコアを変更すべきだと判断した場合は、以下の形式で出力してください：\n"
             "[スコア調整]: 部門=◯◯, 変更後スコア=◯, 理由=◯◯\n"
-            "- 指示が「下げて」のような場合、実際に点数を下げてください。\n"
-            "- 元のスコアが既に低い場合は、そのままで良いと応答してください。\n"
-            "- 回答に複数の部門が含まれても構いません。"
+            "※ 部門は複数でも構いません。\n"
+            "※ 「スコアを上げたい」「下げてほしい」などの指示がある場合はそれに従ってください。\n"
+            "※ ただし、整合しない場合（例：Excelができると記載があるのに「スキル不足」と結論づけるなど）は避けてください。\n"
+            "※ 点数を変更しない判断の場合でも、以下のように明示的に出力してください：\n"
+            "[スコア調整]: 部門=◯◯, 変更後スコア=（変更なし）, 理由=（変更不要と判断した理由）"
         )
     }
     return [system_prompt] + messages[-5:]
@@ -2733,31 +2750,30 @@ def call_openai_chat(prompt: list[dict], model: str = "gpt-3.5-turbo") -> str:
     except Exception as e:
         return f"AI応答に失敗しました: {str(e)}"
 
-def parse_score_adjustment(reply: Optional[str], original_scores: dict) -> Optional[dict]:
+def parse_score_adjustments(reply: Optional[str], original_scores: dict) -> List[dict]:
     if not reply or not isinstance(reply, str):
-        return None
+        return []
 
-    match = re.search(
-        r"\[スコア調整\]: 部門=(.+?), 変更後スコア=(\d+), 理由=(.+)",
-        reply
-    )
-    if not match:
-        return None
+    pattern = r"\[スコア調整\]: 部門=(.+?), 変更後スコア=(\d+), 理由=(.+?)(?=。|\n|$)"
+    matches = re.findall(pattern, reply)
 
-    division = match.group(1).strip()
-    new_score = int(match.group(2))
-    reason = match.group(3).strip()
-    old_score = original_scores.get(division)
+    results = []
+    for division, score_str, reason in matches:
+        division = division.strip()
+        new_score = int(score_str)
+        reason = reason.strip()
+        old_score = original_scores.get(division)
 
-    # 元スコアと同じなら無意味な変更として無視（オプション）
-    if old_score is not None and new_score == old_score:
-        return None
+        if old_score is not None and new_score == old_score:
+            continue  # 無意味な変更
 
-    return {
-        "division": division,
-        "score": new_score,
-        "reason": reason
-    }
+        results.append({
+            "division": division,
+            "score": new_score,
+            "reason": reason
+        })
+
+    return results
 
 def extract_original_scores_from_message(text: str) -> dict:
     """
@@ -2773,17 +2789,12 @@ def extract_original_scores_from_message(text: str) -> dict:
             results[division] = score
     return results
 
-def load_latest_result(candidate_id: str) -> Optional[dict]:
-    """候補者の最新スコアファイルを読み込む"""
-    files = sorted(RESULT_PATH.glob(f"{candidate_id}_*.json"), reverse=True)
-    if not files:
+def load_single_result(candidate_id: str) -> Optional[dict]:
+    path = RESULT_PATH / f"{candidate_id}_result.json"
+    if not path.exists():
         return None
-
-    try:
-        with open(files[0], encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 def save_result_with_timestamp(result: dict, candidate_id: str) -> str:
     """タイムスタンプ付きで保存し、ファイル名を返す"""
@@ -2817,11 +2828,60 @@ def update_score_in_result(result: dict, division: str, new_score: int, new_reas
             return True
     return False
 
-def update_recommended_division(result: dict):
-    """推奨部門を再評価"""
-    if result.get("scores"):
-        recommended = max(result["scores"], key=lambda x: x["score"])
+def update_recommended_division_from_history(result: dict):
+    history = result.get("score_history", {})
+    latest_scores = []
+    for division, records in history.items():
+        if records:
+            latest_scores.append({"division": division, "score": records[-1]["score"]})
+    if latest_scores:
+        recommended = max(latest_scores, key=lambda x: x["score"])
         result["recommended_division"] = recommended["division"]
+
+def save_score_to_history(candidate_id: str, new_scores: List[dict], updated_by: str, source: str):
+    result = load_single_result(candidate_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="候補者データが見つかりません")
+
+    now = datetime.now().isoformat()
+
+    # ✅ グローバルスコア履歴
+    if "score_history" not in result:
+        result["score_history"] = {}
+
+    for new_score in new_scores:
+        division = new_score["division"]
+        entry = {
+            "score": new_score["score"],
+            "reason": new_score["reason"],
+            "updated_by": updated_by,
+            "updated_at": now,
+            "source": source
+        }
+
+        # ✅ 全体の履歴
+        result["score_history"].setdefault(division, []).append(entry)
+
+        # ✅ scores[] にも反映
+        for s in result.get("scores", []):
+            if s.get("division") == division:
+                s["score"] = new_score["score"]
+                s["reason"] = new_score["reason"]
+                # スコア履歴を反映（なければ初期化）
+                if "score_history" not in s:
+                    s["score_history"] = []
+                s["score_history"].append({
+                    "score": new_score["score"],
+                    "reason": new_score["reason"],
+                    "reviewer": updated_by,
+                    "reviewed_at": now
+                })
+
+    # 推奨部門の更新
+    update_recommended_division_from_history(result)
+
+    save_result_to_file(result, candidate_id)
+    return result
 #### 2025.8.5 Add（resume review）END
 #### 2025.8.4 Add（Resume）END
 
@@ -2850,6 +2910,19 @@ def load_interview_config() -> dict:
     except Exception as e:
         raise RuntimeError(f"設定ファイルの読み込みに失敗: {str(e)}")
 
+def send_interview_emails(req: InterviewSetupRequest):
+    send_email({
+        "to": req.interviewer,
+        "subject": "【面談のご案内】",
+        "body": req.interviewerMail
+    })
+
+    send_email({
+        "to": req.candidate,
+        "subject": "【面談のご案内】",
+        "body": req.candidateMail
+    })
+
 def send_email(email: dict):
     """
     email = {
@@ -2862,4 +2935,78 @@ def send_email(email: dict):
     print(f"📨 Subject: {email['subject']}")
     print(f"📝 Body:\n{email['body']}")
     # 実際の送信処理（SMTPなど）はここに追加
+
+def save_interview_schedule(req: InterviewSetupRequest) -> dict:
+    key_map = {
+        "面談・1次": "interview_1_date",
+        "面談・2次": "interview_2_date",
+        "最終面談": "interview_final_date"
+    }
+
+    interview_key = key_map.get(req.stage, "interview_date_other")
+    data_path = os.path.join(CANDIDATE_DATA_PATH, f"{req.candidate}.json")
+
+    if os.path.exists(data_path):
+        with open(data_path, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+    else:
+        existing = {}
+
+    existing[interview_key] = req.interviewDate
+    existing["last_updated"] = datetime.now().isoformat()
+
+    with open(data_path, "w", encoding="utf-8") as f:
+        json.dump(existing, f, ensure_ascii=False, indent=2)
+
+    return {
+        "saved_stage": req.stage,
+        "saved_date": req.interviewDate
+    }
 #### 2025.8.7 Add（interview modal）END
+
+def load_interview_prep() -> Dict[str, Any]:
+    """interview_prep フォルダ内の全ファイルを読み込み、マージする"""
+    all_data = {}
+    for file in INTERVIEW_QA_PATH.glob("*.json"):
+        try:
+            with open(file, encoding="utf-8") as f:
+                data = json.load(f)
+                all_data.update(data)
+        except Exception as e:
+            print(f"読み込み失敗: {file}: {e}")
+    return all_data
+    
+def save_interview_prep_by_interviewer(interviewer_id: str, data: dict) -> bool:
+    """
+    interviewer_id ごとにファイル分離保存
+    """
+    file_path = INTERVIEW_QA_PATH / f"{interviewer_id}.json"
+    INTERVIEW_QA_PATH.mkdir(parents=True, exist_ok=True)
+
+    # 既存データ読み込み
+    if file_path.exists():
+        with open(file_path, encoding="utf-8") as f:
+            all_data = json.load(f)
+    else:
+        all_data = {}
+
+    # 候補者ごとに上書き or 追加
+    candidate_id = data.get("candidate_id")
+    stage = data.get("stage")
+
+    if not candidate_id or not stage:
+        return False
+
+    if candidate_id not in all_data:
+        all_data[candidate_id] = {}
+
+    all_data[candidate_id][stage] = {
+        "prepItems": data.get("prepItems", []),
+        "reviewedResume": data.get("reviewedResume", False),
+        "updated_at": datetime.now().isoformat()
+    }
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(all_data, f, ensure_ascii=False, indent=2)
+
+    return True

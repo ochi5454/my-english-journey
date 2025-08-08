@@ -18,21 +18,25 @@ OPENAI_API_KEY = SecretStr(api_key_str)
 # プロジェクトのルートディレクトリを取得
 PROJECT_ROOT = Path(__file__).parent.parent  # MemoryPersistenceMaruyamaフォルダー（backendの親）
 DATA_DIR = PROJECT_ROOT / "data"
-FEEDBACK_DIR = DATA_DIR / "feedback" #### 2025.7.18 Add（feedback）
+# 商品推薦
+FEEDBACK_DIR = DATA_DIR / "feedback"
+# PPTX検索
 FILESUMMARY_PATH = DATA_DIR /  "file_summary.db"
-PPTXUPLOAD_DIR = DATA_DIR / "pptx_files" #### 2025.7.28 Add（image pptx） 
-PDFUPLOAD_DIR = DATA_DIR / "pdf_files" #### 2025.7.28 Add（pdf download）
-IMGUPLOAD_DIR = DATA_DIR / "image_files" #### 2025.7.30 Add（vision ai）
-PPTX_INDEX_PATH = DATA_DIR / "pptx_index.json" #### 2025.7.29 Add（seaach pptx from original not summraize）
-RESUME_PATH = DATA_DIR / "candidate_resume_files" #### 2025.8.4 Add（Resume）
-SKILLS_PATH = DATA_DIR / "candidate_mustskills_files" #### 2025.8.4 Add（Resume）
-RESULT_PATH = DATA_DIR / "candidate_result_files" #### 2025.8.4 Add（Resume）
+PPTXUPLOAD_DIR = DATA_DIR / "pptx_files"  
+PDFUPLOAD_DIR = DATA_DIR / "pdf_files" 
+IMGUPLOAD_DIR = DATA_DIR / "image_files" 
+PPTX_INDEX_PATH = DATA_DIR / "pptx_index.json" 
+# 候補者判定
+RESUME_PATH = DATA_DIR / "candidate_resume_files"
+SKILLS_PATH = DATA_DIR / "candidate_mustskills_files"
+RESULT_PATH = DATA_DIR / "candidate_result_files"
 INTERVIEW_PATH = DATA_DIR / "candidate_interview_db"
 INTERVIEWER_PATH = INTERVIEW_PATH / "interviewer.json"
 INTERVIEW_TODO_PATH = INTERVIEW_PATH / "todo.json"
 INTERVIEWER_EMAIL_PATH = INTERVIEW_PATH / "template_to_interviewer.json"
 CANDIDATE_EMAIL_PATH = INTERVIEW_PATH / "template_to_candidate.json"
-
+CANDIDATE_DATA_PATH = INTERVIEW_PATH / "interview_date"
+INTERVIEW_QA_PATH = INTERVIEW_PATH / "interview_prep"
 
 BASE_DIR = Path(__file__).parent  # backendフォルダー
 SAVE_DIR = BASE_DIR / "savecontext"
