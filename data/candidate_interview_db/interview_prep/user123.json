@@ -1,0 +1,22 @@
+{
+  "cand_yp1wrlf2": {
+    "面談・1次": {
+      "prepItems": [
+        {
+          "question": "得意な領域は",
+          "answer": ""
+        },
+        {
+          "question": "苦手な領域は？",
+          "answer": ""
+        },
+        {
+          "question": "志望動機は？",
+          "answer": ""
+        }
+      ],
+      "reviewedResume": true,
+      "updated_at": "2025-08-08T16:10:40.945078"
+    }
+  }
+}

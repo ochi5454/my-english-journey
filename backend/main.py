@@ -30,8 +30,8 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustment, load_division_profiles, extract_original_scores_from_message, load_latest_result, save_result_with_timestamp, update_score_in_result, update_recommended_division, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_email
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, load_interview_prep, save_interview_prep_by_interviewer, save_score_to_history
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, CANDIDATE_DATA_PATH, INTERVIEW_QA_PATH
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -167,12 +167,23 @@ class ScoreChatRequest(BaseModel):
     phase: Optional[str] = "2nd_review"
     messages: List[ChatTurn]
 
+class ScoreAdjustment(BaseModel):
+    division: str
+    score: int
+    reason: str
+
 class ScoreUpdateRequest(BaseModel):
     candidate_id: str
-    division: str
-    score: int          # ← 修正
-    reason: str         # ← 修正
-    reviewer_id: Optional[str] = None
+    reviewer_id: str
+    stage: Optional[str]
+    adjustments: List[ScoreAdjustment]
+
+class InterviewPrepByInterviewerRequest(BaseModel):
+    interviewer_id: str
+    candidate_id: str
+    stage: str
+    prepItems: List[dict]
+    reviewedResume: bool
 #### 2025.8.5 Add（resume review）END
 
 # pending #
@@ -197,6 +208,7 @@ class InterviewSetupRequest(BaseModel):
     todo: str
     candidateMail: str
     interviewerMail: str
+    stage: str 
 #### 2025.8.7 Add（interview modal）END
 
 # CORS設定を追加
@@ -1164,26 +1176,25 @@ async def export_results(req: ProductQuery, request: Request):
 
 #### 2025.8.4 Add（Resume）START
 @app.post("/resume-score")
-async def resume_score(file: UploadFile = File(...), candidate_id: str = Form(...), uploader_id: str = Form(...) ): #### 2025.8.5 Mod（uploader id）
+async def resume_score(
+    file: UploadFile = File(...),
+    candidate_id: str = Form(...),
+    uploader_id: str = Form(...)
+):
     save_filename = f"{candidate_id}_{file.filename}"
     save_path = RESUME_PATH / save_filename
 
-    # ファイル保存
     with open(save_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # スコア処理 + 結果保存
         result = score_resume(str(save_path), candidate_id)
 
-        #### 2025.8.5 Mod（uploader id）START
         result["uploader_id"] = uploader_id
+        result["timestamp"] = datetime.now().isoformat()
 
-        # JSON結果を保存
-        result_path = RESULT_PATH / f"{candidate_id}_result.json"
-        with open(result_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-        #### 2025.8.5 Mod（uploader id）END
+        # 👇 1ファイル上書き保存に統一
+        save_result_to_file(result, candidate_id)
 
         return JSONResponse(content=result)
     except Exception as e:
@@ -1191,7 +1202,6 @@ async def resume_score(file: UploadFile = File(...), candidate_id: str = Form(..
             content={"error": f"処理中に例外が発生しました: {str(e)}"},
             status_code=500
         )
-    
 
 @app.get("/resume-results")
 async def get_resume_results():
@@ -1209,12 +1219,22 @@ async def get_result_by_candidate_id(candidate_id: str):
     files = sorted(RESULT_PATH.glob(f"{candidate_id}_*.json"), reverse=True)
     if not files:
         return JSONResponse(content={"error": "結果が見つかりません"}, status_code=404)
+
     try:
         with open(files[0], encoding="utf-8") as f:
-            return JSONResponse(content=json.load(f))
+            result_data = json.load(f)
+        
+        # 面談日程も読み込む（存在する場合）
+        interview_file = os.path.join(CANDIDATE_DATA_PATH, f"{candidate_id}.json")
+        if os.path.exists(interview_file):
+            with open(interview_file, encoding="utf-8") as f:
+                interview_data = json.load(f)
+            result_data.update(interview_data)  # 統合
+
+        return JSONResponse(content=result_data)
+
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
 #### 2025.8.5 Add（resume review）START
 @app.post("/chat-score-review")
 async def chat_score_review(payload: ScoreChatRequest):
@@ -1229,43 +1249,55 @@ async def chat_score_review(payload: ScoreChatRequest):
     # プロンプト生成 → 応答 → スコア解析
     prompt = generate_score_review_prompt(messages, valid_divisions)
     reply = call_openai_chat(prompt)
-    adjusted_score = parse_score_adjustment(reply, original_scores)
+    adjusted_scores = parse_score_adjustments(reply, original_scores)
 
     return {
         "reply": reply,
-        "adjusted_score": adjusted_score
+        "adjusted_score": adjusted_scores  # ← 複数
     }
 
 @app.post("/update-score")
 async def update_score(payload: ScoreUpdateRequest):
     candidate_id = payload.candidate_id
-    division = payload.division
-    score = payload.score
-    reason = payload.reason
-    reviewer_id = payload.reviewer_id  # 👈 2次評価者
+    reviewer_id = payload.reviewer_id
+    stage = payload.stage
 
-    result = load_latest_result(candidate_id)
+    now_str = datetime.now().isoformat()
+
+    if not payload.adjustments:
+        raise HTTPException(status_code=400, detail="調整内容がありません")
+
+    # JSON形式に変換（save_score_to_historyの仕様に合わせる）
+    new_scores = [
+        {
+            "division": adj.division,
+            "score": adj.score,
+            "reason": adj.reason
+        }
+        for adj in payload.adjustments
+    ]
+
+    # 保存・推薦部門の更新含む
+    result = save_score_to_history(
+        candidate_id=candidate_id,
+        new_scores=new_scores,
+        updated_by=reviewer_id,
+        source="chat_review"
+    )
+
     if not result:
-        raise HTTPException(status_code=404, detail="候補者データが見つかりません")
+        raise HTTPException(status_code=500, detail="保存に失敗しました")
 
-    if not update_score_in_result(
-        result,
-        division,
-        score,
-        reason,
-        second_reviewer=reviewer_id,
-        second_reviewed_at=datetime.now().isoformat()
-    ):
-        raise HTTPException(status_code=400, detail=f"部門「{division}」が見つかりません")
+    # ステージ別のレビュー履歴
+    if stage:
+        result[f"chat_review_{stage}_at"] = now_str
+        result[f"chat_reviewer_{stage}"] = reviewer_id
 
-    # ✅ 👇ここでルートに追加
     result["updated_by"] = reviewer_id
-    result["updated_at"] = datetime.now().isoformat()
+    result["updated_at"] = now_str
 
-    update_recommended_division(result)
-    saved_filename = save_result_with_timestamp(result, candidate_id)
-
-    return JSONResponse(content=result)  # ✅ result全体を返す
+    save_result_to_file(result, candidate_id)
+    return JSONResponse(content=result)
 #### 2025.8.5 Add（resume review）END
 #### 2025.8.4 Add（Resume）END
 
@@ -1277,26 +1309,42 @@ def get_config():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.post("/interview/setup")
 def post_setup(req: InterviewSetupRequest):
     try:
-        send_email({
-            "to": req.interviewer,
-            "subject": "【面談のご案内】",
-            "body": req.interviewerMail
-        })
+        send_interview_emails(req)
+        result = save_interview_schedule(req)
 
-        send_email({
-            "to": req.candidate,
-            "subject": "【面談のご案内】",
-            "body": req.candidateMail
-        })
-
-        return { "message": "面談設定・送信成功" }
+        return {
+            "message": "面談設定・送信成功",
+            **result
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"処理エラー: {str(e)}")
+
+@app.get("/interview/prep/{candidate_id}")
+def get_interview_prep(candidate_id: str):
+    all_data = load_interview_prep()
+    return all_data.get(candidate_id, {})
+
+@app.post("/interview/prep")
+def post_interview_prep_by_interviewer(payload: InterviewPrepByInterviewerRequest):
+    success = save_interview_prep_by_interviewer(
+        payload.interviewer_id,
+        payload.dict()
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="保存失敗")
+    return {"status": "ok"}
+
+@app.get("/interview/prep/interviewer/{interviewer_id}")
+def get_prep_by_interviewer(interviewer_id: str):
+    file_path = INTERVIEW_QA_PATH / f"{interviewer_id}.json"
+    if not file_path.exists():
+        return {}
+    with open(file_path, encoding="utf-8") as f:
+        return json.load(f)
 #### 2025.8.7 Add（interview modal）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理

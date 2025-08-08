@@ -12,6 +12,7 @@ interface TodoItem {
 
 interface Props {
   candidateId: string;
+  stage: string;
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: {
@@ -20,10 +21,11 @@ interface Props {
     todo: string;
     candidateMail: string;
     interviewerMail: string;
+    stage: string;
   }) => void;
 }
 
-const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, isOpen, onClose, onSubmit }) => {
+const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, isOpen, onClose, onSubmit }) => {
   const [interviewDate, setInterviewDate] = useState('');
   const [interviewerList, setInterviewerList] = useState<Interviewer[]>([]);
   const [selectedInterviewer, setSelectedInterviewer] = useState('');
@@ -64,7 +66,8 @@ const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, isOpen, 
         interviewer: selectedInterviewer,
         todo: selectedTodos.join(', '),
         candidateMail: renderTemplate(candidateMail),     // ← 展開済みに
-        interviewerMail: renderTemplate(interviewerMail)  // ← 展開済みに
+        interviewerMail: renderTemplate(interviewerMail),  // ← 展開済みに
+        stage 
       });
 
       onClose();
@@ -75,7 +78,7 @@ const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, isOpen, 
       <div className="slide-overlay" onClick={onClose}></div>
       <div className={`slide-panel ${isOpen ? 'open' : ''}`}>
         <div className="slide-panel-header">
-          <h3>面談設定: {candidateId}</h3>
+          <h3>{stage} の面談設定: {candidateId}</h3>
           <button className="slide-close" onClick={onClose}>✖</button>
         </div>
 
@@ -89,7 +92,7 @@ const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, isOpen, 
           <select value={selectedInterviewer} onChange={(e) => setSelectedInterviewer(e.target.value)}>
             <option value="">選択してください</option>
             {interviewerList.map(i => (
-              <option key={i.email} value={i.name}>{i.name}（{i.email}）</option>
+              <option key={`${i.email}_${i.name}`} value={i.name}>{i.name}（{i.email}）</option>
             ))}
           </select>
         </div>
