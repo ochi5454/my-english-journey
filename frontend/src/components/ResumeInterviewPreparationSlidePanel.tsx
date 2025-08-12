@@ -13,6 +13,7 @@ interface Props {
         prepItems?: { question: string; answer: string }[];
         reviewedResume?: boolean;
     };
+    onAiReviewed?: (updatedResult: any) => void; // 2025.8.12 Add（candidate score update after interview）
 }
 
 const ResumeInterviewPreparationSlidePanel: React.FC<Props> = ({
@@ -21,11 +22,13 @@ const ResumeInterviewPreparationSlidePanel: React.FC<Props> = ({
     isOpen,
     onClose,
     onSubmit,
-    initialData
+    initialData,
+    onAiReviewed // 2025.8.12 Add（candidate score update after interview）
 }) => {
     const [prepItems, setPrepItems] = useState<{ question: string; answer: string }[]>([]);
     const [newQuestion, setNewQuestion] = useState('');
     const [reviewedResume, setReviewedResume] = useState(false);
+    const [isReviewing, setIsReviewing] = useState(false); // 2025.8.12 Add（candidate score update after interview）
 
     useEffect(() => {
         if (isOpen) {
@@ -71,6 +74,55 @@ const ResumeInterviewPreparationSlidePanel: React.FC<Props> = ({
         onSubmit({ prepItems, reviewedResume });
         onClose();
     };
+
+    // 2025.8.12 Add（candidate score update after interview）START
+    const handleAiReview = async () => {
+        try {
+        setIsReviewing(true);
+
+        // 1) まず現状のQAを保存（ベストエフォート）
+        try {
+            await fetch('/interview/prep', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                interviewer_id: 'user123',           // TODO: ログインIDに差し替え
+                candidate_id: candidateId,
+                stage,
+                prepItems,
+                reviewedResume
+            })
+            });
+        } catch {
+            // 保存失敗は致命ではないので継続
+        }
+
+        // 2) AI再スコア
+        const res = await fetch('/interview/review-score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+            interviewer_id: 'user123',            // TODO: ログインIDに差し替え
+            candidate_id: candidateId,
+            stage,
+            prepItems,
+            reviewedResume 
+            })
+        });
+
+        if (!res.ok) throw new Error(`再スコアに失敗しました: ${res.status}`);
+
+        const updated = await res.json();
+        onAiReviewed?.(updated); // 親に最新を渡す
+        alert('AIが面談QAを考慮してスコアを再評価しました。');
+        onClose();
+        } catch (e: any) {
+        alert(e.message || 'AI再スコア時にエラーが発生しました');
+        } finally {
+        setIsReviewing(false);
+        }
+    };
+    // 2025.8.12 Add（candidate score update after interview）END
 
     return (
         <>
@@ -130,7 +182,10 @@ const ResumeInterviewPreparationSlidePanel: React.FC<Props> = ({
 
             <div className="modal-actions resume-modal-actions">
             <button onClick={handleSubmit}>保存</button>
-            <button onClick={onClose}>キャンセル</button>
+            <button onClick={handleAiReview} disabled={isReviewing} className="resume-ai-rescore">
+                {isReviewing ? '再スコア中…' : 'AIスコア精査'}
+            </button>
+            <button onClick={onClose} className="cancel-button">キャンセル</button>
             </div>
         </div>
         </>

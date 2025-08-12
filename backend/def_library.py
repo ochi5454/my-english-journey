@@ -2,6 +2,7 @@
 import base64
 import io
 import json
+from json import JSONDecodeError
 import os
 import pickle
 import platform
@@ -16,6 +17,7 @@ from pathlib import Path
 from uuid import uuid4
 import unicodedata
 import hashlib
+from hashlib import sha1
 import logging
 
 # サードパーティライブラリ
@@ -67,16 +69,18 @@ from config import (
     RESUME_PATH,
     SKILLS_PATH,
     RESULT_PATH,
-    INTERVIEWER_PATH,
-    INTERVIEW_TODO_PATH,
-    INTERVIEWER_EMAIL_PATH,
-    CANDIDATE_EMAIL_PATH,
-    CANDIDATE_DATA_PATH,
-    INTERVIEW_QA_PATH
+    TEMPLATE_INTERVIEWER_PATH,
+    TEMPLATE_TODO_PATH,
+    TEMPLATE_EMAIL_INTERVIEWER_PATH,
+    TEMPLATE_EMAIL_CANDIDATE_PATH,
+    INTERVIEWDATE_EACH_CANDIDATE_PATH,
+    INTERVIEWER_QA_PATH,
+    INTERVIEWER_SKILLS_PATH,
+    INTERVIEWER_EVALS_PATH
 )
 
 # 型定義
-from typing import List, Tuple, Dict, Union, Optional, Any
+from typing import List, Tuple, Dict, Union, Optional, Any, Iterable
 
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
 EMBEDDING_MODEL = "text-embedding-3-small" #### 2025.7.29 Add（search pptx from original not summarize）
@@ -2750,28 +2754,50 @@ def call_openai_chat(prompt: list[dict], model: str = "gpt-3.5-turbo") -> str:
     except Exception as e:
         return f"AI応答に失敗しました: {str(e)}"
 
-def parse_score_adjustments(reply: Optional[str], original_scores: dict) -> List[dict]:
+def parse_score_adjustments(
+    reply: Optional[str],
+    original_scores: dict,
+    allow_nochange: bool = True,
+) -> List[dict]:
     if not reply or not isinstance(reply, str):
         return []
 
-    pattern = r"\[スコア調整\]: 部門=(.+?), 変更後スコア=(\d+), 理由=(.+?)(?=。|\n|$)"
-    matches = re.findall(pattern, reply)
+    # 全角→半角などのゆれを吸収
+    text = (reply.replace("，", ",")
+                    .replace("：", ":")
+                    .replace("．", "。")
+                    .replace("　", " "))
 
-    results = []
+    # 複数行対応。「変更なし」もパースできるように
+    pattern = r"""
+        \[スコア調整\]\s*:\s*
+        部門\s*=\s*(.+?)\s*,\s*
+        変更後スコア\s*=\s*(変更なし|-?\d+)\s*,\s*
+        理由\s*=\s*(.+?)
+        (?:[。．]?\s*(?:\r?\n|$))
+    """
+    matches = re.findall(pattern, text, flags=re.VERBOSE)
+
+    results: List[dict] = []
     for division, score_str, reason in matches:
         division = division.strip()
-        new_score = int(score_str)
         reason = reason.strip()
+
+        # 「変更なし」は保存しない（履歴汚し防止）
+        if allow_nochange and score_str.strip() == "変更なし":
+            continue
+
+        if not re.fullmatch(r"-?\d+", score_str.strip()):
+            continue
+
+        new_score = int(score_str)
         old_score = original_scores.get(division)
 
+        # 実質変更なしはスキップ
         if old_score is not None and new_score == old_score:
-            continue  # 無意味な変更
+            continue
 
-        results.append({
-            "division": division,
-            "score": new_score,
-            "reason": reason
-        })
+        results.append({"division": division, "score": new_score, "reason": reason})
 
     return results
 
@@ -2889,13 +2915,13 @@ def save_score_to_history(candidate_id: str, new_scores: List[dict], updated_by:
 def load_interview_config() -> dict:
     """UI用：設定取得"""
     try:
-        with open(INTERVIEWER_PATH, "r", encoding="utf-8") as f:
+        with open(TEMPLATE_INTERVIEWER_PATH, "r", encoding="utf-8") as f:
             interviewers = json.load(f)
-        with open(INTERVIEW_TODO_PATH, "r", encoding="utf-8") as f:
+        with open(TEMPLATE_TODO_PATH, "r", encoding="utf-8") as f:
             todos = json.load(f)
-        with open(INTERVIEWER_EMAIL_PATH, "r", encoding="utf-8") as f:
+        with open(TEMPLATE_EMAIL_INTERVIEWER_PATH, "r", encoding="utf-8") as f:
             template_interviewer = json.load(f)
-        with open(CANDIDATE_EMAIL_PATH, "r", encoding="utf-8") as f:
+        with open(TEMPLATE_EMAIL_CANDIDATE_PATH, "r", encoding="utf-8") as f:
             template_candidate = json.load(f)
 
         return {
@@ -2944,7 +2970,7 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
     }
 
     interview_key = key_map.get(req.stage, "interview_date_other")
-    data_path = os.path.join(CANDIDATE_DATA_PATH, f"{req.candidate}.json")
+    data_path = os.path.join(INTERVIEWDATE_EACH_CANDIDATE_PATH, f"{req.candidate}.json")
 
     if os.path.exists(data_path):
         with open(data_path, "r", encoding="utf-8") as f:
@@ -2967,7 +2993,7 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
 def load_interview_prep() -> Dict[str, Any]:
     """interview_prep フォルダ内の全ファイルを読み込み、マージする"""
     all_data = {}
-    for file in INTERVIEW_QA_PATH.glob("*.json"):
+    for file in INTERVIEWER_QA_PATH.glob("*.json"):
         try:
             with open(file, encoding="utf-8") as f:
                 data = json.load(f)
@@ -2980,8 +3006,8 @@ def save_interview_prep_by_interviewer(interviewer_id: str, data: dict) -> bool:
     """
     interviewer_id ごとにファイル分離保存
     """
-    file_path = INTERVIEW_QA_PATH / f"{interviewer_id}.json"
-    INTERVIEW_QA_PATH.mkdir(parents=True, exist_ok=True)
+    file_path = INTERVIEWER_QA_PATH / f"{interviewer_id}.json"
+    INTERVIEWER_QA_PATH.mkdir(parents=True, exist_ok=True)
 
     # 既存データ読み込み
     if file_path.exists():
@@ -3010,3 +3036,640 @@ def save_interview_prep_by_interviewer(interviewer_id: str, data: dict) -> bool:
         json.dump(all_data, f, ensure_ascii=False, indent=2)
 
     return True
+
+#### 2025.8.12 Add（candidate score update after interview）START
+def get_current_scores_map(result: dict) -> Dict[str, int]:
+    """
+    いまの表示スコアを部門→点数で返す。
+    scores[].score_history があれば最後、なければ scores[].score を使う。
+    """
+    cur = {}
+    for s in result.get("scores", []):
+        hist = s.get("score_history")
+        if isinstance(hist, list) and hist:
+            cur[s["division"]] = int(hist[-1]["score"])
+        else:
+            cur[s["division"]] = int(s.get("score", 0))
+    return cur
+
+def get_divisions(result: dict) -> List[str]:
+    return [s.get("division") for s in result.get("scores", []) if s.get("division")]
+
+def generate_interview_review_prompt(
+    prep_items: List[dict],
+    valid_divisions: List[str],
+    current_scores: Dict[str, int],
+) -> List[dict]:
+    system = {
+        "role": "system",
+        "content": (
+            "あなたは人事のサポートAIです。以下の面談Q&Aを踏まえて、"
+            "【列挙された全ての部門】について、再評価が必要かを必ず部門ごとに1行ずつ出力してください。\n"
+            "出力は次の形式のみ（他の文章・前置き・後置きは禁止）：\n"
+            "[スコア調整]: 部門=◯◯, 変更後スコア=◯ または 変更なし, 理由=◯◯\n"
+            "※ 全部門ぶんを必ず出力（変更なしの場合も1行）\n"
+            "※ 改行で部門ごとに区切る\n"
+        )
+    }
+
+    qa_lines = []
+    for i, it in enumerate(prep_items, 1):
+        q = (it.get("question") or "").strip()
+        a = (it.get("answer") or "").strip()
+        if q or a:
+            qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
+
+    user = {
+        "role": "user",
+        "content": (
+            "■評価対象部門（全て出力対象）: " + ", ".join(valid_divisions) + "\n"
+            "■現在スコア:\n" +
+            "\n".join([f"- {d}: {current_scores.get(d, 0)}点" for d in valid_divisions]) + "\n\n"
+            "■面談メモ(Q&A):\n" + ("\n\n".join(qa_lines) if qa_lines else "（メモなし）")
+        )
+    }
+    return [system, user]
+
+def review_with_interview_prep(
+    candidate_id: str,
+    reviewer_id: str,
+    stage: str,
+    prep_items: List[dict],
+    reviewed_resume: bool = False,
+) -> dict:
+    """
+    面談QAを考慮してスコアを再評価し、複数部門まとめて保存。
+    タイムスタンプや担当者名も付与する。
+    """
+    result = load_single_result(candidate_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="候補者データが見つかりません")
+
+    # 評価対象部門と現在スコア
+    division_profiles = load_division_profiles(SKILLS_PATH)
+    valid_divisions = [p["division"] for p in division_profiles]
+    current_map = {s["division"]: s.get("score", 0) for s in result.get("scores", [])}
+
+    # プロンプト生成 → モデル呼び出し
+    prompt = generate_interview_review_prompt(
+        prep_items=prep_items,
+        valid_divisions=valid_divisions,
+        current_scores=current_map,
+    )
+    reply = call_openai_chat(prompt)
+
+    # 複数部門のスコア変更を抽出
+    adjustments = parse_score_adjustments(reply, current_map, allow_nochange=True)
+    print(f'AIの最スコア精査の中身：{adjustments}')
+
+    if adjustments:
+        result = save_score_to_history(
+            candidate_id=candidate_id,
+            new_scores=adjustments,
+            updated_by=reviewer_id,
+            source="interview_review",
+        )
+
+    # reviewed_resume フラグも保存（必要なら）
+    result[f"{stage}_reviewed_resume"] = reviewed_resume
+
+    # ステージ別のタイムスタンプ＆担当者
+    now_str = datetime.now().isoformat()
+    result[f"chat_review_{stage}_at"] = now_str
+    result[f"chat_reviewer_{stage}"] = reviewer_id
+
+    # 共通の更新情報
+    result["updated_by"] = reviewer_id
+    result["updated_at"] = now_str
+
+    save_result_to_file(result, candidate_id)
+    return result
+#### 2025.8.12 Add（candidate score update after interview）END
+
+#### 2025.8.12 Add（interviewer score after interview）START
+# ① 取得系ヘルパー
+def get_resume_or_empty(candidate_id: str) -> dict:
+    """候補者の最新結果を取得。なければ空dict。"""
+    return load_single_result(candidate_id) or {}
+
+def load_prep_map_with_owner() -> Dict[str, Dict[str, List[dict]]]:
+    """あなたが作った load_interview_prep_with_owner の薄いラッパ（将来差し替えやすく）"""
+    return load_interview_prep_with_owner()
+
+def pick_qa_block_for(
+    prep_map: Dict[str, Dict[str, List[dict]]],
+    candidate_id: str,
+    stage: str,
+    interviewer_id: Optional[str]
+) -> dict:
+    """
+    候補者×ステージのQAを1件選ぶ。
+    interviewer_id があればその人のものを優先、なければ先頭。
+    見つからなければ空dict。
+    """
+    blocks = (prep_map.get(candidate_id, {}).get(stage, []) or [])
+    if interviewer_id:
+        for b in blocks:
+            if b.get("interviewer_id") == interviewer_id:
+                return b
+    return blocks[0] if blocks else {}
+
+def load_interview_prep_with_owner() -> Dict[str, Dict[str, List[dict]]]:
+    """
+    /interview_prep/*.json を全部読み込み、candidate_id -> stage -> [ {prepItems, reviewedResume, ..., interviewer_id} ]
+    の形に正規化して返す。複数面談者・複数回にも対応。
+    """
+    merged: Dict[str, Dict[str, List[dict]]] = {}
+    for file in INTERVIEWER_QA_PATH.glob("*.json"):
+        interviewer_id = file.stem  # ← ファイル名 = 面談者ID 前提
+        try:
+            with open(file, encoding="utf-8") as f:
+                data = json.load(f)  # { candidate_id: { stage: {...} } }
+        except Exception as e:
+            print(f"読み込み失敗: {file}: {e}")
+            continue
+
+        for cid, by_stage in (data or {}).items():
+            stage_map = merged.setdefault(cid, {})
+            for stage, block in (by_stage or {}).items():
+                enriched = {**(block or {}), "interviewer_id": interviewer_id}
+                stage_map.setdefault(stage, []).append(enriched)
+    return merged
+
+def load_interviewer_skills(path: Path = INTERVIEWER_SKILLS_PATH) -> dict:
+    """面談者評価のルーブリック(JSON)を読み込み"""
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+def iter_all_prep(prep_map: Dict[str, Dict[str, List[dict]]]
+                    ) -> Iterable[tuple[str, str, dict]]:
+    """prep_map を (candidate_id, stage, qa_block) の列挙にフラット化"""
+    for cid, stages in (prep_map or {}).items():
+        for stage, blocks in (stages or {}).items():
+            for b in (blocks or []):
+                yield cid, stage, b
+
+def _row_key(cid: str, iid: str, stage: str) -> str:
+    return f"{cid}::{stage}::{iid}"
+
+def _cache_file_for(iid: str) -> Path:
+    INTERVIEWER_EVALS_PATH.mkdir(parents=True, exist_ok=True)
+    safe = iid.replace("/", "_")
+    return INTERVIEWER_EVALS_PATH / f"{safe}.json"
+
+def _empty_cache(iid: str | None = None) -> dict:
+    return {"version": "1", "generated_at": None, "interviewer_id": iid, "rows": []}
+
+def load_evals_cache_for(iid: str) -> dict:
+    p = _cache_file_for(iid)
+    if not p.exists():
+        return _empty_cache(iid)
+    try:
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+        # 古い形式のファイルでも rows だけあれば救う
+        if "interviewer_id" not in data:
+            data["interviewer_id"] = iid
+        return data
+    except Exception:
+        # 破損は退避して空を返す
+        try:
+            p.rename(p.with_suffix(p.suffix + f".bak.{int(time.time())}"))
+        except Exception:
+            pass
+        return _empty_cache(iid)
+
+def save_evals_cache_for(iid: str, cache: dict) -> None:
+    p = _cache_file_for(iid)
+    cache = {**cache, "version": "1", "interviewer_id": iid, "generated_at": datetime.now().isoformat()}
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=str(INTERVIEWER_EVALS_PATH))
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+            f.flush(); os.fsync(f.fileno())
+        os.replace(tmp_path, p)
+    finally:
+        if os.path.exists(tmp_path):
+            try: os.remove(tmp_path)
+            except Exception: pass
+
+def iter_cache_files() -> Iterable[Path]:
+    if not INTERVIEWER_EVALS_PATH.exists():
+        return []
+    return INTERVIEWER_EVALS_PATH.glob("*.json")
+
+def load_evals_cache_aggregate() -> dict:
+    """全ファイルを合算（閲覧用途）。"""
+    rows, latest = [], None
+    for fp in iter_cache_files():
+        try:
+            with open(fp, encoding="utf-8") as f:
+                d = json.load(f)
+            rows.extend(d.get("rows") or [])
+            ga = d.get("generated_at")
+            if ga and (latest is None or ga > latest):
+                latest = ga
+        except Exception:
+            continue
+    return {"version": "1", "generated_at": latest, "rows": rows}
+
+def index_rows(rows: list[dict]) -> dict[str, dict]:
+    idx = {}
+    for r in rows or []:
+        k = _row_key(r["candidate_id"], r["interviewer_id"], r["stage"])
+        idx[k] = r
+    return idx
+
+def filter_cache_rows_in_memory(
+    rows: list[dict],
+    stage: str|None=None,
+    q: str|None=None,
+    interviewer_id: str|None=None,
+    candidate_id: str|None=None,
+    limit: int|None=None
+) -> list[dict]:
+    needle = (q or "").strip().lower()
+    out = []
+    for r in rows or []:
+        if stage and r["stage"] != stage: continue
+        if interviewer_id and r["interviewer_id"] != interviewer_id: continue
+        if candidate_id and r["candidate_id"] != candidate_id: continue
+        if needle and (needle not in r["interviewer_id"].lower() and needle not in r["candidate_id"].lower()): continue
+        out.append(r)
+        if limit and len(out) >= limit: break
+    out.sort(key=lambda x: (x["stage"], x["interviewer_id"], x["candidate_id"]))
+    return out
+
+def calc_source_sig(
+    cid: str, stage: str, qa_block: dict, resume: dict, rubric: dict
+) -> str:
+    """
+    “この評価を決める材料” の要約ハッシュ。
+    QAの内容・更新時刻、履歴書側のupdated_at/スコア、ルーブリックversion 等を束ねてハッシュ化。
+    これが変わったら再評価すべき＝差分対象。
+    """
+    payload = {
+        "cid": cid,
+        "stage": stage,
+        "qa_updated_at": qa_block.get("updated_at"),
+        "qa_items": qa_block.get("prepItems", []),
+        "resume_updated_at": (resume or {}).get("updated_at"),
+        "resume_scores": (resume or {}).get("scores", []),
+        "rubric_version": rubric.get("version"),
+    }
+    j = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return sha1(j.encode("utf-8")).hexdigest()
+
+def default_interviewer_rubric() -> dict:
+    """ファイルが無い/壊れている場合のデフォルト."""
+    return {
+        "version": "default",
+        "max_score": 10,
+        "criteria": [
+            {"key": "prep",           "label": "事前準備",     "weight": 0.25, "guidance": ""},
+            {"key": "coverage",       "label": "論点網羅",     "weight": 0.20, "guidance": ""},
+            {"key": "depth",          "label": "深掘り",       "weight": 0.20, "guidance": ""},
+            {"key": "evidence",       "label": "エビデンス活用","weight": 0.20, "guidance": ""},
+            {"key": "professionalism","label": "プロ意識",     "weight": 0.15, "guidance": ""},
+        ],
+    }
+
+def read_interviewer_rubric_file(path: Path = INTERVIEWER_SKILLS_PATH) -> dict:
+    """ルーブリックJSONをそのまま読む（存在しなければ例外）。"""
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+def make_rubric_etag(data: dict) -> str:
+    body = json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return sha1(body).hexdigest()[:16]
+
+# ② 評価ロジック（計算・生成）
+def compute_weighted_total(rubric: dict, criteria: List[dict]) -> int:
+    """criteria のスコアを rubric.weight で合成して 0-10 に丸める"""
+    weights = {c["key"]: float(c.get("weight", 0)) for c in rubric.get("criteria", [])}
+    acc, wsum = 0.0, 0.0
+    for c in criteria or []:
+        w = weights.get(c.get("key"), 0.0)
+        acc += float(c.get("score", 0)) * w
+        wsum += w
+    return int(max(0, min(10, round(acc / wsum)))) if wsum > 0 else 0
+
+def normalize_interviewer_eval_output(
+    raw_json: dict,
+    rubric: dict,
+    interviewer_id: str,
+    candidate_id: str,
+    stage: str
+) -> dict:
+    """
+    LLMの出力(JSON)をAPIレスポンス形に正規化。
+    ・重み合成をサーバで最終確定
+    ・rubricのlabel付け
+    """
+    criteria = raw_json.get("criteria", [])
+    total = compute_weighted_total(rubric, criteria)
+
+    labeled = []
+    label_map = {c["key"]: c["label"] for c in rubric.get("criteria", [])}
+    for c in criteria:
+        labeled.append({
+            "key": c.get("key"),
+            "label": label_map.get(c.get("key"), c.get("key")),
+            "score": c.get("score", 0),
+            "note": c.get("note")
+        })
+
+    return {
+        "score": total,
+        "reasons": raw_json.get("reasons", []),
+        "suggestions": raw_json.get("suggestions", []),
+        "rubric": labeled,
+        "evaluated_at": datetime.now().isoformat(),
+        "evaluated_by": interviewer_id,
+        "candidate_id": candidate_id,
+        "stage": stage,
+    }
+
+def build_interviewer_eval_prompt(
+    interviewer_id: str,
+    stage: str,
+    resume_result: dict,
+    qa_block: dict,
+    rubric: dict
+) -> list[dict]:
+    """面談QA + 直前スコア + ルーブリックから評価用プロンプトを生成"""
+    # QA整形
+    items = (qa_block or {}).get("prepItems", [])
+    qa_lines = []
+    for i, it in enumerate(items, 1):
+        q = (it.get("question") or "").strip()
+        a = (it.get("answer") or "").strip()
+        if q or a:
+            qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
+    qa_text = "\n\n".join(qa_lines) if qa_lines else "（面談QAの記録なし）"
+
+    # 直前スコア（部門別）
+    scores = resume_result.get("scores", [])
+    score_lines = [f"- {s.get('division')}: {s.get('score')}点（理由: {s.get('reason','')}）" for s in scores]
+    scores_text = "\n".join(score_lines) if score_lines else "（スコアなし）"
+
+    # ルーブリック説明
+    crit_lines = []
+    for c in rubric.get("criteria", []):
+        crit_lines.append(f"- {c['label']}({c['key']}): 重み {c['weight']} → {c['guidance']}")
+
+    system = {
+        "role": "system",
+        "content": (
+            "あなたは採用プロセスの監査官です。"
+            "面談者が面談前の準備と適切な質問設計で候補者を適正評価できているかを採点します。"
+        )
+    }
+    user = {
+        "role": "user",
+        "content": (
+            f"【評価対象面談者】{interviewer_id}\n"
+            f"【ステージ】{stage}\n\n"
+            "■ 候補者の直前スコア\n"
+            f"{scores_text}\n\n"
+            "■ 面談QA（質問と回答）\n"
+            f"{qa_text}\n\n"
+            "■ 評価ルーブリック\n" + "\n".join(crit_lines) + "\n\n"
+            "出力は必ずJSONで、次の形式：\n"
+            "{\n"
+            '  "score": 0-10 の整数,\n'
+            '  "criteria": [{"key":"prep","score":0-10,"note":"..."}, ...],\n'
+            '  "reasons": ["...","..."],\n'
+            '  "suggestions": ["...","..."]\n'
+            "}\n"
+            "総合scoreは各criteriaのscoreを重みで合成し四捨五入（0-10）。"
+        )
+    }
+    return [system, user]
+
+def eval_interviewer_once(
+    interviewer_id: str,
+    stage: str,
+    resume_result: dict,
+    qa_block: dict,
+    rubric: dict,
+    model: str = "gpt-4"
+) -> dict:
+    """LLMで面談者を1名分採点し、重みで総合点を補正"""
+    prompt = build_interviewer_eval_prompt(interviewer_id, stage, resume_result, qa_block, rubric)
+    raw = call_openai_chat(prompt, model=model)  # 既存のOpenAI呼び出しを再利用
+
+    try:
+        data = json.loads(raw)
+    except Exception:
+        data = {"score": 0, "criteria": [], "reasons": [f"解析失敗: {raw[:200]}"], "suggestions": []}
+
+    # LLMの合成がズレてもサーバー側で重み合成し直す
+    weights = {c["key"]: float(c["weight"]) for c in rubric.get("criteria", [])}
+    acc = 0.0
+    wsum = 0.0
+    for c in data.get("criteria", []):
+        k = c.get("key")
+        s = float(c.get("score", 0))
+        w = weights.get(k, 0.0)
+        acc += s * w
+        wsum += w
+    if wsum > 0:
+        total = round(acc / wsum)
+        data["score"] = int(max(0, min(10, total)))
+
+    return data
+
+def to_row_from_llm_json(
+    cid: str, iid: str, stg: str, raw_json: dict, rubric: dict, source_sig: str
+) -> dict:
+    total = compute_weighted_total(rubric, raw_json.get("criteria", []))
+    breakdown = {c.get("key"): c.get("score", 0) for c in raw_json.get("criteria", [])}
+    return {
+        "candidate_id": cid,
+        "interviewer_id": iid,
+        "stage": stg,
+        "total": total,
+        "breakdown": breakdown,
+        "reasons": raw_json.get("reasons", []),
+        "evaluated_at": datetime.now().isoformat(),
+        "source_sig": source_sig,   # ← 材料のスナップショット署名
+    }
+
+def normalize_rubric(raw: dict) -> dict:
+    """
+    形と値を整える:
+    - version / max_score の補完
+    - criteria を正規化（欠損/型違い除外、weightの範囲クリップ）
+    - 重み合計が0なら等分に再配分
+    """
+    if not isinstance(raw, dict):
+        raw = {}
+
+    version = str(raw.get("version") or "unknown")
+    max_score = int(raw.get("max_score") or 10)
+
+    crits = raw.get("criteria") or []
+    norm = []
+    for c in crits:
+        if not isinstance(c, dict):
+            continue
+        key = str(c.get("key") or "").strip()
+        label = str(c.get("label") or key or "").strip()
+        if not key or not label:
+            continue
+        try:
+            w = float(c.get("weight", 0.0))
+        except Exception:
+            w = 0.0
+        w = max(0.0, min(1.0, w))
+        norm.append({
+            "key": key,
+            "label": label,
+            "weight": w,
+            "guidance": c.get("guidance") or "",
+        })
+
+    # 重み合計が0なら等分
+    wsum = sum(c["weight"] for c in norm)
+    if norm and wsum == 0:
+        eq = 1.0 / len(norm)
+        for c in norm:
+            c["weight"] = eq
+
+    return {"version": version, "max_score": max_score, "criteria": norm}
+
+# ③ 評価サービス（アプリケーション層）
+def evaluate_interviewer_single(
+    candidate_id: str,
+    interviewer_id: str,
+    stage: str,
+    resume_result: Optional[dict] = None,
+    qa_block: Optional[dict] = None,
+    model: str = "gpt-4",
+) -> dict:
+    """
+    面談者1名×1ステージの評価を完結させるサービス関数。
+    入力が無ければ自動で取りに行く。
+    """
+    resume = resume_result or get_resume_or_empty(candidate_id)
+    if qa_block is None:
+        prep_map = load_prep_map_with_owner()
+        qa_block = pick_qa_block_for(prep_map, candidate_id, stage, interviewer_id)
+
+    rubric = load_interviewer_skills(INTERVIEWER_SKILLS_PATH)
+    raw = eval_interviewer_once(interviewer_id, stage, resume, qa_block, rubric, model=model)
+
+    # LLMが壊れても最低限の形に
+    if not isinstance(raw, dict):
+        try:
+            raw = json.loads(raw)  # 念のため
+        except Exception:
+            raw = {"score": 0, "criteria": [], "reasons": ["LLM出力の解析に失敗"], "suggestions": []}
+
+    return normalize_interviewer_eval_output(raw, rubric, interviewer_id, candidate_id, stage)
+
+def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=None) -> dict:
+    prep_map = load_prep_map_with_owner()
+    rubric = load_interviewer_skills(INTERVIEWER_SKILLS_PATH)
+
+    # すべての shard を合算して index
+    agg = load_evals_cache_aggregate()
+    idx = index_rows(agg.get("rows") or [])
+
+    resume_cache: dict[str, dict] = {}
+    missing, stale = [], []
+    needle = (q or "").strip().lower()
+
+    for cid, stg, block in iter_all_prep(prep_map):
+        if stage and stg != stage:
+            continue
+        iid = block.get("interviewer_id", "unknown")
+        if needle and (needle not in iid.lower() and needle not in cid.lower()):
+            continue
+
+        if cid not in resume_cache:
+            resume_cache[cid] = get_resume_or_empty(cid)
+        resume = resume_cache[cid]
+
+        sig = calc_source_sig(cid, stg, block, resume, rubric)
+        k = _row_key(cid, iid, stg)
+        cached = idx.get(k)
+
+        if not cached:
+            missing.append({"candidate_id": cid, "interviewer_id": iid, "stage": stg})
+        elif cached.get("source_sig") != sig:
+            stale.append({"candidate_id": cid, "interviewer_id": iid, "stage": stg})
+
+        if limit and (len(missing) + len(stale)) >= limit:
+            break
+
+    return {"missing": missing, "stale": stale}
+
+def refresh_targets_and_upsert(targets: list[dict]) -> list[dict]:
+    if not targets: return []
+
+    rubric = load_interviewer_skills(INTERVIEWER_SKILLS_PATH)
+    prep_map = load_prep_map_with_owner()
+    resume_cache: dict[str, dict] = {}
+
+    # 面談者ごとに束ねて1ファイルずつ更新
+    by_iid: dict[str, list[dict]] = {}
+    for t in targets:
+        by_iid.setdefault(t["interviewer_id"], []).append(t)
+
+    updated_rows: list[dict] = []
+
+    for iid, iid_targets in by_iid.items():
+        cache = load_evals_cache_for(iid)
+        idx = index_rows(cache.get("rows") or [])
+
+        for t in iid_targets:
+            cid, stg = t["candidate_id"], t["stage"]
+            if cid not in resume_cache:
+                resume_cache[cid] = get_resume_or_empty(cid)
+            resume = resume_cache[cid]
+
+            blocks = (prep_map.get(cid, {}).get(stg, []) or [])
+            qa_block = next((b for b in blocks if b.get("interviewer_id") == iid),
+                            (blocks[0] if blocks else {}))
+
+            sig = calc_source_sig(cid, stg, qa_block, resume, rubric)
+            raw = eval_interviewer_once(iid, stg, resume, qa_block, rubric)
+            if not isinstance(raw, dict):
+                try: raw = json.loads(raw)
+                except Exception:
+                    raw = {"score": 0, "criteria": [], "reasons": ["LLM出力の解析に失敗"], "suggestions": []}
+
+            row = to_row_from_llm_json(cid, iid, stg, raw, rubric, sig)
+            idx[_row_key(cid, iid, stg)] = row
+            updated_rows.append(row)
+
+        # idx → rows に戻してこの面談者ファイルにだけ保存
+        rows = list(idx.values())
+        rows.sort(key=lambda r: (r["stage"], r["interviewer_id"], r["candidate_id"]))
+        save_evals_cache_for(iid, {"rows": rows})
+
+    return updated_rows
+
+def get_interviewer_rubric_or_default(path: Path = INTERVIEWER_SKILLS_PATH) -> dict:
+    """
+    ファイル → 正規化。失敗時はデフォルト → 正規化。
+    UIがそのまま使える形を保証して返す。
+    """
+    try:
+        raw = read_interviewer_rubric_file(path)
+    except FileNotFoundError:
+        raw = default_interviewer_rubric()
+    except Exception:
+        # 破損等は安全側でデフォルト
+        raw = default_interviewer_rubric()
+    return normalize_rubric(raw)
+
+def load_rubric_for_http(path: Path = INTERVIEWER_SKILLS_PATH) -> tuple[dict, str]:
+    """
+    HTTP レスポンス向けに (data, etag) を用意。
+    """
+    data = get_interviewer_rubric_or_default(path)
+    return data, make_rubric_etag(data)
+#### 2025.8.12 Add（interviewer score after interview）END

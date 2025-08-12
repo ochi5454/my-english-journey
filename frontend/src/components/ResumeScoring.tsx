@@ -2,13 +2,16 @@
 import React, { useState } from 'react';
 import './ResumeScoring.css';
 import ResumeScoreMatrix from './ResumeScoreMatrix';
+import ResumeInterviewerOverview from './ResumeInterviewerOverview'; // 2025.8.12 Add（interviewer score after interview）
+
+type ViewMode = 'form' | 'matrix' | 'interviewer'; // 2025.8.12 Add（interviewer score after interview）
 
 const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [candidateId, setCandidateId] = useState<string>('');
-    const [viewMode, setViewMode] = useState<'form' | 'matrix'>('form');
+    const [viewMode, setViewMode] = useState<ViewMode>('form'); // 2025.8.12 Add（interviewer score after interview）
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -66,6 +69,12 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
         >
             スコアマトリクス
         </div>
+        <div
+            className={`resume-tab ${viewMode === 'interviewer' ? 'active' : ''}`} // 2025.8.12 Add（interviewer score after interview）
+            onClick={() => setViewMode('interviewer')}
+            >
+            面談者評価
+        </div>
         </div>
 
         {viewMode === 'form' ? (
@@ -122,8 +131,12 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                 </div>
             )}
             </>
-        ) : (
+        ) : viewMode === 'matrix' ? (
             <ResumeScoreMatrix />
+        ) : (
+            // 2025.8.12 Add（interviewer score after interview）
+            <ResumeInterviewerOverview />
+
         )}
         </div>
     );

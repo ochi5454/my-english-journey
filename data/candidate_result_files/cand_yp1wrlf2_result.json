@@ -76,8 +76,8 @@
     },
     {
       "division": "Sales",
-      "score": 6,
-      "reason": "海外営業部での経験がSales部門での活躍に繋がる可能性があるため。",
+      "score": 7,
+      "reason": "前職の海外営業経験があり、高難易度な営業活動を行なっていたことが明らかになったため、Sales部門のスコアを7に変更する必要があります",
       "score_history": [
         {
           "score": 5,
@@ -90,14 +90,36 @@
           "reason": "海外営業部での経験がSales部門での活躍に繋がる可能性があるため。",
           "reviewer": "user123",
           "reviewed_at": "2025-08-08T13:27:49.816916"
+        },
+        {
+          "score": 7,
+          "reason": "前職の海外営業経験があり、高難易度な営業活動を行なっていたことが明らかになったため、Sales部門のスコアを7に変更する必要があります",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-12T10:10:50.591092"
         }
       ]
     }
   ],
-  "recommended_division": "Consultant",
+  "recommended_division": "Sales",
   "uploader_id": "interquest_100",
   "updated_by": "user123",
-  "updated_at": "2025-08-08T13:28:17.250624",
+  "updated_at": "2025-08-12T10:40:04.189359",
   "chat_review_書類選考・2次_at": "2025-08-08T13:28:17.250628",
-  "chat_reviewer_書類選考・2次": "user123"
+  "chat_reviewer_書類選考・2次": "user123",
+  "score_history": {
+    "Sales": [
+      {
+        "score": 7,
+        "reason": "前職の海外営業経験があり、高難易度な営業活動を行なっていたことが明らかになったため、Sales部門のスコアを7に変更する必要があります",
+        "updated_by": "user123",
+        "updated_at": "2025-08-12T10:10:50.591092",
+        "source": "interview_review"
+      }
+    ]
+  },
+  "interview_review_面談・1次_at": "2025-08-12T10:10:50.592674",
+  "interview_reviewer_面談・1次": "user123",
+  "面談・1次_reviewed_resume": true,
+  "chat_review_面談・1次_at": "2025-08-12T10:40:04.189359",
+  "chat_reviewer_面談・1次": "user123"
 }

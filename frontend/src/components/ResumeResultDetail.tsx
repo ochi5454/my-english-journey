@@ -474,6 +474,19 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
                 setShowInterviewPrepModal(false);
             }
             }}
+            // 2025.8.12 Add（candidate score update after interview）START
+            onAiReviewed={(updated: any) => {
+                // もしバックエンドが stamp を返していない場合に備えて保険をかける
+                const stage = interviewStage!;
+                const patched = {
+                    ...updated,
+                    [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
+                    [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? 'user123',
+                };
+                setLocalResult(patched);
+                onResultUpdate?.(patched);
+            }}
+            // 2025.8.12 Add（candidate score update after interview）END
         />
         )}
 

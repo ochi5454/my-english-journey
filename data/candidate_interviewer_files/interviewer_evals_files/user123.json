@@ -1,0 +1,66 @@
+{
+  "rows": [
+    {
+      "candidate_id": "cand_jrqkhjnn",
+      "interviewer_id": "user123",
+      "stage": "面談・1次",
+      "total": 7,
+      "breakdown": {
+        "prep": 8,
+        "coverage": 7,
+        "depth": 6,
+        "evidence": 7,
+        "professionalism": 8
+      },
+      "reasons": [
+        "質問設計は候補者のエンジニアリングとマーケティングのスキルに焦点を当てているが、他のスキルセットについては網羅していない。",
+        "具体的なプロジェクトや成果についての質問が不足している。",
+        "全てのスキルセットに対する質問がないため、バイアスがある可能性がある。"
+      ],
+      "evaluated_at": "2025-08-12T18:01:53.855964",
+      "source_sig": "5f8e4e50cfd1b43fe88ceda25e22d9402eb82433"
+    },
+    {
+      "candidate_id": "cand_yp1wrlf2",
+      "interviewer_id": "user123",
+      "stage": "面談・1次",
+      "total": 7,
+      "breakdown": {
+        "prep": 8,
+        "coverage": 7,
+        "depth": 6,
+        "evidence": 7,
+        "professionalism": 8
+      },
+      "reasons": [
+        "面談者は候補者の経歴とスキルを適切に理解し、それに基づいた質問を設計している。",
+        "面談者は候補者の経験やスキルについて一定の深掘りを行っているが、具体的な成果や再現性についての質問が不足している。",
+        "面談者は公平性と時間管理を保っているが、バイアス抑制については改善の余地がある。"
+      ],
+      "evaluated_at": "2025-08-12T18:01:36.341269",
+      "source_sig": "eb8b1454ee4c35e2ecf6581192b5504242e55916"
+    },
+    {
+      "candidate_id": "cand_zigxqh60",
+      "interviewer_id": "user123",
+      "stage": "面談・2次",
+      "total": 8,
+      "breakdown": {
+        "prep": 9,
+        "coverage": 8,
+        "depth": 7,
+        "evidence": 8,
+        "professionalism": 8
+      },
+      "reasons": [
+        "面談者は候補者の経験とスキルを網羅する質問を設計し、候補者の回答と履歴書の整合性を確認している。",
+        "面談者は公平性と時間管理を保っているが、候補者に対する態度やバイアスの抑制についてはさらなる改善が可能。"
+      ],
+      "evaluated_at": "2025-08-12T18:02:13.616361",
+      "source_sig": "2573602df6bda03ae29fba404c78ca87b5d4eba9"
+    }
+  ],
+  "version": "1",
+  "interviewer_id": "user123",
+  "generated_at": "2025-08-12T18:02:13.616809"
+}

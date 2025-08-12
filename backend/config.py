@@ -27,16 +27,24 @@ PDFUPLOAD_DIR = DATA_DIR / "pdf_files"
 IMGUPLOAD_DIR = DATA_DIR / "image_files" 
 PPTX_INDEX_PATH = DATA_DIR / "pptx_index.json" 
 # 候補者判定
-RESUME_PATH = DATA_DIR / "candidate_resume_files"
+## 履歴書
+RESUME_PATH = DATA_DIR / "candidate_resume_files" 
+## 必要なスキル
 SKILLS_PATH = DATA_DIR / "candidate_mustskills_files"
+## スコアシート
 RESULT_PATH = DATA_DIR / "candidate_result_files"
-INTERVIEW_PATH = DATA_DIR / "candidate_interview_db"
-INTERVIEWER_PATH = INTERVIEW_PATH / "interviewer.json"
-INTERVIEW_TODO_PATH = INTERVIEW_PATH / "todo.json"
-INTERVIEWER_EMAIL_PATH = INTERVIEW_PATH / "template_to_interviewer.json"
-CANDIDATE_EMAIL_PATH = INTERVIEW_PATH / "template_to_candidate.json"
-CANDIDATE_DATA_PATH = INTERVIEW_PATH / "interview_date"
-INTERVIEW_QA_PATH = INTERVIEW_PATH / "interview_prep"
+## 面談調整関連
+INTERVIEWDATE_PATH = DATA_DIR / "candidate_interviewdate_files"
+INTERVIEWDATE_EACH_CANDIDATE_PATH = INTERVIEWDATE_PATH / "interviewdate_files"
+TEMPLATE_EMAIL_CANDIDATE_PATH = INTERVIEWDATE_PATH / "mailtemplate_to_candidate.json"
+TEMPLATE_EMAIL_INTERVIEWER_PATH = INTERVIEWDATE_PATH / "mailtemplate_to_interviewer.json"
+TEMPLATE_INTERVIEWER_PATH = INTERVIEWDATE_PATH / "template_interviewer.json"
+TEMPLATE_TODO_PATH = INTERVIEWDATE_PATH / "template_todo.json"
+## 面談者評価関連
+INTERVIEWER_PATH = DATA_DIR / "candidate_interviewer_files"
+INTERVIEWER_EVALS_PATH = INTERVIEWER_PATH / "interviewer_evals_files"
+INTERVIEWER_QA_PATH = INTERVIEWER_PATH / "interviewer_prep_files"
+INTERVIEWER_SKILLS_PATH = INTERVIEWER_PATH / "interviewer_mustskills.json"
 
 BASE_DIR = Path(__file__).parent  # backendフォルダー
 SAVE_DIR = BASE_DIR / "savecontext"
