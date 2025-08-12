@@ -18,8 +18,8 @@
   "scores": [
     {
       "division": "Engineering",
-      "score": 2,
-      "reason": "エンジニアリングの経験や技術スキルが不足していることが指摘されています",
+      "score": 3,
+      "reason": "トップセールスを受賞するための努力と成果を評価",
       "score_history": [
         {
           "score": 1,
@@ -32,6 +32,12 @@
           "reason": "エンジニアリングの経験や技術スキルが不足していることが指摘されています",
           "reviewer": "user123",
           "reviewed_at": "2025-08-08T17:08:00.892290"
+        },
+        {
+          "score": 3,
+          "reason": "トップセールスを受賞するための努力と成果を評価",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-12T17:09:44.602236"
         }
       ]
     },
@@ -62,8 +68,8 @@
     },
     {
       "division": "Consultant",
-      "score": 8,
-      "reason": "営業職としての経験やクライアント折衝能力、課題解決力が高いと評価される一方、ロジカルシンキングやプレゼンテーション能力、Excelモデリングスキルについての証拠が不足しているため、スコアを1点上げました",
+      "score": 9,
+      "reason": "営業で培ったスキルがコンサルタント業務に活かせると評価",
       "score_history": [
         {
           "score": 7,
@@ -76,6 +82,12 @@
           "reason": "営業職としての経験やクライアント折衝能力、課題解決力が高いと評価される一方、ロジカルシンキングやプレゼンテーション能力、Excelモデリングスキルについての証拠が不足しているため、スコアを1点上げました",
           "reviewer": "user123",
           "reviewed_at": "2025-08-08T17:06:49.727237"
+        },
+        {
+          "score": 9,
+          "reason": "営業で培ったスキルがコンサルタント業務に活かせると評価",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-12T17:09:44.602236"
         }
       ]
     },
@@ -115,7 +127,7 @@
   "recommended_division": "Consultant",
   "uploader_id": "interquest_100",
   "updated_by": "user123",
-  "updated_at": "2025-08-08T17:08:00.891682",
+  "updated_at": "2025-08-12T17:09:44.603923",
   "chat_review_書類選考・2次_at": "2025-08-05T16:11:25.307502",
   "chat_reviewer_書類選考・2次": "user123",
   "chat_review_面談・1次_at": "2025-08-08T17:08:00.891682",
@@ -144,6 +156,13 @@
         "updated_by": "user123",
         "updated_at": "2025-08-08T17:06:49.727237",
         "source": "chat_review"
+      },
+      {
+        "score": 9,
+        "reason": "営業で培ったスキルがコンサルタント業務に活かせると評価",
+        "updated_by": "user123",
+        "updated_at": "2025-08-12T17:09:44.602236",
+        "source": "interview_review"
       }
     ],
     "Engineering": [
@@ -153,7 +172,17 @@
         "updated_by": "user123",
         "updated_at": "2025-08-08T17:08:00.892290",
         "source": "chat_review"
+      },
+      {
+        "score": 3,
+        "reason": "トップセールスを受賞するための努力と成果を評価",
+        "updated_by": "user123",
+        "updated_at": "2025-08-12T17:09:44.602236",
+        "source": "interview_review"
       }
     ]
-  }
+  },
+  "面談・2次_reviewed_resume": true,
+  "chat_review_面談・2次_at": "2025-08-12T17:09:44.603923",
+  "chat_reviewer_面談・2次": "user123"
 }

@@ -1,0 +1,11 @@
+{
+    "version": "2025-08-12",
+    "max_score": 10,
+    "criteria": [
+        { "key": "prep", "label": "事前準備", "weight": 0.25, "guidance": "履歴書と直前スコア、会社理解に基づく下調べ。" },
+        { "key": "coverage", "label": "論点網羅", "weight": 0.20, "guidance": "要件・懸念を網羅する質問設計。" },
+        { "key": "depth", "label": "深掘り", "weight": 0.20, "guidance": "具体例→成果→再現性まで深掘り。" },
+        { "key": "evidence", "label": "エビデンス活用", "weight": 0.20, "guidance": "整合性チェックと定量化。" },
+        { "key": "professionalism", "label": "プロ意識", "weight": 0.15, "guidance": "公平性・時間管理・態度・バイアス抑制。" }
+    ]
+}

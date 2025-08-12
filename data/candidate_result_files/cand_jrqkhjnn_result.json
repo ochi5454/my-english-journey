@@ -18,8 +18,8 @@
   "scores": [
     {
       "division": "Engineering",
-      "score": 7,
-      "reason": "チームリード経験がないため、スコアを1ポイント下げました。",
+      "score": 8,
+      "reason": "GitHubの使用経験あり",
       "score_history": [
         {
           "score": 8,
@@ -32,19 +32,31 @@
           "reason": "チームリード経験がないため、スコアを1ポイント下げました。",
           "reviewer": "user123",
           "reviewed_at": "2025-08-05T16:34:16.811560"
+        },
+        {
+          "score": 8,
+          "reason": "GitHubの使用経験あり",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-12T10:48:55.028121"
         }
       ]
     },
     {
       "division": "Marketing",
-      "score": 2,
-      "reason": "候補者はIT業界での経験が豊富で、特にソフトウェアエンジニアリングとクラウドインフラに強みを持っています。しかし、マーケティング部門の理想的な特徴であるデータドリブンな分析力、SNS運用経験、ブランディングへの関心、プロモーション戦略の企画実行経験については明確な経験やスキルが見られません。そのため、マーケティング部門への適合性は低いと判断します。",
+      "score": 3,
+      "reason": "データ分析やITを活用した経験があり、即戦力になり得る",
       "score_history": [
         {
           "score": 2,
           "reason": "候補者はIT業界での経験が豊富で、特にソフトウェアエンジニアリングとクラウドインフラに強みを持っています。しかし、マーケティング部門の理想的な特徴であるデータドリブンな分析力、SNS運用経験、ブランディングへの関心、プロモーション戦略の企画実行経験については明確な経験やスキルが見られません。そのため、マーケティング部門への適合性は低いと判断します。",
           "reviewer": "interquest_100",
           "reviewed_at": "2025-08-05T16:31:17.320832"
+        },
+        {
+          "score": 3,
+          "reason": "データ分析やITを活用した経験があり、即戦力になり得る",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-12T10:48:55.028121"
         }
       ]
     },
@@ -91,7 +103,30 @@
   "recommended_division": "Engineering",
   "uploader_id": "interquest_100",
   "updated_by": "user123",
-  "updated_at": "2025-08-05T16:34:16.811666",
+  "updated_at": "2025-08-12T10:48:55.029514",
   "chat_review_書類選考・2次_at": "2025-08-05T16:34:16.811560",
-  "chat_reviewer_書類選考・2次": "user123"
+  "chat_reviewer_書類選考・2次": "user123",
+  "score_history": {
+    "Engineering": [
+      {
+        "score": 8,
+        "reason": "GitHubの使用経験あり",
+        "updated_by": "user123",
+        "updated_at": "2025-08-12T10:48:55.028121",
+        "source": "interview_review"
+      }
+    ],
+    "Marketing": [
+      {
+        "score": 3,
+        "reason": "データ分析やITを活用した経験があり、即戦力になり得る",
+        "updated_by": "user123",
+        "updated_at": "2025-08-12T10:48:55.028121",
+        "source": "interview_review"
+      }
+    ]
+  },
+  "面談・1次_reviewed_resume": true,
+  "chat_review_面談・1次_at": "2025-08-12T10:48:55.029514",
+  "chat_reviewer_面談・1次": "user123"
 }

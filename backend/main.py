@@ -14,8 +14,8 @@ import pickle
 import shutil
 
 # サードパーティライブラリ
-from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form, Query
-from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form, Query, Body
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse, Response
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -30,8 +30,8 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, load_interview_prep, save_interview_prep_by_interviewer, save_score_to_history
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, CANDIDATE_DATA_PATH, INTERVIEW_QA_PATH
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, load_interview_prep, save_interview_prep_by_interviewer, save_score_to_history, review_with_interview_prep, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, INTERVIEWER_QA_PATH
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -160,6 +160,20 @@ class Feedback(BaseModel):
     public: Optional[bool] = False  #### 2025.7.25 Mod（public feedback）
 #### 2025.7.18 Add（feedback）END
 
+# pending #
+#### 2025.8.6 Add（no use image）START
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+class SearchResult(BaseModel):
+    filename: str
+    slide_index: int
+    text: str
+    score: float
+#### 2025.8.6 Add（no use image）END
+# pending #
+
 #### 2025.8.5 Add（resume review）START
 class ScoreChatRequest(BaseModel):
     candidate_id: str
@@ -185,20 +199,6 @@ class InterviewPrepByInterviewerRequest(BaseModel):
     prepItems: List[dict]
     reviewedResume: bool
 #### 2025.8.5 Add（resume review）END
-
-# pending #
-#### 2025.8.6 Add（no use image）START
-class SearchRequest(BaseModel):
-    query: str
-    top_k: int = 5
-
-class SearchResult(BaseModel):
-    filename: str
-    slide_index: int
-    text: str
-    score: float
-#### 2025.8.6 Add（no use image）END
-# pending #
 
 #### 2025.8.7 Add（interview modal）START
 class InterviewSetupRequest(BaseModel):
@@ -1225,7 +1225,7 @@ async def get_result_by_candidate_id(candidate_id: str):
             result_data = json.load(f)
         
         # 面談日程も読み込む（存在する場合）
-        interview_file = os.path.join(CANDIDATE_DATA_PATH, f"{candidate_id}.json")
+        interview_file = os.path.join(INTERVIEWDATE_EACH_CANDIDATE_PATH, f"{candidate_id}.json")
         if os.path.exists(interview_file):
             with open(interview_file, encoding="utf-8") as f:
                 interview_data = json.load(f)
@@ -1340,12 +1340,97 @@ def post_interview_prep_by_interviewer(payload: InterviewPrepByInterviewerReques
 
 @app.get("/interview/prep/interviewer/{interviewer_id}")
 def get_prep_by_interviewer(interviewer_id: str):
-    file_path = INTERVIEW_QA_PATH / f"{interviewer_id}.json"
+    file_path = INTERVIEWER_QA_PATH / f"{interviewer_id}.json"
     if not file_path.exists():
         return {}
     with open(file_path, encoding="utf-8") as f:
         return json.load(f)
 #### 2025.8.7 Add（interview modal）END
+
+#### 2025.8.12 Add（candidate score update after interview）START
+@app.post("/interview/review-score")
+async def interview_review_score(payload: InterviewPrepByInterviewerRequest):
+    updated = review_with_interview_prep(
+        candidate_id=payload.candidate_id,
+        reviewer_id=payload.interviewer_id,
+        stage=payload.stage,
+        prep_items=payload.prepItems,
+        reviewed_resume=getattr(payload, "reviewedResume", False),
+    )
+    return JSONResponse(content=updated)
+#### 2025.8.12 Add（candidate score update after interview）END
+
+#### 2025.8.12 Add（interviewer score after interview）START
+@app.get("/interviewer/rubric")
+def get_interviewer_rubric_ep(request: Request):
+    """
+    面談者評価ルーブリックを返す。If-None-Match 対応で 304 も返せる。
+    """
+    try:
+        data, etag = load_rubric_for_http()
+        inm = request.headers.get("if-none-match")
+        if inm and inm.strip('"') == etag:
+            return Response(status_code=304, headers={"ETag": f'"{etag}"'})
+        return JSONResponse(content=data, headers={"ETag": f'"{etag}"'})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"rubric load error: {e}")
+
+@app.get("/interviewer/evals-cache")
+async def interviewer_evals_cache_ep(
+    stage: str|None = Query(None),
+    q: str|None = Query(None),
+    interviewer_id: str|None = Query(None),
+    candidate_id: str|None = Query(None),
+    limit: int|None = Query(None, ge=1, le=200),
+):
+    # 面談者指定なら単一ファイル、未指定なら合算
+    if interviewer_id:
+        cache = load_evals_cache_for(interviewer_id)
+        src_rows = cache.get("rows") or []
+        cached_at = cache.get("generated_at")
+    else:
+        cache = load_evals_cache_aggregate()
+        src_rows = cache.get("rows") or []
+        cached_at = cache.get("generated_at")
+
+    rows = filter_cache_rows_in_memory(
+        src_rows, stage=stage, q=q, interviewer_id=interviewer_id, candidate_id=candidate_id, limit=limit
+    )
+    return JSONResponse(content={"rows": rows, "cached_at": cached_at})
+
+@app.post("/interviewer/evals-refresh")
+async def interviewer_evals_refresh_ep(payload: dict = Body(...)):
+    """
+    body 例:
+        { "targets": [{candidate_id,interviewer_id,stage}, ...] }
+        または
+        { "auto": true, "stage":"面談・1次", "q":"user", "limit":100 }
+    """
+    targets = payload.get("targets")
+    if payload.get("auto"):
+        diff = list_diff_targets(stage=payload.get("stage"), q=payload.get("q"), limit=payload.get("limit"))
+        targets = (diff["missing"] + diff["stale"])
+    targets = targets or []
+    rows = refresh_targets_and_upsert(targets)
+    return JSONResponse(content={"updated": len(rows), "rows": rows})
+
+@app.post("/interviewer/evaluate")
+async def interviewer_evaluate(payload: dict = Body(...)):
+    candidate_id = payload.get("candidate_id")
+    interviewer_id = payload.get("interviewer_id")
+    stage = payload.get("stage", "面談・1次")
+    if not candidate_id or not interviewer_id:
+        raise HTTPException(status_code=400, detail="candidate_id と interviewer_id は必須です")
+
+    out = evaluate_interviewer_single(
+        candidate_id=candidate_id,
+        interviewer_id=interviewer_id,
+        stage=stage,
+        resume_result=payload.get("resume_result"),
+        qa_block=payload.get("interview_prep"),
+    )
+    return JSONResponse(content=out)
+#### 2025.8.12 Add（interviewer score after interview）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
 from openai_config import create_custom_openapi

@@ -46,6 +46,10 @@
   cursor: not-allowed;
 }
 
+.resume-submit:hover {
+  background-color: #218838;
+}
+
 .resume-toggle button {
   background-color: #6c757d;
 }
@@ -654,14 +658,26 @@
   cursor: pointer;
 }
 
-.resume-modal-actions button:first-child {
+/* 保存ボタン, AIスコア精査ボタン */
+.resume-modal-actions button:first-child,
+.resume-ai-rescore {
   background-color: #28a745;
   color: white;
 }
 
-.resume-modal-actions button:last-child {
+.resume-modal-actions button:first-child:hover,
+.resume-ai-rescore:hover {
+  background-color: #218838; /* 少し濃い緑に */
+}
+
+/* キャンセルボタン */
+.cancel-button {
   background-color: #ccc;
   color: #333;
+}
+
+.cancel-button:hover {
+  background-color: #8b8a8a;
 }
 
 .resume-interview-modal h3 {
@@ -949,3 +965,335 @@
   color: #a00;
   border-color: #e0b4b4;
 }
+
+/* 2025.8.12 Add（interviewer score after interview）START */
+/* ==== 面談者品質評価共通 ==== */
+.iq-panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.iq-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.iq-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  flex: 1;
+}
+
+.iq-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.iq-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.iq-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.iq-select,
+.iq-search {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.iq-count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.iq-table-wrap,
+.iq-table-wrapper {
+  overflow-x: auto;
+}
+
+.iq-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+  table-layout: auto;
+}
+
+.iq-table th,
+.iq-table td {
+  border: 1px solid #e5e7eb;
+  padding: 8px 10px;
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: top;
+  text-align: left;
+}
+
+/* 最終評価列の幅制限 */
+.iq-table td.eval-col {
+  max-width: 420px; /* 必要に応じて調整 */
+  overflow-wrap: break-word;
+}
+
+.iq-table thead th {
+  background: #f9fafb;
+  font-weight: 700;
+  text-align: center;
+}
+
+.iq-col--sticky {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+  text-align: left;
+}
+
+.iq-row:hover {
+  background: #f8fbff;
+}
+
+.iq-empty {
+  text-align: center;
+  padding: 16px;
+  color: #777;
+}
+
+.iq-muted {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.iq-strong {
+  font-weight: 700;
+}
+
+/* 操作セルのレイアウトを安定させる */
+.iq-actions-cell {
+  text-align: center;
+  width: 160px;                 /* 列幅を固定してブレを防止（お好みで調整） */
+}
+
+/* ボタングループ：横並び、必要なら折り返し */
+.iq-btn-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;              /* 幅が足りなければ次の行へ */
+}
+
+/* 共通ボタン（サイズ揃え） */
+.iq-btn {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.9rem;
+  line-height: 32px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+  cursor: pointer;
+  white-space: nowrap;          /* ボタン内での改行はさせない */
+}
+
+.iq-btn:hover {
+  background: #e5e7eb;
+}
+
+.iq-btn--primary {
+  border: none;
+  background: #28a745;
+  color: #fff;
+  font-weight: 700;
+}
+.iq-btn--primary:hover {
+  background: #218838;
+}
+
+.iq-btn--ghost {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+.iq-btn--ghost:hover {
+  background: #f9fafb;
+}
+
+/* モバイルなど狭い時は縦積みで中央ぞろえ */
+@media (max-width: 640px) {
+  .iq-actions-cell { width: 100px; }
+  .iq-btn-group {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .iq-btn { width: 100%; }
+}
+
+.iq-error {
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+/* 既存 small-button と調和 */
+.small-button {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+}
+.small-button:hover { background: #e5e7eb; }
+
+/* 既存のモーダル（なければ以下を利用） */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.35);
+  display: flex; align-items: center; justify-content: center; z-index: 2000;
+  padding: 16px;
+}
+.modal-box {
+  background: #fff; border-radius: 12px; padding: 16px 20px;
+  max-width: 720px; width: 95%; max-height: 90vh; overflow: auto;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+
+/* ==== 面談者詳細：平均×重みヘッダー ==== */
+.iq-metricbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+  margin: 4px 0 10px;
+}
+
+.iq-metric {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 120px;
+}
+
+.iq-metric .label {
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 4px;
+}
+
+.iq-metric .value {
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.iq-metric .weight {
+  font-size: 12px;
+  color: #666;
+}
+
+.iq-metric-note {
+  align-self: end;
+  font-size: 12px;
+  color: #666;
+  margin-left: 6px;
+}
+
+/* ==== コンパクトフィルタ ==== */
+.iq-toolbar--compact {
+  gap: 8px;
+  align-items: flex-end;
+  margin-bottom: 6px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr)) auto;
+}
+.iq-field { display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
+.iq-field > label { font-size: 12px; color: #666; }
+.iq-input { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+.iq-input--sm { padding: 6px 8px; font-size: 0.9rem; }
+.iq-toolbar__aside { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.iq-pill {
+  background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb;
+  border-radius: 999px; padding: 3px 8px; font-size: 12px;
+}
+
+/* ステージ・チップ */
+.iq-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.iq-chip {
+  border: 1px solid #d1d5db; background: #fff; border-radius: 999px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.iq-chip:hover { background: #f9fafb; }
+.iq-chip.active { background: #e6f4ea; border-color: #b7ddb7; font-weight: 700; }
+
+/* ==== テーブル密表示 & 整列 ==== */
+.iq-table--dense th, .iq-table--dense td { padding: 6px 8px; }
+.iq-table--stickyhead thead th { position: sticky; top: 0; z-index: 2; }
+
+.td-num { text-align: center; min-width: 44px; }
+.td-id  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.td-badge { white-space: nowrap; }
+.td-reason {
+  max-width: 520px; color: #333;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.td-dim { color: #6b7280; white-space: nowrap; }
+
+/* 文字サイズを全体的に少し小さく（行間も詰める） */
+.iq-table--compact {
+  font-size: 13px;         /* ← 小さく */
+  line-height: 1.35;
+}
+.iq-table--compact th,
+.iq-table--compact td {
+  padding: 6px 8px;        /* 密に */
+}
+
+/* 幅のグルーピング（見出し語と一致させる） */
+.col-id      { width: 160px; }  /* 候補者 */
+.col-stage   { width: 110px; }  /* ステージ */
+.col-score   { width: 72px;  }  /* 事前準備〜プロ意識（全て同じ） */
+.col-total   { width: 76px;  }  /* 総合 */
+.col-reason  { width: 420px; }  /* 最終評価（テキスト） */
+.col-updated { width: 140px; }  /* 更新日時 */
+
+/* 数値列は中央寄せ・候補者は等幅フォントで読みやすく */
+.td-num  { text-align: center; }
+.td-id   { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* コメントは3行で省略（既に設定済みなら不要） */
+.td-reason{
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-clamp: 3;
+  overflow: hidden;
+  
+}/* 2025.8.12 Add（interviewer score after interview）END */
