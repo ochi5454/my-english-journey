@@ -18,14 +18,26 @@
   "scores": [
     {
       "division": "Engineering",
-      "score": 1,
-      "reason": "候補者の経歴は経済学部の卒業と経理、海外営業の経験が主で、エンジニアリングに関連するスキルや経験が見受けられません。Python, GitHub, Docker, API設計, アルゴリズム, 技術ブログ執筆といった理想の特徴には全く合致していないため、低い評価となります。",
+      "score": 3,
+      "reason": "本人の自己管理能力が高く、成長が見込めるため",
       "score_history": [
         {
           "score": 1,
           "reason": "候補者の経歴は経済学部の卒業と経理、海外営業の経験が主で、エンジニアリングに関連するスキルや経験が見受けられません。Python, GitHub, Docker, API設計, アルゴリズム, 技術ブログ執筆といった理想の特徴には全く合致していないため、低い評価となります。",
           "reviewer": "interquest_100",
           "reviewed_at": "2025-08-04T17:26:00.136840"
+        },
+        {
+          "score": 2,
+          "reason": "定量メモに基づくスキル向上",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:21:39.126106"
+        },
+        {
+          "score": 3,
+          "reason": "本人の自己管理能力が高く、成長が見込めるため",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:34:49.156150"
         }
       ]
     },
@@ -44,21 +56,33 @@
     },
     {
       "division": "Consultant",
-      "score": 7,
-      "reason": "候補者は経理部門と海外営業部での経験を持っており、財務分析や国際会計のスキルを持っていることから、ロジカルシンキングや課題解決力を持っていると推測できます。また、英語ビジネスレベルの語学力はクライアント折衝に有利です。しかし、プレゼンテーション能力やExcelモデリングの具体的な経験やスキルが明記されていないため、完全な評価はできません。",
+      "score": 9,
+      "reason": "本人のキャリアゴールと志向が一致し、他の応募先もコンサルタント関連であるため",
       "score_history": [
         {
           "score": 7,
           "reason": "候補者は経理部門と海外営業部での経験を持っており、財務分析や国際会計のスキルを持っていることから、ロジカルシンキングや課題解決力を持っていると推測できます。また、英語ビジネスレベルの語学力はクライアント折衝に有利です。しかし、プレゼンテーション能力やExcelモデリングの具体的な経験やスキルが明記されていないため、完全な評価はできません。",
           "reviewer": "interquest_100",
           "reviewed_at": "2025-08-04T17:26:00.136840"
+        },
+        {
+          "score": 8,
+          "reason": "hiringDecisionとrecommendedDivisionからの評価向上",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:21:39.126106"
+        },
+        {
+          "score": 9,
+          "reason": "本人のキャリアゴールと志向が一致し、他の応募先もコンサルタント関連であるため",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:34:49.156150"
         }
       ]
     },
     {
       "division": "HR",
-      "score": 4,
-      "reason": "HR部門で求められる特徴についてはまだ明確な経験やスキルが不足しているため、スコアを若干上げました。",
+      "score": 6,
+      "reason": "特に変更なし",
       "score_history": [
         {
           "score": 3,
@@ -71,13 +95,25 @@
           "reason": "HR部門で求められる特徴についてはまだ明確な経験やスキルが不足しているため、スコアを若干上げました。",
           "reviewer": "user123",
           "reviewed_at": "2025-08-08T13:28:17.250604"
+        },
+        {
+          "score": 5,
+          "reason": "定量メモに基づくスキル向上",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:21:39.126106"
+        },
+        {
+          "score": 6,
+          "reason": "特に変更なし",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:34:49.156150"
         }
       ]
     },
     {
       "division": "Sales",
-      "score": 7,
-      "reason": "前職の海外営業経験があり、高難易度な営業活動を行なっていたことが明らかになったため、Sales部門のスコアを7に変更する必要があります",
+      "score": 9,
+      "reason": "特に変更なし",
       "score_history": [
         {
           "score": 5,
@@ -96,6 +132,18 @@
           "reason": "前職の海外営業経験があり、高難易度な営業活動を行なっていたことが明らかになったため、Sales部門のスコアを7に変更する必要があります",
           "reviewer": "user123",
           "reviewed_at": "2025-08-12T10:10:50.591092"
+        },
+        {
+          "score": 8,
+          "reason": "hiringDecisionからの評価向上",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:21:39.126106"
+        },
+        {
+          "score": 9,
+          "reason": "特に変更なし",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:34:49.156150"
         }
       ]
     }
@@ -103,7 +151,7 @@
   "recommended_division": "Sales",
   "uploader_id": "interquest_100",
   "updated_by": "user123",
-  "updated_at": "2025-08-12T10:40:04.189359",
+  "updated_at": "2025-08-13T18:34:49.158642",
   "chat_review_書類選考・2次_at": "2025-08-08T13:28:17.250628",
   "chat_reviewer_書類選考・2次": "user123",
   "score_history": {
@@ -114,12 +162,74 @@
         "updated_by": "user123",
         "updated_at": "2025-08-12T10:10:50.591092",
         "source": "interview_review"
+      },
+      {
+        "score": 8,
+        "reason": "hiringDecisionからの評価向上",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:21:39.126106",
+        "source": "interview_review"
+      },
+      {
+        "score": 9,
+        "reason": "特に変更なし",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:34:49.156150",
+        "source": "interview_review"
+      }
+    ],
+    "Engineering": [
+      {
+        "score": 2,
+        "reason": "定量メモに基づくスキル向上",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:21:39.126106",
+        "source": "interview_review"
+      },
+      {
+        "score": 3,
+        "reason": "本人の自己管理能力が高く、成長が見込めるため",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:34:49.156150",
+        "source": "interview_review"
+      }
+    ],
+    "Consultant": [
+      {
+        "score": 8,
+        "reason": "hiringDecisionとrecommendedDivisionからの評価向上",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:21:39.126106",
+        "source": "interview_review"
+      },
+      {
+        "score": 9,
+        "reason": "本人のキャリアゴールと志向が一致し、他の応募先もコンサルタント関連であるため",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:34:49.156150",
+        "source": "interview_review"
+      }
+    ],
+    "HR": [
+      {
+        "score": 5,
+        "reason": "定量メモに基づくスキル向上",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:21:39.126106",
+        "source": "interview_review"
+      },
+      {
+        "score": 6,
+        "reason": "特に変更なし",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:34:49.156150",
+        "source": "interview_review"
       }
     ]
   },
   "interview_review_面談・1次_at": "2025-08-12T10:10:50.592674",
   "interview_reviewer_面談・1次": "user123",
   "面談・1次_reviewed_resume": true,
-  "chat_review_面談・1次_at": "2025-08-12T10:40:04.189359",
+  "chat_review_面談・1次_at": "2025-08-13T18:34:49.158642",
   "chat_reviewer_面談・1次": "user123"
 }

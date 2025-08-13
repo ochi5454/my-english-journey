@@ -15,23 +15,23 @@ import shutil
 
 # サードパーティライブラリ
 from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form, Query, Body
-from fastapi.responses import JSONResponse, FileResponse, StreamingResponse, Response
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse, Response, ORJSONResponse
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OpenAIEmbeddings
 from langdetect import detect
 from dotenv import load_dotenv
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi.staticfiles import StaticFiles
 from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, load_interview_prep, save_interview_prep_by_interviewer, save_score_to_history, review_with_interview_prep, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, INTERVIEWER_QA_PATH
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, INTERVIEWER_CHECKSHEET_PATH
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -196,8 +196,10 @@ class InterviewPrepByInterviewerRequest(BaseModel):
     interviewer_id: str
     candidate_id: str
     stage: str
-    prepItems: List[dict]
-    reviewedResume: bool
+    prepItems: List[Dict[str, str]] = Field(default_factory=list)
+    reviewedResume: bool = False
+    qualitative: Optional[Dict[str, Any]] = None
+    quantitative: Optional[Dict[str, Any]] = None
 #### 2025.8.5 Add（resume review）END
 
 #### 2025.8.7 Add（interview modal）START
@@ -1322,40 +1324,75 @@ def post_setup(req: InterviewSetupRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"処理エラー: {str(e)}")
-
-@app.get("/interview/prep/{candidate_id}")
-def get_interview_prep(candidate_id: str):
-    all_data = load_interview_prep()
-    return all_data.get(candidate_id, {})
-
-@app.post("/interview/prep")
-def post_interview_prep_by_interviewer(payload: InterviewPrepByInterviewerRequest):
-    success = save_interview_prep_by_interviewer(
-        payload.interviewer_id,
-        payload.dict()
-    )
-    if not success:
-        raise HTTPException(status_code=500, detail="保存失敗")
-    return {"status": "ok"}
-
-@app.get("/interview/prep/interviewer/{interviewer_id}")
-def get_prep_by_interviewer(interviewer_id: str):
-    file_path = INTERVIEWER_QA_PATH / f"{interviewer_id}.json"
-    if not file_path.exists():
-        return {}
-    with open(file_path, encoding="utf-8") as f:
-        return json.load(f)
 #### 2025.8.7 Add（interview modal）END
+
+#### 2025.8.13 Add（interview sheet）START
+@app.get("/divisions")
+def get_divisions():
+    return load_division_names(SKILLS_PATH)
+
+@app.get("/checksheet/one", response_class=ORJSONResponse)
+async def api_get_checksheet_one(
+    interviewer_id: str = Query(...),
+    candidate_id: str = Query(...),
+    stage: str = Query(...)
+):
+    try:
+        data = await get_checksheet_one_async(interviewer_id, candidate_id, stage)  # async 実装に
+        return ORJSONResponse(content=data or {})
+    except FileNotFoundError:
+        return ORJSONResponse(content={})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"failed to read checksheet: {e}")
+
+@app.post("/checksheet")
+def api_upsert_checksheet(payload: Dict[str, Any]):
+    iid = payload.get("interviewer_id")
+    cid = payload.get("candidate_id")
+    stage = payload.get("stage")
+    if not all([iid, cid, stage]):
+        raise HTTPException(400, "interviewer_id, candidate_id, stage は必須です")
+
+    try:
+        existing = get_checksheet_one(iid, cid, stage) or {}
+    except Exception:
+        existing = {}
+
+    incoming = {
+        "prepItems": payload.get("prepItems"),
+        "reviewedResume": payload.get("reviewedResume"),
+        "qualitative": payload.get("qualitative"),
+        "quantitative": payload.get("quantitative"),
+    }
+    block = merge_block(existing, incoming)
+    block["updated_at"] = datetime.now().isoformat()
+
+    ok = upsert_checksheets_block(
+        interviewer_id=iid,
+        candidate_id=cid,
+        stage=stage,
+        block=block,
+    )
+    return {"ok": ok}
+
+@app.get("/checksheet/interviewer/{interviewer_id}")
+def api_list_checksheet_by_interviewer(interviewer_id: str):
+    return list_checksheet_by_interviewer(interviewer_id)
+#### 2025.8.13 Add（interview sheet）END
 
 #### 2025.8.12 Add（candidate score update after interview）START
 @app.post("/interview/review-score")
 async def interview_review_score(payload: InterviewPrepByInterviewerRequest):
-    updated = review_with_interview_prep(
+    updated = review_with_interview_checksheet(
         candidate_id=payload.candidate_id,
         reviewer_id=payload.interviewer_id,
         stage=payload.stage,
         prep_items=payload.prepItems,
         reviewed_resume=getattr(payload, "reviewedResume", False),
+        qualitative=getattr(payload, "qualitative", None),
+        quantitative=getattr(payload, "quantitative", None),
     )
     return JSONResponse(content=updated)
 #### 2025.8.12 Add（candidate score update after interview）END

@@ -42,6 +42,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import fitz
 from pydantic import BaseModel
+import aiofiles
+import orjson
 
 # LangChain関連
 from langchain.chains import ConversationChain
@@ -74,7 +76,7 @@ from config import (
     TEMPLATE_EMAIL_INTERVIEWER_PATH,
     TEMPLATE_EMAIL_CANDIDATE_PATH,
     INTERVIEWDATE_EACH_CANDIDATE_PATH,
-    INTERVIEWER_QA_PATH,
+    INTERVIEWER_CHECKSHEET_PATH,
     INTERVIEWER_SKILLS_PATH,
     INTERVIEWER_EVALS_PATH
 )
@@ -2654,6 +2656,17 @@ def load_division_profiles(skills_dir: Path) -> list:
             profiles.append(data)
     return profiles
 
+def load_division_names(skills_dir: Path) -> list[str]:
+    divisions = []
+    for json_file in skills_dir.glob("*.json"):
+        if json_file.name == "common.json":
+            continue
+        with open(json_file, encoding="utf-8") as f:
+            data = json.load(f)
+            if "division" in data:
+                divisions.append(data["division"])
+    return divisions
+
 def save_result_to_file(result: dict, candidate_id: str):
     out_path = RESULT_PATH / f"{candidate_id}_result.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2990,138 +3003,112 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
     }
 #### 2025.8.7 Add（interview modal）END
 
-def load_interview_prep() -> Dict[str, Any]:
-    """interview_prep フォルダ内の全ファイルを読み込み、マージする"""
-    all_data = {}
-    for file in INTERVIEWER_QA_PATH.glob("*.json"):
-        try:
-            with open(file, encoding="utf-8") as f:
-                data = json.load(f)
-                all_data.update(data)
-        except Exception as e:
-            print(f"読み込み失敗: {file}: {e}")
-    return all_data
-    
-def save_interview_prep_by_interviewer(interviewer_id: str, data: dict) -> bool:
-    """
-    interviewer_id ごとにファイル分離保存
-    """
-    file_path = INTERVIEWER_QA_PATH / f"{interviewer_id}.json"
-    INTERVIEWER_QA_PATH.mkdir(parents=True, exist_ok=True)
-
-    # 既存データ読み込み
-    if file_path.exists():
-        with open(file_path, encoding="utf-8") as f:
-            all_data = json.load(f)
-    else:
-        all_data = {}
-
-    # 候補者ごとに上書き or 追加
-    candidate_id = data.get("candidate_id")
-    stage = data.get("stage")
-
-    if not candidate_id or not stage:
-        return False
-
-    if candidate_id not in all_data:
-        all_data[candidate_id] = {}
-
-    all_data[candidate_id][stage] = {
-        "prepItems": data.get("prepItems", []),
-        "reviewedResume": data.get("reviewedResume", False),
-        "updated_at": datetime.now().isoformat()
-    }
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(all_data, f, ensure_ascii=False, indent=2)
-
-    return True
-
-#### 2025.8.12 Add（candidate score update after interview）START
-def get_current_scores_map(result: dict) -> Dict[str, int]:
-    """
-    いまの表示スコアを部門→点数で返す。
-    scores[].score_history があれば最後、なければ scores[].score を使う。
-    """
-    cur = {}
-    for s in result.get("scores", []):
-        hist = s.get("score_history")
-        if isinstance(hist, list) and hist:
-            cur[s["division"]] = int(hist[-1]["score"])
-        else:
-            cur[s["division"]] = int(s.get("score", 0))
-    return cur
-
+#### 2025.8.13 Add（interview sheet）START
 def get_divisions(result: dict) -> List[str]:
     return [s.get("division") for s in result.get("scores", []) if s.get("division")]
 
-def generate_interview_review_prompt(
-    prep_items: List[dict],
-    valid_divisions: List[str],
-    current_scores: Dict[str, int],
-) -> List[dict]:
-    system = {
-        "role": "system",
-        "content": (
-            "あなたは人事のサポートAIです。以下の面談Q&Aを踏まえて、"
-            "【列挙された全ての部門】について、再評価が必要かを必ず部門ごとに1行ずつ出力してください。\n"
-            "出力は次の形式のみ（他の文章・前置き・後置きは禁止）：\n"
-            "[スコア調整]: 部門=◯◯, 変更後スコア=◯ または 変更なし, 理由=◯◯\n"
-            "※ 全部門ぶんを必ず出力（変更なしの場合も1行）\n"
-            "※ 改行で部門ごとに区切る\n"
-        )
+def _shape_block(raw: Dict[str, Any], stage: str) -> Dict[str, Any]:
+    stages = (raw.get("stages") or {})
+    block = stages.get(stage) or {}
+    return {
+        "prepItems": block.get("prepItems", []),
+        "reviewedResume": bool(block.get("reviewedResume", False)),
+        "qualitative": block.get("qualitative") or {},
+        "quantitative": block.get("quantitative") or {},
+        "updated_at": block.get("updated_at"),
     }
 
-    qa_lines = []
-    for i, it in enumerate(prep_items, 1):
-        q = (it.get("question") or "").strip()
-        a = (it.get("answer") or "").strip()
-        if q or a:
-            qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
-
-    user = {
-        "role": "user",
-        "content": (
-            "■評価対象部門（全て出力対象）: " + ", ".join(valid_divisions) + "\n"
-            "■現在スコア:\n" +
-            "\n".join([f"- {d}: {current_scores.get(d, 0)}点" for d in valid_divisions]) + "\n\n"
-            "■面談メモ(Q&A):\n" + ("\n\n".join(qa_lines) if qa_lines else "（メモなし）")
-        )
-    }
-    return [system, user]
-
-def review_with_interview_prep(
+async def get_checksheet_one_async(
+    interviewer_id: str,
     candidate_id: str,
-    reviewer_id: str,
+    stage: str,
+    base: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """
+    interviewer_checksheet_files/<iid>/<cid>.json から該当 stage ブロックだけ返す（非同期I/O版）
+    返り値: { prepItems, reviewedResume, qualitative, quantitative, updated_at } or {}
+    例外:
+        - FileNotFoundError: ファイルが無い
+        - ValueError: 入力不正
+        - RuntimeError: JSON読込に失敗
+    """
+    if not interviewer_id or not candidate_id or not stage:
+        raise ValueError("interviewer_id, candidate_id, stage は必須です")
+
+    base = base or INTERVIEWER_CHECKSHEET_PATH
+    fp = (base / interviewer_id / f"{candidate_id}.json")
+
+    if not fp.exists():
+        # exists() 自体は同期だが軽い stat。必要なら anyio.to_thread に逃がせる
+        raise FileNotFoundError(str(fp))
+
+    try:
+        # テキストではなく bytes を読み、orjson.loads で高速デコード
+        async with aiofiles.open(fp, "rb") as f:
+            data_bytes = await f.read()
+        doc = orjson.loads(data_bytes) if data_bytes else {}
+    except FileNotFoundError:
+        raise
+    except Exception as e:
+        # デコード失敗や I/O エラーをまとめて RuntimeError に
+        raise RuntimeError(f"JSON read failed: {e}")
+
+    return _shape_block(doc, stage)
+
+def list_checksheet_by_interviewer(interviewer_id: str) -> Dict[str, Dict[str, Any]]:
+    """
+    指定面接官の配下にある全候補者ファイルを {candidate_id: doc} で返す。
+    """
+    base = INTERVIEWER_CHECKSHEET_PATH / interviewer_id
+    if not base.exists():
+        return {}
+    out: Dict[str, Dict[str, Any]] = {}
+    for jf in base.glob("*.json"):
+        try:
+            with open(jf, encoding="utf-8") as f:
+                doc = json.load(f)
+            cid = doc.get("candidate_id") or jf.stem
+            out[cid] = doc
+        except Exception as e:
+            print("読み込み失敗:", jf, e)
+    return out
+#### 2025.8.13 Add（interview sheet）END
+
+#### 2025.8.12 Add（candidate score update after interview）START
+def review_with_interview_checksheet(
+    candidate_id: str,
+    reviewer_id: str,     # = interviewer_id
     stage: str,
     prep_items: List[dict],
     reviewed_resume: bool = False,
+    qualitative: dict | None = None,
+    quantitative: dict | None = None,
 ) -> dict:
     """
-    面談QAを考慮してスコアを再評価し、複数部門まとめて保存。
-    タイムスタンプや担当者名も付与する。
+    面談シートを考慮してスコアを再評価し、履歴も更新。
+    さらに面談シートそのものを interviewer_checksheet_files に保存（新レイアウト）。
     """
     result = load_single_result(candidate_id)
     if result is None:
         raise HTTPException(status_code=404, detail="候補者データが見つかりません")
 
-    # 評価対象部門と現在スコア
+    # 部門候補と現在スコア
     division_profiles = load_division_profiles(SKILLS_PATH)
     valid_divisions = [p["division"] for p in division_profiles]
     current_map = {s["division"]: s.get("score", 0) for s in result.get("scores", [])}
 
-    # プロンプト生成 → モデル呼び出し
+    # 🔹 プロンプト生成に定性・定量を追加
     prompt = generate_interview_review_prompt(
         prep_items=prep_items,
         valid_divisions=valid_divisions,
         current_scores=current_map,
+        qualitative=qualitative or {},
+        quantitative=quantitative or {},
     )
     reply = call_openai_chat(prompt)
 
-    # 複数部門のスコア変更を抽出
+    # スコア調整
     adjustments = parse_score_adjustments(reply, current_map, allow_nochange=True)
-    print(f'AIの最スコア精査の中身：{adjustments}')
-
     if adjustments:
         result = save_score_to_history(
             candidate_id=candidate_id,
@@ -3130,20 +3117,361 @@ def review_with_interview_prep(
             source="interview_review",
         )
 
-    # reviewed_resume フラグも保存（必要なら）
-    result[f"{stage}_reviewed_resume"] = reviewed_resume
-
-    # ステージ別のタイムスタンプ＆担当者
+    # 🔹 ステージ別フラグ・タイムスタンプ
     now_str = datetime.now().isoformat()
+    result[f"{stage}_reviewed_resume"] = reviewed_resume
     result[f"chat_review_{stage}_at"] = now_str
     result[f"chat_reviewer_{stage}"] = reviewer_id
-
-    # 共通の更新情報
     result["updated_by"] = reviewer_id
     result["updated_at"] = now_str
-
     save_result_to_file(result, candidate_id)
+
+    now_str = datetime.now().isoformat()
+    # 既存ブロックを取得
+    try:
+        existing_block = get_checksheet_one(reviewer_id, candidate_id, stage) or {}
+    except Exception:
+        existing_block = {}
+
+    incoming_block = {
+        "prepItems": prep_items,
+        "reviewedResume": reviewed_resume,
+        "qualitative": qualitative or {},
+        "quantitative": quantitative or {},
+    }
+
+    # ← ここで壊さずマージ
+    merged_block = merge_block(existing_block, incoming_block)
+    merged_block["updated_at"] = now_str
+
+    upsert_checksheets_block(
+        interviewer_id=reviewer_id,
+        candidate_id=candidate_id,
+        stage=stage,
+        block=merged_block,
+    )
+
     return result
+
+def _shape_block(raw: Dict[str, Any], stage: str) -> Dict[str, Any]:
+    stages = (raw.get("stages") or {})
+    block = stages.get(stage) or {}
+    return {
+        "prepItems": block.get("prepItems", []),
+        "reviewedResume": bool(block.get("reviewedResume", False)),
+        "qualitative": block.get("qualitative") or {},
+        "quantitative": block.get("quantitative") or {},
+        "updated_at": block.get("updated_at"),
+    }
+
+async def get_checksheet_one_async(
+    interviewer_id: str,
+    candidate_id: str,
+    stage: str,
+    base: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """
+    interviewer_checksheet_files/<iid>/<cid>.json から該当 stage ブロックだけ返す（非同期I/O版）
+    返り値: { prepItems, reviewedResume, qualitative, quantitative, updated_at } or {}
+    例外:
+        - FileNotFoundError: ファイルが無い
+        - ValueError: 入力不正
+        - RuntimeError: JSON読込に失敗
+    """
+    if not interviewer_id or not candidate_id or not stage:
+        raise ValueError("interviewer_id, candidate_id, stage は必須です")
+
+    base = base or INTERVIEWER_CHECKSHEET_PATH
+    fp = (base / interviewer_id / f"{candidate_id}.json")
+
+    if not fp.exists():
+        # exists() 自体は同期だが軽い stat。必要なら anyio.to_thread に逃がせる
+        raise FileNotFoundError(str(fp))
+
+    try:
+        # テキストではなく bytes を読み、orjson.loads で高速デコード
+        async with aiofiles.open(fp, "rb") as f:
+            data_bytes = await f.read()
+        doc = orjson.loads(data_bytes) if data_bytes else {}
+    except FileNotFoundError:
+        raise
+    except Exception as e:
+        # デコード失敗や I/O エラーをまとめて RuntimeError に
+        raise RuntimeError(f"JSON read failed: {e}")
+
+    return _shape_block(doc, stage)
+
+def get_checksheet_one(
+    interviewer_id: str,
+    candidate_id: str,
+    stage: str,
+    base: Path | None = None,
+) -> Dict[str, Any]:
+    """
+    interviewer_checksheet_files/<iid>/<cid>.json から該当 stage ブロックだけ返す。
+    返り値: { prepItems, reviewedResume, qualitative, quantitative, updated_at } or {}
+    例外:
+        - FileNotFoundError: ファイルが無い
+        - ValueError: 入力不正
+        - RuntimeError: JSON読込に失敗
+    """
+    if not interviewer_id or not candidate_id or not stage:
+        raise ValueError("interviewer_id, candidate_id, stage は必須です")
+
+    base = base or INTERVIEWER_CHECKSHEET_PATH
+    fp = (base / interviewer_id / f"{candidate_id}.json")
+
+    if not fp.exists():
+        raise FileNotFoundError(str(fp))
+
+    try:
+        with fp.open(encoding="utf-8") as f:
+            doc = json.load(f) or {}
+    except Exception as e:
+        raise RuntimeError(f"JSON read failed: {e}")
+
+    block = (doc.get("stages") or {}).get(stage) or {}
+    # 最小セットで整形
+    return {
+        "prepItems": block.get("prepItems", []),
+        "reviewedResume": bool(block.get("reviewedResume", False)),
+        "qualitative": block.get("qualitative") or {},
+        "quantitative": block.get("quantitative") or {},
+        "updated_at": block.get("updated_at"),
+    }
+
+def get_current_scores_map(result: dict) -> Dict[str, int]:
+    """
+    いまの表示スコアを部門→点数で返す。
+    scores[].score_history があれば最後、なければ scores[].score を使う。
+    """
+    cur: Dict[str, int] = {}
+    for s in result.get("scores", []):
+        hist = s.get("score_history")
+        if isinstance(hist, list) and hist:
+            # ※ history が時系列で末尾が最新という前提
+            cur[s["division"]] = int(hist[-1]["score"])
+        else:
+            cur[s["division"]] = int(s.get("score", 0))
+    return cur
+
+def generate_interview_review_prompt(
+    *,
+    prep_items: List[dict],
+    valid_divisions: List[str],
+    current_scores: Dict[str, int],
+    qualitative: Dict[str, Any] | None = None,
+    quantitative: Dict[str, Any] | None = None,
+) -> List[dict]:
+    """
+    面談Q&A（prep_items）に加えて、定性(qualitative)・定量(quantitative)も渡して
+    スコア再評価用の messages を作る。
+    """
+    qualitative = qualitative or {}
+    quantitative = quantitative or {}
+
+    system = {
+        "role": "system",
+        "content": (
+            "あなたは人事のサポートAIです。以下の面談Q&Aと評価メモを踏まえて、"
+            "【列挙された全ての部門】について、再評価が必要かを必ず部門ごとに1行ずつ出力してください。\n"
+            "出力は次の形式のみ（他の文章・前置き・後置きは禁止）：\n"
+            "[スコア調整]: 部門=◯◯, 変更後スコア=◯ または 変更なし, 理由=◯◯\n"
+            "※ 全部門ぶんを必ず出力（変更なしの場合も1行）\n"
+            "※ 改行で部門ごとに区切る\n"
+        )
+    }
+
+    # --- QA（prep_items） ---
+    qa_lines: List[str] = []
+    for i, it in enumerate(prep_items or [], 1):
+        q = (it.get("question") or "").strip()
+        a = (it.get("answer") or "").strip()
+        if q or a:
+            qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
+
+    qa_block = "\n\n".join(qa_lines) if qa_lines else "（メモなし）"
+
+    # --- Qualitative（定性） ---
+    qual_keys = [
+        "hiringDecision", "recommendedTitle", "recommendedDivision",
+        "careerGoals", "otherApps", "overall", "assignmentPlan",
+    ]
+    qual_lines: List[str] = []
+    for k in qual_keys:
+        v = qualitative.get(k)
+        if v:
+            qual_lines.append(f"- {k}: {v}")
+    qual_block = "\n".join(qual_lines) if qual_lines else "（記載なし）"
+
+    # --- Quantitative（定量 1-5 + コメント） ---
+    quant_lines: List[str] = []
+    for k, v in quantitative.items():
+        if isinstance(v, dict):
+            lv = v.get("level")
+            cm = v.get("comment", "")
+            if lv or cm:
+                quant_lines.append(f"- {k}: level={lv}, comment={cm}")
+    quant_block = "\n".join(quant_lines) if quant_lines else "（記載なし）"
+
+    # --- 現在スコアを並べる ---
+    current_scores_lines = "\n".join(
+        f"- {d}: {current_scores.get(d, 0)}点" for d in valid_divisions
+    )
+
+    user = {
+        "role": "user",
+        "content": (
+            "■評価対象部門（全て出力対象）: " + ", ".join(valid_divisions) + "\n"
+            "■現在スコア:\n" + current_scores_lines + "\n\n"
+            "■面談メモ(Q&A):\n" + qa_block + "\n\n"
+            "■定性メモ:\n" + qual_block + "\n\n"
+            "■定量メモ(1-5 + コメント):\n" + quant_block
+        )
+    }
+    return [system, user]
+
+#### 2025.8.13 Add（interview sheet）START
+def upsert_checksheet(
+    interviewer_id: str,
+    candidate_id: str,
+    stage: str,
+    payload: dict,
+) -> bool:
+    """interviewer_checksheet_files/<iid>/<cid>.json をステージ単位で upsert"""
+    base: Path = INTERVIEWER_CHECKSHEET_PATH / interviewer_id
+    base.mkdir(parents=True, exist_ok=True)
+    fp = base / f"{candidate_id}.json"
+
+    doc = {}
+    if fp.exists():
+        try:
+            with open(fp, encoding="utf-8") as f:
+                doc = json.load(f)
+        except Exception:
+            doc = {}
+
+    # ルート情報を補完
+    doc.setdefault("interviewer_id", interviewer_id)
+    doc.setdefault("candidate_id", candidate_id)
+    stages = doc.setdefault("stages", {})
+
+    # ステージの中身を上書き/追記
+    block = stages.get(stage, {})
+    block.update({
+        "prepItems": payload.get("prepItems", []),
+        "reviewedResume": bool(payload.get("reviewedResume", False)),
+        "qualitative": payload.get("qualitative") or {},
+        "quantitative": payload.get("quantitative") or {},
+        "updated_at": datetime.now().isoformat(),
+    })
+    stages[stage] = block
+
+    # アトミックに保存
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=str(base))
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            json.dump(doc, f, ensure_ascii=False, indent=2)
+            f.flush(); os.fsync(f.fileno())
+        os.replace(tmp_path, fp)
+    finally:
+        if os.path.exists(tmp_path):
+            try: os.remove(tmp_path)
+            except Exception: pass
+
+    return True
+
+def upsert_checksheets_block(
+    interviewer_id: str,
+    candidate_id: str,
+    stage: str,
+    block: dict,                              # {prepItems, reviewedResume, qualitative, quantitative, updated_at, ...}
+) -> None:
+    """
+    interviewer_checksheet_files/<interviewer_id>/<candidate_id>.json に
+    stages[stage] を upsert（他ステージは保持）
+    """
+    base = INTERVIEWER_CHECKSHEET_PATH / interviewer_id
+    base.mkdir(parents=True, exist_ok=True)
+    jf = base / f"{candidate_id}.json"
+
+    doc = {}
+    if jf.exists():
+        try:
+            with open(jf, encoding="utf-8") as f:
+                doc = json.load(f)
+        except Exception:
+            doc = {}
+
+    # メタは上書き補完
+    doc.setdefault("interviewer_id", interviewer_id)
+    doc.setdefault("candidate_id", candidate_id)
+    stages = doc.setdefault("stages", {})
+
+    stages[stage] = {**(stages.get(stage) or {}), **block}
+
+    with open(jf, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, indent=2)
+
+def merge_quant(old: dict, new: dict) -> dict:
+    """
+    quantitative をマージ。level/comment が new にあれば優先、なければ old を保持。
+    """
+    old = old or {}
+    new = new or {}
+    out = dict(old)
+    for key, nv in new.items():
+        if not isinstance(nv, dict):
+            continue
+        ov = old.get(key, {}) if isinstance(old.get(key), dict) else {}
+        out[key] = {
+            "level": nv.get("level", ov.get("level", 0)),
+            "comment": nv.get("comment", ov.get("comment", "")),
+        }
+    return out
+
+def merge_block(existing: dict, incoming: dict) -> dict:
+    """
+    prepItems / reviewedResume / qualitative / quantitative を壊さずマージ。
+    incoming が「空/None」の場合は existing を残す。
+    """
+    existing = existing or {}
+    incoming = incoming or {}
+
+    # prepItems（空配列なら保持）
+    prep = incoming.get("prepItems")
+    if isinstance(prep, list) and len(prep) > 0:
+        prepItems = prep
+    else:
+        prepItems = existing.get("prepItems", [])
+
+    # reviewedResume（bool はそのまま。未指定(None)なら既存）
+    if "reviewedResume" in incoming:
+        reviewedResume = bool(incoming.get("reviewedResume"))
+    else:
+        reviewedResume = bool(existing.get("reviewedResume", False))
+
+    # qualitative（シャローに new 優先でマージ。ただし new が None/{} なら既存）
+    ql_new = incoming.get("qualitative")
+    if isinstance(ql_new, dict) and ql_new:
+        qualitative = {**(existing.get("qualitative") or {}), **ql_new}
+    else:
+        qualitative = existing.get("qualitative", {})
+
+    # quantitative（キーごとに level/comment をマージ）
+    qt_new = incoming.get("quantitative")
+    if isinstance(qt_new, dict) and qt_new:
+        quantitative = merge_quant(existing.get("quantitative") or {}, qt_new)
+    else:
+        quantitative = existing.get("quantitative", {})
+
+    return {
+        "prepItems": prepItems,
+        "reviewedResume": reviewedResume,
+        "qualitative": qualitative,
+        "quantitative": quantitative,
+    }
+#### 2025.8.13 Add（interview sheet）END
 #### 2025.8.12 Add（candidate score update after interview）END
 
 #### 2025.8.12 Add（interviewer score after interview）START
@@ -3153,8 +3481,57 @@ def get_resume_or_empty(candidate_id: str) -> dict:
     return load_single_result(candidate_id) or {}
 
 def load_prep_map_with_owner() -> Dict[str, Dict[str, List[dict]]]:
-    """あなたが作った load_interview_prep_with_owner の薄いラッパ（将来差し替えやすく）"""
-    return load_interview_prep_with_owner()
+    """
+    新構成のみ対応:
+        interviewer_checksheet_files/<interviewer_id>/<candidate_id>.json
+
+        返り値の正規化フォーマット:
+        { candidate_id: { stage: [ { ...面談ブロック..., "interviewer_id": <iid> }, ... ] } }
+
+        各ファイルの推奨スキーマ:
+        {
+        "interviewer_id": "user123",        # 省略可（無ければディレクトリ名で補完）
+        "candidate_id": "cand_xxx",         # 省略可（無ければファイル名で補完）
+        "stages": {
+            "面談・1次": {
+            "prepItems": [...],
+            "reviewedResume": true,
+            "qualitative": {...},
+            "quantitative": {...},
+            "updated_at": "ISO8601"
+            },
+            ...
+        }
+    }
+    """
+    merged: Dict[str, Dict[str, List[dict]]] = {}
+    base: Path = INTERVIEWER_CHECKSHEET_PATH
+    if not base.exists():
+        return merged
+
+    for iid_dir in base.glob("*"):
+        if not iid_dir.is_dir():
+            continue
+        iid = iid_dir.name
+
+        for jf in iid_dir.glob("*.json"):
+            try:
+                with open(jf, encoding="utf-8") as f:
+                    doc = json.load(f)
+            except Exception as e:
+                print("読み込み失敗:", jf, e)
+                continue
+
+            cid = (doc.get("candidate_id") or jf.stem)
+            interviewer_id = (doc.get("interviewer_id") or iid)
+            stages = doc.get("stages") or {}
+
+            stage_map = merged.setdefault(cid, {})
+            for stage, block in (stages or {}).items():
+                enriched = {**(block or {}), "interviewer_id": interviewer_id}
+                stage_map.setdefault(stage, []).append(enriched)
+
+    return merged
 
 def pick_qa_block_for(
     prep_map: Dict[str, Dict[str, List[dict]]],
@@ -3173,28 +3550,6 @@ def pick_qa_block_for(
             if b.get("interviewer_id") == interviewer_id:
                 return b
     return blocks[0] if blocks else {}
-
-def load_interview_prep_with_owner() -> Dict[str, Dict[str, List[dict]]]:
-    """
-    /interview_prep/*.json を全部読み込み、candidate_id -> stage -> [ {prepItems, reviewedResume, ..., interviewer_id} ]
-    の形に正規化して返す。複数面談者・複数回にも対応。
-    """
-    merged: Dict[str, Dict[str, List[dict]]] = {}
-    for file in INTERVIEWER_QA_PATH.glob("*.json"):
-        interviewer_id = file.stem  # ← ファイル名 = 面談者ID 前提
-        try:
-            with open(file, encoding="utf-8") as f:
-                data = json.load(f)  # { candidate_id: { stage: {...} } }
-        except Exception as e:
-            print(f"読み込み失敗: {file}: {e}")
-            continue
-
-        for cid, by_stage in (data or {}).items():
-            stage_map = merged.setdefault(cid, {})
-            for stage, block in (by_stage or {}).items():
-                enriched = {**(block or {}), "interviewer_id": interviewer_id}
-                stage_map.setdefault(stage, []).append(enriched)
-    return merged
 
 def load_interviewer_skills(path: Path = INTERVIEWER_SKILLS_PATH) -> dict:
     """面談者評価のルーブリック(JSON)を読み込み"""
@@ -3303,16 +3658,16 @@ def filter_cache_rows_in_memory(
 def calc_source_sig(
     cid: str, stage: str, qa_block: dict, resume: dict, rubric: dict
 ) -> str:
-    """
-    “この評価を決める材料” の要約ハッシュ。
-    QAの内容・更新時刻、履歴書側のupdated_at/スコア、ルーブリックversion 等を束ねてハッシュ化。
-    これが変わったら再評価すべき＝差分対象。
-    """
     payload = {
         "cid": cid,
         "stage": stage,
         "qa_updated_at": qa_block.get("updated_at"),
         "qa_items": qa_block.get("prepItems", []),
+
+        # 🔽 追加（定性・定量も差分対象に）
+        "qa_qualitative": qa_block.get("qualitative", {}),
+        "qa_quantitative": qa_block.get("quantitative", {}),
+
         "resume_updated_at": (resume or {}).get("updated_at"),
         "resume_scores": (resume or {}).get("scores", []),
         "rubric_version": rubric.get("version"),
@@ -3408,6 +3763,23 @@ def build_interviewer_eval_prompt(
             qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
     qa_text = "\n\n".join(qa_lines) if qa_lines else "（面談QAの記録なし）"
 
+    # 🔽 定性/定量を追記
+    qual = qa_block.get("qualitative") or {}
+    qual_lines = []
+    for k in ("careerGoals", "otherApps", "overall", "assignmentPlan"):
+        v = (qual.get(k) or "").strip()
+        if v: qual_lines.append(f"- {k}: {v}")
+    qual_text = "\n".join(qual_lines) if qual_lines else "（定性メモなし）"
+
+    quant = qa_block.get("quantitative") or {}
+    q_rows = []
+    for k, row in (quant.items() if isinstance(quant, dict) else []):
+        lv = row.get("level")
+        cm = (row.get("comment") or "").strip()
+        if lv or cm:
+            q_rows.append(f"- {k}: Lv{lv or 0} / {cm}")
+    quant_text = "\n".join(q_rows) if q_rows else "（定量メモなし）"
+
     # 直前スコア（部門別）
     scores = resume_result.get("scores", [])
     score_lines = [f"- {s.get('division')}: {s.get('score')}点（理由: {s.get('reason','')}）" for s in scores]
@@ -3434,6 +3806,10 @@ def build_interviewer_eval_prompt(
             f"{scores_text}\n\n"
             "■ 面談QA（質問と回答）\n"
             f"{qa_text}\n\n"
+            "■ 定性メモ\n"
+            f"{qual_text}\n\n"
+            "■ 定量メモ（各項目のレベルと根拠）\n"
+            f"{quant_text}\n\n"
             "■ 評価ルーブリック\n" + "\n".join(crit_lines) + "\n\n"
             "出力は必ずJSONで、次の形式：\n"
             "{\n"

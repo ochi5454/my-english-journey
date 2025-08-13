@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ResumeInterviewSetupSlidePanel from './ResumeInterviewSetupSlidePanel';
-import ResumeInterviewPreparationSlidePanel from './ResumeInterviewPreparationSlidePanel';
+import ResumeInterviewCheckSheetSlidePanel from './ResumeInterviewCheckSheetSlidePanel';
 
 const formatDate = (isoStr: string): string => {
     if (!isoStr) return '日時不明';
@@ -43,9 +43,10 @@ interface Props {
     result: any;
     onClose: () => void;
     onResultUpdate?: (updatedResult: any) => void;
+    interviewerId: string; 
 }
 
-const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }) => {
+const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId }) => {
     const [chatInput, setChatInput] = useState('');
     const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
     const [localResult, setLocalResult] = useState<any>(result);
@@ -56,25 +57,30 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [showInterviewPrepModal, setShowInterviewPrepModal] = useState(false);
     const [interviewPrepData, setInterviewPrepData] = useState<Record<string, any>>({});
+    const [isPrepLoading, setIsPrepLoading] = useState(false);
 
     useEffect(() => {
         setLocalResult(result);
     }, [result]);
 
     useEffect(() => {
-    if (result?.user_id) {
-        fetch(`/interview/prep/${result.user_id}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data && typeof data === 'object') {
-            setInterviewPrepData(data);
-            }
+        if (!interviewStage || !interviewerId || !result?.user_id) return;
+
+        const url = `/checksheet/one?` +
+        new URLSearchParams({
+            interviewer_id: interviewerId,
+            candidate_id: result.user_id,
+            stage: interviewStage,
+        }).toString();
+
+        fetch(encodeURI(url))
+        .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
+        .then(block => {
+            // 画面ではステージごとに使いたいのでステージ→ブロックの形に寄せる
+            setInterviewPrepData(prev => ({ ...prev, [interviewStage]: block })); // ← 変数キーを使う
         })
-        .catch(err => {
-            console.warn("面談準備データの取得に失敗:", err);
-        });
-    }
-    }, [result?.user_id]);
+        .catch(err => console.warn('面談準備取得失敗:', err));
+    }, [interviewStage, interviewerId, result?.user_id]); 
 
     const generateContextualMessage = (scores: any[], comment: string): string => {
         const scoreLines = scores.map(s =>
@@ -105,7 +111,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
             candidate_id: localResult.user_id,
-            reviewer_id: 'user123', // 動的になるよう後で修正
+            reviewer_id: interviewerId,
             messages: apiMessages,
             }),
         });
@@ -122,14 +128,17 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
         const newChatReviewKey = `chat_review_${chatStage}_at`;
         const newChatReviewerKey = `chat_reviewer_${chatStage}`;
 
-        const updatedLocalResult = {
-        ...localResult,
+        setLocalResult((prev: any) => ({
+        ...prev,
         [newChatReviewKey]: now,
-        [newChatReviewerKey]: 'user123'
-        };
+        [newChatReviewerKey]: interviewerId,
+        }));
 
-        setLocalResult(updatedLocalResult);
-        if (onResultUpdate) onResultUpdate(updatedLocalResult);
+        onResultUpdate?.({
+        ...(localResult || {}),
+        [newChatReviewKey]: now,
+        [newChatReviewerKey]: interviewerId,
+        });
 
 
         if (Array.isArray(scoreChanges) && scoreChanges.length > 0) {
@@ -138,7 +147,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     candidate_id: localResult.user_id,
-                    reviewer_id: 'user123',
+                    reviewer_id: interviewerId,
                     stage: chatStage,
                     adjustments: scoreChanges  // ← まとめて送る
                 }),
@@ -146,8 +155,9 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
 
             if (updateRes.ok) {
                 const updatedResult = await updateRes.json();
-                if (onResultUpdate) onResultUpdate(updatedResult);
-                setLocalResult(updatedResult);
+                // 既存の localResult に差分を上書き（面談日程など既存フィールドを保護）
+                setLocalResult((prev: any) => ({ ...prev, ...updatedResult }));
+                onResultUpdate?.({ ...(localResult || {}), ...updatedResult });
             } else {
                 console.error("複数スコア更新に失敗");
             }
@@ -187,6 +197,20 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
     };
 
     const isDocumentReview2Done = !!localResult.updated_at;
+
+    async function refreshChecksheet(stage: string) {
+        const url = new URL('/checksheet/one', window.location.origin);
+        url.searchParams.set('interviewer_id', interviewerId);
+        url.searchParams.set('candidate_id', localResult.user_id);
+        url.searchParams.set('stage', stage);
+
+        const r = await fetch(url.toString(), { cache: 'no-store' });
+        if (!r.ok) return;
+        const block = await r.json();
+
+        // 画面で使いやすい「ステージごとのブロック」の形で保持
+        setInterviewPrepData(prev => ({ ...prev, [stage]: block }));
+    }
 
     return (
         <>
@@ -248,20 +272,32 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
                         >
                             {step}
 
-                            {/* ✅ アイコン表示（青色ステータスのみ） */}
-                            {interviewStages.includes(step) && isInterviewScheduled(step) && (
-                            <button
-                                className="interview-prep-check-button"
-                                title="面談準備メモ"
-                                onClick={(e) => {
-                                    e.stopPropagation();  // ✅ バブリング防止
-                                    setInterviewStage(step);
-                                    setShowInterviewPrepModal(true);
-                                }}
-                            >
-                                ✅
-                            </button>
-                            )}
+                        {/* ✅ 面談日程が設定されていれば常に表示 */}
+                        {interviewStages.includes(step) && isInterviewScheduled(step) && (
+                        <button
+                        className="interview-prep-check-button"
+                        title="面談シート"
+                            onClick={(e) => {
+                            e.stopPropagation();
+                            const stage = step;
+                            setInterviewStage(stage);
+
+                            // 1) 先に開く＆スピナーON（まず描画を優先）
+                            setShowInterviewPrepModal(true);
+                            setIsPrepLoading(true);
+
+                            // 2) 取得は親だけが行う（子の自動フェッチはさせない）
+                            //    ペイントを先に発生させるために次フレームで実行
+                            setTimeout(() => {
+                                refreshChecksheet(stage)
+                                .catch(err => console.warn('checksheet fetch error', err))
+                                .finally(() => setIsPrepLoading(false));
+                            }, 0);
+                            }}
+                        >
+                        ✅
+                        </button>
+                        )}
 
                         </div>
 
@@ -439,20 +475,25 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
         )}
 
         {showInterviewPrepModal && interviewStage && (
-        <ResumeInterviewPreparationSlidePanel
+        <ResumeInterviewCheckSheetSlidePanel
+            key={`${interviewerId}:${localResult.user_id}:${interviewStage}`}
+            interviewerId={interviewerId} 
             candidateId={localResult.user_id}
             stage={interviewStage}
             isOpen={showInterviewPrepModal}
             onClose={() => setShowInterviewPrepModal(false)}
-            initialData={interviewPrepData[interviewStage]}
+            // ❗ 常に「空オブジェクト or 実データ」を渡す（undefined は渡さない）
+            initialData={interviewPrepData[interviewStage] || {}}
+            // スピナーは親が明示
+            loadingInitial={isPrepLoading}
             onSubmit={async (data) => {
             try {
                 // 保存用API呼び出し
-                const res = await fetch('/interview/prep', {
+                const res = await fetch('/checksheet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    interviewer_id: 'user123', // 動的になるよう後で修正
+                    interviewer_id: interviewerId,
                     candidate_id: localResult.user_id,
                     stage: interviewStage,
                     ...data
@@ -462,12 +503,14 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
                 if (!res.ok) throw new Error(`保存に失敗: ${res.status}`);
 
                 // ローカルにも反映
-                setInterviewPrepData(prev => ({
+                setInterviewPrepData((prev: Record<string, any>) => ({
                 ...prev,
-                [interviewStage]: data
+                [interviewStage]: data,
                 }));
 
-                alert("面談準備を保存しました");
+                await refreshChecksheet(interviewStage!);
+                
+                alert("面談シートを保存しました");
             } catch (err: any) {
                 alert(err.message || "エラーが発生しました");
             } finally {
@@ -476,15 +519,21 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate }
             }}
             // 2025.8.12 Add（candidate score update after interview）START
             onAiReviewed={(updated: any) => {
-                // もしバックエンドが stamp を返していない場合に備えて保険をかける
-                const stage = interviewStage!;
-                const patched = {
-                    ...updated,
-                    [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
-                    [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? 'user123',
-                };
-                setLocalResult(patched);
-                onResultUpdate?.(patched);
+            const stage = interviewStage!;
+
+            setLocalResult((prev: Record<string, any>) => ({
+                ...prev,
+                ...updated, // 差分を上書き
+                [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
+                [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
+            }));
+
+            onResultUpdate?.({
+                ...(localResult || {}),
+                ...updated,
+                [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
+                [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
+            });
             }}
             // 2025.8.12 Add（candidate score update after interview）END
         />

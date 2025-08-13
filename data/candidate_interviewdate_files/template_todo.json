@@ -1,5 +1,10 @@
 [
-    { "id": "resume_review", "label": "履歴書の事前確認" },
-    { "id": "portfolio_check", "label": "ポートフォリオ精査" },
-    { "id": "question_list", "label": "質問リスト準備" }
+    { "id": "status_check", "label": "最新の選考状況を確認" },
+    { "id": "score_review", "label": "スコア・精査履歴の確認" },
+    { "id": "interviewer_assignment", "label": "面接官の確定とスケジュール確認" },
+    { "id": "availability_check", "label": "候補者と面接官の空き時間確認" },
+    { "id": "room_booking", "label": "会議室予約（対面の場合）" },
+    { "id": "meeting_link_preparation", "label": "会議リンク作成（Zoom/Teams等）" },
+    { "id": "interviewer_briefing_prep", "label": "面接官への案内内容作成" },
+    { "id": "candidate_info_prep", "label": "候補者への案内内容作成" }
 ]

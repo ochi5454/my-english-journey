@@ -1,0 +1,67 @@
+{
+  "interviewer_id": "user123",
+  "candidate_id": "cand_zigxqh60",
+  "stages": {
+    "面談・2次": {
+      "prepItems": [
+        {
+          "question": "トップセールスをなぜ2年連続受賞できたのか",
+          "answer": "自社商品の理解まず深めるところから始め\n休日も勉強時間に充てていた\n必要に応じて製造生産部の担当者にヒアリングまで行い理解をしようと試みた\nそう言ったことから自社商品の理解を誰よりも深めることができたことで、潜在顧客の発見に繋がり、結果的にトップセールスを受賞することができた。とのこと"
+        },
+        {
+          "question": "具体的にどういった法人担当者が相手だったか",
+          "answer": "人事システムのセールスだったこともあり、人事部のお客様が多かった。あとは運用保守を任せることになるのでシステム部と話すこともあった。"
+        },
+        {
+          "question": "コンサルタント志望との事だが法人営業で培ったどのスキルを活かせると考えるか",
+          "answer": "コミュニケーション、顧客のお困りごとへのコミット、資料作成やヒアリング力、そう言ったものは応用できる。営業では自社製品がミスマッチだった場合に、代替案を提案しにくいが、コンサルタントであれば、代替案を提案しやすい。よって提案力がさらに向上できると考える。"
+        }
+      ],
+      "reviewedResume": true,
+      "qualitative": {
+        "careerGoals": "",
+        "otherApps": "",
+        "overall": "",
+        "assignmentPlan": "",
+        "hiringDecision": "",
+        "recommendedTitle": "",
+        "recommendedDivision": ""
+      },
+      "quantitative": {
+        "self_management": {
+          "level": 3,
+          "comment": ""
+        },
+        "workstyle_relation": {
+          "level": 5,
+          "comment": ""
+        },
+        "communication": {
+          "level": 4,
+          "comment": ""
+        },
+        "leadership": {
+          "level": 2,
+          "comment": ""
+        },
+        "logical_thinking": {
+          "level": 3,
+          "comment": ""
+        },
+        "execution_pm": {
+          "level": 2,
+          "comment": ""
+        },
+        "expertise": {
+          "level": 3,
+          "comment": ""
+        },
+        "biz_org_dev": {
+          "level": 3,
+          "comment": ""
+        }
+      },
+      "updated_at": "2025-08-13T18:55:38.757808"
+    }
+  }
+}

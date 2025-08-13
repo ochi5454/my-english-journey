@@ -227,8 +227,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
             <colgroup>
                 <col className="col-id" />        {/* 候補者 */}
                 <col className="col-stage" />     {/* ステージ */}
-                {/* 事前準備〜プロ意識：すべて同じ幅 */}
-                {rubric?.criteria.map(() => <col key={crypto.randomUUID()} className="col-score" />)}
+                {rubric && <col className="col-score" span={rubric.criteria.length} />}
                 <col className="col-total" />     {/* 総合 */}
                 <col className="col-reason" />    {/* 最終評価（コメント） */}
                 <col className="col-updated" />   {/* 更新 */}
