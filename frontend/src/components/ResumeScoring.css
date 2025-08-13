@@ -592,13 +592,14 @@
 
 /* === 各フィールド === */
 .resume-interview-field {
-  margin-bottom: 24px;
+  margin-bottom: 4px;
 }
 
 .resume-interview-field label {
   display: block;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  font-size: 0.9rem;
   color: #333;
 }
 
@@ -670,16 +671,6 @@
   background-color: #218838; /* 少し濃い緑に */
 }
 
-/* キャンセルボタン */
-.cancel-button {
-  background-color: #ccc;
-  color: #333;
-}
-
-.cancel-button:hover {
-  background-color: #8b8a8a;
-}
-
 .resume-interview-modal h3 {
   font-size: 1.2rem;
   font-weight: 700;
@@ -726,15 +717,25 @@
   margin-top: 6px;
 }
 
-/* 背景オーバーレイ */
+/* 背景は表示だけ。クリック/スクロールを通す */
 .slide-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.3);
+  inset: 0;
+  background: transparent;         /* 透過（必要ならごく薄い色でもOK） */
+  pointer-events: none;            /* ← これが肝。背面のスクロールを通す */
   z-index: 1999;
+}
+
+/* パネルの左に置く “クリックで閉じる” 細いゾーン */
+.slide-dim {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: var(--panel-w);
+  width: 120px;                    /* 触りやすい幅に。PCなら 80–160px 目安 */
+  background: transparent !important; 
+  cursor: pointer;
+  z-index: 2000;                   /* パネルの下、でもクリック可能に */
 }
 
 /* スライドパネル */
@@ -742,7 +743,8 @@
   position: fixed;
   top: 0;
   right: -500px; /* 非表示状態 */
-  width: 480px;
+  width: 720px;
+  max-width: 95vw;
   height: 100%;
   background: #fff;
   box-shadow: -2px 0 8px rgba(0,0,0,0.2);
@@ -750,7 +752,12 @@
   overflow-y: auto;
   transition: right 0.3s ease;
   z-index: 2000;
+  overscroll-behavior: contain;
 }
+
+/* デフォルト1カラム。広い画面だけ“半幅を許すモード”に */
+.sheet-grid{ display:block; }       /* 常に1カラム */
+.section + .section{ margin-top:12px; }
 
 .slide-panel.open {
   right: 0; /* 表示状態 */
@@ -760,11 +767,16 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 16px;
-  padding-bottom: 16px;
+  padding-bottom: 12px;
   margin-bottom: 16px;
   border-bottom: 1px solid #eee;
 }
+
+.slide-panel-header h3{ flex:1; margin:0; }
+
+.header-actions{ display:flex; align-items:center; gap:8px; margin-top:0; }
 
 .slide-close {
   background: none;
@@ -1034,13 +1046,13 @@
   width: 100%;
   border-collapse: collapse;
   min-width: 900px;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 .iq-table th,
 .iq-table td {
   border: 1px solid #e5e7eb;
-  padding: 8px 10px;
+  padding: 6px 8px;
   white-space: normal;
   word-break: break-word;
   vertical-align: top;
@@ -1251,20 +1263,28 @@
 
 /* ==== テーブル密表示 & 整列 ==== */
 .iq-table--dense th, .iq-table--dense td { padding: 6px 8px; }
-.iq-table--stickyhead thead th { position: sticky; top: 0; z-index: 2; }
 
-.td-num { text-align: center; min-width: 44px; }
-.td-id  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.td-badge { white-space: nowrap; }
-.td-reason {
-  max-width: 520px; color: #333;
+.iq-table--stickyhead thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f9fafb;
+  text-align: center;
+}
+
+.td-num  { text-align: center; white-space: nowrap; } /* スコアと総合 */
+.td-id   { white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.td-badge{ white-space: nowrap; }                     /* ステージ */
+.td-dim  { white-space: nowrap; color: #6b7280; }     /* 日時 */
+.td-reason{
+  white-space: normal;            /* ← 折り返し許可 */
+  overflow-wrap: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   line-clamp: 3;
   overflow: hidden;
 }
-.td-dim { color: #6b7280; white-space: nowrap; }
 
 /* 文字サイズを全体的に少し小さく（行間も詰める） */
 .iq-table--compact {
@@ -1296,4 +1316,323 @@
   line-clamp: 3;
   overflow: hidden;
   
-}/* 2025.8.12 Add（interviewer score after interview）END */
+}
+/* 2025.8.12 Add（interviewer score after interview）END */
+
+/* 定量テーブルのコメント欄を馴染ませる */
+.iq-table textarea.resume-template-textarea {
+  width: 100%;
+  min-height: 64px;
+}
+
+/* ===== 5段階横棒 ===== */
+/* ===== RatingBar (統合) ===== */
+.rbar {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 4px;
+  align-items: center;
+}
+.rbar.is-disabled { opacity: .6; pointer-events: none; }
+
+/* ---- single：選択だけ光る（pill） ---- */
+.rbar--single .rbar-seg {
+  appearance: none;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;   /* slate-300 */
+  background: #f8fafc;         /* slate-50 */
+  color: #0f172a;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+.rbar--single .rbar-seg.is-active {
+  background: #3b82f6;         /* blue-500 */
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+/* ---- fill-left：左側も塗る（rect）---- */
+.rbar--fill-left .rbar-seg{
+  background: #f6faf7;
+  border: 1px solid #dbe7e1;
+  box-shadow: none !important;
+}
+.rbar--fill-left .rbar-seg.is-filled{
+  background: var(--seg-fill);
+  border-color: #c5dbcf;
+  box-shadow: none !important;
+}
+.rbar--fill-left .rbar-seg.is-active{
+  background: var(--seg-fill);
+  border-color: var(--seg-fill-bd);
+  outline: none !important;
+  box-shadow: none !important;  /* ← 青い内側リングを無効化 */
+}
+
+
+/* サイズ調整（必要なら） */
+.rbar--sm .rbar-seg { transform: scale(.92); }
+
+.iq-hint { position: relative; display: inline-block; margin-left: 6px; }
+.iq-hint-btn{
+  width: 18px; height: 18px; border-radius: 9999px;
+  border: 1px solid #cbd5e1; background:#f8fafc; color:#334155;
+  font-size: 12px; line-height: 16px; cursor: pointer; padding: 0;
+}
+.iq-hint-btn:hover{
+  background: #eef7f1;
+  border-color: var(--seg-fill-bd);
+}
+
+.iq-hint-pop{
+  position: absolute; z-index: 10; top: 24px; left: 0;
+  min-width: 280px; max-width: 480px;
+  background:#fff; border:1px solid #e5e7eb; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  padding: 10px 12px;
+}
+.iq-hint-title{ font-weight: 700; margin-bottom: 6px; font-size: 13px; }
+.iq-hint-list{ margin:0; padding-left: 1.2em; }
+.iq-hint-list li{ font-size: 12px; color:#475569; margin: 4px 0; line-height: 1.45; }
+
+.iq-hint-pop.right { left: auto; right: 0; }  /* 右に寄せる */
+
+.resume-template-textarea::placeholder {
+  color: #9aa3af;    /* ほんの少し濃いめのグレー */
+  opacity: 1;        /* Safari対策で薄くなりすぎないように */
+}
+
+:root {
+  --fg: #0f172a;           /* 本文 */
+  --fg-muted: #475569;     /* 補助テキスト */
+  --line: #e5e7eb;         /* 罫線 */
+  --bg-soft: #f8fafc;      /* セクション背景 */
+  --seg-base:    #f0f9ff;  /* 未選択の背景：淡いブルー */
+  --seg-border:  #bae6fd;  /* 未選択の枠   */
+  --seg-fill:    #bfdbfe;  /* 選択の背景   */
+  --seg-fill-bd: #60a5fa;  /* 選択の枠     */
+  --acc:         #3b82f6;  /* アクセント（濃いブルー） */
+}
+
+/* セクションブロック（カード風にしてブロック感を出す） */
+.section{
+  background: #fff;
+  border:1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.section + .section{ margin-top: 12px; }
+
+.section h4{
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: .2px;
+}
+
+/* ラベルと補助テキストを控えめに */
+.resume-interview-field label{
+  color: var(--fg-muted);
+  font-weight: 600;
+  font-size: .9rem;
+  margin-bottom: 4px;
+}
+.iq-muted{ color: var(--fg-muted); }
+
+/* 入力まわり：フォーカスリング/ホバー */
+.resume-interview-field input[type="text"],
+.resume-interview-field select,
+.resume-interview-field textarea,
+.resume-answer-textarea,
+.resume-template-textarea{
+  border:1px solid var(--line);
+  transition: box-shadow .15s, border-color .15s, background .15s;
+}
+.resume-interview-field input:focus,
+.resume-interview-field select:focus,
+.resume-interview-field textarea:focus{
+  outline: none;
+  border-color: #9fcfb6;
+  box-shadow: 0 0 0 3px rgba(159,207,182,.30);
+  background: #fff;
+}
+
+/* 表の可読性（ゼブラ＋行間少し広め） */
+.iq-table tbody tr:nth-child(odd){ background: #fcfdff; }
+.iq-table th{ background:#f6f7fb; }
+.iq-table--compact { line-height: 1.45; }
+
+/* RatingBar：タップしやすく */
+.rbar{ gap: 6px; }
+.rbar--single .rbar-seg{
+  padding: 8px 12px;
+}
+.rbar--single .rbar-seg:hover{
+  background:#eef2ff; border-color:#93c5fd;
+}
+.rbar--single .rbar-seg.is-active{
+  background: var(--acc); border-color: var(--acc);
+}
+
+/* コメント欄のplaceholderは控えめに */
+.resume-template-textarea::placeholder{ color:#94a3b8; opacity:1; }
+
+/* 左列を“見出しカラム”に寄せる */
+.iq-table td:first-child{
+  width: 36%;
+  color: var(--fg);
+  font-weight: 600;
+}
+/* レベル列（2列目）の中で、5等分グリッドにする */
+.iq-table td:nth-child(2) .rbar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;                  /* 既存の gap と合わせる */
+  align-items: center;
+  justify-items: center;     /* 数字を中央寄せ */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* 固定幅 36px をやめて、セル幅にフィットさせる */
+.iq-table td:nth-child(2) .rbar--fill-left .rbar-seg {
+  width: 100%;
+  height: 22px;              /* お好みで */
+  padding: 0;                /* rect型なので不要 */
+  border-radius: 6px;
+}
+
+/* “選択中の青枠”が外にはみ出さないように outline→box-shadow へ */
+.iq-table td:nth-child(2) .rbar--fill-left .rbar-seg.is-active {
+  outline: none;
+  box-shadow: 0 0 0 2px #3b82f6 inset; /* 内側に青線 */
+}
+
+.iq-table td:nth-child(3){ width: 42%; }
+
+/* ヒントⓘの行高バランス */
+.iq-hint-btn{ transform: translateY(-1px); }
+
+/* 結果のボタン列を整列 */
+.result-row .rbar{ display:flex; flex-wrap:wrap; gap:8px; }
+.result-row .rbar-seg{ min-width: 112px; justify-content:center; }
+
+.result-row {
+  margin-bottom: 8px; /* さらに狭める */
+}
+
+/* ---- コンパクト・ラッパ ---- */
+.ui-compact{
+  --fs: .92rem;       /* ベース文字 */
+  --fs-label: .86rem; /* ラベル文字 */
+  --space: 10px;      /* フィールド間の縦余白 */
+  --ctrl-h: 38px;     /* セレクト等の高さ */
+}
+
+.ui-compact .resume-interview-field{ 
+  margin-bottom: var(--space);
+}
+.ui-compact .resume-interview-field:last-child{
+  margin-bottom: 0;
+}
+
+.ui-compact label{
+  font-size: var(--fs-label);
+  margin-bottom: 4px;
+  color: #334155;     /* 少し濃いめで視認性↑ */
+}
+
+/* セレクト等のサイズを統一 */
+.ui-compact .resume-chat-stage-selector{
+  font-size: var(--fs);
+  height: var(--ctrl-h);
+  padding: 6px 10px;
+}
+
+/* RatingBar（pill）を一回り小さく＆間隔統一 */
+.ui-compact .rbar{ gap: 6px; }
+.ui-compact .rbar--single .rbar-seg{
+  padding: 6px 10px;      /* 8→6 */
+  font-size: var(--fs);   /* 文字少し小さめ */
+  min-width: 88px;        /* 横幅縮める（必要なら 76–96px で調整） */
+  line-height: 1.2;
+}
+
+/* 最終評価ブロックだけ詰めて並べる */
+.final-eval {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;            /* row x column のギャップ */
+  align-items: flex-start;
+}
+
+/* 各フィールドの幅：2カラム基準。狭ければ自動で1カラムへ */
+.final-eval .resume-interview-field {
+  flex: 1 1 360px;           /* 最低幅360px、余白に合わせて伸縮 */
+  margin-bottom: 0;          /* 余白は gap に任せる */
+}
+
+/* 「タイトル」は横いっぱいにしたい場合 */
+.final-eval .field--full {
+  flex-basis: 100%;
+}
+
+/* ちょいコンパクト（任意） */
+.final-eval label { font-size: .86rem; margin-bottom: 4px; }
+.final-eval .resume-chat-stage-selector { height: 38px; padding: 6px 10px; }
+
+.final-eval .rbar--single .rbar-seg{
+  background: var(--seg-base);
+  border: 1px solid var(--seg-border);
+  color: var(--fg-emerald);
+  box-shadow: none !important;
+}
+.final-eval .rbar--single .rbar-seg:hover{
+  background: #edf4f0;
+  border-color: var(--seg-fill-bd);
+}
+.final-eval .rbar--single .rbar-seg.is-active{
+  background: var(--seg-fill);
+  border-color: var(--seg-fill-bd);
+  color: var(--fg-emerald);
+  box-shadow: none !important;  /* 影なし */
+}
+
+/* フォーカス/キーボード操作時のアクセシビリティ */
+.final-eval .rbar--single .rbar-seg:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(22,163,74,.35);
+}
+
+/* タイトル行も同じ見た目に */
+.final-eval .field--full .rbar--single .rbar-seg{ /* 余白だけ微調整（任意） */
+  padding: 8px 14px;
+}
+
+.sheet-loading{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 8px 0 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: .95rem;
+}
+
+.sheet-spinner{
+  width: 16px;
+  height: 16px;
+  border: 2px solid #cbd5e1;
+  border-top-color: var(--acc) !important;
+  border-radius: 50%;
+  animation: sheet-spin .8s linear infinite;
+}
+
+@keyframes sheet-spin { to { transform: rotate(360deg); } }

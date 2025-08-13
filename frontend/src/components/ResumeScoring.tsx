@@ -132,7 +132,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
             )}
             </>
         ) : viewMode === 'matrix' ? (
-            <ResumeScoreMatrix />
+            <ResumeScoreMatrix interviewerId={userId}/>
         ) : (
             // 2025.8.12 Add（interviewer score after interview）
             <ResumeInterviewerOverview />

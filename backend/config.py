@@ -42,8 +42,8 @@ TEMPLATE_INTERVIEWER_PATH = INTERVIEWDATE_PATH / "template_interviewer.json"
 TEMPLATE_TODO_PATH = INTERVIEWDATE_PATH / "template_todo.json"
 ## 面談者評価関連
 INTERVIEWER_PATH = DATA_DIR / "candidate_interviewer_files"
+INTERVIEWER_CHECKSHEET_PATH = INTERVIEWER_PATH / "interviewer_checksheet_files"
 INTERVIEWER_EVALS_PATH = INTERVIEWER_PATH / "interviewer_evals_files"
-INTERVIEWER_QA_PATH = INTERVIEWER_PATH / "interviewer_prep_files"
 INTERVIEWER_SKILLS_PATH = INTERVIEWER_PATH / "interviewer_mustskills.json"
 
 BASE_DIR = Path(__file__).parent  # backendフォルダー

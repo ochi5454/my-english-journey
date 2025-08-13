@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import ResumeResultDetail from './ResumeResultDetail';
 import './ResumeScoring.css';
 
+interface Props {
+    interviewerId: string;
+}
+
 interface Score {
     division: string;
     score: number;
@@ -24,7 +28,7 @@ interface Result {
     scores: Score[];
 }
 
-const ResumeScoreMatrix: React.FC = () => {
+const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
     const [filterText, setFilterText] = useState('');
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
@@ -150,7 +154,8 @@ const ResumeScoreMatrix: React.FC = () => {
                 <ResumeResultDetail
                     result={selectedResult}
                     onClose={() => setSelectedResult(null)}
-                    onResultUpdate={handleResultUpdate} // 👈 追加
+                    onResultUpdate={handleResultUpdate}
+                    interviewerId={interviewerId}
                 />
             )}
         </div>

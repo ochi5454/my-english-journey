@@ -18,8 +18,8 @@
   "scores": [
     {
       "division": "Engineering",
-      "score": 3,
-      "reason": "トップセールスを受賞するための努力と成果を評価",
+      "score": 4,
+      "reason": "トップセールスを2年連続受賞",
       "score_history": [
         {
           "score": 1,
@@ -38,6 +38,12 @@
           "reason": "トップセールスを受賞するための努力と成果を評価",
           "reviewer": "user123",
           "reviewed_at": "2025-08-12T17:09:44.602236"
+        },
+        {
+          "score": 4,
+          "reason": "トップセールスを2年連続受賞",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-13T18:55:38.756581"
         }
       ]
     },
@@ -127,7 +133,7 @@
   "recommended_division": "Consultant",
   "uploader_id": "interquest_100",
   "updated_by": "user123",
-  "updated_at": "2025-08-12T17:09:44.603923",
+  "updated_at": "2025-08-13T18:55:38.757531",
   "chat_review_書類選考・2次_at": "2025-08-05T16:11:25.307502",
   "chat_reviewer_書類選考・2次": "user123",
   "chat_review_面談・1次_at": "2025-08-08T17:08:00.891682",
@@ -179,10 +185,17 @@
         "updated_by": "user123",
         "updated_at": "2025-08-12T17:09:44.602236",
         "source": "interview_review"
+      },
+      {
+        "score": 4,
+        "reason": "トップセールスを2年連続受賞",
+        "updated_by": "user123",
+        "updated_at": "2025-08-13T18:55:38.756581",
+        "source": "interview_review"
       }
     ]
   },
   "面談・2次_reviewed_resume": true,
-  "chat_review_面談・2次_at": "2025-08-12T17:09:44.603923",
+  "chat_review_面談・2次_at": "2025-08-13T18:55:38.757531",
   "chat_reviewer_面談・2次": "user123"
 }

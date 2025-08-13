@@ -1,0 +1,26 @@
+{
+    "interviewer_id": "user123",
+    "candidate_id": "cand_jrqkhjnn",
+    "stages": {
+        "面談・1次": {
+        "prepItems": [
+            {
+            "question": "GitHubの使用経験はあるか",
+            "answer": "GitHubの使用経験あり"
+            },
+            {
+            "question": "API設計経験はあるか",
+            "answer": "API設計経験あり"
+            },
+            {
+            "question": "ITの知識を用いたデータ分析などを行なったことがあるか",
+            "answer": "以前はマーケティング部として所属しており、データ分析を行なったとのこと。データドリブンなプロモーション戦略や企画実行経験もあり、IT部門としてもマーケティング部門としても即戦力になり得る"
+            }
+        ],
+        "reviewedResume": true,
+        "qualitative": {},
+        "quantitative": {},
+        "updated_at": "2025-08-12T10:48:51.973299"
+        }
+    }
+}

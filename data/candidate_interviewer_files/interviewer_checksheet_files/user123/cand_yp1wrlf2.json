@@ -1,0 +1,54 @@
+{
+  "interviewer_id": "user123",
+  "candidate_id": "cand_yp1wrlf2",
+  "stages": {
+    "面談・1次": {
+      "prepItems": [],
+      "reviewedResume": true,
+      "qualitative": {
+        "careerGoals": "本人はコンサルタント希望",
+        "otherApps": "株式会社ABCコンサルタント書類選考中",
+        "overall": "",
+        "assignmentPlan": "",
+        "hiringDecision": "hire_ok",
+        "recommendedTitle": "SC",
+        "recommendedDivision": "Consultant"
+      },
+      "quantitative": {
+        "self_management": {
+          "level": 5,
+          "comment": "海外営業部としてコミュニケーションは長けていた"
+        },
+        "workstyle_relation": {
+          "level": 4,
+          "comment": ""
+        },
+        "communication": {
+          "level": 5,
+          "comment": ""
+        },
+        "leadership": {
+          "level": 3,
+          "comment": ""
+        },
+        "logical_thinking": {
+          "level": 4,
+          "comment": ""
+        },
+        "execution_pm": {
+          "level": 3,
+          "comment": ""
+        },
+        "expertise": {
+          "level": 3,
+          "comment": ""
+        },
+        "biz_org_dev": {
+          "level": 3,
+          "comment": ""
+        }
+      },
+      "updated_at": "2025-08-13T18:34:49.159430"
+    }
+  }
+}
