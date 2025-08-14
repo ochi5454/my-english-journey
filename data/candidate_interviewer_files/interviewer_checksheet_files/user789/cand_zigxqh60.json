@@ -1,0 +1,54 @@
+{
+  "interviewer_id": "user789",
+  "candidate_id": "cand_zigxqh60",
+  "stages": {
+    "面談・2次": {
+      "prepItems": [],
+      "reviewedResume": true,
+      "qualitative": {
+        "careerGoals": "将来的には事業責任者として新規ビジネスの立ち上げを担いたいという明確な目標を持っており、短期的にはプロジェクトマネージャーとして現場の実行支援に関与したい意欲を示していた。",
+        "otherApps": "競合コンサルティングファームに2社エントリー済みで、うち1社は最終面接通過待ち。",
+        "overall": "業務遂行力や対人対応力に優れており、現場での即戦力として期待できる。一方で論理的な構成力にはまだ課題が見られるため、早期のキャッチアップを期待したい。",
+        "assignmentPlan": "初期はPM補佐や資料作成中心にアサインし、プロジェクト進行管理にも段階的に関与してもらう想定。",
+        "hiringDecision": "hire_ok",
+        "recommendedTitle": "SM",
+        "recommendedDivision": "Consultant"
+      },
+      "quantitative": {
+        "self_management": {
+          "level": 3,
+          "comment": "期日厳守の意識や責任感はあるが、同時並行タスクの管理には課題も見られる。"
+        },
+        "workstyle_relation": {
+          "level": 5,
+          "comment": "チームワークに優れ、相手の立場を尊重したコミュニケーションが自然にできている。"
+        },
+        "communication": {
+          "level": 5,
+          "comment": "要点を押さえた分かりやすい説明ができ、聞き手への配慮も十分。"
+        },
+        "leadership": {
+          "level": 3,
+          "comment": "主体性はあるが、状況を俯瞰した上での判断にはやや不安定な面が残る。"
+        },
+        "logical_thinking": {
+          "level": 2,
+          "comment": "思考の飛躍があり、結論と根拠のつながりが弱い部分があった。"
+        },
+        "execution_pm": {
+          "level": 4,
+          "comment": "タスク完遂への責任感は高く、PDCAサイクルの理解もある。"
+        },
+        "expertise": {
+          "level": 3,
+          "comment": "過去経験に基づいた実務知識はあるが、新しいテーマへの応用力には伸びしろがある。"
+        },
+        "biz_org_dev": {
+          "level": 3,
+          "comment": "事業開発に関心を示しており、関連書籍を自主的に読んでいるとのこと。"
+        }
+      },
+      "updated_at": "2025-08-14T16:36:56.978857"
+    }
+  }
+}

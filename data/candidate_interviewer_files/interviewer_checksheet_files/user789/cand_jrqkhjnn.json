@@ -1,0 +1,54 @@
+{
+  "interviewer_id": "user789",
+  "candidate_id": "cand_jrqkhjnn",
+  "stages": {
+    "面談・1次": {
+      "prepItems": [],
+      "reviewedResume": true,
+      "qualitative": {
+        "careerGoals": "将来的にはエンジニアリング組織のマネジメントにも関与したい意向。中期的にはテックリードとしてプロジェクト推進を担いたいとのこと。",
+        "otherApps": "スタートアップ系のSaaS企業に1社エントリー中、面接日程調整中。",
+        "overall": "安定した技術力とチーム貢献意識を兼ね備えており、プロダクト開発の現場で高いパフォーマンスを期待できる。特にチーム内連携や自己改善の姿勢が印象的だった。",
+        "assignmentPlan": "当初は既存システムのリファクタリングやモジュール設計から関与し、将来的には新規機能開発のリードを想定。",
+        "hiringDecision": "strong_hire",
+        "recommendedTitle": "M",
+        "recommendedDivision": "Engineering"
+      },
+      "quantitative": {
+        "self_management": {
+          "level": 3,
+          "comment": "進捗管理やスケジュール調整は一定できているが、繁忙期の優先順位整理にはやや課題がある。"
+        },
+        "workstyle_relation": {
+          "level": 5,
+          "comment": "他部署との折衝や社内での合意形成など、組織内での関係性構築が非常に上手くできていた。"
+        },
+        "communication": {
+          "level": 3,
+          "comment": "内容は明確だが、技術的な話になるとやや言葉選びに曖昧さが残る印象。"
+        },
+        "leadership": {
+          "level": 4,
+          "comment": "小規模なチームでのタスク調整や新人フォローなど、リーダー的な振る舞いができていた。"
+        },
+        "logical_thinking": {
+          "level": 3,
+          "comment": "課題に対する思考フローは標準的。今後さらに構造化の意識が高まると良い。"
+        },
+        "execution_pm": {
+          "level": 4,
+          "comment": "アジャイルでの開発経験があり、リリースサイクルや優先度判断も適切だった。"
+        },
+        "expertise": {
+          "level": 3,
+          "comment": "主要言語やFWに関しては必要十分な知識を保持。より高度な設計領域での経験が今後の課題。"
+        },
+        "biz_org_dev": {
+          "level": 4,
+          "comment": "自身の業務改善やチームの生産性向上に積極的に取り組んでいた点を高く評価。"
+        }
+      },
+      "updated_at": "2025-08-14T16:38:05.835719"
+    }
+  }
+}

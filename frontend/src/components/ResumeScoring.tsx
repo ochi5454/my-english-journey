@@ -73,7 +73,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
             className={`resume-tab ${viewMode === 'interviewer' ? 'active' : ''}`} // 2025.8.12 Add（interviewer score after interview）
             onClick={() => setViewMode('interviewer')}
             >
-            面談者評価
+            品質管理
         </div>
         </div>
 

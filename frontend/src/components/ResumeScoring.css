@@ -1636,3 +1636,142 @@
 }
 
 @keyframes sheet-spin { to { transform: rotate(360deg); } }
+
+.ria-container {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0;
+}
+
+/* セクションタイトル（定量評価 / 最終評価） */
+.ria-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem 0;
+  border-left: 4px solid green;
+  padding-left: 0.5rem;
+  margin-left: 1.5rem;     /* 👈 インデント */
+}
+
+/* テーブル自体も同様に左に少し寄せる */
+.ria-score-table {
+  width: calc(100% - 1.5rem);
+  margin-left: 1.5rem;     /* 👈 インデントを合わせる */
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+/* ヘッダー */
+.ria-score-table th {
+  background-color: #f9f9f9;
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+  font-weight: 600;
+}
+
+/* 行セル */
+.ria-score-table td {
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+
+/* 観点列（左） */
+.ria-criterion-col {
+  width: auto;
+  font-weight: 600;
+  font-size: 0.90rem;
+}
+
+.ria-score-col {
+  width: auto;
+  max-width: 640px;
+  font-size: 0.90rem;
+}
+
+.ria-score-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* チップ */
+.ria-score-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background-color: #f1f1f1;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* 異常値の強調表示 */
+.ria-score-chip.anomaly {
+  background-color: #ffe5e5;
+  color: #c62828;
+  font-weight: 600;
+}
+
+/* 信頼性表示 */
+.ria-score-reliability {
+  font-size: 12px;
+  color: #666;
+}
+
+/* ローディング・空データ表示 */
+.ria-text-center {
+  text-align: center;
+  padding: 1rem;
+  color: #999;
+}
+
+/* セクションタイトル（定量/最終など） */
+.ria-section-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  border-left: 4px solid #4caf50;
+  padding-left: 0.5rem;
+}
+
+/* 面接官品質タブ切替 */
+.iq-tab-switch {
+  display: flex;
+  border-bottom: 2px solid #ccc;
+  margin-bottom: 1rem;
+  gap: 0px;
+}
+
+.iq-tab-switch-btn {
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  background-color: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.iq-tab-switch-btn:hover {
+  background-color: #f8f8f8;
+  color: #333;
+}
+
+.iq-tab-switch-btn.active {
+  border-bottom: 3px solid #28a745;
+  color: #111;
+  font-weight: 700;
+  background-color: white;
+}
+
+.low-reliability {
+  background-color: #fdecea; /* 薄いピンク */
+  color: #a94442;             /* 暗めの赤文字 */
+  font-weight: bold;
+  padding: 0.25em 0.5em;
+  border-radius: 4px;
+}

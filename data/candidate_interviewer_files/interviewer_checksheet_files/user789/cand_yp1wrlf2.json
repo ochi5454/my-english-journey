@@ -1,0 +1,54 @@
+{
+  "interviewer_id": "user789",
+  "candidate_id": "cand_yp1wrlf2",
+  "stages": {
+    "面談・1次": {
+      "prepItems": [],
+      "reviewedResume": true,
+      "qualitative": {
+        "careerGoals": "コンサルタントとしてクライアントの課題解決に関わりたい意向が強く、将来的には戦略案件にも関わりたいという展望を持っている。",
+        "otherApps": "日系コンサルティングファームやSaaS系ベンチャーにも並行して応募している。",
+        "overall": "一定の実行力や組織貢献姿勢は見られるが、論理性や分析力にはばらつきがあり、育成を前提とした採用が妥当と考えられる。",
+        "assignmentPlan": "最初はサポートロールとしてドキュメント作成やデータ分析補佐を担い、段階的に小規模タスクのリードも期待。",
+        "hiringDecision": "hire_consider",
+        "recommendedTitle": "SC",
+        "recommendedDivision": "Consultant"
+      },
+      "quantitative": {
+        "self_management": {
+          "level": 3,
+          "comment": "納期意識はあるが、タスクの優先度整理や進行管理には課題が見られる。"
+        },
+        "workstyle_relation": {
+          "level": 3,
+          "comment": "チーム内での調整や他者の意見を取り入れる姿勢はあるが、やや受け身な場面も。"
+        },
+        "communication": {
+          "level": 3,
+          "comment": "伝えたい内容は理解できるが、構造的な説明にはもう一段の工夫が必要。"
+        },
+        "leadership": {
+          "level": 5,
+          "comment": "学内プロジェクトでのリーダー経験もあり、周囲を巻き込む力がある。"
+        },
+        "logical_thinking": {
+          "level": 2,
+          "comment": "論点が飛躍する場面があり、整理された思考・発言が求められる。"
+        },
+        "execution_pm": {
+          "level": 5,
+          "comment": "指示があれば自走力高く、プロジェクト進行の巻き取りも期待できる。"
+        },
+        "expertise": {
+          "level": 3,
+          "comment": "業界知識やツール活用の幅は標準レベル。今後のキャッチアップが前提。"
+        },
+        "biz_org_dev": {
+          "level": 3,
+          "comment": "事業開発への関心はあるが、実務経験はこれから。吸収力は感じられる。"
+        }
+      },
+      "updated_at": "2025-08-14T11:07:27.208732"
+    }
+  }
+}

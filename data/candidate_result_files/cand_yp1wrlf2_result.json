@@ -18,8 +18,8 @@
   "scores": [
     {
       "division": "Engineering",
-      "score": 3,
-      "reason": "本人の自己管理能力が高く、成長が見込めるため",
+      "score": 4,
+      "reason": "定量メモに基づくスキルの高さ",
       "score_history": [
         {
           "score": 1,
@@ -38,6 +38,12 @@
           "reason": "本人の自己管理能力が高く、成長が見込めるため",
           "reviewer": "user123",
           "reviewed_at": "2025-08-13T18:34:49.156150"
+        },
+        {
+          "score": 4,
+          "reason": "定量メモに基づくスキルの高さ",
+          "reviewer": "user456",
+          "reviewed_at": "2025-08-14T09:56:20.296026"
         }
       ]
     },
@@ -56,8 +62,8 @@
     },
     {
       "division": "Consultant",
-      "score": 9,
-      "reason": "本人のキャリアゴールと志向が一致し、他の応募先もコンサルタント関連であるため",
+      "score": 10,
+      "reason": "hiringDecisionとrecommendedDivisionに基づく",
       "score_history": [
         {
           "score": 7,
@@ -76,6 +82,12 @@
           "reason": "本人のキャリアゴールと志向が一致し、他の応募先もコンサルタント関連であるため",
           "reviewer": "user123",
           "reviewed_at": "2025-08-13T18:34:49.156150"
+        },
+        {
+          "score": 10,
+          "reason": "hiringDecisionとrecommendedDivisionに基づく",
+          "reviewer": "user456",
+          "reviewed_at": "2025-08-14T09:56:20.296026"
         }
       ]
     },
@@ -148,10 +160,10 @@
       ]
     }
   ],
-  "recommended_division": "Sales",
+  "recommended_division": "Consultant",
   "uploader_id": "interquest_100",
-  "updated_by": "user123",
-  "updated_at": "2025-08-13T18:34:49.158642",
+  "updated_by": "user456",
+  "updated_at": "2025-08-14T09:56:20.297534",
   "chat_review_書類選考・2次_at": "2025-08-08T13:28:17.250628",
   "chat_reviewer_書類選考・2次": "user123",
   "score_history": {
@@ -192,6 +204,13 @@
         "updated_by": "user123",
         "updated_at": "2025-08-13T18:34:49.156150",
         "source": "interview_review"
+      },
+      {
+        "score": 4,
+        "reason": "定量メモに基づくスキルの高さ",
+        "updated_by": "user456",
+        "updated_at": "2025-08-14T09:56:20.296026",
+        "source": "interview_review"
       }
     ],
     "Consultant": [
@@ -207,6 +226,13 @@
         "reason": "本人のキャリアゴールと志向が一致し、他の応募先もコンサルタント関連であるため",
         "updated_by": "user123",
         "updated_at": "2025-08-13T18:34:49.156150",
+        "source": "interview_review"
+      },
+      {
+        "score": 10,
+        "reason": "hiringDecisionとrecommendedDivisionに基づく",
+        "updated_by": "user456",
+        "updated_at": "2025-08-14T09:56:20.296026",
         "source": "interview_review"
       }
     ],
@@ -230,6 +256,6 @@
   "interview_review_面談・1次_at": "2025-08-12T10:10:50.592674",
   "interview_reviewer_面談・1次": "user123",
   "面談・1次_reviewed_resume": true,
-  "chat_review_面談・1次_at": "2025-08-13T18:34:49.158642",
-  "chat_reviewer_面談・1次": "user123"
+  "chat_review_面談・1次_at": "2025-08-14T09:56:20.297534",
+  "chat_reviewer_面談・1次": "user456"
 }
