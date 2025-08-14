@@ -1,0 +1,68 @@
+{
+  "rows": [
+    {
+      "candidate_id": "cand_jrqkhjnn",
+      "interviewer_id": "user456",
+      "stage": "面談・1次",
+      "total": 8,
+      "breakdown": {
+        "prep": 8,
+        "coverage": 8,
+        "depth": 8,
+        "evidence": 9,
+        "professionalism": 9
+      },
+      "reasons": [
+        "面談者は候補者の直前スコアを理解し、その経験とスキルに基づいて質問を設計している。",
+        "面談者は候補者の技術スキル、チームでの協働経験、問題解決能力など、多角的に評価するための質問を設計している。",
+        "面談者は具体的なプロジェクトや経験について深掘りし、候補者のスキルや能力を評価している。",
+        "面談者は候補者の回答と直前スコアを比較し、整合性をチェックしている。また、定量的な評価も行っている。",
+        "面談者は公平性を保ち、時間管理を適切に行っている。また、候補者に対する態度も適切である。"
+      ],
+      "evaluated_at": "2025-08-14T16:49:57.388704",
+      "source_sig": "35bfa793109a17852b5fe7e5692bbe3d936dfe88"
+    },
+    {
+      "candidate_id": "cand_yp1wrlf2",
+      "interviewer_id": "user456",
+      "stage": "面談・1次",
+      "total": 5,
+      "breakdown": {
+        "prep": 7,
+        "coverage": 4,
+        "depth": 4,
+        "evidence": 6,
+        "professionalism": 5
+      },
+      "reasons": [
+        "面談QAの記録がないため、面談の具体的な進行や質問設計、深掘りの有無、エビデンス活用の詳細、プロ意識について評価することができない。",
+        "定量メモには各項目のレベルと根拠が記載されており、一定のエビデンス活用が見られる。"
+      ],
+      "evaluated_at": "2025-08-14T16:42:11.485328",
+      "source_sig": "372ea6667ba37e4701564db21e2ab8fbbd8ac4f4"
+    },
+    {
+      "candidate_id": "cand_zigxqh60",
+      "interviewer_id": "user456",
+      "stage": "面談・1次",
+      "total": 8,
+      "breakdown": {
+        "prep": 9,
+        "coverage": 8,
+        "depth": 7,
+        "evidence": 8,
+        "professionalism": 9
+      },
+      "reasons": [
+        "面談者は候補者の強みと弱みを理解し、それに基づく質問を設計していました。",
+        "面談者は候補者の経歴、スキル、適性、意欲等を網羅する質問を設計していました。",
+        "面談者は公平性を保ち、時間を適切に管理し、適切な態度を保っていました。"
+      ],
+      "evaluated_at": "2025-08-14T16:49:26.989049",
+      "source_sig": "52a3baf58436f22575a190f80c9efa4450572a2a"
+    }
+  ],
+  "version": "1",
+  "interviewer_id": "user456",
+  "generated_at": "2025-08-14T16:49:57.389311"
+}

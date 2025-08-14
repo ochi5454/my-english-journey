@@ -1,26 +1,67 @@
 {
-    "interviewer_id": "user123",
-    "candidate_id": "cand_jrqkhjnn",
-    "stages": {
-        "面談・1次": {
-        "prepItems": [
-            {
-            "question": "GitHubの使用経験はあるか",
-            "answer": "GitHubの使用経験あり"
-            },
-            {
-            "question": "API設計経験はあるか",
-            "answer": "API設計経験あり"
-            },
-            {
-            "question": "ITの知識を用いたデータ分析などを行なったことがあるか",
-            "answer": "以前はマーケティング部として所属しており、データ分析を行なったとのこと。データドリブンなプロモーション戦略や企画実行経験もあり、IT部門としてもマーケティング部門としても即戦力になり得る"
-            }
-        ],
-        "reviewedResume": true,
-        "qualitative": {},
-        "quantitative": {},
-        "updated_at": "2025-08-12T10:48:51.973299"
+  "interviewer_id": "user123",
+  "candidate_id": "cand_jrqkhjnn",
+  "stages": {
+    "面談・1次": {
+      "prepItems": [
+        {
+          "question": "GitHubの使用経験はあるか",
+          "answer": "GitHubの使用経験あり。主に業務でのコードレビューやバージョン管理、Issue管理に活用していたとのこと。"
+        },
+        {
+          "question": "API設計経験はあるか",
+          "answer": "REST APIの設計経験があり、OpenAPI仕様のドキュメント作成も一部行っていた。バックエンドエンジニアと連携し、要件定義にも関与していたとのこと。"
+        },
+        {
+          "question": "ITの知識を用いたデータ分析などを行なったことがあるか",
+          "answer": "以前はマーケティング部として所属しており、データ分析を行なったとのこと。データドリブンなプロモーション戦略や企画実行経験もあり、IT部門としてもマーケティング部門としても即戦力になり得る。"
         }
+      ],
+      "reviewedResume": true,
+      "qualitative": {
+        "careerGoals": "マーケティング×テクノロジーの領域でスペシャリストを目指したいとのこと。特にデータ活用や自動化に興味が強い。",
+        "otherApps": "外資系のマーケティングテック企業にも数社応募中。",
+        "overall": "実務経験が豊富で、マーケとITの橋渡しができるハイブリッド人材。自走力があり、即戦力性が高い印象。",
+        "assignmentPlan": "初期は分析系PJのサポートから入り、半年後を目安に業務設計・自動化提案まで担ってもらうことを想定。",
+        "hiringDecision": "hire_ok",
+        "recommendedTitle": "C",
+        "recommendedDivision": "Marketing"
+      },
+      "quantitative": {
+        "self_management": {
+          "level": 4,
+          "comment": "複数部署と連携しながら、自ら学習・業務改善を継続していた点を評価。"
+        },
+        "workstyle_relation": {
+          "level": 5,
+          "comment": "マーケ・エンジニア両方と良好な関係構築ができており、調整力が高い。"
+        },
+        "communication": {
+          "level": 4,
+          "comment": "やや慎重だが、論理的で要点を押さえた話し方ができていた。"
+        },
+        "leadership": {
+          "level": 3,
+          "comment": "周囲を巻き込むというよりは、着実に自分のタスクを進めるタイプ。"
+        },
+        "logical_thinking": {
+          "level": 4,
+          "comment": "因果関係を整理して話す力があり、仮説思考にも対応できていた。"
+        },
+        "execution_pm": {
+          "level": 3,
+          "comment": "プロジェクト全体を俯瞰する経験は少ないが、タスク実行力は高い。"
+        },
+        "expertise": {
+          "level": 4,
+          "comment": "SQLやBIツール、デジマ施策に関する実務経験があり知識レベルは高い。"
+        },
+        "biz_org_dev": {
+          "level": 3,
+          "comment": "まだ変革提案の経験は少ないが、現状の改善提案は一部行っていた。"
+        }
+      },
+      "updated_at": "2025-08-12T10:48:51.973299"
     }
+  }
 }
