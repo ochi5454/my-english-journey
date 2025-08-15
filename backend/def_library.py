@@ -77,12 +77,14 @@ from config import (
     TEMPLATE_EMAIL_CANDIDATE_PATH,
     INTERVIEWDATE_EACH_CANDIDATE_PATH,
     INTERVIEWER_CHECKSHEET_PATH,
+    INTERVIEWER_COMMONSKILLS_PATH,
+    INTERVIEWER_EVALS_PATH,
     INTERVIEWER_SKILLS_PATH,
-    INTERVIEWER_EVALS_PATH
+    INTERVIEWER_META_PATH
 )
 
 # 型定義
-from typing import List, Tuple, Dict, Union, Optional, Any, Iterable
+from typing import List, Tuple, Dict, Union, Optional, Any, Iterable, TypedDict
 
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
 EMBEDDING_MODEL = "text-embedding-3-small" #### 2025.7.29 Add（search pptx from original not summarize）
@@ -127,6 +129,11 @@ class InterviewSetupRequest(BaseModel):
     candidateMail: str
     interviewerMail: str
     stage: str 
+
+class PrepItemDict(TypedDict):
+    question: str
+    answer: str
+    tags: List[str]
 #### 2025.8.8 Add（resume）END
 
 # 新しいベクトルストアを作成して保存する
@@ -3007,6 +3014,13 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
 def get_divisions(result: dict) -> List[str]:
     return [s.get("division") for s in result.get("scores", []) if s.get("division")]
 
+def _load_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        return {"error": str(e)}
+
 def _shape_block(raw: Dict[str, Any], stage: str) -> Dict[str, Any]:
     stages = (raw.get("stages") or {})
     block = stages.get(stage) or {}
@@ -3079,7 +3093,7 @@ def review_with_interview_checksheet(
     candidate_id: str,
     reviewer_id: str,     # = interviewer_id
     stage: str,
-    prep_items: List[dict],
+    prep_items: List[PrepItemDict],  # ← ✅ 型を明示
     reviewed_resume: bool = False,
     qualitative: dict | None = None,
     quantitative: dict | None = None,
@@ -3134,7 +3148,7 @@ def review_with_interview_checksheet(
         existing_block = {}
 
     incoming_block = {
-        "prepItems": prep_items,
+        "prepItems": to_serializable(prep_items),
         "reviewedResume": reviewed_resume,
         "qualitative": qualitative or {},
         "quantitative": quantitative or {},
@@ -3152,6 +3166,15 @@ def review_with_interview_checksheet(
     )
 
     return result
+
+def to_serializable(obj: Any) -> Any:
+    if isinstance(obj, BaseModel):
+        return obj.dict()
+    if isinstance(obj, list):
+        return [to_serializable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: to_serializable(v) for k, v in obj.items()}
+    return obj
 
 def _shape_block(raw: Dict[str, Any], stage: str) -> Dict[str, Any]:
     stages = (raw.get("stages") or {})
@@ -3257,7 +3280,7 @@ def get_current_scores_map(result: dict) -> Dict[str, int]:
 
 def generate_interview_review_prompt(
     *,
-    prep_items: List[dict],
+    prep_items: List[PrepItemDict],
     valid_divisions: List[str],
     current_scores: Dict[str, int],
     qualitative: Dict[str, Any] | None = None,
@@ -3285,8 +3308,8 @@ def generate_interview_review_prompt(
     # --- QA（prep_items） ---
     qa_lines: List[str] = []
     for i, it in enumerate(prep_items or [], 1):
-        q = (it.get("question") or "").strip()
-        a = (it.get("answer") or "").strip()
+        q = (it.question or "").strip()
+        a = (it.answer or "").strip()
         if q or a:
             qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
 
@@ -3551,7 +3574,7 @@ def pick_qa_block_for(
                 return b
     return blocks[0] if blocks else {}
 
-def load_interviewer_skills(path: Path = INTERVIEWER_SKILLS_PATH) -> dict:
+def load_interviewer_skills(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> dict:
     """面談者評価のルーブリック(JSON)を読み込み"""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -3656,21 +3679,25 @@ def filter_cache_rows_in_memory(
     return out
 
 def calc_source_sig(
-    cid: str, stage: str, qa_block: dict, resume: dict, rubric: dict
+    cid: str, stage: str, qa_block: dict, resume: dict, rubric: dict, rolefit: dict | None = None
 ) -> str:
     payload = {
         "cid": cid,
         "stage": stage,
         "qa_updated_at": qa_block.get("updated_at"),
         "qa_items": qa_block.get("prepItems", []),
-
-        # 🔽 追加（定性・定量も差分対象に）
         "qa_qualitative": qa_block.get("qualitative", {}),
         "qa_quantitative": qa_block.get("quantitative", {}),
-
         "resume_updated_at": (resume or {}).get("updated_at"),
         "resume_scores": (resume or {}).get("scores", []),
         "rubric_version": rubric.get("version"),
+
+        # 🔽 差分に使うフィールドを増やす
+        "rolefit_score": rolefit.get("score") if rolefit else 0,
+        "rolefit_matched": rolefit.get("matched", []) if rolefit else [],
+        "rolefit_missing": rolefit.get("missing", []) if rolefit else [],
+        "rolefit_violated": rolefit.get("violated", []) if rolefit else [],
+        "rolefit_comment": rolefit.get("comment", "") if rolefit else "",
     }
     j = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return sha1(j.encode("utf-8")).hexdigest()
@@ -3689,7 +3716,7 @@ def default_interviewer_rubric() -> dict:
         ],
     }
 
-def read_interviewer_rubric_file(path: Path = INTERVIEWER_SKILLS_PATH) -> dict:
+def read_interviewer_rubric_file(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> dict:
     """ルーブリックJSONをそのまま読む（存在しなければ例外）。"""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -3697,6 +3724,22 @@ def read_interviewer_rubric_file(path: Path = INTERVIEWER_SKILLS_PATH) -> dict:
 def make_rubric_etag(data: dict) -> str:
     body = json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
     return sha1(body).hexdigest()[:16]
+
+def get_interviewer_meta(interviewer_id: str) -> dict:
+    """
+    面接官IDから部署・ロールなどのメタ情報を取得。
+    全員分が1ファイルにまとまっている形式に対応。
+    """
+    meta_file: Path = INTERVIEWER_META_PATH  # ← JSONファイルそのもの
+    if not meta_file.exists():
+        return {}
+    try:
+        with open(meta_file, encoding="utf-8") as f:
+            all_meta = json.load(f)
+            return all_meta.get(interviewer_id, {})
+    except Exception as e:
+        print(f"[WARN] 面接官メタ情報の読み込み失敗 ({interviewer_id}): {e}")
+        return {}
 
 # ② 評価ロジック（計算・生成）
 def compute_weighted_total(rubric: dict, criteria: List[dict]) -> int:
@@ -3716,26 +3759,32 @@ def normalize_interviewer_eval_output(
     candidate_id: str,
     stage: str
 ) -> dict:
-    """
-    LLMの出力(JSON)をAPIレスポンス形に正規化。
-    ・重み合成をサーバで最終確定
-    ・rubricのlabel付け
-    """
     criteria = raw_json.get("criteria", [])
     total = compute_weighted_total(rubric, criteria)
 
+    full_criteria = rubric.get("criteria", [])
+    label_map = {c["key"]: c["label"] for c in full_criteria}
+    weight_map = {c["key"]: c["weight"] for c in full_criteria}
+    guide_map = {c["key"]: c["guidance"] for c in full_criteria}
+
     labeled = []
-    label_map = {c["key"]: c["label"] for c in rubric.get("criteria", [])}
+    breakdown = {}
     for c in criteria:
+        key = c.get("key")
+        score = c.get("score", 0)
+        breakdown[key] = score  # 👈 各項目のスコアを辞書に追加
         labeled.append({
-            "key": c.get("key"),
-            "label": label_map.get(c.get("key"), c.get("key")),
-            "score": c.get("score", 0),
-            "note": c.get("note")
+            "key": key,
+            "label": label_map.get(key, key),
+            "score": score,
+            "note": c.get("note", ""),
+            "weight": weight_map.get(key),
+            "guidance": guide_map.get(key),
         })
 
     return {
-        "score": total,
+        "total": total,                    # 👈 一貫性のため "score" → "total" にしてもOK
+        "breakdown": breakdown,            # ✅ 各観点のスコアを追加
         "reasons": raw_json.get("reasons", []),
         "suggestions": raw_json.get("suggestions", []),
         "rubric": labeled,
@@ -3757,20 +3806,22 @@ def build_interviewer_eval_prompt(
     items = (qa_block or {}).get("prepItems", [])
     qa_lines = []
     for i, it in enumerate(items, 1):
-        q = (it.get("question") or "").strip()
-        a = (it.get("answer") or "").strip()
+        q = (it["question"] or "").strip()
+        a = (it["answer"] or "").strip()
         if q or a:
             qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
     qa_text = "\n\n".join(qa_lines) if qa_lines else "（面談QAの記録なし）"
 
-    # 🔽 定性/定量を追記
+    # 定性メモ
     qual = qa_block.get("qualitative") or {}
     qual_lines = []
     for k in ("careerGoals", "otherApps", "overall", "assignmentPlan"):
         v = (qual.get(k) or "").strip()
-        if v: qual_lines.append(f"- {k}: {v}")
+        if v:
+            qual_lines.append(f"- {k}: {v}")
     qual_text = "\n".join(qual_lines) if qual_lines else "（定性メモなし）"
 
+    # 定量メモ
     quant = qa_block.get("quantitative") or {}
     q_rows = []
     for k, row in (quant.items() if isinstance(quant, dict) else []):
@@ -3780,7 +3831,7 @@ def build_interviewer_eval_prompt(
             q_rows.append(f"- {k}: Lv{lv or 0} / {cm}")
     quant_text = "\n".join(q_rows) if q_rows else "（定量メモなし）"
 
-    # 直前スコア（部門別）
+    # 直前スコア
     scores = resume_result.get("scores", [])
     score_lines = [f"- {s.get('division')}: {s.get('score')}点（理由: {s.get('reason','')}）" for s in scores]
     scores_text = "\n".join(score_lines) if score_lines else "（スコアなし）"
@@ -3833,7 +3884,12 @@ def eval_interviewer_once(
 ) -> dict:
     """LLMで面談者を1名分採点し、重みで総合点を補正"""
     prompt = build_interviewer_eval_prompt(interviewer_id, stage, resume_result, qa_block, rubric)
-    raw = call_openai_chat(prompt, model=model)  # 既存のOpenAI呼び出しを再利用
+    raw = call_openai_chat(prompt, model=model)
+
+    # 🔽 ここに print を追加！
+    print("\n========== [DEBUG] LLM raw output ==========")
+    print(raw)
+    print("============================================\n")
 
     try:
         data = json.loads(raw)
@@ -3857,19 +3913,20 @@ def eval_interviewer_once(
     return data
 
 def to_row_from_llm_json(
-    cid: str, iid: str, stg: str, raw_json: dict, rubric: dict, source_sig: str
+    cid: str, iid: str, stg: str, result: dict, rubric: dict, source_sig: str
 ) -> dict:
-    total = compute_weighted_total(rubric, raw_json.get("criteria", []))
-    breakdown = {c.get("key"): c.get("score", 0) for c in raw_json.get("criteria", [])}
     return {
         "candidate_id": cid,
         "interviewer_id": iid,
         "stage": stg,
-        "total": total,
-        "breakdown": breakdown,
-        "reasons": raw_json.get("reasons", []),
-        "evaluated_at": datetime.now().isoformat(),
-        "source_sig": source_sig,   # ← 材料のスナップショット署名
+        "total": result.get("total", 0),
+        "breakdown": result.get("breakdown", {}),
+        "reasons": result.get("reasons", []),
+        "suggestions": result.get("suggestions", []),
+        "rubric": result.get("rubric", []),
+        "evaluated_at": result.get("evaluated_at"),
+        "source_sig": source_sig,
+        "role_expectation": result.get("role_expectation", {}),
     }
 
 def normalize_rubric(raw: dict) -> dict:
@@ -3915,6 +3972,37 @@ def normalize_rubric(raw: dict) -> dict:
 
     return {"version": version, "max_score": max_score, "criteria": norm}
 
+def calc_role_score(role_expectation: dict) -> float:
+    """
+    role_expectation から柔らかいロールスコア（float）を計算する。
+    violated があっても最低4点を保証する優しい評価。
+    """
+    if not role_expectation:
+        return 0.0
+
+    matched = len(role_expectation.get("matched", []))
+    missing = len(role_expectation.get("missing", []))
+    violated = len(role_expectation.get("violated", []))
+    total = matched + missing
+
+    if total == 0:
+        return 0.0
+
+    # 優しい段階スコア + 減点（最低4点保証）
+    ratio = matched / total
+    if matched == 0:
+        score = 4
+    elif ratio < 0.34:
+        score = 6
+    elif ratio < 0.67:
+        score = 8
+    elif ratio < 1.0:
+        score = 9
+    else:
+        score = 10
+
+    return max(score - violated * 1, 4.0)
+
 # ③ 評価サービス（アプリケーション層）
 def evaluate_interviewer_single(
     candidate_id: str,
@@ -3933,7 +4021,7 @@ def evaluate_interviewer_single(
         prep_map = load_prep_map_with_owner()
         qa_block = pick_qa_block_for(prep_map, candidate_id, stage, interviewer_id)
 
-    rubric = load_interviewer_skills(INTERVIEWER_SKILLS_PATH)
+    rubric = load_interviewer_skills(INTERVIEWER_COMMONSKILLS_PATH)
     raw = eval_interviewer_once(interviewer_id, stage, resume, qa_block, rubric, model=model)
 
     # LLMが壊れても最低限の形に
@@ -3943,11 +4031,24 @@ def evaluate_interviewer_single(
         except Exception:
             raw = {"score": 0, "criteria": [], "reasons": ["LLM出力の解析に失敗"], "suggestions": []}
 
-    return normalize_interviewer_eval_output(raw, rubric, interviewer_id, candidate_id, stage)
+    result = normalize_interviewer_eval_output(raw, rubric, interviewer_id, candidate_id, stage)
+    print("\n========== [DEBUG] Evaluated result before role_expectation ==========")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print("=======================================================================\n")
+
+    # 🔽 追加: 部署×ロール適合度を計算して追記
+    rolefit = evaluate_role_expectation_match(interviewer_id, qa_block)
+    # 🔽 スコアを計算して明示的に追加（冪等ではあるが確実にする）
+    expected_count = len(rolefit.get("matched", [])) + len(rolefit.get("missing", []))
+    rolefit["score"] = round(len(rolefit.get("matched", [])) / max(expected_count, 1) * 10, 1)
+
+    result["role_expectation"] = rolefit
+
+    return result
 
 def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=None) -> dict:
     prep_map = load_prep_map_with_owner()
-    rubric = load_interviewer_skills(INTERVIEWER_SKILLS_PATH)
+    rubric = load_interviewer_skills(INTERVIEWER_COMMONSKILLS_PATH)
 
     # すべての shard を合算して index
     agg = load_evals_cache_aggregate()
@@ -3968,7 +4069,8 @@ def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=No
             resume_cache[cid] = get_resume_or_empty(cid)
         resume = resume_cache[cid]
 
-        sig = calc_source_sig(cid, stg, block, resume, rubric)
+        rolefit = evaluate_role_expectation_match(iid, block)
+        sig = calc_source_sig(cid, stg, block, resume, rubric, rolefit=rolefit)
         k = _row_key(cid, iid, stg)
         cached = idx.get(k)
 
@@ -3985,7 +4087,7 @@ def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=No
 def refresh_targets_and_upsert(targets: list[dict]) -> list[dict]:
     if not targets: return []
 
-    rubric = load_interviewer_skills(INTERVIEWER_SKILLS_PATH)
+    rubric = load_interviewer_skills(INTERVIEWER_COMMONSKILLS_PATH)
     prep_map = load_prep_map_with_owner()
     resume_cache: dict[str, dict] = {}
 
@@ -4010,14 +4112,19 @@ def refresh_targets_and_upsert(targets: list[dict]) -> list[dict]:
             qa_block = next((b for b in blocks if b.get("interviewer_id") == iid),
                             (blocks[0] if blocks else {}))
 
-            sig = calc_source_sig(cid, stg, qa_block, resume, rubric)
-            raw = eval_interviewer_once(iid, stg, resume, qa_block, rubric)
-            if not isinstance(raw, dict):
-                try: raw = json.loads(raw)
-                except Exception:
-                    raw = {"score": 0, "criteria": [], "reasons": ["LLM出力の解析に失敗"], "suggestions": []}
+            result = evaluate_interviewer_single(
+                candidate_id=cid,
+                interviewer_id=iid,
+                stage=stg,
+                resume_result=resume,
+                qa_block=qa_block,
+                model="gpt-4"
+            )
 
-            row = to_row_from_llm_json(cid, iid, stg, raw, rubric, sig)
+            sig = calc_source_sig(cid, stg, qa_block, resume, rubric, rolefit=result.get("role_expectation"))
+            row = to_row_from_llm_json(cid, iid, stg, result, rubric, sig)
+            row["role_expectation"] = result.get("role_expectation", {})
+
             idx[_row_key(cid, iid, stg)] = row
             updated_rows.append(row)
 
@@ -4028,7 +4135,7 @@ def refresh_targets_and_upsert(targets: list[dict]) -> list[dict]:
 
     return updated_rows
 
-def get_interviewer_rubric_or_default(path: Path = INTERVIEWER_SKILLS_PATH) -> dict:
+def get_interviewer_rubric_or_default(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> dict:
     """
     ファイル → 正規化。失敗時はデフォルト → 正規化。
     UIがそのまま使える形を保証して返す。
@@ -4042,10 +4149,79 @@ def get_interviewer_rubric_or_default(path: Path = INTERVIEWER_SKILLS_PATH) -> d
         raw = default_interviewer_rubric()
     return normalize_rubric(raw)
 
-def load_rubric_for_http(path: Path = INTERVIEWER_SKILLS_PATH) -> tuple[dict, str]:
+def load_rubric_for_http(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> tuple[dict, str]:
     """
     HTTP レスポンス向けに (data, etag) を用意。
     """
     data = get_interviewer_rubric_or_default(path)
     return data, make_rubric_etag(data)
+
+def evaluate_role_expectation_match(interviewer_id: str, qa_block: dict) -> dict:
+    meta = get_interviewer_meta(interviewer_id)
+    dept = meta.get("department")
+    role = meta.get("role")
+
+    if not dept or not role:
+        return {
+            "matched": [],
+            "matched_semantic": [],
+            "missing": [],
+            "violated": [],
+            "comment": "部署/ロール情報なし",
+            "score": 0.0
+        }
+
+    path = INTERVIEWER_SKILLS_PATH / f"{dept}.json"
+    if not path.exists():
+        return {
+            "matched": [],
+            "matched_semantic": [],
+            "missing": [],
+            "violated": [],
+            "comment": f"{dept}.json が存在しない",
+            "score": 0.0
+        }
+
+    with open(path, encoding="utf-8") as f:
+        role_map = json.load(f)
+
+    role_data = role_map.get(role)
+    if not role_data:
+        return {
+            "matched": [],
+            "matched_semantic": [],
+            "missing": [],
+            "violated": [],
+            "comment": f"{dept}.json にロール {role} の設定が存在しない",
+            "score": 0.0
+        }
+
+    expected = set(role_data.get("expected_focus", []))  # 👈 期待観点リスト
+    selected_tags = set()
+
+    # ✅ QAに付けられたすべてのタグを収集
+    for item in qa_block.get("prepItems", []):
+        tags = item.get("tags", [])
+        selected_tags.update(tags)
+
+    # ✅ タグと期待観点の完全一致評価
+    matched = [tag for tag in expected if tag in selected_tags]
+    missing = [tag for tag in expected if tag not in matched]
+
+    # （避けるべき観点は不要なので省略）
+
+    role_expectation = {
+        "matched": matched,
+        "matched_semantic": [],  # semantic未使用
+        "missing": missing,
+        "violated": [],          # 今回は評価しない
+        "comment": f"タグ評価: 期待観点 {len(expected)} 件中 {len(matched)} 件マッチ",
+        "score": calc_role_score({
+            "matched": matched,
+            "missing": missing,
+            "violated": []
+        })
+    }
+
+    return role_expectation
 #### 2025.8.12 Add（interviewer score after interview）END

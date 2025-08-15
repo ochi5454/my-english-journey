@@ -11,6 +11,7 @@ type Row = {
   reasons?: string[];
   evaluated_at: string;
   candidate_id?: string;
+  role_expectation?: RoleExpectation; 
 };
 
 type Rubric = {
@@ -19,9 +20,18 @@ type Rubric = {
   criteria: { key: string; label: string; weight: number; guidance?: string }[];
 };
 
+type RoleExpectation = {
+  matched: string[];
+  missing: string[];
+  violated: string[];
+  comment?: string;
+  score?: number;
+};
+
 type Group = {
   interviewer_id: string;
   avg_total: number;
+  avg_role_score?: number;
   count: number;
   reliability: number;
   latest_reason: string | null;
@@ -103,11 +113,16 @@ const ResumeInterviewerOverview: React.FC = () => {
     // ✅ 要素2: スコアのばらつき（分散→標準偏差）から一貫性を評価
     const variance = rows.reduce((acc, r) => acc + Math.pow(r.total - avg, 2), 0) / count;
     const stdDev = Math.sqrt(variance);
-    // ✅ 要素3: 面談件数（多いほど信頼性が高くなる）
+    // ✅ 要素3: ロール観点の期待値スコア平均
+    const hasRole = rows.some(r => typeof r.role_expectation?.score === 'number');
+    const roleAvg = hasRole ? rows.reduce((a, r) => a + (r.role_expectation?.score ?? 0), 0) / count : 1;
+    // ✅ 要素4: 面談件数（多いほど信頼性が高くなる）
     const base = Math.min(1, Math.sqrt(count) / 3);
-    const consistency = 1 - Math.min(1, stdDev / 5); // stdDevが大きいほど信頼性低下
+    const consistency = 1 - Math.min(1, stdDev / 5);
+    const roleWeight = 0.2; // 👈 任意：ロール観点の重み
+    const adjusted = base * (0.8 * consistency + roleWeight * roleAvg / 10);
     // 件数 × 一貫性 の複合スコアとして信頼性を算出（0〜1）
-    return Math.round(base * consistency * 100) / 100;
+    return Math.round(adjusted * 100) / 100;
   };
 
   // ======================== 面接官軸の集計 ========================
@@ -131,9 +146,14 @@ const ResumeInterviewerOverview: React.FC = () => {
 
       const reliability = calculateReliability(arr);
 
+      const hasRole = arr.some(r => typeof r.role_expectation?.score === 'number');
+      const sumRole = arr.reduce((acc, cur) => acc + (cur.role_expectation?.score ?? 0), 0);
+      const avgRole = hasRole ? Math.round((sumRole / arr.length) * 10) / 10 : null;
+
       out.push({
         interviewer_id: iid,
         avg_total: avg,
+        avg_role_score: avgRole ?? undefined,
         count: arr.length,
         reliability,
         latest_reason: latest?.reasons?.[0] || null,
@@ -217,7 +237,8 @@ const ResumeInterviewerOverview: React.FC = () => {
               <tr>
                 <th>面接官</th>
                 <th>信憑性</th>
-                <th>平均スコア</th>
+                <th>基礎スコア</th>
+                <th>ロールスコア</th>
                 <th>面談件数</th>
                 <th>総合評価</th>
                 <th>評価日時</th>
@@ -240,6 +261,7 @@ const ResumeInterviewerOverview: React.FC = () => {
                 </span>
                 </td>
                   <td>{g.avg_total} / 10</td>
+                  <td>{typeof g.avg_role_score === 'number' ? `${g.avg_role_score} / 10` : '—'}</td>
                   <td>{g.count}</td>
                   <td>{g.latest_reason ?? '—'}</td>
                   <td>{g.latest_at ? new Date(g.latest_at).toLocaleString('ja-JP') : '—'}</td>

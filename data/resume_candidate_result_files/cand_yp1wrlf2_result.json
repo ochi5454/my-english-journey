@@ -18,8 +18,8 @@
   "scores": [
     {
       "division": "Engineering",
-      "score": 4,
-      "reason": "定量メモに基づくスキルの高さ",
+      "score": 7,
+      "reason": "キャリアにおける経営視点を活かしたプロジェクト推進や収益構造転換に寄与",
       "score_history": [
         {
           "score": 1,
@@ -44,6 +44,18 @@
           "reason": "定量メモに基づくスキルの高さ",
           "reviewer": "user456",
           "reviewed_at": "2025-08-14T09:56:20.296026"
+        },
+        {
+          "score": 5,
+          "reason": "キャリアにおいて経営視点を持ち、収益構造の転換に貢献した実績が評価されたため",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-15T20:40:44.205423"
+        },
+        {
+          "score": 7,
+          "reason": "キャリアにおける経営視点を活かしたプロジェクト推進や収益構造転換に寄与",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-15T20:42:55.114458"
         }
       ]
     },
@@ -162,8 +174,8 @@
   ],
   "recommended_division": "Consultant",
   "uploader_id": "interquest_100",
-  "updated_by": "user456",
-  "updated_at": "2025-08-14T09:56:20.297534",
+  "updated_by": "user123",
+  "updated_at": "2025-08-15T20:42:55.116028",
   "chat_review_書類選考・2次_at": "2025-08-08T13:28:17.250628",
   "chat_reviewer_書類選考・2次": "user123",
   "score_history": {
@@ -211,6 +223,20 @@
         "updated_by": "user456",
         "updated_at": "2025-08-14T09:56:20.296026",
         "source": "interview_review"
+      },
+      {
+        "score": 5,
+        "reason": "キャリアにおいて経営視点を持ち、収益構造の転換に貢献した実績が評価されたため",
+        "updated_by": "user123",
+        "updated_at": "2025-08-15T20:40:44.205423",
+        "source": "interview_review"
+      },
+      {
+        "score": 7,
+        "reason": "キャリアにおける経営視点を活かしたプロジェクト推進や収益構造転換に寄与",
+        "updated_by": "user123",
+        "updated_at": "2025-08-15T20:42:55.114458",
+        "source": "interview_review"
       }
     ],
     "Consultant": [
@@ -256,6 +282,6 @@
   "interview_review_面談・1次_at": "2025-08-12T10:10:50.592674",
   "interview_reviewer_面談・1次": "user123",
   "面談・1次_reviewed_resume": true,
-  "chat_review_面談・1次_at": "2025-08-14T09:56:20.297534",
-  "chat_reviewer_面談・1次": "user456"
+  "chat_review_面談・1次_at": "2025-08-15T20:42:55.116028",
+  "chat_reviewer_面談・1次": "user123"
 }

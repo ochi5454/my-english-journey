@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import type { ConfigResponse } from "./ResumeInterviewCheckSheet";
 
 type Props = {
   candidateId: string;
@@ -13,29 +14,25 @@ type CriterionRow = {
   scores: Record<string, number | string>;
 };
 
-const QUANT_ITEMS: { key: string; label: string }[] = [
-  { key: 'self_management', label: '自己管理・モチベ・文化適合性' },
-  { key: 'workstyle_relation', label: 'ワークスタイル・他者との関係性' },
-  { key: 'communication', label: 'コミュニケーション・スキル' },
-  { key: 'leadership', label: 'リーダーシップ' },
-  { key: 'logical_thinking', label: '論理的思考力（地頭力）' },
-  { key: 'execution_pm', label: '作業・プロジェクト管理力' },
-  { key: 'expertise', label: '専門性（知識・スキル）' },
-  { key: 'biz_org_dev', label: 'ビジネス＆組織開発' },
-];
-
-const FINAL_ITEMS = [
-  { key: 'hiringDecision', label: '採用可否' },
-  { key: 'recommendedDivision', label: '推奨部門' },
-  { key: 'recommendedTitle', label: '推奨タイトル' },
-];
-
-const labelMap = Object.fromEntries([...QUANT_ITEMS, ...FINAL_ITEMS].map(({ key, label }) => [key, label]));
-const QUANT_KEYS = new Set(QUANT_ITEMS.map(i => i.key));
+const FINAL_ITEM_KEYS = ["hiringDecision", "recommendedDivision", "recommendedTitle"];
 
 const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, interviewerIds, reliability }) => {
   const [rows, setRows] = useState<CriterionRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [config, setConfig] = useState<ConfigResponse | null>(null);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await axios.get<ConfigResponse>("/checksheet/config");
+        setConfig(res.data);
+      } catch (err) {
+        console.error("設定の取得に失敗しました", err);
+      }
+    };
+
+    fetchConfig();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -65,7 +62,7 @@ const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, i
               row.scores[iid] = scoreValue;
             });
 
-            FINAL_ITEMS.forEach(({ key }) => {
+            FINAL_ITEM_KEYS.forEach((key) => {
               const value = qldata[key];
               if (value !== undefined) {
                 let row = allData.find((r) => r.criterion === key);
@@ -88,8 +85,27 @@ const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, i
       }
     };
 
-    fetchData();
-  }, [candidateId, stages, interviewerIds]);
+    if (config) fetchData();
+  }, [candidateId, stages, interviewerIds, config]);
+
+  const labelMap = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    config?.quantitativeItems.forEach(item => {
+      map[item.key] = item.label;
+    });
+    FINAL_ITEM_KEYS.forEach(key => {
+      const match = config?.hiringDecisions?.find(d => d.value === key) ||
+                    config?.divisions?.includes(key) ||
+                    config?.titleOptions?.find(t => t.value === key);
+      if (typeof match === "string") map[key] = key; // for divisions
+    });
+    map["hiringDecision"] = "採用可否";
+    map["recommendedDivision"] = "推奨部門";
+    map["recommendedTitle"] = "推奨タイトル";
+    return map;
+  }, [config]);
+
+  const quantKeys = React.useMemo(() => new Set(config?.quantitativeItems.map(i => i.key)), [config]);
 
   const renderTable = (filtered: CriterionRow[], title: string) => (
     <>
@@ -166,8 +182,8 @@ const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, i
     </>
   );
 
-  const quantRows = rows.filter(r => QUANT_KEYS.has(r.criterion));
-  const finalRows = rows.filter(r => FINAL_ITEMS.map(f => f.key).includes(r.criterion));
+  const quantRows = rows.filter(r => quantKeys.has(r.criterion));
+  const finalRows = rows.filter(r => FINAL_ITEM_KEYS.includes(r.criterion));
 
   return (
     <div className="ria-container">

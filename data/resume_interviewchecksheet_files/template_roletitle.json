@@ -1,0 +1,7 @@
+[
+  { "value": "C", "label": "C（担当）", "order": 1 },
+  { "value": "SC", "label": "SC（上級担当）", "order": 2 },
+  { "value": "M", "label": "M（マネージャー）", "order": 3 },
+  { "value": "SM", "label": "SM（上級マネージャー）", "order": 4 },
+  { "value": "D+", "label": "D+（部長クラス）", "order": 5 }
+]
