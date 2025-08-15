@@ -599,7 +599,7 @@
   display: block;
   font-weight: 600;
   margin-bottom: 4px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #333;
 }
 
@@ -608,7 +608,7 @@
 .resume-interview-field textarea {
   width: 100%;
   padding: 10px;
-  font-size: 0.95rem;
+  font-size: 0.80rem;
   border: 1px solid #ccc;
   border-radius: 6px;
   font-family: inherit;
@@ -787,7 +787,7 @@
 
 .resume-template-textarea {
   padding: 12px;
-  font-size: 0.95rem;
+  font-size: 0.80rem;
   border-radius: 6px;
   border: 1px solid #ccc;
   width: 100%;
@@ -921,37 +921,6 @@
 
 .resume-interview-list {
   margin-top: 16px;
-}
-
-.resume-interview-item {
-  margin-bottom: 16px;
-}
-
-.resume-interview-item textarea {
-  width: 100%;
-  margin-top: 4px;
-}
-
-.resume-interview-item {
-  margin-bottom: 20px;
-  padding: 10px;
-  background-color: #f7f7f7;
-  border-radius: 8px;
-}
-
-.resume-question-header {
-  font-weight: bold;
-  margin-bottom: 6px;
-}
-
-.resume-answer-textarea {
-  width: 100%;
-  padding: 6px;
-  font-size: 14px;
-  resize: vertical;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  margin-bottom: 8px;
 }
 
 .resume-interview-actions {
@@ -1301,6 +1270,7 @@
 .col-stage   { width: 110px; }  /* ステージ */
 .col-score   { width: 72px;  }  /* 事前準備〜プロ意識（全て同じ） */
 .col-total   { width: 76px;  }  /* 総合 */
+.col-role-score   { width: 76px;  }  /* ロールスコア */
 .col-reason  { width: 420px; }  /* 最終評価（テキスト） */
 .col-updated { width: 140px; }  /* 更新日時 */
 
@@ -1437,7 +1407,7 @@
 .resume-interview-field label{
   color: var(--fg-muted);
   font-weight: 600;
-  font-size: .9rem;
+  font-size: 0.85rem;
   margin-bottom: 4px;
 }
 .iq-muted{ color: var(--fg-muted); }
@@ -1446,7 +1416,6 @@
 .resume-interview-field input[type="text"],
 .resume-interview-field select,
 .resume-interview-field textarea,
-.resume-answer-textarea,
 .resume-template-textarea{
   border:1px solid var(--line);
   transition: box-shadow .15s, border-color .15s, background .15s;
@@ -1592,7 +1561,7 @@
   box-shadow: none !important;
 }
 .final-eval .rbar--single .rbar-seg:hover{
-  background: #edf4f0;
+  background: var(--seg-base);
   border-color: var(--seg-fill-bd);
 }
 .final-eval .rbar--single .rbar-seg.is-active{
@@ -1640,7 +1609,6 @@
 .ria-container {
   display: flex;
   flex-direction: column;
-  padding: 0.5rem 0;
 }
 
 /* セクションタイトル（定量評価 / 最終評価） */
@@ -1774,4 +1742,93 @@
   font-weight: bold;
   padding: 0.25em 0.5em;
   border-radius: 4px;
+}
+
+/* 全体のフォント縮小 */
+.custom-qa-section {
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* タグ */
+.resume-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}
+.resume-tag {
+  background-color: #eef1f6;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  padding: 1px 6px;
+  cursor: pointer;
+  font-size: 0.70rem;
+}
+.resume-tag.selected {
+  background-color: #cbe3ff;
+  border-color: #5ca6e0;
+  color: #1d3557;
+}
+
+/* QAアイテムブロック */
+.resume-interview-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: #fafbfd;
+  position: relative;
+}
+
+.resume-interview-item textarea {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* 質問見出し */
+.resume-question-header {
+  font-weight: bold;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+/* 回答エリア */
+.resume-answer-textarea {
+  width: 100%;
+  font-size: 0.80rem;
+  padding: 4px 6px;
+  resize: vertical;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+/* カスタムQA全体 */
+.custom-qa-wrapper {
+  padding: 12px;
+  background: #f9fafc;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.qa-add-button {
+  background-color: #3c8ed9;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.qa-add-button:hover {
+  background-color: #2f74b3;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.qa-add-button:active {
+  background-color: #265f93;
 }

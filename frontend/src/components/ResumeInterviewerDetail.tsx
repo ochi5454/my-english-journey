@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-    type Row = {
+type Row = {
     interviewer_id: string;
     stage: string;
     total: number;
@@ -8,24 +8,33 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
     reasons?: string[];
     evaluated_at: string;
     candidate_id?: string;
-    };
+    role_expectation?: RoleExpectation;
+};
 
-    type Rubric = {
+type Rubric = {
     version: string;
     max_score: number;
     criteria: { key: string; label: string; weight: number; guidance?: string }[];
-    };
+};
 
-    type Props = {
+type RoleExpectation = {
+    matched: string[];
+    missing: string[];
+    violated: string[];
+    comment?: string;
+    score?: number; // 👈 任意（例えば matched / total で算出された 0-10）
+};
+
+type Props = {
     interviewerId?: string;
     defaultStage?: string;
     rubric?: Rubric;                             
     avgHeader?: { avgMap: Record<string, number>; count: number };
-    };
+};
 
-    const ALL = 'すべて';
+const ALL = 'すべて';
 
-    const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubric: rubricProp, avgHeader }) => {
+const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubric: rubricProp, avgHeader }) => {
         const [rubric, setRubric] = useState<Rubric | null>(rubricProp ?? null);
         const [rows, setRows] = useState<Row[]>([]);
         const [loading, setLoading] = useState(false);
@@ -229,6 +238,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
                 <col className="col-stage" />     {/* ステージ */}
                 {rubric && <col className="col-score" span={rubric.criteria.length} />}
                 <col className="col-total" />     {/* 総合 */}
+                <col className="col-role-score" />{/* ロールスコア */}
                 <col className="col-reason" />    {/* 最終評価（コメント） */}
                 <col className="col-updated" />   {/* 更新 */}
             </colgroup>
@@ -240,6 +250,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
                 <th key={c.key} title={`重み ${Math.round(c.weight * 100)}%`}>{c.label}</th>
                 ))}
                 <th>総合</th>
+                <th>ロールスコア</th>
                 <th>総合評価</th>
                 <th>評価日時</th>
             </tr>
@@ -247,7 +258,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
             <tbody>
             {visible.length === 0 ? (
                 <tr>
-                <td colSpan={(rubric?.criteria.length ?? 0) + 5} className="iq-empty">データがありません</td>
+                <td colSpan={(rubric?.criteria.length ?? 0) + 6} className="iq-empty">データがありません</td>
                 </tr>
             ) : visible.map((r, i) => (
                 <tr key={`${r.interviewer_id}-${r.stage}-${r.candidate_id}-${i}`}>
@@ -262,6 +273,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
                 })}
 
                 <td className="td-num"><strong>{r.total}</strong> / 10</td>
+                <td className="td-num">
+                {typeof r.role_expectation?.score === 'number'
+                    ? `${r.role_expectation.score} / 10`
+                    : '—'}
+                </td>
                 <td className="td-reason">{r.reasons?.[0] ?? '—'}</td>
                 <td className="td-dim">{new Date(r.evaluated_at).toLocaleString('ja-JP')}</td>
                 </tr>

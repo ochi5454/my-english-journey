@@ -1,0 +1,18 @@
+{
+  "user123": {
+    "department": "Consultant",
+    "role": "D+"
+  },
+  "user456": {
+    "department": "Engineer",
+    "role": "SM"
+  },
+  "user789": {
+    "department": "Marketing",
+    "role": "M"
+  },
+  "user666": {
+    "department": "HR",
+    "role": "SC"
+  }
+}
