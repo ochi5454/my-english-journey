@@ -18,8 +18,8 @@
   "scores": [
     {
       "division": "Engineering",
-      "score": 7,
-      "reason": "キャリアにおける経営視点を活かしたプロジェクト推進や収益構造転換に寄与",
+      "score": 18,
+      "reason": "キャリア成果や組織貢献の視点が高く評価されたため",
       "score_history": [
         {
           "score": 1,
@@ -56,6 +56,42 @@
           "reason": "キャリアにおける経営視点を活かしたプロジェクト推進や収益構造転換に寄与",
           "reviewer": "user123",
           "reviewed_at": "2025-08-15T20:42:55.114458"
+        },
+        {
+          "score": 8,
+          "reason": "経営視点を持ち、PL責任と予算統制を担当し、収益構造の転換に貢献した実績が評価されたため",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-18T09:41:02.363950"
+        },
+        {
+          "score": 9,
+          "reason": "経営視点を持ち、全社的な組織変革に貢献した実績が評価され、スコアを引き上げる必要がある",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-18T09:41:36.372565"
+        },
+        {
+          "score": 10,
+          "reason": "キャリアにおける経営視点を活かしたプロジェクト推進経験や全社変革プロジェクトのリード能力が評価され、スコアを引き上げる必要がある",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-18T09:46:55.077452"
+        },
+        {
+          "score": 12,
+          "reason": "キャリアにおける経営視点を活かしたプロジェクト推進や収益構造改革への貢献が評価され、スコアを引き上げる必要がある",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-18T09:49:54.806691"
+        },
+        {
+          "score": 15,
+          "reason": "経営視点を持ち、PL責任と予算統制を担当し、収益構造の転換に貢献した実績が評価されたため",
+          "reviewer": "user789",
+          "reviewed_at": "2025-08-18T13:19:19.813256"
+        },
+        {
+          "score": 18,
+          "reason": "キャリア成果や組織貢献の視点が高く評価されたため",
+          "reviewer": "user789",
+          "reviewed_at": "2025-08-18T14:13:48.517223"
         }
       ]
     },
@@ -74,8 +110,8 @@
     },
     {
       "division": "Consultant",
-      "score": 10,
-      "reason": "hiringDecisionとrecommendedDivisionに基づく",
+      "score": 15,
+      "reason": "DX推進プロジェクトのリードや組織デザイン見直しに寄与した事例が評価されたため",
       "score_history": [
         {
           "score": 7,
@@ -100,6 +136,18 @@
           "reason": "hiringDecisionとrecommendedDivisionに基づく",
           "reviewer": "user456",
           "reviewed_at": "2025-08-14T09:56:20.296026"
+        },
+        {
+          "score": 12,
+          "reason": "経営視点を持ち全社変革を推進した事例や戦略案件への対応可能性が高く、スコアを引き上げる必要がある",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-18T09:49:54.806691"
+        },
+        {
+          "score": 15,
+          "reason": "DX推進プロジェクトのリードや組織デザイン見直しに寄与した事例が評価されたため",
+          "reviewer": "user789",
+          "reviewed_at": "2025-08-18T13:19:19.813256"
         }
       ]
     },
@@ -172,10 +220,10 @@
       ]
     }
   ],
-  "recommended_division": "Consultant",
+  "recommended_division": "Engineering",
   "uploader_id": "interquest_100",
-  "updated_by": "user123",
-  "updated_at": "2025-08-15T20:42:55.116028",
+  "updated_by": "user789",
+  "updated_at": "2025-08-18T14:13:48.518261",
   "chat_review_書類選考・2次_at": "2025-08-08T13:28:17.250628",
   "chat_reviewer_書類選考・2次": "user123",
   "score_history": {
@@ -237,6 +285,48 @@
         "updated_by": "user123",
         "updated_at": "2025-08-15T20:42:55.114458",
         "source": "interview_review"
+      },
+      {
+        "score": 8,
+        "reason": "経営視点を持ち、PL責任と予算統制を担当し、収益構造の転換に貢献した実績が評価されたため",
+        "updated_by": "user123",
+        "updated_at": "2025-08-18T09:41:02.363950",
+        "source": "interview_review"
+      },
+      {
+        "score": 9,
+        "reason": "経営視点を持ち、全社的な組織変革に貢献した実績が評価され、スコアを引き上げる必要がある",
+        "updated_by": "user123",
+        "updated_at": "2025-08-18T09:41:36.372565",
+        "source": "interview_review"
+      },
+      {
+        "score": 10,
+        "reason": "キャリアにおける経営視点を活かしたプロジェクト推進経験や全社変革プロジェクトのリード能力が評価され、スコアを引き上げる必要がある",
+        "updated_by": "user123",
+        "updated_at": "2025-08-18T09:46:55.077452",
+        "source": "interview_review"
+      },
+      {
+        "score": 12,
+        "reason": "キャリアにおける経営視点を活かしたプロジェクト推進や収益構造改革への貢献が評価され、スコアを引き上げる必要がある",
+        "updated_by": "user123",
+        "updated_at": "2025-08-18T09:49:54.806691",
+        "source": "interview_review"
+      },
+      {
+        "score": 15,
+        "reason": "経営視点を持ち、PL責任と予算統制を担当し、収益構造の転換に貢献した実績が評価されたため",
+        "updated_by": "user789",
+        "updated_at": "2025-08-18T13:19:19.813256",
+        "source": "interview_review"
+      },
+      {
+        "score": 18,
+        "reason": "キャリア成果や組織貢献の視点が高く評価されたため",
+        "updated_by": "user789",
+        "updated_at": "2025-08-18T14:13:48.517223",
+        "source": "interview_review"
       }
     ],
     "Consultant": [
@@ -260,6 +350,20 @@
         "updated_by": "user456",
         "updated_at": "2025-08-14T09:56:20.296026",
         "source": "interview_review"
+      },
+      {
+        "score": 12,
+        "reason": "経営視点を持ち全社変革を推進した事例や戦略案件への対応可能性が高く、スコアを引き上げる必要がある",
+        "updated_by": "user123",
+        "updated_at": "2025-08-18T09:49:54.806691",
+        "source": "interview_review"
+      },
+      {
+        "score": 15,
+        "reason": "DX推進プロジェクトのリードや組織デザイン見直しに寄与した事例が評価されたため",
+        "updated_by": "user789",
+        "updated_at": "2025-08-18T13:19:19.813256",
+        "source": "interview_review"
       }
     ],
     "HR": [
@@ -282,6 +386,6 @@
   "interview_review_面談・1次_at": "2025-08-12T10:10:50.592674",
   "interview_reviewer_面談・1次": "user123",
   "面談・1次_reviewed_resume": true,
-  "chat_review_面談・1次_at": "2025-08-15T20:42:55.116028",
-  "chat_reviewer_面談・1次": "user123"
+  "chat_review_面談・1次_at": "2025-08-18T14:13:48.518261",
+  "chat_reviewer_面談・1次": "user789"
 }

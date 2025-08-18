@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ResumeInterviewerDetail from './ResumeInterviewerDetail';
 import ResumeInterviewerAnomalyScore from './ResumeInterviewerAnomalyScore';
+import ResumeInterviewerRoleFocusOverview from './ResumeInterviewerRoleFocusOverview';
 
 // ======================== 型定義 ========================
 type Row = {
@@ -47,7 +48,7 @@ const ResumeInterviewerOverview: React.FC = () => {
   const [interviewerFilter, setInterviewerFilter] = useState<string>('');
   const [candidateFilter, setCandidateFilter] = useState<string>('');
   const [detailTarget, setDetailTarget] = useState<Group | null>(null);
-  const [viewMode, setViewMode] = useState<'interviewer' | 'candidate'>('interviewer');
+  const [viewMode, setViewMode] = useState<'interviewer' | 'candidate' | 'role'>('interviewer');
 
   useEffect(() => {
     (async () => {
@@ -105,25 +106,45 @@ const ResumeInterviewerOverview: React.FC = () => {
     }
   };
 
+  const [interviewerMeta, setInterviewerMeta] = useState<Record<string, { role: string }>>({});
+  useEffect(() => {
+    fetch("/checksheet/meta")
+      .then(res => res.json())
+      .then(setInterviewerMeta)
+      .catch(() => setInterviewerMeta({}));
+  }, []);
+
   // ======================== 信頼性スコア計算 ========================
-  const calculateReliability = (rows: Row[]): number => {
+  const calculateReliability = useCallback((rows: Row[], interviewerId: string): number => {
     const count = rows.length;
-    // ✅ 要素1: 平均スコア（高いほど信憑性が高くなる）
+    if (count === 0) return 0;
+    // ✅ 要素1: 平均基礎スコア（高いほど信憑性が高くなる）
     const avg = rows.reduce((acc, r) => acc + r.total, 0) / count;
-    // ✅ 要素2: スコアのばらつき（分散→標準偏差）から一貫性を評価
+    // ✅ 要素2: 基礎スコアのばらつき（分散→標準偏差）から一貫性を評価
     const variance = rows.reduce((acc, r) => acc + Math.pow(r.total - avg, 2), 0) / count;
     const stdDev = Math.sqrt(variance);
-    // ✅ 要素3: ロール観点の期待値スコア平均
+    // ✅ 要素3: 各部門ロールに期待されるQA観点の網羅性スコア
     const hasRole = rows.some(r => typeof r.role_expectation?.score === 'number');
     const roleAvg = hasRole ? rows.reduce((a, r) => a + (r.role_expectation?.score ?? 0), 0) / count : 1;
     // ✅ 要素4: 面談件数（多いほど信頼性が高くなる）
     const base = Math.min(1, Math.sqrt(count) / 3);
     const consistency = 1 - Math.min(1, stdDev / 5);
     const roleWeight = 0.2; // 👈 任意：ロール観点の重み
-    const adjusted = base * (0.8 * consistency + roleWeight * roleAvg / 10);
-    // 件数 × 一貫性 の複合スコアとして信頼性を算出（0〜1）
+    const baseReliability = base * (0.8 * consistency + roleWeight * roleAvg / 10);
+    // ✅ 要素5: 面接官のロールを考慮した調整
+    const role = interviewerMeta?.[interviewerId]?.role ?? "C";
+    const roleWeights: Record<string, number> = {
+      "C": 1.00,
+      "SC": 1.05,
+      "M": 1.10,
+      "SM": 1.15,
+      "D+": 1.20,
+    };
+    const weight = roleWeights[role.toUpperCase()] ?? 1.00;
+    const adjusted = Math.min(1.0, baseReliability * weight);
+
     return Math.round(adjusted * 100) / 100;
-  };
+  }, [interviewerMeta]);
 
   // ======================== 面接官軸の集計 ========================
   const grouped: Group[] = useMemo(() => {
@@ -144,7 +165,7 @@ const ResumeInterviewerOverview: React.FC = () => {
         (a, b) => new Date(b.evaluated_at).getTime() - new Date(a.evaluated_at).getTime()
       )[0];
 
-      const reliability = calculateReliability(arr);
+      const reliability = calculateReliability(arr, iid);
 
       const hasRole = arr.some(r => typeof r.role_expectation?.score === 'number');
       const sumRole = arr.reduce((acc, cur) => acc + (cur.role_expectation?.score ?? 0), 0);
@@ -163,7 +184,7 @@ const ResumeInterviewerOverview: React.FC = () => {
 
     out.sort((a, b) => b.avg_total - a.avg_total || a.interviewer_id.localeCompare(b.interviewer_id));
     return out;
-  }, [rows, interviewerFilter]);
+  }, [rows, interviewerFilter, calculateReliability]);
 
   // ======================== 候補者軸の集計 ========================
   const candidateGroups = useMemo(() => {
@@ -215,6 +236,12 @@ const ResumeInterviewerOverview: React.FC = () => {
           <button className={`iq-tab-switch-btn ${viewMode === 'candidate' ? 'active' : ''}`} onClick={() => setViewMode('candidate')}>
             候補者軸
           </button>
+          <button
+            className={`iq-tab-switch-btn ${viewMode === 'role' ? 'active' : ''}`}
+            onClick={() => setViewMode('role')}
+          >
+            ロール軸
+          </button>
         </div>
         <button className="resume-submit" onClick={refreshDiff} disabled={loading}>
           {loading ? '再評価中…' : '差分を再評価'}
@@ -225,6 +252,7 @@ const ResumeInterviewerOverview: React.FC = () => {
 
       {viewMode === 'interviewer' && (
         <div className="resume-matrix-wrapper">
+          <h2>面接官の信憑性</h2>
           <input
             className="resume-filter"
             placeholder="面接官IDでフィルタ"
@@ -236,44 +264,67 @@ const ResumeInterviewerOverview: React.FC = () => {
             <thead>
               <tr>
                 <th>面接官</th>
+                <th>ロール</th>
                 <th>信憑性</th>
                 <th>基礎スコア</th>
-                <th>ロールスコア</th>
-                <th>面談件数</th>
+                <th>観点スコア</th>
+                <th>面接件数</th>
                 <th>総合評価</th>
                 <th>評価日時</th>
               </tr>
             </thead>
             <tbody>
               {grouped.length === 0 ? (
-                <tr><td colSpan={6} className="iq-empty">データがありません</td></tr>
-              ) : grouped.map(g => (
-                <tr
-                  key={g.interviewer_id}
-                  onClick={() => setDetailTarget(g)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <td>{g.interviewer_id}</td>
-                <td>
-                <span className={g.reliability < 0.5 ? "low-reliability" : undefined}>
-                    {Math.round(g.reliability * 100)}%
-                </span>
-                </td>
-                  <td>{g.avg_total} / 10</td>
-                  <td>{typeof g.avg_role_score === 'number' ? `${g.avg_role_score} / 10` : '—'}</td>
-                  <td>{g.count}</td>
-                  <td>{g.latest_reason ?? '—'}</td>
-                  <td>{g.latest_at ? new Date(g.latest_at).toLocaleString('ja-JP') : '—'}</td>
-                </tr>
-              ))}
+                <tr><td colSpan={8} className="iq-empty">データがありません</td></tr>
+              ) : grouped.map(g => {
+                // 👇 role 変数を定義
+                const role = interviewerMeta?.[g.interviewer_id]?.role ?? "—";
+
+                return (
+                  <tr
+                    key={g.interviewer_id}
+                    onClick={() => setDetailTarget(g)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <td>{g.interviewer_id}</td>
+
+                    {/* ✅ ここで定義済みの role を使用 */}
+                    <td>
+                      <span className={`role-chip role-${role.toLowerCase()}`}>
+                        {role}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span className={g.reliability < 0.5 ? "low-reliability" : undefined}>
+                        {Math.round(g.reliability * 100)}%
+                      </span>
+                    </td>
+                    <td>{g.avg_total} / 10</td>
+                    <td>{typeof g.avg_role_score === 'number' ? `${g.avg_role_score} / 10` : '—'}</td>
+                    <td>{g.count}</td>
+                    <td className="td-reason">{g.latest_reason ?? '—'}</td>
+                    <td>{g.latest_at ? new Date(g.latest_at).toLocaleString('ja-JP') : '—'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          <p className="reliability-note">
+            ※ 信憑性スコアは以下の要素を元に算出されています：<br />
+            ・平均基礎スコア（高いほど信憑性が高くなる）<br />
+            ・基礎スコアの安定性（標準偏差）<br />
+            ・面接件数（多いほど信頼性が向上）<br />
+            ・観点スコア（各部門ロールに期待されるQA観点の網羅性）<br />
+            ・面接官のロール（C &lt; SC &lt; M &lt; SM &lt; D+）<br />
+          </p>
         </div>
       )}
 
       {viewMode === 'candidate' && (
         <div className="ria-container">
+          <h2>異常スコアの検出</h2>
           <input
             className="resume-filter"
             placeholder="候補者IDでフィルタ"
@@ -291,6 +342,13 @@ const ResumeInterviewerOverview: React.FC = () => {
               />
             </div>
           ))}
+        </div>
+      )}
+
+      {viewMode === 'role' && (
+        <div className="resume-matrix-wrapper">
+          <h2>質問内容の傾向</h2>
+          <ResumeInterviewerRoleFocusOverview />
         </div>
       )}
 

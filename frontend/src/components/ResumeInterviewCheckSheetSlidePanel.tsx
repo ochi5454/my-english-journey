@@ -5,6 +5,11 @@ import ResumeAccordion from './ResumeAccordion';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { ConfigResponse, HiringDecision, TitleOption, Division, QualitativeItem, QuantitativeItem } from "./ResumeInterviewCheckSheet";
 
+type FocusTag = {
+    id: string;
+    label: string;
+};
+
 export interface PrepItem {
     question: string;
     answer: string;
@@ -33,6 +38,7 @@ export interface Props {
         reviewedResume?: boolean;
         qualitative?: Record<string, string>;
         quantitative?: Record<string, QuantitativeRow>;
+        ai_score_reviewed?: boolean;
     };
     loadingInitial?: boolean;
     onAiReviewed?: (updatedResult: any) => void;
@@ -80,15 +86,40 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
     const [config, setConfig] = useState<ConfigResponse | null>(null);
     const [newQuestionTags, setNewQuestionTags] = useState<string[]>([]);
     const [editTagIndex, setEditTagIndex] = useState<number | null>(null);
+    const [aiScoreReviewed, setAiScoreReviewed] = useState<boolean>(false); // 2025.8.18 Add（flags）
+
 
     const applyToState = useCallback((src: any = {}, cfg: ConfigResponse) => {
         setPrepItems(src.prepItems || []);
         setReviewedResume(!!src.reviewedResume);
+        // 2025.8.18 Add（flags）START
+        setAiScoreReviewed(!!src.ai_score_reviewed);
+
+        // ✅ prepItems.tags の正規化処理を追加
+        const normalizedPrepItems = (src.prepItems || []).map((item: any) => {
+            const tags = (item.tags || []).map((t: any) => typeof t === 'string' ? t : t.id);
+            return { ...item, tags };
+        });
+        setPrepItems(normalizedPrepItems)
+        // 2025.8.18 Add（flags）END
 
         const ql = defaultQual(cfg.qualitativeItems);
+
+        // 明示的に保持するキー一覧
+        const preservedKeys = ['hiringDecision', 'recommendedDivision', 'recommendedTitle'];
+
+        // config側のキーを設定
         cfg.qualitativeItems.forEach(({ key }) => {
         ql[key] = src.qualitative?.[key] || '';
         });
+
+        // preservedKeys の値を後から追加（上書きされないように）
+        preservedKeys.forEach(key => {
+        if (src.qualitative?.[key]) {
+            ql[key] = src.qualitative[key];
+        }
+        });
+
         setQualitative(ql);
 
         const qt = defaultQuant(cfg.quantitativeItems);
@@ -138,6 +169,8 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
 
         if (!res.ok) throw new Error('再スコアに失敗しました');
         const updated = await res.json();
+
+        setAiScoreReviewed(true);// 2025.8.18 Add（flags）
         onAiReviewed?.(updated);
         alert('AIが面談内容を元に再スコアしました');
         onClose();
@@ -156,20 +189,24 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
 
     if (!config) return null;
 
-    const TagSelector = ({ allTags, selectedTags, onToggleTag }: {
-    allTags: string[];
+    const TagSelector = ({
+    allTags,
+    selectedTags,
+    onToggleTag
+    }: {
+    allTags: FocusTag[];
     selectedTags: string[];
-    onToggleTag: (tag: string) => void;
+    onToggleTag: (id: string) => void;
     }) => {
     return (
         <div className="resume-tag-list">
         {allTags.map(tag => (
             <div
-            key={tag}
-            className={`resume-tag ${selectedTags.includes(tag) ? 'selected' : ''}`}
-            onClick={() => onToggleTag(tag)}
+            key={tag.id}
+            className={`resume-tag ${selectedTags.includes(tag.id) ? 'selected' : ''}`}
+            onClick={() => onToggleTag(tag.id)}
             >
-            {tag}
+            {tag.label}
             </div>
         ))}
         </div>
@@ -182,7 +219,7 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
             <h3>{stage} の面談シート: {candidateId}</h3>
             <div className="resume-modal-actions header-actions">
             <button onClick={handleSubmit} disabled={isReviewing}>保存</button>
-            <button className="resume-ai-rescore" onClick={handleAiReview} disabled={isReviewing}>{isReviewing ? '再スコア中…' : 'AIスコア精査'}</button>
+            <button className="resume-ai-rescore" onClick={handleAiReview}  disabled={isReviewing || aiScoreReviewed}>{isReviewing ? '再スコア中…' : 'AIスコア精査'}</button> {/* 2025.8.18 Add（flags） */}
             <button className="slide-close" onClick={onClose}>✖</button>
             </div>
         </div>
@@ -311,7 +348,7 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
                         type="text"
                         value={newQuestion}
                         onChange={(e) => setNewQuestion(e.target.value)}
-                        placeholder="例: どのようにして営業成績を伸ばしましたか？ 参考: 以下の観点タグ"
+                        placeholder="以下の期待されるQA観点タグに関連する質問を入力"
                         style={{ flexGrow: 1 }}
                     />
                     <button
@@ -330,11 +367,11 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
                     <TagSelector
                     allTags={config.focusTags}
                     selectedTags={newQuestionTags}
-                    onToggleTag={(tag) => {
+                    onToggleTag={(id) => {
                         setNewQuestionTags((prev) =>
-                        prev.includes(tag)
-                            ? prev.filter((t) => t !== tag)
-                            : [...prev, tag]
+                        prev.includes(id)
+                            ? prev.filter((t) => t !== id)
+                            : [...prev, id]
                         );
                     }}
                     />
@@ -354,20 +391,25 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
                         <TagSelector
                         allTags={config.focusTags}
                         selectedTags={item.tags || []}
-                        onToggleTag={(tag) => {
+                        onToggleTag={(id) => {
                             const updated = [...prepItems];
                             const currentTags = updated[idx].tags || [];
-                            updated[idx].tags = currentTags.includes(tag)
-                            ? currentTags.filter(t => t !== tag)
-                            : [...currentTags, tag];
+                            updated[idx].tags = currentTags.includes(id)
+                            ? currentTags.filter(t => t !== id)
+                            : [...currentTags, id];
                             setPrepItems(updated);
                         }}
                         />
                     ) : (
                         <div className="resume-tag-list read-only">
-                        {(item.tags || []).map(tag => (
-                            <span key={tag} className="resume-tag selected">{tag}</span>
-                        ))}
+                        {(item.tags || []).map(id => {
+                            const tag = config.focusTags.find(t => t.id === id);
+                            return (
+                            <span key={id} className="resume-tag selected">
+                                {tag?.label ?? id}
+                            </span>
+                            );
+                        })}
                         </div>
                     )}
 

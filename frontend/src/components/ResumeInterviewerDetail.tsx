@@ -249,8 +249,8 @@ const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage,
                 {rubric?.criteria.map(c => (
                 <th key={c.key} title={`重み ${Math.round(c.weight * 100)}%`}>{c.label}</th>
                 ))}
-                <th>総合</th>
-                <th>ロールスコア</th>
+                <th>基礎スコア</th>
+                <th>観点スコア</th>
                 <th>総合評価</th>
                 <th>評価日時</th>
             </tr>

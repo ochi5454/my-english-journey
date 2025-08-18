@@ -101,6 +101,20 @@
   background-color: #f0f0f0;
 }
 
+/* 👇 総合評価列だけスタイルを当てる */
+.resume-matrix-table td.td-reason {
+  white-space: normal;
+  word-wrap: break-word;
+  max-width: 600px;
+}
+
+.reliability-note {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 0.5rem;
+  line-height: 1.4;
+}
+
 .resume-filter {
   margin-bottom: 1rem;
 }
@@ -1832,3 +1846,86 @@
 .qa-add-button:active {
   background-color: #265f93;
 }
+
+/* 2025.8.18 Add（interviewer score by role）START */
+.role-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.role-matrix-table th,
+.role-matrix-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  vertical-align: top;
+}
+
+.tag-chip-container {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 12px;
+  margin: 2px;
+  white-space: nowrap;
+}
+
+.tag-chip.low {
+  background-color: #e0e0e0;
+  color: #555;
+}
+
+.tag-chip.medium {
+  background-color: #d0ebff;
+  color: #004080;
+}
+
+.tag-chip.high {
+  background-color: #1971c2;
+  color: white;
+}
+
+.tag-chip.more {
+  background-color: #aaa;
+  font-weight: bold;
+}
+
+.role-chip {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+/* ロールごとの色カスタマイズも可能 */
+.role-c {
+  background-color: #e0f7fa;
+  color: #00796b;
+}
+
+.role-sc {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.role-m {
+  background-color: #fff3e0;
+  color: #ef6c00;
+}
+
+.role-sm {
+  background-color: #f3e5f5;
+  color: #6a1b9a;
+}
+
+.role-d\\+ {
+  background-color: #fce4ec;
+  color: #ad1457;
+}
+/* 2025.8.18 Add（interviewer score by role）END */
