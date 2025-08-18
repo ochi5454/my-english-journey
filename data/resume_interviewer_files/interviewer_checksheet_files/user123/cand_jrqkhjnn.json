@@ -8,32 +8,29 @@
           "question": "最近書いたコードの工夫を教えてください",
           "answer": "リファクタリング時に処理速度を改善するため、ループ処理を辞書ベースに変え、実行時間を30%短縮しました。",
           "tags": [
-            "リーダーシップ",
-            "外部ステークホルダー連携",
-            "上場/資金調達対応",
-            "持続可能性",
-            "全社戦略理解"
+            "dplus_14",
+            "dplus_19",
+            "dplus_26",
+            "dplus_16"
           ]
         },
         {
           "question": "チーム開発での役割や経験を教えてください",
           "answer": "3名のチームでプロダクト開発を担当し、GitHub上でのレビューやタスク分担、CI/CDパイプラインの構築を行いました。",
           "tags": [
-            "リーダーシップ",
-            "ナレッジ資産化",
-            "全社影響思考",
-            "理念浸透",
-            "事業撤退判断"
+            "dplus_14",
+            "dplus_23",
+            "dplus_28",
+            "dplus_29"
           ]
         },
         {
           "question": "使用している技術スタックやフレームワークについて説明してください",
           "answer": "React + TypeScriptを使用したフロントエンド開発が主で、バックエンドとはREST APIで連携しています。DockerやPostgreSQLも利用経験があります。",
           "tags": [
-            "事業成長戦略",
-            "事業撤退判断",
-            "社内政治対応",
-            "複数事業統合"
+            "dplus_02",
+            "dplus_25",
+            "dplus_24"
           ]
         }
       ],
@@ -44,8 +41,8 @@
         "overall": "実務経験が豊富で、マーケとITの橋渡しができるハイブリッド人材。自走力があり、即戦力性が高い印象。",
         "assignmentPlan": "初期は分析系PJのサポートから入り、半年後を目安に業務設計・自動化提案まで担ってもらうことを想定。",
         "hiringDecision": "hire_ok",
-        "recommendedTitle": "C",
-        "recommendedDivision": "Marketing"
+        "recommendedTitle": "M",
+        "recommendedDivision": "Engineering"
       },
       "quantitative": {
         "self_management": {
@@ -81,7 +78,10 @@
           "comment": "まだ変革提案の経験は少ないが、現状の改善提案は一部行っていた。"
         }
       },
-      "updated_at": "2025-08-15T18:50:27.858584"
+      "updated_at": "2025-08-18T14:21:32.255143",
+      "ai_score_reviewed": true,
+      "eval_required": false,
+      "interviewer_id": "user123"
     }
   }
 }

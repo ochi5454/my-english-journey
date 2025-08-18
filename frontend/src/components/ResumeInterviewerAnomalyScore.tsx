@@ -145,12 +145,20 @@ const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, i
                   return acc;
                 }, {});
                 const maxCount = Math.max(...Object.values(freq));
-                const majority = Object.entries(freq).find(([, count]) => count === maxCount)?.[0];
-                Object.entries(row.scores).forEach(([iid, score]) => {
-                  if (typeof score === 'string') {
-                    isAnomalyMap[iid] = score !== majority;
-                  }
-                });
+                // 多数決が存在する場合のみ anomaly 判定
+                if (maxCount >= 2) {
+                  const majority = Object.entries(freq).find(([, count]) => count === maxCount)?.[0];
+                  Object.entries(row.scores).forEach(([iid, score]) => {
+                    if (typeof score === 'string') {
+                      isAnomalyMap[iid] = score !== majority;
+                    }
+                  });
+                } else {
+                  // maxCount === 1 → 全員バラバラ（票が割れている）→ 異常値扱いしない
+                  Object.keys(row.scores).forEach(iid => {
+                    isAnomalyMap[iid] = false;
+                  });
+                }
               }
 
               return (

@@ -1,3 +1,5 @@
+type FocusTag = { id: string; label: string };
+
 export type TitleOption = {
   value: string;
   label: string;
@@ -33,5 +35,5 @@ export interface ConfigResponse {
   titleOptions: TitleOption[];
   qualitativeItems: QualitativeItem[];
   quantitativeItems: QuantitativeItem[];
-  focusTags: string[];
+  focusTags: FocusTag[];
 }

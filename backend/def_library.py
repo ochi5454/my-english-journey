@@ -19,6 +19,7 @@ import unicodedata
 import hashlib
 from hashlib import sha1
 import logging
+from collections import Counter, defaultdict
 
 # サードパーティライブラリ
 import docx
@@ -3024,13 +3025,16 @@ def _load_json(path):
 def _shape_block(raw: Dict[str, Any], stage: str) -> Dict[str, Any]:
     stages = (raw.get("stages") or {})
     block = stages.get(stage) or {}
-    return {
+    shaped = {
         "prepItems": block.get("prepItems", []),
         "reviewedResume": bool(block.get("reviewedResume", False)),
         "qualitative": block.get("qualitative") or {},
         "quantitative": block.get("quantitative") or {},
         "updated_at": block.get("updated_at"),
+        "ai_score_reviewed": block.get("ai_score_reviewed", False),
+        "eval_required": block.get("eval_required", False),
     }
+    return shaped
 
 async def get_checksheet_one_async(
     interviewer_id: str,
@@ -3067,7 +3071,8 @@ async def get_checksheet_one_async(
         # デコード失敗や I/O エラーをまとめて RuntimeError に
         raise RuntimeError(f"JSON read failed: {e}")
 
-    return _shape_block(doc, stage)
+    shaped =  _shape_block(doc, stage)
+    return shaped
 
 def list_checksheet_by_interviewer(interviewer_id: str) -> Dict[str, Dict[str, Any]]:
     """
@@ -3156,6 +3161,10 @@ def review_with_interview_checksheet(
 
     # ← ここで壊さずマージ
     merged_block = merge_block(existing_block, incoming_block)
+    #### 2025.8.18 Add（flags）START
+    merged_block["ai_score_reviewed"] = True
+    merged_block["eval_required"] = True
+    #### 2025.8.18 Add（flags）END
     merged_block["updated_at"] = now_str
 
     upsert_checksheets_block(
@@ -4062,6 +4071,11 @@ def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=No
         if stage and stg != stage:
             continue
         iid = block.get("interviewer_id", "unknown")
+
+        #### 2025.8.18 Add（flags）START
+        if not block.get("eval_required", False):
+            continue
+        #### 2025.8.18 Add（flags）END
         if needle and (needle not in iid.lower() and needle not in cid.lower()):
             continue
 
@@ -4111,6 +4125,11 @@ def refresh_targets_and_upsert(targets: list[dict]) -> list[dict]:
             blocks = (prep_map.get(cid, {}).get(stg, []) or [])
             qa_block = next((b for b in blocks if b.get("interviewer_id") == iid),
                             (blocks[0] if blocks else {}))
+            
+            #### 2025.8.18 Add（flags）START
+            if not qa_block.get("eval_required", False):
+                continue
+            #### 2025.8.18 Add（flags）END
 
             result = evaluate_interviewer_single(
                 candidate_id=cid,
@@ -4128,12 +4147,52 @@ def refresh_targets_and_upsert(targets: list[dict]) -> list[dict]:
             idx[_row_key(cid, iid, stg)] = row
             updated_rows.append(row)
 
+            # 🔸 ここで eval_required を False に落とす
+            qa_block["eval_required"] = False
+
         # idx → rows に戻してこの面談者ファイルにだけ保存
         rows = list(idx.values())
         rows.sort(key=lambda r: (r["stage"], r["interviewer_id"], r["candidate_id"]))
         save_evals_cache_for(iid, {"rows": rows})
+        save_checksheet_map(prep_map)
 
     return updated_rows
+
+#### 2025.8.18 Add（flags）START
+def save_checksheet_map(prep_map: dict):
+    for cid, stage_blocks in prep_map.items():
+        for stage, blocks in stage_blocks.items():
+            for block in blocks:
+                iid = block.get("interviewer_id")
+                if not iid:
+                    continue
+                filepath = INTERVIEWER_CHECKSHEET_PATH / iid / f"{cid}.json"
+                # 保存対象の1人分の dict を構成
+                content = {
+                    "interviewer_id": iid,
+                    "candidate_id": cid,
+                    "stages": {
+                        stage: block
+                    }
+                }
+                save_json(filepath, content)
+
+def save_json(filepath: Path, data: dict, ensure_dir: bool = True, indent: int = 2) -> None:
+    """
+    指定されたPathにJSONを保存する。
+
+    Args:
+        filepath (Path): 保存先のファイルパス（例: Path("user123/cand_abc.json")）
+        data (dict): 保存するデータ
+        ensure_dir (bool): 親ディレクトリが存在しない場合は作成するか（デフォルト: True）
+        indent (int): インデント幅（整形出力用）
+    """
+    if ensure_dir:
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=indent)
+#### 2025.8.18 Add（flags）END
 
 def get_interviewer_rubric_or_default(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> dict:
     """
@@ -4196,32 +4255,102 @@ def evaluate_role_expectation_match(interviewer_id: str, qa_block: dict) -> dict
             "score": 0.0
         }
 
-    expected = set(role_data.get("expected_focus", []))  # 👈 期待観点リスト
-    selected_tags = set()
+    expected_items = role_data.get("expected_focus", [])
+    expected_ids = {item["id"] for item in expected_items}
+    id_to_label = {item["id"]: item["label"] for item in expected_items}
 
-    # ✅ QAに付けられたすべてのタグを収集
+    selected_tags = set()
     for item in qa_block.get("prepItems", []):
         tags = item.get("tags", [])
         selected_tags.update(tags)
 
-    # ✅ タグと期待観点の完全一致評価
-    matched = [tag for tag in expected if tag in selected_tags]
-    missing = [tag for tag in expected if tag not in matched]
-
-    # （避けるべき観点は不要なので省略）
+    matched_ids = [tag_id for tag_id in expected_ids if tag_id in selected_tags]
+    missing_ids = [tag_id for tag_id in expected_ids if tag_id not in selected_tags]
 
     role_expectation = {
-        "matched": matched,
-        "matched_semantic": [],  # semantic未使用
-        "missing": missing,
-        "violated": [],          # 今回は評価しない
-        "comment": f"タグ評価: 期待観点 {len(expected)} 件中 {len(matched)} 件マッチ",
+        "matched": [id_to_label[i] for i in matched_ids],
+        "matched_semantic": [],
+        "missing": [id_to_label[i] for i in missing_ids],
+        "violated": [],
+        "comment": f"タグ評価: 期待観点 {len(expected_ids)} 件中 {len(matched_ids)} 件マッチ",
         "score": calc_role_score({
-            "matched": matched,
-            "missing": missing,
+            "matched": matched_ids,
+            "missing": missing_ids,
             "violated": []
         })
     }
 
     return role_expectation
 #### 2025.8.12 Add（interviewer score after interview）END
+
+#### 2025.8.18 Add（interviewer score by role）START
+def load_role_focus_dict(skills_path: Path) -> dict:
+    role_focus_dict = {}
+    for skill_file in skills_path.glob("*.json"):
+        skill_data = _load_json(skill_file)
+        for role, role_data in skill_data.items():
+            key = f"{skill_file.stem.lower()}:{role.lower()}"
+
+            if isinstance(role_data, dict):
+                # ✅ 正常な形式
+                role_focus_dict[key] = role_data
+            elif isinstance(role_data, list):
+                # ✅ 旧形式への対応： expected_focus を dict に包む
+                role_focus_dict[key] = {"expected_focus": role_data}
+            else:
+                # fallback
+                role_focus_dict[key] = {"expected_focus": []}
+    return role_focus_dict
+
+def load_all_prepitem_tags_by_role(meta: dict, checksheet_path: Path) -> dict:
+    usage_counter = defaultdict(Counter)
+
+    for user_dir in checksheet_path.glob("*"):
+        if not user_dir.is_dir():
+            continue
+        user_id = user_dir.name
+        user_meta = meta.get(user_id)
+        if not user_meta:
+            continue
+        dept = user_meta.get("department", "").lower()
+        role = user_meta.get("role", "").lower()
+        role_key = f"{dept}:{role}"
+
+        for json_file in user_dir.glob("*.json"):
+            data = _load_json(json_file)
+            for stage_data in data.get("stages", {}).values():
+                for item in stage_data.get("prepItems", []):
+                    for tag in item.get("tags", []):
+                        # ✅ dict型 or 文字列どちらにも対応
+                        tag_id = tag.get("id") if isinstance(tag, dict) else tag
+                        if tag_id:  # None や空文字は除外
+                            usage_counter[role_key][tag_id] += 1
+
+    return usage_counter
+
+def get_missing_tags(expected_tags: list, used_counter: dict) -> list:
+    tag_ids = []
+
+    for tag in expected_tags:
+        if isinstance(tag, str):
+            tag_ids.append(tag)
+        elif isinstance(tag, dict):
+            if 'id' in tag and isinstance(tag['id'], str):
+                tag_ids.append(tag['id'])
+
+    return [tag_id for tag_id in tag_ids if used_counter.get(tag_id, 0) < 1]
+
+def extract_ids_and_labels(expected_focus: list):
+    """expected_focus が string or dict の両形式に対応するユーティリティ関数"""
+    ids = []
+    id_to_label = {}
+
+    for item in expected_focus:
+        if isinstance(item, dict) and "id" in item and "label" in item:
+            ids.append(item["id"])
+            id_to_label[item["id"]] = item["label"]
+        elif isinstance(item, str):
+            ids.append(item)
+            id_to_label[item] = item  # ラベルがない場合はIDをそのまま使う
+    return ids, id_to_label
+#### 2025.8.18 Add（interviewer score by role）END

@@ -30,8 +30,8 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async, _load_json, evaluate_role_expectation_match, get_interviewer_meta
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, TEMPLATE_QUANTITATIVE_PATH, TEMPLATE_QUALITATIVE_PATH, TEMPLATE_HIRIING_PATH, TEMPLATE_ROLETITLE_PATH, INTERVIEWER_META_PATH, INTERVIEWER_SKILLS_PATH
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async, _load_json, load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, TEMPLATE_QUANTITATIVE_PATH, TEMPLATE_QUALITATIVE_PATH, TEMPLATE_HIRIING_PATH, TEMPLATE_ROLETITLE_PATH, INTERVIEWER_META_PATH, INTERVIEWER_SKILLS_PATH, INTERVIEWER_CHECKSHEET_PATH
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -1345,9 +1345,10 @@ def get_all_interview_settings(request: Request):
             role = user_meta.get("role")
             path = INTERVIEWER_SKILLS_PATH / f"{dept.lower()}.json"
             if path.exists():
-                role_skills = _load_json(path).get(role)
-                if role_skills:
-                    tags = role_skills.get("expected_focus", [])
+                role_data = _load_json(path).get(role)
+                if role_data:
+                    # 変更点👇： id + label セットをそのまま返す
+                    tags = role_data.get("expected_focus", [])
 
     return {
         "divisions": load_division_names(SKILLS_PATH),
@@ -1355,7 +1356,7 @@ def get_all_interview_settings(request: Request):
         "qualitativeItems": _load_json(TEMPLATE_QUALITATIVE_PATH),
         "hiringDecisions": _load_json(TEMPLATE_HIRIING_PATH),
         "titleOptions": _load_json(TEMPLATE_ROLETITLE_PATH),
-        "focusTags": tags  # 👈 新たに追加
+        "focusTags": tags  # [{ "id": ..., "label": ... }]
     }
 
 @app.get("/checksheet/one", response_class=ORJSONResponse)
@@ -1394,6 +1395,10 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
         "quantitative": payload.get("quantitative"),
     }
     block = merge_block(existing, incoming)
+    # 🟡 フラグ追加（保存ボタン押下時は未精査・再評価不要）
+    block["ai_score_reviewed"] = False
+    block["eval_required"] = False
+
     block["updated_at"] = datetime.now().isoformat()
 
     ok = upsert_checksheets_block(
@@ -1495,6 +1500,42 @@ async def interviewer_evaluate(payload: dict = Body(...)):
     )
     return JSONResponse(content=out)
 #### 2025.8.12 Add（interviewer score after interview）END
+
+#### 2025.8.18 Add（interviewer score by role）START
+@app.get("/checksheet/role-focus-summary")
+def get_role_focus_summary():
+    role_focus_dict = load_role_focus_dict(INTERVIEWER_SKILLS_PATH)
+    meta = _load_json(INTERVIEWER_META_PATH)
+    usage_counter = load_all_prepitem_tags_by_role(meta, INTERVIEWER_CHECKSHEET_PATH)
+
+    role_summary = {}
+    for role_key, role_data in role_focus_dict.items():
+        expected_focus = role_data.get("expected_focus", [])
+        expected_ids, id_to_label = extract_ids_and_labels(expected_focus)
+
+        used_tags = usage_counter.get(role_key, {})
+        missing_ids = [tag_id for tag_id in expected_ids if tag_id not in used_tags]
+
+        role_summary[role_key] = {
+            "expected_count": len(expected_ids),
+            "missing_tags": [
+                { "id": tag_id, "label": id_to_label.get(tag_id, tag_id) }
+                for tag_id in missing_ids
+            ],
+            "used_count": sum(used_tags.values()),
+            "used_tags": dict(used_tags),
+            "expected_tags": [
+                { "id": tag_id, "label": id_to_label.get(tag_id, tag_id) }
+                for tag_id in expected_ids
+            ]
+        }
+
+    return role_summary
+
+@app.get("/checksheet/meta")
+def get_interviewer_meta():
+    return _load_json(INTERVIEWER_META_PATH)
+#### 2025.8.18 Add（interviewer score by role）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
 from openai_config import create_custom_openapi
