@@ -3091,6 +3091,38 @@ def list_checksheet_by_interviewer(interviewer_id: str) -> Dict[str, Dict[str, A
         except Exception as e:
             print("読み込み失敗:", jf, e)
     return out
+
+#### 2025.8.12 Add（HR review）START
+def list_all_checksheet_blocks():
+    results = []
+
+    for interviewer_dir in INTERVIEWER_CHECKSHEET_PATH.iterdir():
+        if not interviewer_dir.is_dir():
+            continue
+
+        for file in interviewer_dir.glob("*.json"):
+            try:
+                with open(file, encoding="utf-8") as f:
+                    data = json.load(f)
+
+                # ファイル名: {candidate_id}_{stage}.json を分解
+                name_parts = file.stem.split("_")
+                if len(name_parts) < 2:
+                    continue
+                candidate_id = "_".join(name_parts[:-1])
+                stage = name_parts[-1]
+
+                results.append({
+                    "candidate_id": candidate_id,
+                    "interviewer_id": interviewer_dir.name,
+                    "stage": stage,
+                    **data
+                })
+            except Exception:
+                continue  # 読み込みエラーはスキップ
+
+    return results
+#### 2025.8.12 Add（HR review）END
 #### 2025.8.13 Add（interview sheet）END
 
 #### 2025.8.12 Add（candidate score update after interview）START

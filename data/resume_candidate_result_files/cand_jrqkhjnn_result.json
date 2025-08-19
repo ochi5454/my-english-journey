@@ -128,5 +128,11 @@
   },
   "面談・1次_reviewed_resume": true,
   "chat_review_面談・1次_at": "2025-08-12T10:48:55.029514",
-  "chat_reviewer_面談・1次": "user123"
+  "chat_reviewer_面談・1次": "user123",
+  "面談・2次_reviewed_resume": true,
+  "chat_review_面談・2次_at": "2025-08-18T14:13:48.518261",
+  "chat_reviewer_面談・2次": "user456",
+  "最終面談_reviewed_resume": true,
+  "chat_review_最終面談_at": "2025-08-18T14:13:48.518261",
+  "chat_reviewer_最終面談": "user789"
 }

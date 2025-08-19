@@ -236,17 +236,28 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
             {statusSteps.map((step, idx) => {
                 const isActive = localResult.status === step;
                 // 完全にステップ完了している状態（＝緑にしたい条件）
-                const isStepDone = (step === '書類選考・1次' && !!localResult.timestamp) ||
-                                (step === '書類選考・2次' && !!localResult.updated_at) || 
-                                (reviewStages.includes(step) && !!localResult[`chat_review_${step}_at`]);
-                // 日程調整だけ済んでいる状態（＝青にしたい条件）
-                const isScheduled = interviewStages.includes(step) && 
-                                    isInterviewScheduled(step) &&
-                                    !localResult[`chat_review_${step}_at`];
+                const isStepDone = (
+                    (step === '書類選考・1次' && !!localResult.timestamp) ||
+                    (step === '書類選考・2次' && !!localResult.updated_at) || 
+                    (reviewStages.includes(step) && !!localResult[`chat_review_${step}_at`]) ||
+                    (step === '待遇検討' && !!localResult.hr_review?.updated_at)
+                );
+                // 日程調整だけ済んでいる状態, 最終面談まで完了し待遇検討待ちの状態（＝青にしたい条件）
+                const isScheduled = 
+                    (interviewStages.includes(step) && 
+                    isInterviewScheduled(step) &&
+                    !localResult[`chat_review_${step}_at`]) ||
+
+                    (step === '待遇検討' &&
+                        !!localResult.chat_review_最終面談_at &&
+                        !localResult.hr_review?.updated_at);
 
                 const handleClick = () => {
                     if (interviewStages.includes(step) && isDocumentReview2Done) {
                         openInterviewFlow(step);
+                    } else if (step === "待遇検討" && !!localResult.chat_review_最終面談_at) {
+                        // HRダッシュボードに遷移（候補者IDをクエリで渡す）
+                        window.open(`/hr-review-dashboard?filter=${localResult.user_id}`, '_blank');
                     }
                 };
 
@@ -314,6 +325,18 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                                         <span className="value">{reviewer || '-'}</span>
                                     </div>
                                 </>
+                            )}
+                            {step === "待遇検討" && localResult.hr_review && (
+                            <>
+                                <div className="line">
+                                <span className="label">🗓️</span>
+                                <span className="value">{formatDate(localResult.hr_review.updated_at)}</span>
+                                </div>
+                                <div className="line">
+                                <span className="label">🧑</span>
+                                <span className="value">{localResult.hr_review.updated_by}</span>
+                                </div>
+                            </>
                             )}
                         </div>
                     </div>
