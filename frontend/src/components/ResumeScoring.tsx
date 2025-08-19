@@ -2,9 +2,9 @@
 import React, { useState } from 'react';
 import './ResumeScoring.css';
 import ResumeScoreMatrix from './ResumeScoreMatrix';
-import ResumeInterviewerOverview from './ResumeInterviewerOverview'; // 2025.8.12 Add（interviewer score after interview）
+import ResumeHRReviewDashboard from './ResumeHRReviewDashboard';
 
-type ViewMode = 'form' | 'matrix' | 'interviewer'; // 2025.8.12 Add（interviewer score after interview）
+type ViewMode = 'form' | 'matrix' | 'hr'; 
 
 const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     const [file, setFile] = useState<File | null>(null);
@@ -61,25 +61,25 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
             className={`resume-tab ${viewMode === 'form' ? 'active' : ''}`}
             onClick={() => setViewMode('form')}
         >
-            履歴書アップロード
+            履歴書判定
         </div>
         <div
             className={`resume-tab ${viewMode === 'matrix' ? 'active' : ''}`}
             onClick={() => setViewMode('matrix')}
         >
-            スコアマトリクス
+            候補者一覧
         </div>
         <div
-            className={`resume-tab ${viewMode === 'interviewer' ? 'active' : ''}`} // 2025.8.12 Add（interviewer score after interview）
-            onClick={() => setViewMode('interviewer')}
-            >
-            品質管理
+            className={`resume-tab ${viewMode === 'hr' ? 'active' : ''}`}
+            onClick={() => setViewMode('hr')}
+        >
+            候補者全評価
         </div>
         </div>
 
         {viewMode === 'form' ? (
             <>
-            <h2 className="resume-title">候補者判定</h2>
+            <h2 className="resume-title">履歴書AI判定</h2>
 
             <div className="resume-upload">
                 <label htmlFor="candidateIdInput">候補者ID:</label>
@@ -132,12 +132,16 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
             )}
             </>
         ) : viewMode === 'matrix' ? (
+            <div>
+                <h2 className="resume-title">候補者一覧</h2>
             <ResumeScoreMatrix interviewerId={userId}/>
-        ) : (
-            // 2025.8.12 Add（interviewer score after interview）
-            <ResumeInterviewerOverview />
-
-        )}
+            </div>
+        ) : viewMode === 'hr' ? (
+            <div>
+                <h2 className="resume-title">候補者全評価</h2>
+            <ResumeHRReviewDashboard interviewerId={userId}/>
+            </div>
+        ) : null}
         </div>
     );
 };

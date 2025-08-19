@@ -30,7 +30,7 @@ from pptx import Presentation
 import numpy as np
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async, _load_json, load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async, _load_json, load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels, list_all_checksheet_blocks
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, TEMPLATE_QUANTITATIVE_PATH, TEMPLATE_QUALITATIVE_PATH, TEMPLATE_HIRIING_PATH, TEMPLATE_ROLETITLE_PATH, INTERVIEWER_META_PATH, INTERVIEWER_SKILLS_PATH, INTERVIEWER_CHECKSHEET_PATH
 
 
@@ -217,6 +217,15 @@ class InterviewSetupRequest(BaseModel):
     interviewerMail: str
     stage: str 
 #### 2025.8.7 Add（interview modal）END
+
+#### 2025.8.12 Add（HR review）START
+class HRReviewUpdate(BaseModel):
+    candidate_id: str
+    decision: str
+    division: str
+    title: str
+    annual_income: Optional[int] = None
+#### 2025.8.12 Add（HR review）END
 
 # CORS設定を追加
 app.add_middleware(
@@ -1536,6 +1545,52 @@ def get_role_focus_summary():
 def get_interviewer_meta():
     return _load_json(INTERVIEWER_META_PATH)
 #### 2025.8.18 Add（interviewer score by role）END
+
+#### 2025.8.12 Add（HR review）START
+@app.get("/checksheet/all", response_class=ORJSONResponse)
+async def api_get_all_checksheet_blocks():
+    try:
+        results = list_all_checksheet_blocks()
+        return ORJSONResponse(content=results)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"failed to load all checksheets: {e}")
+    
+@app.post("/resume-result/hr-review")
+async def update_hr_review(data: HRReviewUpdate, request: Request):
+    user_id = request.headers.get("x-user-id", "unknown")
+    now = datetime.utcnow().isoformat()
+
+    # ✅ 保存ファイル名を _result.json に明示的に変更
+    file_path = RESULT_PATH / f"{data.candidate_id}_result.json"
+
+    # ファイルの読み込み（存在すれば）
+    if file_path.exists():
+        with open(file_path, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+    else:
+        existing = {
+            "user_id": data.candidate_id,
+            "timestamp": now
+        }
+
+    # HR評価の情報を更新（追記）
+    existing["hr_review"] = {
+        "decision": data.decision,
+        "division": data.division,
+        "title": data.title,
+        "annual_income": data.annual_income,
+        "updated_by": user_id,
+        "updated_at": now
+    }
+
+    # 保存
+    os.makedirs(RESULT_PATH, exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(existing, f, ensure_ascii=False, indent=2)
+
+    return {"status": "success", "path": str(file_path)}
+#### 2025.8.12 Add（HR review）END
+
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
 from openai_config import create_custom_openapi

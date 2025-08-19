@@ -83,8 +83,6 @@ const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
 
     return (
         <div className="resume-container">
-            <h2 className="resume-title">候補者マトリクス</h2>
-
             <input
                 type="text"
                 placeholder="候補者IDでフィルタ"
@@ -101,7 +99,7 @@ const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                             <th rowSpan={2}>評価日</th>
                             <th rowSpan={2}>推奨部門</th>
                             <th colSpan={allMustKeys.length}>必須</th>
-                            <th colSpan={allDivisions.length}>スコア</th>
+                            <th colSpan={allDivisions.length}>AIスコア</th>
                         </tr>
                         <tr>
                             {allMustKeys.map((k) => (

@@ -226,8 +226,6 @@ const ResumeInterviewerOverview: React.FC = () => {
   // ======================== JSX ========================
   return (
     <div className="resume-container">
-      <h2 className="resume-title">面接官の品質確認</h2>
-
       <div className="resume-header">
         <div className="iq-tab-switch">
           <button className={`iq-tab-switch-btn ${viewMode === 'interviewer' ? 'active' : ''}`} onClick={() => setViewMode('interviewer')}>

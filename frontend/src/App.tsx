@@ -7,6 +7,9 @@ import HashtagProcessor from './components/HashtagProcessor';
 import ChatHistory from './components/ChatHistory';
 import PptxSummarizer from './components/PptxSummarizer';  // 2025.7.22 Add（summarize pptx）
 import ResumeScoring from './components/ResumeScoring';  // 2025.8.4 Add（Resume）
+import ResumeInterviewerOverview from './components/ResumeInterviewerOverview'; // 2025.8.12 Add（HR review）
+import ResumeHRReviewDashboard from './components/ResumeHRReviewDashboard'; // 2025.8.12 Add（HR review）
+
 import './App.css';
 
 const App: React.FC = () => {
@@ -44,7 +47,10 @@ const App: React.FC = () => {
             {/* 2025.8.4 Add（Resume）START */}
             <Link to="/ResumeScoring">候補者判定</Link>
             {/* 2025.8.4 Add（Resume）END */}
-            <Link to="/hashtag">ハッシュタグ処理</Link>
+            {/* 2025.8.12 Add（HR review）START */}
+            <Link to="/ResumeInterviewerOverview">面接官判定</Link>
+            {/* <Link to="/hashtag">ハッシュタグ処理</Link> */}
+            {/* 2025.8.12 Add（HR review）END */}
           </div>
           {/* 2025.7.23 Add（summarize pptx）START */}
           <div className="user-info">
@@ -86,6 +92,16 @@ const App: React.FC = () => {
               element={<ResumeScoring userId={userId} />} 
             />
             {/* 2025.8.4 Add（Resume）END */}
+            {/* 2025.8.12 Add（HR review）START */}
+            <Route 
+              path="/ResumeInterviewerOverview" 
+              element={<ResumeInterviewerOverview />} 
+            />
+            <Route 
+              path="/hr-review-dashboard" 
+              element={<ResumeHRReviewDashboard interviewerId={userId} />} 
+            />
+            {/* 2025.8.12 Add（HR review）END */}
             <Route 
               path="/hashtag" 
               element={<HashtagProcessor userId={userId} />} 
