@@ -9,6 +9,7 @@ type Row = {
     evaluated_at: string;
     candidate_id?: string;
     role_expectation?: RoleExpectation;
+    skipped?: boolean;
 };
 
 type Rubric = {
@@ -272,13 +273,21 @@ const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage,
                     </td>;
                 })}
 
-                <td className="td-num"><strong>{r.total}</strong> / 10</td>
+                <td className="td-num">
+                {r.skipped ? (
+                    "（省略）"
+                ) : (
+                    <>
+                    <strong>{r.total}</strong> / 10
+                    </>
+                )}
+                </td>
                 <td className="td-num">
                 {typeof r.role_expectation?.score === 'number'
                     ? `${r.role_expectation.score} / 10`
                     : '—'}
                 </td>
-                <td className="td-reason">{r.reasons?.[0] ?? '—'}</td>
+                <td className="td-reason">{r.reasons?.[0] ?? '(省略)'}</td>
                 <td className="td-dim">{new Date(r.evaluated_at).toLocaleString('ja-JP')}</td>
                 </tr>
             ))}

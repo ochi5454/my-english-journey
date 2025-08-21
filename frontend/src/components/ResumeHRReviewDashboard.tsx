@@ -212,13 +212,26 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
         {filteredCandidateIds.map(candidateId => {
             const ai = groupedAI[candidateId];
             const evals = (groupedInterview[candidateId] || []).slice().sort((a, b) => {
-            const order = ["面談・1次", "面談・2次", "最終面談"];
-            return order.indexOf(a.stage) - order.indexOf(b.stage);
+                const order = ["面談・1次", "面談・2次", "最終面談"];
+                return order.indexOf(a.stage) - order.indexOf(b.stage);
             });
+            const normalizedCandidateId = candidateId.replace(/^cand_/, '');
+            const resumeURL = `http://localhost:8000/resumes/by-candidate/${normalizedCandidateId}`;
             return (
             <div key={candidateId} className="candidate-block">
                 <div className="candidate-header">
-                <h3 style={{ margin: 0 }}>候補者ID: {candidateId}</h3>
+                <h3 style={{ margin: 0 }}>候補者ID: {candidateId}
+                    {resumeURL && (
+                        <a
+                        href={resumeURL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="resume-link"
+                        >
+                        📄 履歴書を表示
+                        </a>
+                    )}
+                </h3>
                 <div className="hr-button-and-note">
                     <div className="hr-button-wrapper">
                     <button

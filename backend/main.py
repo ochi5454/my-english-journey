@@ -1489,7 +1489,19 @@ async def interviewer_evals_refresh_ep(payload: dict = Body(...)):
         diff = list_diff_targets(stage=payload.get("stage"), q=payload.get("q"), limit=payload.get("limit"))
         targets = (diff["missing"] + diff["stale"])
     targets = targets or []
-    rows = refresh_targets_and_upsert(targets)
+
+    #### 2025.8.21 Mod（diff modal）START
+    model = payload.get("model") or "gpt-4"
+    include_reasons = payload.get("includeReasons", True)
+    skip_eval = payload.get("skipEval", False)
+
+    rows = refresh_targets_and_upsert(
+        targets, 
+        model=model, 
+        include_reasons=include_reasons,
+        skip_eval=skip_eval
+    )
+    #### 2025.8.21 Mod（diff modal）END
     return JSONResponse(content={"updated": len(rows), "rows": rows})
 
 @app.post("/interviewer/evaluate")
@@ -1589,8 +1601,29 @@ async def update_hr_review(data: HRReviewUpdate, request: Request):
         json.dump(existing, f, ensure_ascii=False, indent=2)
 
     return {"status": "success", "path": str(file_path)}
-#### 2025.8.12 Add（HR review）END
 
+@app.get("/resumes/by-candidate/{candidate_id}")
+async def get_resume_by_candidate(candidate_id: str):
+    """
+    cand_{candidate_id}_xxxx.docx の形式にマッチするファイルを1件返す
+    """
+    # ディレクトリ内を検索
+    matching_files = [
+        f for f in os.listdir(RESUME_PATH)
+        if f.startswith(f"cand_{candidate_id}_")
+    ]
+
+    if not matching_files:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    # 一致ファイルのうち1件目を返す（複数ある場合は最初のファイル）
+    target_file = RESUME_PATH / matching_files[0]
+    return FileResponse(
+        path=target_file,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=target_file.name
+    )
+#### 2025.8.12 Add（HR review）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
 from openai_config import create_custom_openapi

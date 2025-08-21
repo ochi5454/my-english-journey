@@ -2892,39 +2892,56 @@ def save_score_to_history(candidate_id: str, new_scores: List[dict], updated_by:
 
     now = datetime.now().isoformat()
 
-    # ✅ グローバルスコア履歴
+    # ✅ グローバルスコア履歴（divisionごとに）
     if "score_history" not in result:
         result["score_history"] = {}
 
     for new_score in new_scores:
         division = new_score["division"]
-        entry = {
-            "score": new_score["score"],
-            "reason": new_score["reason"],
-            "updated_by": updated_by,
-            "updated_at": now,
-            "source": source
-        }
 
-        # ✅ 全体の履歴
-        result["score_history"].setdefault(division, []).append(entry)
+        # --------------------------
+        # 🔁 グローバル履歴の重複チェック
+        # --------------------------
+        global_history = result["score_history"].setdefault(division, [])
+        if not global_history or (
+            global_history[-1]["score"] != new_score["score"] or
+            global_history[-1]["reason"] != new_score["reason"]
+        ):
+            global_history.append({
+                "score": new_score["score"],
+                "reason": new_score["reason"],
+                "updated_by": updated_by,
+                "updated_at": now,
+                "source": source
+            })
 
-        # ✅ scores[] にも反映
+        # --------------------------
+        # 🎯 scores[] に反映（上書き前に履歴）
+        # --------------------------
         for s in result.get("scores", []):
             if s.get("division") == division:
-                s["score"] = new_score["score"]
-                s["reason"] = new_score["reason"]
-                # スコア履歴を反映（なければ初期化）
+                # 履歴初期化
                 if "score_history" not in s:
                     s["score_history"] = []
-                s["score_history"].append({
-                    "score": new_score["score"],
-                    "reason": new_score["reason"],
-                    "reviewer": updated_by,
-                    "reviewed_at": now
-                })
 
-    # 推奨部門の更新
+                # 🔁 上書き前の内容を履歴に保存（重複チェックあり）
+                last_entry = s["score_history"][-1] if s["score_history"] else None
+                if not last_entry or (
+                    last_entry["score"] != s["score"] or
+                    last_entry["reason"] != s["reason"]
+                ):
+                    s["score_history"].append({
+                        "score": s["score"],
+                        "reason": s["reason"],
+                        "reviewer": result.get("updated_by", updated_by),
+                        "reviewed_at": result.get("updated_at", now)
+                    })
+
+                # 🎯 現在のスコア・理由を上書き
+                s["score"] = new_score["score"]
+                s["reason"] = new_score["reason"]
+
+    # ✅ 推奨部門の更新ロジック（変わらず）
     update_recommended_division_from_history(result)
 
     save_result_to_file(result, candidate_id)
@@ -3833,6 +3850,8 @@ def normalize_interviewer_eval_output(
         "evaluated_by": interviewer_id,
         "candidate_id": candidate_id,
         "stage": stage,
+        "skipped": raw_json.get("skipped", False), #### 2025.8.12 Add（diff modal）
+        "note": raw_json.get("note", ""), #### 2025.8.12 Add（diff modal）
     }
 
 def build_interviewer_eval_prompt(
@@ -3840,7 +3859,8 @@ def build_interviewer_eval_prompt(
     stage: str,
     resume_result: dict,
     qa_block: dict,
-    rubric: dict
+    rubric: dict,
+    include_reasons: bool = True
 ) -> list[dict]:
     """面談QA + 直前スコア + ルーブリックから評価用プロンプトを生成"""
     # QA整形
@@ -3882,6 +3902,26 @@ def build_interviewer_eval_prompt(
     for c in rubric.get("criteria", []):
         crit_lines.append(f"- {c['label']}({c['key']}): 重み {c['weight']} → {c['guidance']}")
 
+    #### 2025.8.12 Mod（diff modal）START
+    if not include_reasons:
+        output_format = (
+            "出力は必ずJSONで、次の形式：\n"
+            "{\n"
+            '  "score": 0-10 の整数,\n'
+            '  "criteria": [{"key":"prep","score":0-10,"note":"..."}, ...],\n'
+            '  "reasons": ["...","..."],\n'
+            '  "suggestions": ["...","..."]\n'
+            "}\n"
+        )
+    else:
+        output_format = (
+            "出力は必ずJSONで、次の形式：\n"
+            "{\n"
+            '  "score": 0-10 の整数,\n'
+            '  "criteria": [{"key":"prep","score":0-10,"note":"..."}, ...]\n'
+            "}\n"
+        )
+
     system = {
         "role": "system",
         "content": (
@@ -3889,6 +3929,7 @@ def build_interviewer_eval_prompt(
             "面談者が面談前の準備と適切な質問設計で候補者を適正評価できているかを採点します。"
         )
     }
+
     user = {
         "role": "user",
         "content": (
@@ -3903,16 +3944,12 @@ def build_interviewer_eval_prompt(
             "■ 定量メモ（各項目のレベルと根拠）\n"
             f"{quant_text}\n\n"
             "■ 評価ルーブリック\n" + "\n".join(crit_lines) + "\n\n"
-            "出力は必ずJSONで、次の形式：\n"
-            "{\n"
-            '  "score": 0-10 の整数,\n'
-            '  "criteria": [{"key":"prep","score":0-10,"note":"..."}, ...],\n'
-            '  "reasons": ["...","..."],\n'
-            '  "suggestions": ["...","..."]\n'
-            "}\n"
+            + output_format +
             "総合scoreは各criteriaのscoreを重みで合成し四捨五入（0-10）。"
         )
     }
+    #### 2025.8.12 Mod（diff modal）END
+
     return [system, user]
 
 def eval_interviewer_once(
@@ -3921,10 +3958,18 @@ def eval_interviewer_once(
     resume_result: dict,
     qa_block: dict,
     rubric: dict,
-    model: str = "gpt-4"
+    model: str = "gpt-4",
+    include_reasons: bool = True
 ) -> dict:
     """LLMで面談者を1名分採点し、重みで総合点を補正"""
-    prompt = build_interviewer_eval_prompt(interviewer_id, stage, resume_result, qa_block, rubric)
+    prompt = build_interviewer_eval_prompt(
+        interviewer_id, 
+        stage, 
+        resume_result, 
+        qa_block, 
+        rubric,
+        include_reasons=include_reasons #### 2025.8.12 Add（diff modal）
+    )
     raw = call_openai_chat(prompt, model=model)
 
     # 🔽 ここに print を追加！
@@ -3968,6 +4013,8 @@ def to_row_from_llm_json(
         "evaluated_at": result.get("evaluated_at"),
         "source_sig": source_sig,
         "role_expectation": result.get("role_expectation", {}),
+        "skipped": result.get("skipped", False), #### 2025.8.12 Add（diff modal）
+        "note": result.get("note", ""), #### 2025.8.12 Add（diff modal）
     }
 
 def normalize_rubric(raw: dict) -> dict:
@@ -4052,25 +4099,38 @@ def evaluate_interviewer_single(
     resume_result: Optional[dict] = None,
     qa_block: Optional[dict] = None,
     model: str = "gpt-4",
+    include_reasons: bool = True,
+    skip_eval: bool = False
 ) -> dict:
     """
     面談者1名×1ステージの評価を完結させるサービス関数。
     入力が無ければ自動で取りに行く。
     """
+    print(f"✅モデル/理由スキップ/基礎スコアスキップ： {model}/ {include_reasons}/ {skip_eval}")
     resume = resume_result or get_resume_or_empty(candidate_id)
     if qa_block is None:
         prep_map = load_prep_map_with_owner()
         qa_block = pick_qa_block_for(prep_map, candidate_id, stage, interviewer_id)
 
     rubric = load_interviewer_skills(INTERVIEWER_COMMONSKILLS_PATH)
-    raw = eval_interviewer_once(interviewer_id, stage, resume, qa_block, rubric, model=model)
+    if not skip_eval:
+        raw = eval_interviewer_once(
+            interviewer_id, stage, 
+            resume, 
+            qa_block, 
+            rubric, 
+            model=model,
+            include_reasons=include_reasons
+        )
 
-    # LLMが壊れても最低限の形に
-    if not isinstance(raw, dict):
-        try:
-            raw = json.loads(raw)  # 念のため
-        except Exception:
-            raw = {"score": 0, "criteria": [], "reasons": ["LLM出力の解析に失敗"], "suggestions": []}
+        # LLMが壊れても最低限の形に
+        if not isinstance(raw, dict):
+            try:
+                raw = json.loads(raw)  # 念のため
+            except Exception:
+                raw = {"score": 0, "criteria": [], "reasons": ["LLM出力の解析に失敗"], "suggestions": []}
+    else:
+        raw = {"score": 0, "criteria": [], "reasons": [], "suggestions": [], "skipped": True, "note": "このスコアはLLMによる基礎スコア評価をスキップしたため、実スコアではありません"}  # 👈 スコアは0点固定
 
     result = normalize_interviewer_eval_output(raw, rubric, interviewer_id, candidate_id, stage)
     print("\n========== [DEBUG] Evaluated result before role_expectation ==========")
@@ -4130,7 +4190,12 @@ def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=No
 
     return {"missing": missing, "stale": stale}
 
-def refresh_targets_and_upsert(targets: list[dict]) -> list[dict]:
+def refresh_targets_and_upsert(
+        targets: list[dict], 
+        model: str = "gpt-4",
+        include_reasons: bool = True,
+        skip_eval: bool = False
+    ) -> list[dict]:
     if not targets: return []
 
     rubric = load_interviewer_skills(INTERVIEWER_COMMONSKILLS_PATH)
@@ -4169,7 +4234,9 @@ def refresh_targets_and_upsert(targets: list[dict]) -> list[dict]:
                 stage=stg,
                 resume_result=resume,
                 qa_block=qa_block,
-                model="gpt-4"
+                model=model, #### 2025.8.21 Mod（diff modal）
+                include_reasons=include_reasons, #### 2025.8.21 Mod（diff modal）
+                skip_eval=skip_eval  #### 2025.8.21 Mod（diff modal）
             )
 
             sig = calc_source_sig(cid, stg, qa_block, resume, rubric, rolefit=result.get("role_expectation"))
