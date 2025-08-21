@@ -12,7 +12,8 @@ type Row = {
   reasons?: string[];
   evaluated_at: string;
   candidate_id?: string;
-  role_expectation?: RoleExpectation; 
+  role_expectation?: RoleExpectation;
+  skipped?: boolean;
 };
 
 type Rubric = {
@@ -39,6 +40,27 @@ type Group = {
   latest_at: string | null;
 };
 
+type RoleKey = keyof typeof defaultReliabilityConfig.roleWeights;
+
+type ReliabilityConfig = {
+  roleWeight: number;
+  consistencyWeight: number;
+  roleWeights: Record<RoleKey, number>;
+};
+
+// ======================== デフォルト設定 ========================
+const defaultReliabilityConfig = {
+  roleWeight: 0.2,
+  consistencyWeight: 0.8,
+  roleWeights: {
+    C: 1.0,
+    SC: 1.05,
+    M: 1.1,
+    SM: 1.15,
+    "D+": 1.2,
+  },
+} as const;
+
 // ======================== 本体コンポーネント ========================
 const ResumeInterviewerOverview: React.FC = () => {
   const [rows, setRows] = useState<Row[]>([]);
@@ -49,6 +71,12 @@ const ResumeInterviewerOverview: React.FC = () => {
   const [candidateFilter, setCandidateFilter] = useState<string>('');
   const [detailTarget, setDetailTarget] = useState<Group | null>(null);
   const [viewMode, setViewMode] = useState<'interviewer' | 'candidate' | 'role'>('interviewer');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
+  const [includeReasons, setIncludeReasons] = useState(true);
+  const [skipEval, setSkipEval] = useState(false);
+  const [reliabilityConfig, setReliabilityConfig] = useState<ReliabilityConfig>(defaultReliabilityConfig);
+  const [showReliabilityModal, setShowReliabilityModal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -85,27 +113,34 @@ const ResumeInterviewerOverview: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchCache(); }, []);
 
-  const refreshDiff = async () => {
+  // ======================== 差分評価の実行 ========================
+  const handleRefreshDiff = async () => {
     setError(null);
     setLoading(true);
     try {
-      const payload: any = { auto: true };
+      const payload: any = {
+        auto: true,
+        model: selectedModel, // 使用するモデル
+        includeReasons: includeReasons, // 理由をスキップするかどうか
+        skipEval: skipEval, // 基礎スコア算出をスキップするかどうか
+      };
       const q = interviewerFilter.trim();
       if (q) payload.q = q;
-      const r = await fetch('/interviewer/evals-refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+
+      const r = await fetch("/interviewer/evals-refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!r.ok) throw new Error(await r.text());
       await fetchCache();
     } catch (e: any) {
-      setError(e.message || '再評価に失敗しました');
+      setError(e.message || "評価に失敗しました");
     } finally {
       setLoading(false);
     }
   };
-
+  // ======================== 面接官メタデータの取得 ========================
   const [interviewerMeta, setInterviewerMeta] = useState<Record<string, { role: string }>>({});
   useEffect(() => {
     fetch("/checksheet/meta")
@@ -116,12 +151,13 @@ const ResumeInterviewerOverview: React.FC = () => {
 
   // ======================== 信頼性スコア計算 ========================
   const calculateReliability = useCallback((rows: Row[], interviewerId: string): number => {
+    const validRows = rows.filter(r => r.skipped !== true);
     const count = rows.length;
     if (count === 0) return 0;
-    // ✅ 要素1: 平均基礎スコア（高いほど信憑性が高くなる）
-    const avg = rows.reduce((acc, r) => acc + r.total, 0) / count;
+    // ✅ 要素1: 平均基礎スコア（高いほど信憑性が高くなる）(基礎スコアスキップ（0点）は除外)
+    const avg = validRows.reduce((acc, r) => acc + r.total, 0) / validRows.length;
     // ✅ 要素2: 基礎スコアのばらつき（分散→標準偏差）から一貫性を評価
-    const variance = rows.reduce((acc, r) => acc + Math.pow(r.total - avg, 2), 0) / count;
+    const variance = validRows.reduce((acc, r) => acc + Math.pow(r.total - avg, 2), 0) / validRows.length;
     const stdDev = Math.sqrt(variance);
     // ✅ 要素3: 各部門ロールに期待されるQA観点の網羅性スコア
     const hasRole = rows.some(r => typeof r.role_expectation?.score === 'number');
@@ -129,22 +165,15 @@ const ResumeInterviewerOverview: React.FC = () => {
     // ✅ 要素4: 面談件数（多いほど信頼性が高くなる）
     const base = Math.min(1, Math.sqrt(count) / 3);
     const consistency = 1 - Math.min(1, stdDev / 5);
-    const roleWeight = 0.2; // 👈 任意：ロール観点の重み
-    const baseReliability = base * (0.8 * consistency + roleWeight * roleAvg / 10);
+    const { roleWeight, consistencyWeight, roleWeights } = reliabilityConfig;
+    const baseReliability = base * (consistencyWeight * consistency + roleWeight * roleAvg / 10);
     // ✅ 要素5: 面接官のロールを考慮した調整
     const role = interviewerMeta?.[interviewerId]?.role ?? "C";
-    const roleWeights: Record<string, number> = {
-      "C": 1.00,
-      "SC": 1.05,
-      "M": 1.10,
-      "SM": 1.15,
-      "D+": 1.20,
-    };
-    const weight = roleWeights[role.toUpperCase()] ?? 1.00;
-    const adjusted = Math.min(1.0, baseReliability * weight);
+    const upperRole = role.toUpperCase() as RoleKey;
+    const weight = roleWeights[upperRole] ?? 1.0;
 
-    return Math.round(adjusted * 100) / 100;
-  }, [interviewerMeta]);
+    return Math.round(Math.min(1.0, baseReliability * weight) * 100) / 100;
+  }, [interviewerMeta, reliabilityConfig]);
 
   // ======================== 面接官軸の集計 ========================
   const grouped: Group[] = useMemo(() => {
@@ -159,8 +188,9 @@ const ResumeInterviewerOverview: React.FC = () => {
     const out: Group[] = [];
     map.forEach((arr, iid) => {
       if (!arr.length) return;
-      const sum = arr.reduce((acc, cur) => acc + (cur.total || 0), 0);
-      const avg = Math.round((sum / arr.length) * 10) / 10;
+        const validRows = arr.filter(r => r.skipped !== true); // 基礎スコアスキップ（0点）は除外
+        const sum = validRows.reduce((acc, cur) => acc + (cur.total || 0), 0);
+        const avg = validRows.length ? Math.round((sum / validRows.length) * 10) / 10 : 0;
       const latest = arr.slice().sort(
         (a, b) => new Date(b.evaluated_at).getTime() - new Date(a.evaluated_at).getTime()
       )[0];
@@ -241,8 +271,8 @@ const ResumeInterviewerOverview: React.FC = () => {
             ロール軸
           </button>
         </div>
-        <button className="resume-submit" onClick={refreshDiff} disabled={loading}>
-          {loading ? '再評価中…' : '差分を再評価'}
+        <button className="resume-submit" onClick={() => setIsModalOpen(true)} disabled={loading}>
+          差分を評価
         </button>
       </div>
 
@@ -258,16 +288,21 @@ const ResumeInterviewerOverview: React.FC = () => {
             onChange={e => setInterviewerFilter(e.target.value)}
             onBlur={fetchCache}
           />
+
           <table className="resume-matrix-table">
             <thead>
               <tr>
                 <th>面接官</th>
                 <th>ロール</th>
-                <th>信憑性</th>
+                <th
+                  className="clickable-header"
+                  onClick={() => setShowReliabilityModal(true)}
+                >
+                  信憑性
+                </th>
                 <th>基礎スコア</th>
                 <th>観点スコア</th>
                 <th>面接件数</th>
-                <th>総合評価</th>
                 <th>評価日時</th>
               </tr>
             </thead>
@@ -302,7 +337,6 @@ const ResumeInterviewerOverview: React.FC = () => {
                     <td>{g.avg_total} / 10</td>
                     <td>{typeof g.avg_role_score === 'number' ? `${g.avg_role_score} / 10` : '—'}</td>
                     <td>{g.count}</td>
-                    <td className="td-reason">{g.latest_reason ?? '—'}</td>
                     <td>{g.latest_at ? new Date(g.latest_at).toLocaleString('ja-JP') : '—'}</td>
                   </tr>
                 );
@@ -383,6 +417,163 @@ const ResumeInterviewerOverview: React.FC = () => {
           </div>
         </div>
       )}
+
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            {loading && <div className="diff-loading-message">評価中です。しばらくお待ちください...</div>}
+            <h4 className="diff-modal-title">差分評価オプション</h4>
+
+            <div className="diff-modal-row">
+              <label className="diff-modal-label">
+                使用モデル：
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="diff-modal-select"
+                >
+                  <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                  <option value="gpt-4">GPT-4</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="diff-modal-checkbox">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={includeReasons}
+                  onChange={() => setIncludeReasons(!includeReasons)}
+                />
+                基礎スコア算出の理由をスキップ
+              </label>
+            </div>
+
+            <div className="diff-modal-checkbox">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={skipEval}
+                  onChange={() => setSkipEval(!skipEval)}
+                />
+                基礎スコア算出をスキップ（観点スコアのみ算出）
+              </label>
+            </div>
+
+            <div className="diff-modal-footer">
+              <button className="diff-modal-btn cancel-btn" onClick={() => setIsModalOpen(false)}>
+                キャンセル
+              </button>
+              <button
+                className="diff-modal-btn execute-btn"
+                  onClick={async () => {
+                    await handleRefreshDiff();   // ← 評価が終わるまで待つ
+                    setIsModalOpen(false);       // ← その後モーダルを閉じる
+                  }}
+                disabled={loading}
+              >
+                {loading ? '評価中…' : '実行'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReliabilityModal && (
+        <div className="modal-overlay" onClick={() => setShowReliabilityModal(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <h4 className="diff-modal-title">信憑性スコアの重み設定</h4>
+
+            <label className="reliability-modal-label">
+              ・基礎スコア安定性（標準偏差）重み（0〜1）:
+              <input
+                type="number"
+                step="0.05"
+                min="0"
+                max="1"
+                className="reliability-modal-input"
+                value={reliabilityConfig.consistencyWeight}
+                onChange={(e) =>
+                  setReliabilityConfig(cfg => ({
+                    ...cfg,
+                    consistencyWeight: parseFloat(e.target.value)
+                  }))
+                }
+              />
+              <span className="initial-value-note">（初期値: {defaultReliabilityConfig.consistencyWeight}）</span>
+            </label>
+
+            <label className="reliability-modal-label">
+              ・観点スコア重み（0〜1）:
+              <input
+                type="number"
+                step="0.05"
+                min="0"
+                max="1"
+                className="reliability-modal-input"
+                value={reliabilityConfig.roleWeight}
+                onChange={(e) =>
+                  setReliabilityConfig(cfg => ({
+                    ...cfg,
+                    roleWeight: parseFloat(e.target.value)
+                  }))
+                }
+              />
+              <span className="initial-value-note">（初期値: {defaultReliabilityConfig.roleWeight}）</span>
+            </label>
+
+            <label className="reliability-modal-label">・面接官ロール別重み（0.5〜2）：</label>
+            {(Object.keys(reliabilityConfig.roleWeights) as RoleKey[]).map(role => (
+              <div className="reliability-role-weight indent-role" key={role}>
+                <label>{role}：</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.5"
+                  max="2"
+                  className="reliability-modal-input"
+                  value={reliabilityConfig.roleWeights[role]}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setReliabilityConfig(cfg => ({
+                      ...cfg,
+                      roleWeights: {
+                        ...cfg.roleWeights,
+                        [role]: val
+                      }
+                    }));
+                  }}
+                />
+                <span className="initial-value-note">（初期値: {defaultReliabilityConfig.roleWeights[role]}）</span>
+              </div>
+            ))}
+
+            <div className="diff-modal-footer">
+              <button
+                className="diff-modal-btn cancel-btn"
+                onClick={() => setShowReliabilityModal(false)}
+              >
+                キャンセル
+              </button>
+
+              <button
+                className="diff-modal-btn cancel-btn"
+                onClick={() => setReliabilityConfig(defaultReliabilityConfig)}
+              >
+                クリア
+              </button>
+
+              <button
+                className="diff-modal-btn execute-btn"
+                onClick={() => setShowReliabilityModal(false)}
+              >
+                適用
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

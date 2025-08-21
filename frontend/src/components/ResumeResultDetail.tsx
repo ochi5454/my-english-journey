@@ -362,36 +362,40 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                 {localResult.scores?.map((s: any) => (
                     Array.isArray(s.score_history) ? (
                         <div key={s.division} className="resume-score-item">
-                            <p><strong>{s.division}</strong>:</p>
+                        <p><strong>{s.division}</strong>:</p>
 
-                            {/* 最新スコア */}
-                            {(() => {
-                                const history = [...s.score_history].sort((a: any, b: any) =>
-                                    new Date(b.reviewed_at).getTime() - new Date(a.reviewed_at).getTime()
-                                );
-                                const latest = history[0];
-                                return (
-                                    <div style={{ marginBottom: '10px' }}>
-                                        <span>最新スコア: {latest.score}点</span><br />
-                                        <span style={{ fontSize: '0.9em', color: '#666' }}>理由: {latest.reason}</span><br />
-                                        <span style={{ fontSize: '0.8em', color: '#999' }}>by {latest.reviewer} at {formatDate(latest.reviewed_at)}</span>
-                                    </div>
-                                );
-                            })()}
+                        {/* ✅ 最新スコアは s.score / s.reason を使用 */}
+                        <div style={{ marginBottom: '10px' }}>
+                            <span>最新スコア: {s.score}点</span><br />
+                            <span style={{ fontSize: '0.9em', color: '#666' }}>理由: {s.reason}</span><br />
+                            {/* 表示上のレビュアーや日時は score_history の最後から取ることも可 */}
+                            {s.score_history?.length > 0 && (
+                            <span style={{ fontSize: '0.8em', color: '#999' }}>
+                                by {s.score_history[s.score_history.length - 1].reviewer || s.score_history[s.score_history.length - 1].updated_by} at {formatDate(s.score_history[s.score_history.length - 1].reviewed_at || s.score_history[s.score_history.length - 1].updated_at)}
+                            </span>
+                            )}
+                        </div>
 
-                            {/* 履歴表示 */}
+                        {/* ✅ スコア履歴（s.score と異なる過去の履歴のみ） */}
+                        {s.score_history?.length > 0 && (
                             <div className="score-history-log">
-                                <h5 style={{ marginBottom: '4px' }}>📜 スコア履歴:</h5>
-                                {s.score_history.slice(0, -1).reverse().map((entry: any, idx: number) => (
-                                    <div key={idx} style={{ paddingLeft: '10px', borderLeft: '2px solid #ccc', marginBottom: '5px' }}>
-                                        <p style={{ margin: 0 }}>
-                                            <span style={{ textDecoration: 'line-through', color: 'gray' }}>{entry.score}点</span><br />
-                                            <span style={{ fontSize: '0.9em' }}>理由: {entry.reason}</span><br />
-                                            <span style={{ fontSize: '0.8em', color: '#999' }}>by {entry.reviewer} at {formatDate(entry.reviewed_at)}</span>
-                                        </p>
-                                    </div>
+                            <h5 style={{ marginBottom: '4px' }}>📜 スコア履歴:</h5>
+                            {[...s.score_history]
+                                .filter((entry) => entry.score !== s.score || entry.reason !== s.reason) // 現在スコアと同一は除外
+                                .reverse()
+                                .map((entry: any, idx: number) => (
+                                <div key={idx} style={{ paddingLeft: '10px', borderLeft: '2px solid #ccc', marginBottom: '5px' }}>
+                                    <p style={{ margin: 0 }}>
+                                    <span style={{ textDecoration: 'line-through', color: 'gray' }}>{entry.score}点</span><br />
+                                    <span style={{ fontSize: '0.9em' }}>理由: {entry.reason}</span><br />
+                                    <span style={{ fontSize: '0.8em', color: '#999' }}>
+                                        by {entry.reviewer || entry.updated_by} at {formatDate(entry.reviewed_at || entry.updated_at)}
+                                    </span>
+                                    </p>
+                                </div>
                                 ))}
                             </div>
+                        )}
                         </div>
                     ) : (
                         <div key={s.division} className="resume-score-item">

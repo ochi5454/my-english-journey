@@ -3,7 +3,7 @@
     {
       "candidate_id": "cand_jrqkhjnn",
       "interviewer_id": "user456",
-      "stage": "面談・1次",
+      "stage": "面談・2次",
       "total": 7,
       "breakdown": {
         "prep": 8,
@@ -106,7 +106,7 @@
     {
       "candidate_id": "cand_yp1wrlf2",
       "interviewer_id": "user456",
-      "stage": "面談・1次",
+      "stage": "面談・2次",
       "total": 8,
       "breakdown": {
         "prep": 9,
@@ -212,5 +212,5 @@
   ],
   "version": "1",
   "interviewer_id": "user456",
-  "generated_at": "2025-08-18T14:49:41.888345"
+  "generated_at": "2025-08-21T18:11:03.144459"
 }
