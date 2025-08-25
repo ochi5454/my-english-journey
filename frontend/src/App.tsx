@@ -9,6 +9,8 @@ import PptxSummarizer from './components/PptxSummarizer';  // 2025.7.22 Add（su
 import ResumeScoring from './components/ResumeScoring';  // 2025.8.4 Add（Resume）
 import ResumeInterviewerOverview from './components/ResumeInterviewerOverview'; // 2025.8.12 Add（HR review）
 import ResumeHRReviewDashboard from './components/ResumeHRReviewDashboard'; // 2025.8.12 Add（HR review）
+import WorkerDashboard from './components/WorkerDashboard'; // 2025.8.25 Add（Worker DB）
+import WorkerDetail from "./components/WorkerDetail"; // 2025.8.25 Add（Worker DB）
 
 import './App.css';
 
@@ -51,6 +53,9 @@ const App: React.FC = () => {
             <Link to="/ResumeInterviewerOverview">面接官判定</Link>
             {/* <Link to="/hashtag">ハッシュタグ処理</Link> */}
             {/* 2025.8.12 Add（HR review）END */}
+            {/* 2025.8.25 Add（Worker DB）START */}
+            <Link to="/worker-dashboard">モニタリング</Link>
+            {/* 2025.8.25 Add（Worker DB）END */}
           </div>
           {/* 2025.7.23 Add（summarize pptx）START */}
           <div className="user-info">
@@ -102,6 +107,16 @@ const App: React.FC = () => {
               element={<ResumeHRReviewDashboard interviewerId={userId} />} 
             />
             {/* 2025.8.12 Add（HR review）END */}
+            {/* 2025.8.25 Add（Worker DB）START */}
+            <Route 
+              path="/worker-dashboard" 
+              element={<WorkerDashboard />} 
+            />
+            <Route 
+              path="/person/:name" 
+              element={<WorkerDetail />}
+            />
+            {/* 2025.8.25 Add（Worker DB）END */}
             <Route 
               path="/hashtag" 
               element={<HashtagProcessor userId={userId} />} 

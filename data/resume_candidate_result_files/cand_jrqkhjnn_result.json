@@ -134,5 +134,13 @@
   "chat_reviewer_面談・2次": "user456",
   "最終面談_reviewed_resume": true,
   "chat_review_最終面談_at": "2025-08-18T14:13:48.518261",
-  "chat_reviewer_最終面談": "user789"
+  "chat_reviewer_最終面談": "user789",
+  "hr_review": {
+    "decision": "hire_ok",
+    "division": "Engineering",
+    "title": "SC",
+    "annual_income": null,
+    "updated_by": "hr123",
+    "updated_at": "2025-08-22T04:08:56.234289"
+  }
 }

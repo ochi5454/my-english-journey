@@ -18,7 +18,7 @@ from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse, Response, ORJSONResponse
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OpenAIEmbeddings
 from langdetect import detect
@@ -28,10 +28,13 @@ from typing import Optional, List, Dict, Any
 from fastapi.staticfiles import StaticFiles
 from pptx import Presentation
 import numpy as np
+from sqlalchemy import create_engine, Column, Integer, String, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 # 自作モジュール
 from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async, _load_json, load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels, list_all_checksheet_blocks
-from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, TEMPLATE_QUANTITATIVE_PATH, TEMPLATE_QUALITATIVE_PATH, TEMPLATE_HIRIING_PATH, TEMPLATE_ROLETITLE_PATH, INTERVIEWER_META_PATH, INTERVIEWER_SKILLS_PATH, INTERVIEWER_CHECKSHEET_PATH
+from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, TEMPLATE_QUANTITATIVE_PATH, TEMPLATE_QUALITATIVE_PATH, TEMPLATE_HIRIING_PATH, TEMPLATE_ROLETITLE_PATH, INTERVIEWER_META_PATH, INTERVIEWER_SKILLS_PATH, INTERVIEWER_CHECKSHEET_PATH, WORKER_DATABASE_URL
 
 
 from hashtag_trigger import ACTION_MAP, RequestBody
@@ -86,6 +89,13 @@ embedding = OpenAIEmbeddings(api_key=api_key)
 # ユーザーごとのメモリ／ベクトルストアを管理する辞書
 user_memories = {}
 user_vectorstores = {}
+
+#### 2025.8.25 Add（Worker DB）START
+# SQLite DB
+engine = create_engine(WORKER_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+#### 2025.8.25 Add（Worker DB）END
 
 # 1回の発言を表すモデル（役割・内容・タイムスタンプ）
 class ChatTurn(BaseModel):
@@ -226,6 +236,63 @@ class HRReviewUpdate(BaseModel):
     title: str
     annual_income: Optional[int] = None
 #### 2025.8.12 Add（HR review）END
+
+#### 2025.8.25 Add（Worker DB）START
+class Worker(Base):
+    __tablename__ = "workers"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    avatar = Column(String)
+    role = Column(String)
+    team = Column(String)
+    score = Column(Integer)
+    tags = Column(Text)  # JSON形式で保存
+    level = Column(Integer)
+
+class Report(Base):
+    __tablename__ = "reports"
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String)
+    reporter = Column(String)
+    target = Column(String)
+    summary = Column(String)
+    status = Column(String)
+    timestamp = Column(String)
+    reporter_id = Column(Integer)
+    target_id = Column(Integer)
+
+# テーブルを作成（両方まとめて1回で）
+Base.metadata.create_all(bind=engine)
+
+# Pydantic出力用モデル
+class WorkerOut(BaseModel):
+    id: int
+    name: str
+    avatar: str
+    role: str
+    team: str
+    score: int
+    tags: List[str]
+    level: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ReportOut(BaseModel):
+    type: str
+    reporter: str
+    target: str
+    summary: str
+    status: str
+    timestamp: str
+    reporter_id: Optional[int] = None
+    target_id: Optional[int] = None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        alias_generator=None
+    )
+#### 2025.8.25 Add（Worker DB）END
 
 # CORS設定を追加
 app.add_middleware(
@@ -1624,6 +1691,34 @@ async def get_resume_by_candidate(candidate_id: str):
         filename=target_file.name
     )
 #### 2025.8.12 Add（HR review）END
+
+#### 2025.8.25 Add（Worker DB）START
+@app.get("/api/workers", response_model=List[WorkerOut])
+def get_workers():
+    db = SessionLocal()
+    try:
+        workers = db.query(Worker).all()
+        result = []
+
+        for w in workers:
+            worker_dict = {
+                **w.__dict__,
+                "tags": json.loads(w.tags or "[]")  # ここでtagsをパッチ
+            }
+            result.append(WorkerOut.model_validate(worker_dict))
+        return result
+    finally:
+        db.close()
+
+@app.get("/api/reports", response_model=List[ReportOut])
+def get_reports():
+    db = SessionLocal()
+    try:
+        reports = db.query(Report).all()
+        return [ReportOut.from_orm(r) for r in reports]
+    finally:
+        db.close()
+#### 2025.8.25 Add（Worker DB）END
 
 # OpenAPI スキーマのカスタマイズ .envでURL等を一元設定・管理
 from openai_config import create_custom_openapi
