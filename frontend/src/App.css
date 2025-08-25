@@ -22,7 +22,7 @@
 .nav-links {
   display: flex;
   gap: 2rem;
-  font-size: medium;
+  font-size: small;
 }
 
 .nav-links a {
