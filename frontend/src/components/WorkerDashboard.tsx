@@ -7,7 +7,6 @@ type Worker = {
   avatar: string;
   role: string;
   team: string;
-  score: number;
   tags: string[];
 };
 
@@ -20,9 +19,37 @@ type Report = {
   timestamp: string;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type Training = {
+  id: number;
+  title: string;
+  description: string;
+  is_internal: boolean;
+  url: string;
+  rel_self_motivation_fit: number;
+  rel_workstyle_relationships: number;
+  rel_communication: number;
+  rel_leadership: number;
+  rel_logical_thinking: number;
+  rel_execution: number;
+  rel_expertise: number;
+  rel_biz_org_dev: number;
+  recommended_workers?: string[]; // 仮: ワーカー名一覧
+};
+
+type TrainingRecommendation = {
+  training_id: number;
+  training_title: string;
+  recommended_users: {
+    name: string;
+    reason: string;
+  }[];
+};
+
 export default function WorkerDashboard() {
   const [people, setPeople] = useState<Worker[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
+  const [trainings, setTrainings] = useState<TrainingRecommendation[]>([]);  
 
   useEffect(() => {
     fetch("/api/workers")
@@ -53,6 +80,32 @@ export default function WorkerDashboard() {
         console.error("通報データ取得失敗:", err);
       });
 
+    fetch("/api/trainingsRecommend?gap=1.2&rel=0.7")
+      .then((res) => {
+        if (!res.ok) throw new Error("トレーニング推薦API取得エラー");
+        return res.json();
+      })
+      .then((data: { [workerId: string]: TrainingRecommendation[] }) => {
+        const trainingMap: { [id: number]: TrainingRecommendation } = {};
+
+        Object.values(data).flat().forEach((rec) => {
+          const existing = trainingMap[rec.training_id];
+          if (existing) {
+            // すでに存在する場合は recommended_users を追加でマージ
+            existing.recommended_users.push(...rec.recommended_users);
+          } else {
+            trainingMap[rec.training_id] = { ...rec, recommended_users: [...rec.recommended_users] };
+          }
+        });
+
+        const mergedTrainings = Object.values(trainingMap);
+        console.log("マージ後のトレーニング一覧:", mergedTrainings);
+        setTrainings(mergedTrainings);
+      })
+      .catch((err) => {
+        console.error("トレーニング推薦データ取得失敗:", err);
+      });
+
   }, []);
 
   return (
@@ -75,7 +128,6 @@ export default function WorkerDashboard() {
                   <th className="col-name">名前</th>
                   <th className="col-role">役職</th>
                   <th className="col-team">店舗</th>
-                  <th className="col-score">スコア</th>
                   <th className="col-tags">タグ</th>
                 </tr>
               </thead>
@@ -90,7 +142,6 @@ export default function WorkerDashboard() {
                     </td>
                     <td>{person.role}</td>
                     <td>{person.team}</td>
-                    <td>{person.score}</td>
                     <td>
                       {person.tags.map((tag, i) => (
                         <span key={i} className="tag-chip">{tag}</span>
@@ -149,33 +200,37 @@ export default function WorkerDashboard() {
 
         {/* スキルギャップ一覧 */}
         <section id="section-skills" className="dashboard-card highlight-section">
-          <h2 className="card-title">スキルギャップ一覧</h2>
-          
+          <h2 className="card-title">研修と推奨対象者</h2>
+          <div className="card-content">
 
-          <div className="card-content grid gap-4">
-            <div className="skill-gap-box">
-              <h3 className="skill-person">山田 花子（店舗マネージャー）</h3>
-              <ul className="skill-gap-list">
-                <li><strong>ギャップ:</strong> データ分析スキル（要: 基礎レベル）</li>
-                <li><strong>推奨研修:</strong> 社内研修「売上データと在庫分析入門」</li>
-                <li><strong>外部学習:</strong> YouTube講座「Excelでできる販売分析」</li>
-              </ul>
-              <p className="ai-career-suggestion">
-                📈 <strong>キャリア提案:</strong> 売上予測や発注計画を任せることで、将来的に複数店舗の統括へと成長可能。
-              </p>
-            </div>
-
-            <div className="skill-gap-box">
-              <h3 className="skill-person">鈴木 太郎（販売スタッフ）</h3>
-              <ul className="skill-gap-list">
-                <li><strong>ギャップ:</strong> 商品管理システムの運用経験</li>
-                <li><strong>推奨研修:</strong> 社内システム研修「棚卸と発注の基礎」</li>
-                <li><strong>外部学習:</strong> 無料eラーニング「流通業のIT活用講座」</li>
-              </ul>
-              <p className="ai-career-suggestion">
-                📦 <strong>キャリア提案:</strong> バックヤード管理の強化により、将来的な副店長・在庫管理責任者候補に適任。
-              </p>
-            </div>
+            {trainings.length === 0 ? (
+              <p className="no-recommendation">推奨される研修はまだありません</p>
+            ) : (
+              <table className="skill-gap-table">
+                <thead>
+                  <tr>
+                    <th className="col-training">研修タイトル</th>
+                    <th className="col-users">推奨対象者</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trainings.map((training, idx) => (
+                    <tr key={idx}>
+                      <td>📘 {training.training_title}</td>
+                      <td>
+                        {Array.isArray(training.recommended_users) && training.recommended_users.length > 0 ? (
+                          training.recommended_users.map((user, i) => (
+                            <span key={i} className="recommended-name">{user.name}</span>
+                          ))
+                        ) : (
+                          <span className="no-recommendation">対象者なし</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </section>
       </div>
