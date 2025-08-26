@@ -136,11 +136,6 @@
   width: 120px;
 }
 
-.col-score {
-  width: 80px;
-  text-align: center;
-}
-
 .col-tags {
   width: 100px;
   word-break: keep-all;
@@ -198,3 +193,36 @@
   color: gray;
 }
 
+.skill-gap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.skill-gap-table th,
+.skill-gap-table td {
+  border-bottom: 1px solid #ddd;
+  padding: 8px 12px;
+  vertical-align: top;
+}
+
+.skill-gap-table th.col-training {
+  width: 40%;
+}
+
+.skill-gap-table th.col-users {
+  width: 60%;
+}
+
+.recommended-name {
+  display: inline-block;
+  background-color: #eef3ff;
+  border-radius: 12px;
+  padding: 4px 10px;
+  margin: 2px 4px;
+}
+
+.no-recommendation {
+  color: #999;
+  font-style: italic;
+}

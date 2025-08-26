@@ -48,6 +48,7 @@
 .avatar-center {
   grid-area: avatar;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 }
@@ -66,7 +67,7 @@
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
-  width: 300px;
+  width: 400px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -154,4 +155,69 @@
   transform: translateY(-50%);
   border-width: 8px 0 8px 8px;
   border-color: transparent transparent transparent #ddd;
+}
+
+.report-zone.upper,
+.report-zone.lower,
+.report-zone.peer,
+.report-zone.anonymous {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-height: 300px;  /* 必要に応じて調整 */
+  overflow-y: auto;
+  padding: 0.5rem;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+
+.worker-chip {
+  margin-top: 0.75rem;
+  padding: 6px 12px;
+  background-color: #f0f0f0;
+  border-radius: 9999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #333;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.score-summary-table {
+  margin-top: 2rem;
+}
+
+.score-summary-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.score-summary-table th,
+.score-summary-table td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+}
+
+.score-summary-table th {
+  background-color: #f4f4f4;
+}
+
+.score-high {
+  color: #0070f3; /* 青系 */
+  font-weight: bold;
+}
+.score-low {
+  color: #e00; /* 赤系 */
+  font-weight: bold;
+}
+.gap-large.gap-positive {
+  color: #e00;
+  font-weight: bold;
+}
+.gap-large.gap-negative {
+  color: #0070f3;
+  font-weight: bold;
 }
