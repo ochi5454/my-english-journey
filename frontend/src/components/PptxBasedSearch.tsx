@@ -12,7 +12,7 @@ interface Props {
     triggerSearchKeyword?: string;
 }
 
-const PptxBasedSearch: React.FC<Props> = ({ userId, triggerSearchKeyword }) => {
+const PptxBasedSearch: React.FC<Props> = ({ triggerSearchKeyword }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<PptxSearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);

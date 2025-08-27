@@ -181,7 +181,6 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
 
             if (!res.ok) throw new Error('保存に失敗しました');
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const updated = await res.json();
 
             // 保存後にUIにメモを表示する（例: 直近の更新内容をローカルに一時保存）
             setHrEvaluations(prev => ({
@@ -319,7 +318,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
                         {quantItems.map(item => (
                         <tr key={`quant-${item.key}`}>
                             <td>{item.label}</td>
-                            {evals.map((r, i) => {
+                            {evals.map((r, ) => {
                             const level = r.quantitative?.[item.key]?.level;
                             const className =
                                 level === 4 || level === 5 ? 'quant-cell quant-high' : 'quant-cell';

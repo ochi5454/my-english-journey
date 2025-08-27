@@ -45,7 +45,7 @@ export default function WorkerDetail() {
   const { name } = useParams();
   const [reports, setReports] = useState<Report[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [, setWorkers] = useState<Worker[]>([]);
   const [targetWorker, setTargetWorker] = useState<Worker | null>(null);
 
   useEffect(() => {
