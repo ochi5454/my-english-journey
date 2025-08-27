@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import PptxSummaryBasedSearch from './PptxSummaryBasedSearch';
 import PptxBasedSearch from './PptxBasedSearch';
-import PptxFrequentThemes, { PptxFrequentThemesRef } from './PptxFrequentThemes';
+import PptxFrequentThemes from './PptxFrequentThemes';
+import type { PptxFrequentThemesRef } from './PptxFrequentThemes';
 import './PptxSummarizer.css';
 
 interface PptxSummarizerProps {

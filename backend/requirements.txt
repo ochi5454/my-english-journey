@@ -29,3 +29,15 @@ pypdf
 O365
 PyPDF2
 python-multipart
+docx2txt
+pytesseract
+torch
+deep_translator
+pdf2image
+sentence_transformers
+python-pptx
+fitz
+chromadb
+pdfplumber
+pymupdf
+aiofiles
