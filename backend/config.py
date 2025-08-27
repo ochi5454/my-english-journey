@@ -29,6 +29,7 @@ PPTX_INDEX_PATH = DATA_DIR / "pptx_index.json"
 # 候補者判定
 ## 履歴書
 RESUME_PATH = DATA_DIR / "resume_candidate_resume_files" 
+RESUME_MASKED_PATH = DATA_DIR / "resume_structured.db" 
 ## 必要なスキル
 SKILLS_PATH = DATA_DIR / "resume_candidate_mustskills_files"
 ## スコアシート
