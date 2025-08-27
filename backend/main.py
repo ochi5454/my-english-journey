@@ -12,6 +12,7 @@ import sqlite3
 from uuid import uuid4
 import pickle
 import shutil
+import io
 
 # サードパーティライブラリ
 from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File, Form, Query, Body
@@ -33,7 +34,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # 自作モジュール
-from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async, _load_json, load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels, list_all_checksheet_blocks
+from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async, _load_json, load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels, list_all_checksheet_blocks, extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, score_resume_from_text, save_masked_resume_embedding_local, generate_resume_sql, save_sql_to_sqlite
 from config import SAVE_DIR, VECTORSTORE_DIR, DATA_DIR, FEEDBACK_DIR, FILESUMMARY_PATH, PPTXUPLOAD_DIR, PDFUPLOAD_DIR, PPTX_INDEX_PATH, RESUME_PATH, RESULT_PATH, SKILLS_PATH, INTERVIEWDATE_EACH_CANDIDATE_PATH, TEMPLATE_QUANTITATIVE_PATH, TEMPLATE_QUALITATIVE_PATH, TEMPLATE_HIRIING_PATH, TEMPLATE_ROLETITLE_PATH, INTERVIEWER_META_PATH, INTERVIEWER_SKILLS_PATH, INTERVIEWER_CHECKSHEET_PATH, WORKER_DATABASE_URL
 
 
@@ -1363,6 +1364,66 @@ async def resume_score(
             content={"error": f"処理中に例外が発生しました: {str(e)}"},
             status_code=500
         )
+
+@app.post("/resume-score-no-save")
+async def resume_score_no_save(
+    file: UploadFile = File(...),
+    candidate_id: str = Form(...),
+    uploader_id: str = Form(...)
+):
+    try:
+        # 1. メモリ読み込み
+        content = await file.read()
+        file_stream = io.BytesIO(content)
+        filename = file.filename.lower()
+
+        # 2. ファイル形式ごとの抽出
+        if filename.endswith(".pdf"):
+            extracted_text = extract_resume_text_from_pdf(file_stream)
+        elif filename.endswith(".docx") or filename.endswith(".doc"):
+            extracted_text = extract_resume_text_from_docx(file_stream)
+        elif filename.endswith(".xlsx") or filename.endswith(".xls"):
+            extracted_text = extract_resume_text_from_xlsx(file_stream)
+        else:
+            return JSONResponse(content={"error": "未対応のファイル形式です"}, status_code=400)
+
+        if not extracted_text.strip():
+            return JSONResponse(content={"error": "ファイルからテキストを抽出できませんでした"}, status_code=400)
+
+        # 3. マスク処理
+        masked_text = mask_personal_info(extracted_text)
+
+        # 4. 🔽 ベクトルDB保存（候補者ID付き）
+        save_masked_resume_embedding_local(candidate_id, masked_text)
+
+        # 5. 🔽 SQL構造生成（候補者ID付きでプロンプトに入れる）
+        generated_sql = generate_resume_sql(masked_text, candidate_id)
+
+        # 6. 🔽 SQLiteに保存（SQL文を実行）
+        save_sql_to_sqlite(generated_sql) 
+
+        # # 7. スコア処理（既存）
+        # result = score_resume_from_text(masked_text, candidate_id)
+        # result["uploader_id"] = uploader_id
+        # result["timestamp"] = datetime.now().isoformat()
+
+        # # 8. 🔽 追加情報を結果に含めて返す
+        # result["generated_sql"] = generated_sql
+
+        # 🔽 一時的な返却内容（スコアなし＊ベクトルDBとSQLite保存挙動の検証中）
+        result = {
+            "candidate_id": candidate_id,
+            "uploader_id": uploader_id,
+            "timestamp": datetime.now().isoformat(),
+            "generated_sql": generated_sql,
+            "message": "✅ ベクトルDBとSQLite保存は成功しました（スコアリングはスキップ中）"
+        }
+
+        return JSONResponse(content=result)
+
+    except Exception as e:
+        print(f"❌ エラー: {e}")
+        return JSONResponse(content={"error": f"処理中に例外が発生しました: {str(e)}"}, status_code=500)
 
 @app.get("/resume-results")
 async def get_resume_results():

@@ -45,6 +45,9 @@ import fitz
 from pydantic import BaseModel
 import aiofiles
 import orjson
+import openpyxl
+import chromadb
+import pdfplumber
 
 # LangChain関連
 from langchain.chains import ConversationChain
@@ -81,7 +84,8 @@ from config import (
     INTERVIEWER_COMMONSKILLS_PATH,
     INTERVIEWER_EVALS_PATH,
     INTERVIEWER_SKILLS_PATH,
-    INTERVIEWER_META_PATH
+    INTERVIEWER_META_PATH,
+    RESUME_MASKED_PATH
 )
 
 # 型定義
@@ -90,6 +94,10 @@ from typing import List, Tuple, Dict, Union, Optional, Any, Iterable, TypedDict
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
 EMBEDDING_MODEL = "text-embedding-3-small" #### 2025.7.29 Add（search pptx from original not summarize）
 client = OpenAI() #### 2025.7.29 Add（search pptx from original not summarize）
+
+#### 2025.8.27 Add（resume no save）START
+rag_embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') 
+#### 2025.8.27 Add（resume no save）END
 
 #### 2025.8.1 Add（reduce api consumption）START
 # 必要な初期設定
@@ -117,9 +125,15 @@ if CACHE_PATH.exists():
         embedding_cache = {}
 #### 2025.8.1 Add（reduce api consumption）END
 
-#### 2025.7.11 Add（remove identify info）START
+#### 2025.8.27 Mod（resume no save）START
+tokenizer = Tokenizer()
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
-PHONE_REGEX = re.compile(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?[\d.\s-]{5,15}')
+PHONE_REGEX = re.compile(r'(0\d{1,4}-\d{1,4}-\d{4})|(0\d{9,10})')
+NON_NAME_WHITELIST = {
+    "リード", "マネージャー", "エンジニア", "ディレクター", "デザイナー",
+    "プロデューサー", "マーケター", "アーキテクト", "CTO", "CEO", "COO"
+}
+#### 2025.8.27 Mod（resume no save）END
 
 #### 2025.8.8 Add（resume）START
 class InterviewSetupRequest(BaseModel):
@@ -1106,37 +1120,88 @@ def mask_company_names(text: str, company_names: list[str]) -> str:
     return text
 #### 2025.7.16 Add（remove identify info）END
 
+#### 2025.8.27 Mod（resume no save）START
+def mask_names_by_label(text: str) -> str:
+    # ラベルの候補
+    name_labels = ["氏名", "姓名", "名前", "Name", "Full Name"]
+    
+    for label in name_labels:
+        # 改行や空白を挟んで氏名が続くパターンにマッチ
+        pattern = rf"({label}\s*[\r\n]*)[^\s\n]+[\s　]+[^\s\n]+"
+        text = re.sub(pattern, r"\1＜人名削除＞", text)
+
+    return text
+
+def mask_name_headline(text: str) -> str:
+    # 文頭〜2行目くらいを対象にする
+    lines = text.splitlines()
+    for i in range(min(3, len(lines))):
+        line = lines[i].strip()
+        if re.match(r"^[\u4E00-\u9FFF]{1,4}[\s　][\u3040-\u9FFF]{1,4}$", line):
+            lines[i] = '＜人名削除＞'
+            break
+    return '\n'.join(lines)
+
+def normalize_pdf_text(text: str) -> str:
+    text = text.replace('\u3000', ' ')  # 全角スペースを半角に
+    text = re.sub(r'(?<=[^\n])\n(?=[^\n])', '', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
 def mask_personal_info(text: str) -> str:
-    # メールアドレスと電話番号をマスク
+    # ステップ1: ラベル付き氏名をマスク
+    text = mask_names_by_label(text)
+
+    # ステップ2: 文頭のラベルなし氏名をマスク
+    text = mask_name_headline(text)
+
+    # ステップ3: メールアドレスと電話番号をマスク
     text = EMAIL_REGEX.sub('＜メールアドレス削除＞', text)
     text = PHONE_REGEX.sub('＜電話番号削除＞', text)
 
-    # 人名をマスク
-    tokenizer = Tokenizer()
+    # ステップ4: 人名（文中）をマスク
     tokens = tokenizer.tokenize(text)
     masked_words = []
+    in_name = False
 
     for token in tokens:
         if not isinstance(token, Token):
             continue
 
-        pos_parts_origina = token.part_of_speech
-        pos_parts = (pos_parts_origina or "").split(',')
+        surface = token.surface
+        pos_parts = (token.part_of_speech or "").split(',')
 
-        if pos_parts[0] == "名詞" and len(pos_parts) > 2 and pos_parts[1] == "固有名詞" and pos_parts[2] == "人名":
-            masked_words.append('＜人名削除＞') #### 2025.7.16 Mod（remove identify info）
+        is_name = (
+            pos_parts[0] == "名詞" and
+            (
+                (len(pos_parts) > 2 and pos_parts[1] == "固有名詞" and pos_parts[2] == "人名") or
+                (len(pos_parts) > 3 and pos_parts[1] == "固有名詞" and pos_parts[2] == "名") or
+                (len(pos_parts) > 3 and pos_parts[1] == "固有名詞" and pos_parts[2] == "姓")
+            )
+        )
+
+        if is_name:
+            # ホワイトリストに含まれていたらスキップ（＝そのまま出力）
+            if surface in NON_NAME_WHITELIST:
+                masked_words.append(surface)
+                in_name = False
+            else:
+                if not in_name:
+                    masked_words.append("＜人名削除＞")
+                    in_name = True
+                # 連続人名はスキップ
         else:
-            masked_words.append(token.surface)
-    #### 2025.7.16 Mod（remove identify info）START
+            masked_words.append(surface)
+            in_name = False
+
     masked_text = ''.join(masked_words)
 
-    # 会社名をマスク
-    company_names = load_company_names()
-    masked_text = mask_company_names(masked_text, company_names)
+    # 会社名マスク（必要なら再有効化）
+    # company_names = load_company_names()
+    # masked_text = mask_company_names(masked_text, company_names)
 
     return masked_text
-    #### 2025.7.16 Mod（remove identify info）END
-#### 2025.7.11 Add（remove identify info）END
+#### 2025.8.27 Mod（resume no save）END
 
 #### 2025.7.15 Add（search files）START
 #### 2025.7.16 Add（mapping input）START
@@ -2698,39 +2763,51 @@ def score_resume(file_path: str, candidate_id: str) -> dict:
         return result
 
     division_profiles = load_division_profiles(SKILLS_PATH)
-    scores = []
 
-    for profile in division_profiles:
-        prompt = f"""
+    # 🔽 複数部門を1つの文字列にまとめる
+    division_descriptions = "\n\n".join(
+        f"部門名: {profile['division']}\n理想の特徴: {', '.join(profile['desired_traits'])}"
+        for profile in division_profiles
+    )
+
+    # 🔽 GPTへの一括プロンプト
+    prompt = f"""
 あなたは人事担当者です。
-以下の履歴書情報を読み、部門「{profile['division']}」の人物像にどの程度合致するかを10点満点で評価してください。
-理想の特徴: {', '.join(profile['desired_traits'])}
+以下の履歴書情報を読み、複数の部門ごとに適合度を10点満点で評価してください。
+
+各部門の理想像は以下の通りです：
+
+{division_descriptions}
 
 候補者の履歴書:
 {content}
 
-回答形式:
-JSONで以下のように返してください：
-{{"division": "{profile['division']}", "score": 数値, "reason": "理由"}}
+【出力形式（JSON配列）】
+[
+  {{"division": "部門A", "score": 数値, "reason": "理由"}},
+  ...
+]
 """
 
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2
-        )
+    # 🔽 GPT呼び出し：1回だけ
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
 
-        try:
-            json_data = json.loads(response.choices[0].message.content)
-            scores.append(json_data)
-        except Exception as e:
-            scores.append({
-                "division": profile["division"],
-                "score": 0,
-                "reason": f"解析エラー: {str(e)}"
-            })
+    # 🔽 応答をパース（配列）
+    try:
+        scores = json.loads(response.choices[0].message.content)
+    except Exception as e:
+        scores = [{
+            "division": "N/A",
+            "score": 0,
+            "reason": f"解析エラー: {str(e)}"
+        }]
 
-    recommended = max(scores, key=lambda x: x["score"])
+    # 🔽 推奨部門の抽出
+    recommended = max(scores, key=lambda x: x["score"], default={"division": None})
 
     result = {
         "user_id": candidate_id,
@@ -2739,8 +2816,226 @@ JSONで以下のように返してください：
         "scores": scores,
         "recommended_division": recommended["division"]
     }
+
     save_result_to_file(result, candidate_id)
     return result
+
+#### 2025.8.27 Add（resume no save）START
+def extract_resume_text_from_pdf(file_stream: io.BytesIO) -> str:
+    try:
+        with pdfplumber.open(file_stream) as pdf:
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        return normalize_pdf_text(text)
+    except Exception as e:
+        print(f"❌ PDF抽出エラー: {e}")
+        return ""
+
+def extract_resume_text_from_docx(file_stream: io.BytesIO) -> str:
+    try:
+        document = docx.Document(file_stream)
+        return "\n".join(p.text for p in document.paragraphs if p.text.strip())
+    except Exception as e:
+        print(f"❌ DOCX抽出エラー: {e}")
+        return ""
+
+def extract_resume_text_from_xlsx(file_stream: io.BytesIO) -> str:
+    try:
+        wb = openpyxl.load_workbook(file_stream, data_only=True)
+        text = ""
+
+        for sheet in wb.worksheets:
+            for row in sheet.iter_rows(values_only=True):
+                for cell in row:
+                    if cell is not None:
+                        text += str(cell).strip() + "\n"
+
+        return text
+    except Exception as e:
+        print(f"❌ XLSX抽出エラー: {e}")
+        return ""
+
+def score_resume_from_text(text: str, candidate_id: str) -> dict:
+    from datetime import datetime
+
+    common_path = SKILLS_PATH / "common.json"
+    must_results = check_must_requirements_llm(text, common_path)
+
+    if not all(item["result"] for item in must_results.values()):
+        result = {
+            "user_id": candidate_id,
+            "timestamp": datetime.now().isoformat(),
+            "must_check": must_results,
+            "scores": [],
+            "recommended_division": None
+        }
+        save_result_to_file(result, candidate_id)  # ✅ スコアが出なくても保存
+        return result
+
+    division_profiles = load_division_profiles(SKILLS_PATH)
+
+    division_descriptions = "\n\n".join(
+        f"部門名: {profile['division']}\n理想の特徴: {', '.join(profile['desired_traits'])}"
+        for profile in division_profiles
+    )
+
+    prompt = f"""
+あなたは人事担当者です。
+以下の履歴書情報を読み、複数の部門ごとに適合度を10点満点で評価してください。
+
+各部門の理想像は以下の通りです：
+
+{division_descriptions}
+
+候補者の履歴書（マスク済み）:
+{text}
+
+【出力形式（JSON配列で）】
+[
+  {{"division": "部門A", "score": 数値, "reason": "理由"}},
+  ...
+]
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    try:
+        scores = json.loads(response.choices[0].message.content)
+    except Exception as e:
+        scores = [{
+            "division": "N/A",
+            "score": 0,
+            "reason": f"解析エラー: {str(e)}"
+        }]
+
+    recommended = max(scores, key=lambda x: x["score"], default={"division": None})
+
+    result = {
+        "user_id": candidate_id,
+        "timestamp": datetime.now().isoformat(),
+        "must_check": must_results,
+        "scores": scores,
+        "recommended_division": recommended["division"]
+    }
+
+    save_result_to_file(result, candidate_id)  # ✅ こちらでも保存
+
+    return result
+
+def save_masked_resume_embedding_local(candidate_id: str, text: str):
+    """
+    マスク済み履歴書テキストをローカルEmbeddingし、Chromaに保存する。
+    OpenAIは一切使用しない。
+
+    Parameters:
+        candidate_id (str): 候補者ID（例：cand_0001）
+        text (str): マスク済み履歴書の全文
+    """
+    # 1. Chromaクライアントとコレクション取得
+    chroma_client = chromadb.Client()
+    collection = chroma_client.get_or_create_collection("resumes_local")
+
+    # 2. チャンク分割（簡易。必要であればtiktoken系にも変更可）
+    chunks = [chunk.strip() for chunk in text.split("\n\n") if chunk.strip()]
+
+    # 3. SentenceTransformerでベクトル化（OpenAIは一切使わない）
+    embeddings = rag_embedding_model.encode(chunks)
+
+    # 4. Chromaに保存（candidate_idをメタデータとして追加）
+    for i, chunk in enumerate(chunks):
+        doc_id = f"{candidate_id}_{i}_{str(uuid4())[:8]}"  # UUIDで衝突回避
+        collection.add(
+            documents=[chunk],
+            ids=[doc_id],
+            embeddings=[embeddings[i]],
+            metadatas=[{
+                "candidate_id": candidate_id,
+                "chunk_index": i
+            }]
+        )
+
+def generate_resume_sql(masked_text: str, candidate_id: str) -> str:
+    prompt = f"""
+あなたは人事用のデータ構造化AIです。
+以下の履歴書情報（個人情報マスク済み）を読み、以下の3つのテーブルに分けてINSERT文を出力してください。
+
+【候補者ID】
+{candidate_id}
+
+【テーブル構造】
+1. resumes（基本情報）:
+CREATE TABLE resumes (
+  id TEXT,
+  name_masked TEXT,
+  email_masked TEXT,
+  phone_masked TEXT,
+  skills TEXT,
+  notes TEXT
+);
+
+2. education_history（学歴）:
+CREATE TABLE education_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  resume_id TEXT,
+  institution TEXT,
+  degree TEXT,
+  start_date TEXT,
+  end_date TEXT
+);
+
+3. work_history（職歴）:
+CREATE TABLE work_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  resume_id TEXT,
+  company TEXT,
+  position TEXT,
+  start_date TEXT,
+  end_date TEXT,
+  description TEXT
+);
+
+【履歴書内容】
+{masked_text}
+
+【出力形式】
+各テーブルについて、1つずつINSERT文を出力してください。
+複数の学歴や職歴があれば、複数行のINSERT文で構いません。
+
+注意：
+- resumesテーブルの `id` = `{candidate_id}`
+- education_history, work_history の `resume_id` も `{candidate_id}` にしてください。
+- 履歴書には「＜人名削除＞」「＜メールアドレス削除＞」「＜電話番号削除＞」などのマスク済み表記があります。
+- これらの表記はそのままSQLに埋め込んでください。
+- 「＜削除＞」や空文字列に変換してはいけません。
+- SQLコードのみ出力し、解説や囲いなどは不要です。
+"""
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",  # ダウングレード済
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    return response.choices[0].message.content.strip()
+
+def save_sql_to_sqlite(sql: str):
+    try:
+        db_path = str(RESUME_MASKED_PATH)
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # 複数の INSERT 文がある前提で split & 実行
+        statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
+        for stmt in statements:
+            cursor.execute(stmt)
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"❌ SQL実行エラー: {e}")
+#### 2025.8.27 Add（resume no save）END
 
 #### 2025.8.5 Add（resume review）START
 def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str]) -> list[dict]:
