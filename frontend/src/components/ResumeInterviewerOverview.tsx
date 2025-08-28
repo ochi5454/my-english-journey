@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ResumeInterviewerDetail from './ResumeInterviewerDetail';
 import ResumeInterviewerAnomalyScore from './ResumeInterviewerAnomalyScore';
 import ResumeInterviewerRoleFocusOverview from './ResumeInterviewerRoleFocusOverview';
+import appConfig from '../config.ts';
 
 // ======================== 型定義 ========================
 type Row = {
@@ -81,7 +82,7 @@ const ResumeInterviewerOverview: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch('/interviewer/rubric');
+        const r = await fetch(`${appConfig.API_BASE_URL}/interviewer/rubric`);
         if (r.ok) setRubric(await r.json());
       } catch {}
     })();
@@ -98,7 +99,7 @@ const ResumeInterviewerOverview: React.FC = () => {
     setError(null);
     setLoading(true);
     try {
-      const r = await fetch(`/interviewer/evals-cache?${buildQuery()}`);
+      const r = await fetch(`${appConfig.API_BASE_URL}/interviewer/evals-cache?${buildQuery()}`);
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
       setRows(data?.rows ?? []);
@@ -127,7 +128,7 @@ const ResumeInterviewerOverview: React.FC = () => {
       const q = interviewerFilter.trim();
       if (q) payload.q = q;
 
-      const r = await fetch("/interviewer/evals-refresh", {
+      const r = await fetch(`${appConfig.API_BASE_URL}/interviewer/evals-refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -143,7 +144,7 @@ const ResumeInterviewerOverview: React.FC = () => {
   // ======================== 面接官メタデータの取得 ========================
   const [interviewerMeta, setInterviewerMeta] = useState<Record<string, { role: string }>>({});
   useEffect(() => {
-    fetch("/checksheet/meta")
+    fetch(`${appConfig.API_BASE_URL}/checksheet/meta`)
       .then(res => res.json())
       .then(setInterviewerMeta)
       .catch(() => setInterviewerMeta({}));

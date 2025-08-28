@@ -3,10 +3,12 @@ import React, { useState } from 'react';
 import './ResumeScoring.css';
 import ResumeScoreMatrix from './ResumeScoreMatrix';
 import ResumeHRReviewDashboard from './ResumeHRReviewDashboard';
+import appConfig from '../config.ts';
 
 type ViewMode = 'form' | 'form_nosave' | 'matrix' | 'hr';
 
 const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
+    console.log('ResumeScoring is rendered')
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
@@ -33,7 +35,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
         formData.append('uploader_id', userId); // 2025.8.5 Add（uploader id）
 
         try {
-        const response = await fetch('/resume-score', {
+        const response = await fetch(`${appConfig.API_BASE_URL}/resume-score`, {
             method: 'POST',
             body: formData,
         });
@@ -63,7 +65,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
         formData.append('uploader_id', userId);
 
         try {
-            const response = await fetch('/resume-score-no-save', {
+            const response = await fetch(`${appConfig.API_BASE_URL}/resume-score-no-save`, {
                 method: 'POST',
                 body: formData,
             });

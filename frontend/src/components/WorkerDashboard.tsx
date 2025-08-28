@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import "./WorkerDashboard.css";
+import appConfig from '../config.ts';
 
 type Worker = {
   name: string;
@@ -35,7 +36,7 @@ export default function WorkerDashboard() {
   const [trainings, setTrainings] = useState<TrainingRecommendation[]>([]);  
 
   useEffect(() => {
-    fetch("/api/workers")
+    fetch(`${appConfig.API_BASE_URL}/api/workers`)
       .then((res) => {
         if (!res.ok) throw new Error("API取得エラー");
         return res.json();
@@ -51,7 +52,7 @@ export default function WorkerDashboard() {
         console.error("データ取得に失敗:", err);
       });
 
-    fetch("/api/reports")
+    fetch(`${appConfig.API_BASE_URL}/api/reports`)
       .then((res) => {
         if (!res.ok) throw new Error("通報API取得エラー");
         return res.json();
@@ -63,7 +64,7 @@ export default function WorkerDashboard() {
         console.error("通報データ取得失敗:", err);
       });
 
-    fetch("/api/trainingsRecommend?gap=1.2&rel=0.7")
+    fetch(`${appConfig.API_BASE_URL}/api/trainingsRecommend?gap=1.2&rel=0.7`)
       .then((res) => {
         if (!res.ok) throw new Error("トレーニング推薦API取得エラー");
         return res.json();

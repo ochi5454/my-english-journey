@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ResumeResultDetail from './ResumeResultDetail';
 import './ResumeScoring.css';
+import appConfig from '../config.ts';
 
 interface Props {
     interviewerId: string;
@@ -34,7 +35,7 @@ const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
 
     useEffect(() => {
-        fetch('/resume-results')
+        fetch(`${appConfig.API_BASE_URL}/resume-results`)
             .then((res) => res.json())
             .then((data: Result[]) => {
                 // ユーザーごとに最新のtimestampのデータだけを保持する
@@ -65,7 +66,7 @@ const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
 
     const handleRowClick = async (candidateId: string) => {
         try {
-            const res = await fetch(`/resume-result/${candidateId}`);
+            const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/${candidateId}`);
             const data = await res.json();
             if (!data.error) setSelectedResult(data);
         } catch (e) {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import appConfig from '../config.ts';
 
 interface Interviewer {
   name: string;
@@ -35,7 +36,7 @@ const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, i
   const [interviewerMail, setInterviewerMail] = useState('');
 
   useEffect(() => {
-    fetch("/interview/config")
+    fetch(`${appConfig.API_BASE_URL}/interview/config`)
       .then(res => res.json())
       .then(data => {
         setInterviewerList(data.interviewers || []);

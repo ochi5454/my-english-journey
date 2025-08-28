@@ -4,6 +4,7 @@ import { ResumeRubricHint } from './ResumeRubricHint';
 import ResumeAccordion from './ResumeAccordion';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "./ResumeInterviewCheckSheet";
+import appConfig from '../config.ts';
 
 type FocusTag = {
     id: string;
@@ -45,7 +46,7 @@ export interface Props {
 }
 
 const fetchConfig = async (interviewerId: string): Promise<ConfigResponse> => {
-    const res = await fetch('/checksheet/config', {
+    const res = await fetch(`${appConfig.API_BASE_URL}/checksheet/config`, {
         headers: {
         'x-user-id': interviewerId
         }
@@ -154,13 +155,13 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
     const handleAiReview = async () => {
         try {
         setIsReviewing(true);
-        await fetch('/checksheet', {
+        await fetch(`${appConfig.API_BASE_URL}/checksheet`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ interviewer_id: interviewerId, candidate_id: candidateId, stage, prepItems, reviewedResume, qualitative, quantitative }),
         });
 
-        const res = await fetch('/interview/review-score', {
+        const res = await fetch(`/interview/review-score`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ interviewer_id: interviewerId, candidate_id: candidateId, stage, prepItems, reviewedResume, qualitative, quantitative }),

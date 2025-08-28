@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import appConfig from '../config.ts';
 
 type Row = {
     interviewer_id: string;
@@ -62,7 +63,7 @@ const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage,
         if (rubricProp) { setRubric(rubricProp); return; }
         (async () => {
         try {
-            const r = await fetch('/interviewer/rubric');
+            const r = await fetch(`${appConfig.API_BASE_URL}/interviewer/rubric`);
             if (r.ok) setRubric(await r.json());
         } catch {}
         })();
@@ -85,7 +86,7 @@ const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage,
         setError(null);
         setLoading(true);
         try {
-        const url = `/interviewer/evals-cache?${buildQuery()}`;
+        const url = `${appConfig.API_BASE_URL}/interviewer/evals-cache?${buildQuery()}`;
         const r = await fetch(url);
         if (!r.ok) throw new Error(await r.text());
         const data = await r.json();

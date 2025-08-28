@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import appConfig from '../config.ts';
 
 interface Score {
     division: string;
@@ -61,7 +62,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
     const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
 
     useEffect(() => {
-        fetch('/resume-results')
+        fetch(`${appConfig.API_BASE_URL}/resume-results`)
             .then(res => res.json())
             .then((data: AIRawResult[]) => {
             const latestMap = new Map<string, AIRawResult>();
@@ -92,7 +93,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
             })
         .catch(err => console.error('AIスコアの取得に失敗:', err));
 
-        fetch('/checksheet/all')
+        fetch(`${appConfig.API_BASE_URL}/checksheet/all`)
         .then(res => res.json())
         .then((data: any[]) => {
             const flattened: InterviewEval[] = [];
@@ -117,7 +118,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
         })
         .catch(err => console.error('面接官評価の取得に失敗:', err));
 
-        fetch('/checksheet/config')
+        fetch(`${appConfig.API_BASE_URL}/checksheet/config`)
             .then(res => res.json())
             .then((config: ConfigResponse & {
             hiringDecisions: LabeledOption[];
@@ -170,7 +171,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
         };
 
         try {
-            const res = await fetch('/resume-result/hr-review', {
+            const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/hr-review`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

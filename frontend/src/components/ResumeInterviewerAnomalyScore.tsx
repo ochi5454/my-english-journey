@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import type { ConfigResponse } from "./ResumeInterviewCheckSheet";
+import appConfig from '../config.ts';
 
 type Props = {
   candidateId: string;
@@ -24,7 +25,7 @@ const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, i
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const res = await axios.get<ConfigResponse>("/checksheet/config");
+        const res = await axios.get<ConfigResponse>(`${appConfig.API_BASE_URL}/checksheet/config`);
         setConfig(res.data);
       } catch (err) {
         console.error("設定の取得に失敗しました", err);
@@ -42,7 +43,7 @@ const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, i
 
         for (const stage of stages) {
           for (const iid of interviewerIds) {
-            const res = await axios.get(`/checksheet/one?interviewer_id=${encodeURIComponent(iid)}&candidate_id=${encodeURIComponent(candidateId)}&stage=${encodeURIComponent(stage)}`);
+            const res = await axios.get(`${appConfig.API_BASE_URL}/checksheet/one?interviewer_id=${encodeURIComponent(iid)}&candidate_id=${encodeURIComponent(candidateId)}&stage=${encodeURIComponent(stage)}`);
             const qdata = (res.data as { quantitative?: Record<string, any> })?.quantitative || {};
             const qldata = (res.data as { qualitative?: Record<string, any> })?.qualitative || {};
 

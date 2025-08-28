@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./WorkerDetail.css";
+import appConfig from '../config.ts';
 
 type Report = {
   type: string;
@@ -50,8 +51,8 @@ export default function WorkerDetail() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/workers").then((res) => res.json()),
-      fetch("/api/reports").then((res) => res.json()),
+      fetch(`${appConfig.API_BASE_URL}/api/workers`).then((res) => res.json()),
+      fetch(`${appConfig.API_BASE_URL}/api/reports`).then((res) => res.json()),
     ]).then(([workers, reportData]) => {
       setWorkers(workers);
       const target = workers.find((w: Worker) => w.name === name) || null;

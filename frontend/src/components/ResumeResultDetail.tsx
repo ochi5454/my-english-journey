@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ResumeInterviewSetupSlidePanel from './ResumeInterviewSetupSlidePanel';
 import ResumeInterviewCheckSheetSlidePanel from './ResumeInterviewCheckSheetSlidePanel';
+import appConfig from '../config.ts';
 
 const formatDate = (isoStr: string): string => {
     if (!isoStr) return '日時不明';
@@ -66,7 +67,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
     useEffect(() => {
         if (!interviewStage || !interviewerId || !result?.user_id) return;
 
-        const url = `/checksheet/one?` +
+        const url = `${appConfig.API_BASE_URL}/checksheet/one?` +
         new URLSearchParams({
             interviewer_id: interviewerId,
             candidate_id: result.user_id,
@@ -106,7 +107,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
         setIsSending(true);
 
         try {
-        const res = await fetch('/chat-score-review', {
+        const res = await fetch(`${appConfig.API_BASE_URL}/chat-score-review`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -199,7 +200,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
     const isDocumentReview2Done = !!localResult.updated_at;
 
     async function refreshChecksheet(stage: string) {
-        const url = new URL('/checksheet/one', window.location.origin);
+        const url = new URL(`${appConfig.API_BASE_URL}/checksheet/one`, window.location.origin);
         url.searchParams.set('interviewer_id', interviewerId);
         url.searchParams.set('candidate_id', localResult.user_id);
         url.searchParams.set('stage', stage);
@@ -452,7 +453,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
             onClose={() => setShowInterviewModal(false)}
             onSubmit={async (data) => {
                 try {
-                    const res = await fetch('/interview/setup', {
+                    const res = await fetch(`${appConfig.API_BASE_URL}/interview/setup`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -471,7 +472,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
 
                     // 🔽 ここで最新の候補者データを取得
                     if (onResultUpdate) {
-                        const updatedRes = await fetch(`/resume-result/${localResult.user_id}`);
+                        const updatedRes = await fetch(`${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`);
                         const updatedResult = await updatedRes.json();
                         onResultUpdate(updatedResult);
                     }
@@ -516,7 +517,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
             onSubmit={async (data) => {
             try {
                 // 保存用API呼び出し
-                const res = await fetch('/checksheet', {
+                const res = await fetch(`${appConfig.API_BASE_URL}/checksheet`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

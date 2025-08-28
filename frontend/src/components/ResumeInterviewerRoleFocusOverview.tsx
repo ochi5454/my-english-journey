@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import appConfig from '../config.ts';
 
 // ======================== 型定義 ========================
 type FocusTag = {
@@ -26,7 +27,7 @@ const ResumeInterviewerRoleFocusOverview: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const res = await axios.get<RoleFocusSummary>('/checksheet/role-focus-summary');
+        const res = await axios.get<RoleFocusSummary>(`${appConfig.API_BASE_URL}/checksheet/role-focus-summary`);
         setData(res.data);
       } catch (err: any) {
         setError('読み込みに失敗しました');
