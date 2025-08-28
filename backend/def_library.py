@@ -1,4 +1,5 @@
 # 標準ライブラリ
+from __future__ import annotations
 import base64
 import io
 import json
@@ -28,7 +29,6 @@ import numpy as np
 import openai
 import pandas as pd
 import pytesseract
-import torch
 from PIL import Image
 from PyPDF2 import PdfReader
 from deep_translator import GoogleTranslator
@@ -39,15 +39,25 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.util import Pt
 from sentence_transformers import SentenceTransformer, util
-from openai import OpenAI
+from openai import OpenAI, NOT_GIVEN
 from dotenv import load_dotenv
 import fitz
-from pydantic import BaseModel
+import pymupdf
 import aiofiles
+from math import isnan
+from pydantic import BaseModel
 import orjson
 import openpyxl
 import chromadb
 import pdfplumber
+from openai.types.chat import (
+    ChatCompletionMessageParam,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+    ChatCompletionContentPartImageParam,
+    ChatCompletionContentPartTextParam,
+    ChatCompletionAssistantMessageParam,
+)
 
 # LangChain関連
 from langchain.chains import ConversationChain
@@ -89,7 +99,7 @@ from config import (
 )
 
 # 型定義
-from typing import List, Tuple, Dict, Union, Optional, Any, Iterable, TypedDict
+from typing import List, Tuple, Dict, Union, Optional, Any, Iterable, TypedDict, cast, Sequence, Mapping
 
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') #### 2025.7.18 Add（feedback）
 EMBEDDING_MODEL = "text-embedding-3-small" #### 2025.7.29 Add（search pptx from original not summarize）
@@ -1666,11 +1676,44 @@ def process_single_file(filename: str) -> dict | None: #### 2025.8.4 Mod（/uplo
         "summary_count": len(merged_summaries)
     }
 
+def _iter_texts(shapes):
+    """python-pptxのShape群からテキストを安全に抽出（グループ/テーブル対応、再帰）"""
+    for shp in shapes:
+        try:
+            if shp.shape_type == MSO_SHAPE_TYPE.GROUP:
+                # グループの場合は再帰
+                yield from _iter_texts(shp.shapes)
+
+            elif shp.shape_type == MSO_SHAPE_TYPE.TABLE:
+                # テーブルはセル単位で抽出
+                for row in shp.table.rows:
+                    for cell in row.cells:
+                        txt = cell.text if hasattr(cell, "text") else ""
+                        if txt:
+                            yield txt
+
+            elif getattr(shp, "has_text_frame", False) and shp.text_frame:
+                # 通常のテキストフレーム
+                txt = shp.text_frame.text
+                if txt:
+                    yield txt
+
+            else:
+                # ここで不用意に shp.text に触らない（存在しないため）
+                continue
+        except Exception:
+            # 壊れた図形などで落ちないように握りつぶす
+            continue
+
+def _extract_slide_text(slide) -> str:
+    texts = [t.strip() for t in _iter_texts(slide.shapes) if t and t.strip()]
+    return "\n".join(texts)
+
 def build_pptx_index_incremental():
     print("🔍 インデックス更新処理開始")
 
     if PPTX_INDEX_PATH.exists():
-        with open(PPTX_INDEX_PATH, "r") as f:
+        with open(PPTX_INDEX_PATH, "r", encoding="utf-8") as f:
             index = json.load(f)
         print(f"📁 既存インデックス読み込み: {len(index)}件")
     else:
@@ -1702,6 +1745,7 @@ def build_pptx_index_incremental():
             else:
                 image_paths = sorted(image_output_dir.glob("*.png"))
                 print(f"🖼️ 既存画像を利用します: {len(image_paths)}枚")
+
             if not image_paths:
                 print(f"❌ スライド画像生成失敗: {filename}")
                 continue
@@ -1709,7 +1753,8 @@ def build_pptx_index_incremental():
                 print(f"🖼️ スライド画像数: {len(image_paths)}")
 
             try:
-                prs = Presentation(pptx_path)
+                # ★ Pylance対策：Path -> str にキャスト
+                prs = Presentation(str(pptx_path))
             except Exception as e:
                 print(f"❌ プレゼン読み込み失敗: {e}")
                 continue
@@ -1717,12 +1762,8 @@ def build_pptx_index_incremental():
             for i, slide in enumerate(prs.slides):
                 print(f"🧩 スライド{i+1} 処理中")
 
-                # --- PPTXテキスト抽出 ---
-                slide_text = []
-                for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        slide_text.append(shape.text)
-                full_text = "\n".join(slide_text).strip()
+                # --- PPTXテキスト抽出（.text を使わず安全に） ---
+                full_text = _extract_slide_text(slide)
                 print(f"📝 テキスト抽出（{len(full_text)}文字）")
 
                 # --- OCR処理 ---
@@ -1741,12 +1782,12 @@ def build_pptx_index_incremental():
                     print(f"⚠️ スライド{i+1}はテキストも画像も空のためスキップ")
                     continue
 
-                # --- 情報量フィルタ（スキップ条件） --- #### 2025.7.31 Mod（filter before save json）
+                # --- 情報量フィルタ ---
                 if not is_informative(full_text) and not is_informative(image_text):
                     print(f"⚠️ スライド{i+1} 情報量が少ないためスキップ")
                     continue
 
-                # OCRが多すぎる or 無意味そうなら捨てる
+                # OCRノイズ抑制
                 if len(image_text) > 2000 and len(set(image_text)) < 20:
                     print(f"⚠️ OCRノイズっぽいのでスキップ（スライド{i+1}）")
                     continue
@@ -1756,14 +1797,12 @@ def build_pptx_index_incremental():
                     continue
 
                 try:
-                    #### 2025.8.1 Add（reduce api consumption）START
+                    # --- 埋め込み生成（API消費抑制ロジックを維持） ---
                     text_embedding = get_embedding(full_text or "")
-                    # OCRテキストのEmbeddingは条件付き（無ければスキップ or 代用）
                     if image_text:
                         image_embedding = get_embedding(image_text)
                     else:
-                        image_embedding = text_embedding  # fallbackやNoneでも可
-                        #### 2025.8.1 Add（reduce api consumption）END
+                        image_embedding = text_embedding
                 except Exception as e:
                     print(f"❌ 埋め込み生成失敗（スライド{i+1}）: {e}")
                     continue
@@ -1781,16 +1820,14 @@ def build_pptx_index_incremental():
     if new_items:
         index.extend(new_items)
         try:
-            with open(PPTX_INDEX_PATH, "w") as f:
+            with open(PPTX_INDEX_PATH, "w", encoding="utf-8") as f:
                 json.dump(index, f, ensure_ascii=False, indent=2)
             print(f"✅ 新規PPTX {len(new_items)}件をインデックスに追加しました。")
 
-            #### 2025.8.1 Add（reduce api consumption）START
-            # ←★ここでembedding_cacheを保存する
-            with open(CACHE_PATH, "w") as f:
-                json.dump(embedding_cache, f)
+            # 埋め込みキャッシュの保存（既存仕様を踏襲）
+            with open(CACHE_PATH, "w", encoding="utf-8") as f:
+                json.dump(embedding_cache, f, ensure_ascii=False)
             print("🧠 埋め込みキャッシュを保存しました。")
-            #### 2025.8.1 Add（reduce api consumption）END
 
         except Exception as e:
             print(f"❌ インデックス保存失敗: {e}")
@@ -1798,11 +1835,11 @@ def build_pptx_index_incremental():
         print("ℹ️ 追加すべき新規PPTXはありませんでした。")
 
 # pending #
-def build_text_only_pptx_index(): #### 2025.8.6 Add（no use image）
+def build_text_only_pptx_index():  #### 2025.8.6 Add（no use image）
     print("📂 テキスト専用PPTXインデックス作成開始")
 
     if PPTX_INDEX_PATH.exists():
-        with open(PPTX_INDEX_PATH, "r") as f:
+        with open(PPTX_INDEX_PATH, "r", encoding="utf-8") as f:
             index = json.load(f)
         print(f"📁 既存インデックス読み込み: {len(index)}件")
     else:
@@ -1820,24 +1857,22 @@ def build_text_only_pptx_index(): #### 2025.8.6 Add（no use image）
         print(f"✅ 新規ファイル検出: {filename}")
 
         try:
-            prs = Presentation(pptx_path)
+            # Pylance型対策：Path -> str
+            prs = Presentation(str(pptx_path))
         except Exception as e:
             print(f"❌ プレゼン読み込み失敗: {e}")
             continue
 
         for i, slide in enumerate(prs.slides):
-            slide_text = []
-            for shape in slide.shapes:
-                if hasattr(shape, "text"):
-                    slide_text.append(shape.text)
-            full_text = "\n".join(slide_text).strip()
+            # 安全な抽出器でテキスト取得
+            full_text = _extract_slide_text(slide)
 
             if not is_informative(full_text):
                 print(f"⚠️ スライド{i+1} 情報量が少ないためスキップ")
                 continue
 
             try:
-                embedding = get_embedding(full_text)
+                embedding = get_embedding(full_text or "")
             except Exception as e:
                 print(f"❌ 埋め込み生成失敗（スライド{i+1}）: {e}")
                 continue
@@ -1853,18 +1888,17 @@ def build_text_only_pptx_index(): #### 2025.8.6 Add（no use image）
     if new_items:
         index.extend(new_items)
         try:
-            with open(PPTX_INDEX_PATH, "w") as f:
+            with open(PPTX_INDEX_PATH, "w", encoding="utf-8") as f:
                 json.dump(index, f, ensure_ascii=False, indent=2)
             print(f"✅ テキスト専用インデックスに{len(new_items)}件追加")
 
-            with open(CACHE_PATH, "w") as f:
-                json.dump(embedding_cache, f)
+            with open(CACHE_PATH, "w", encoding="utf-8") as f:
+                json.dump(embedding_cache, f, ensure_ascii=False)
             print("🧠 埋め込みキャッシュ保存完了")
         except Exception as e:
             print(f"❌ インデックス保存失敗: {e}")
     else:
-        print("ℹ️ 新規追加対象のPPTXはありませんでした。")
-# pending #
+        print("ℹ️ 新規追加対象のPPTXはありませんでした。")# pending #
 
 def load_valid_summaries(limit: int = 50) -> str:
     conn = sqlite3.connect(FILESUMMARY_PATH)
@@ -2058,12 +2092,34 @@ def save_summary(filename: str, merged_summaries: list): #### 2025.8.4 Mod（/up
 
     print(f"✅ 要約DBに保存完了: {filename}")
 
-def get_valid_slides(pptx_path: Path) -> list[str]: #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
-    slides = extract_text_from_pptx(pptx_path)
-    if isinstance(slides[0], str):
-        return [s for s in slides if is_informative(s)]
-    else:
-        return [s["text"] for s in slides if is_informative(s.get("text", ""))]
+def get_valid_slides(pptx_path: Path) -> list[str]:
+    raw = extract_text_from_pptx(pptx_path)
+
+    texts: list[str] = []
+    if raw:
+        # 要素の型に応じて安全に正規化
+        first = raw[0]
+        if isinstance(first, str):
+            # すべて str 想定
+            for item in raw:
+                if isinstance(item, str):
+                    texts.append(item)
+                else:
+                    # 念のためのフォールバック
+                    texts.append(str(item))
+        else:
+            # dict等のケースを想定（"text" を抽出）
+            for item in raw:
+                if isinstance(item, dict):
+                    val = item.get("text", "")
+                    if isinstance(val, str):
+                        texts.append(val)
+                else:
+                    # 念のためのフォールバック
+                    texts.append(str(item))
+
+    # 情報量フィルタ
+    return [s for s in texts if isinstance(s, str) and is_informative(s)]
 
 def summarize_file(file_id: str, filename: str, slides: list[str], pdf_path: Path) -> list[dict]: #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
     try:
@@ -2082,50 +2138,117 @@ def summarize_file(file_id: str, filename: str, slides: list[str], pdf_path: Pat
     return list(merged.values())
 
 # ----- テキスト/画像抽出・ファイルの解釈作業 -----
-def extract_text_from_pptx(path):
-    prs = Presentation(path)
-    slides = []
+def extract_text_from_pptx(path: Union[str, Path]) -> List[str]:
+    """PPTXの各スライドからテキストを安全に抽出（グループ/テーブル対応）"""
+    prs = Presentation(str(path))  # PathをstrにキャストしてPylance対策
+
+    def _collect_texts(shapes) -> List[str]:
+        out: List[str] = []
+        for shp in shapes:
+            try:
+                st = getattr(shp, "shape_type", None)
+
+                # グループ: 再帰で子要素を辿る
+                if st == MSO_SHAPE_TYPE.GROUP:
+                    out.extend(_collect_texts(shp.shapes))
+
+                # テーブル: 各セルのtextを収集
+                elif st == MSO_SHAPE_TYPE.TABLE:
+                    for row in shp.table.rows:
+                        for cell in row.cells:
+                            txt = getattr(cell, "text", "")
+                            if txt:
+                                out.append(txt)
+
+                # 通常のテキストフレーム
+                elif getattr(shp, "has_text_frame", False) and getattr(shp, "text_frame", None):
+                    txt = shp.text_frame.text
+                    if txt:
+                        out.append(txt)
+
+                # 画像や図形（テキストなし）はスキップ
+            except Exception:
+                # 壊れた図形等で落ちないよう握りつぶす
+                continue
+        return out
+
+    slides: List[str] = []
     for slide in prs.slides:
-        text = ""
-        for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text:
-                text += shape.text + "\n"
-        slides.append(text.strip())
+        texts = _collect_texts(slide.shapes)
+        slides.append("\n".join(t.strip() for t in texts if t and t.strip()))
     return slides
 
-def summarize_slide_image(client: OpenAI, image_path: Path) -> tuple[str | None, int]:
-    with open(image_path, "rb") as f:
-        image_bytes = f.read()
+JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+def _extract_json(text: str) -> dict:
+    """
+    モデル出力にコードブロックや前後テキストが混ざっても
+    最初のJSONオブジェクトだけ安全に取り出す。
+    """
+    text = text.strip()
+    # ```json ... ``` のガード除去
+    if text.startswith("```"):
+        text = text.strip("` \n\t")
+        if text.lower().startswith("json"):
+            text = text[4:].lstrip()
+    m = JSON_BLOCK_RE.search(text)
+    if not m:
+        raise ValueError("No JSON object found in response.")
+    return json.loads(m.group(0))
+
+def summarize_slide_image(client: OpenAI, image_path: Path) -> Tuple[Optional[str], int]:
+    """
+    画像(PNG)をbase64で埋め込み、GPT-4oで要約＋有効判定(JSON)を取得。
+    戻り値: (summary または None, is_valid (0/1))
+    """
+    try:
+        image_bytes = image_path.read_bytes()
+    except Exception as e:
+        print(f"⚠️ 画像読み込み失敗: {e}")
+        return None, 0
 
     base64_image = base64.b64encode(image_bytes).decode("utf-8")
-    image_data = {
-        "type": "image_url",
-        "image_url": {"url": f"data:image/png;base64,{base64_image}"}
+
+    # --- 型安全な content parts 定義 ---
+    user_parts: List[ChatCompletionContentPartTextParam | ChatCompletionContentPartImageParam] = [
+        ChatCompletionContentPartTextParam(type="text", text="このスライドを要約してください。"),
+        ChatCompletionContentPartImageParam(
+            type="image_url",
+            image_url={"url": f"data:image/png;base64,{base64_image}"},
+        ),
+    ]
+
+    sys_msg: ChatCompletionSystemMessageParam = {
+        "role": "system",
+        "content": (
+            "あなたは優秀なスライド要約アシスタントです。画像内の内容を要約し、"
+            "有効かどうかを JSON で答えてください。必ず純粋なJSONのみを返してください。"
+            "例: {\"summary\": \"...\", \"is_valid\": true}"
+        ),
     }
+
+    user_msg: ChatCompletionUserMessageParam = {
+        "role": "user",
+        "content": user_parts,
+    }
+
+    messages: List[ChatCompletionMessageParam] = [sys_msg, user_msg]
 
     try:
         res = client.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {"role": "system", "content": (
-                    "あなたは優秀なスライド要約アシスタントです。画像内の内容を要約し、"
-                    "有効かどうかを JSON で答えてください（例：{\"summary\": \"...\", \"is_valid\": true}）。"
-                )},
-                {"role": "user", "content": [
-                    {"type": "text", "text": "このスライドを要約してください。"},
-                    image_data
-                ]}
-            ],
+            messages=messages,
             max_tokens=500,
             temperature=0.5,
+            response_format=NOT_GIVEN,  # None ではなく NOT_GIVEN
         )
 
-        response_text = res.choices[0].message.content.strip()
-        parsed = json.loads(response_text)
-        summary = parsed.get("summary", "").strip()
-        is_valid = 1 if parsed.get("is_valid", False) else 0
+        raw = (res.choices[0].message.content or "").strip()
+        data = _extract_json(raw)
 
-        return summary, is_valid
+        summary = str(data.get("summary", "")).strip()
+        is_valid_flag = bool(data.get("is_valid", False))
+        return (summary if summary else None), (1 if is_valid_flag else 0)
 
     except Exception as e:
         print(f"⚠️ Vision要約失敗: {e}")
@@ -2220,152 +2343,187 @@ def summarize_pdf_slides_with_vision(file_id: str, pdf_path: Path, save_filename
     #### 2025.8.1 Add（reduce api consumption）END
     return summaries
 
-def summarize_and_store_slides(file_id: str, save_filename: str, slides: list[str]) -> list[dict]:
+def _safe_json_loads(text: str) -> dict:
+    """モデルが前後に説明文やコードフェンスを付けても、最初のJSONだけを抜く"""
+    t = text.strip()
+    if t.startswith("```"):
+        # ```json ... ``` の場合に備えてガード除去
+        t = t.strip("` \n\t")
+        if t.lower().startswith("json"):
+            t = t[4:].lstrip()
+    m = JSON_BLOCK_RE.search(t)
+    return json.loads(m.group(0) if m else t)
+
+def summarize_and_store_slides(file_id: str, save_filename: str, slides: List[str]) -> List[Dict]:
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    summaries = []
+    summaries: List[Dict] = []
+
     conn = sqlite3.connect(FILESUMMARY_PATH)
+    try:
+        #### 2025.8.1 Mod（reduce api consumption）START
+        summary_cache_dir = Path("text_summary_cache")
+        summary_cache_dir.mkdir(exist_ok=True)
 
-    #### 2025.8.1 Mod（reduce api consumption）START
-    summary_cache_dir = Path("text_summary_cache")
-    summary_cache_dir.mkdir(exist_ok=True)
+        for slide_index, slide_text in enumerate(slides[:10]):  # 最大10枚
+            print(f"📝 スライド {slide_index + 1} 要約開始")
 
-    for slide_index, slide_text in enumerate(slides[:10]):  # 最大10枚
-        print(f"📝 スライド {slide_index + 1} 要約開始")
-
-        if not slide_text.strip() or not is_informative(slide_text):
-            print(f"⚠️ スライド {slide_index + 1} は情報量が少ないためスキップ")
-            continue
-
-        h = text_hash(slide_text)
-        cache_file = summary_cache_dir / f"{h}.json"
-
-        if cache_file.exists():
-            with open(cache_file, "r") as f:
-                cached = json.load(f)
-            summary = cached.get("summary")
-            is_valid = cached.get("is_valid", 0)
-            print(f"📦 キャッシュから要約取得（スライド{slide_index + 1}）")
-        else:
-            try:
-                res = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": (
-                            "あなたは優秀なスライド要約アシスタントです。与えられたスライドテキストを要約し、"
-                            "JSON形式で {\"summary\": \"...\", \"is_valid\": true} のように返答してください。"
-                        )},
-                        {"role": "user", "content": f"スライドの内容: {slide_text}"}
-                    ],
-                    max_tokens=500,
-                    temperature=0.5
-                )
-
-                response_text = res.choices[0].message.content.strip()
-                parsed = json.loads(response_text)
-                summary = parsed.get("summary", "").strip()
-                is_valid = 1 if parsed.get("is_valid", False) else 0
-                with open(cache_file, "w") as f:
-                    json.dump({"summary": summary, "is_valid": is_valid}, f, ensure_ascii=False)
-
-            except Exception as e:
-                print(f"⚠️ スライド {slide_index + 1} の要約失敗: {e}")
+            if not slide_text or not slide_text.strip() or not is_informative(slide_text):
+                print(f"⚠️ スライド {slide_index + 1} は情報量が少ないためスキップ")
                 continue
 
-        embedding_blob = None
-        if is_valid and summary:
-            eh = text_hash(summary)
-            if eh in embedding_cache:
-                embedding_vector = embedding_cache[eh]
+            h = text_hash(slide_text)
+            cache_file = summary_cache_dir / f"{h}.json"
+
+            if cache_file.exists():
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached = json.load(f)
+                summary = (cached.get("summary") or "").strip()
+                is_valid = int(bool(cached.get("is_valid", 0)))
+                print(f"📦 キャッシュから要約取得（スライド{slide_index + 1}）")
             else:
-                emb_res = client.embeddings.create(
-                    model="text-embedding-3-small",
-                    input=summary
-                )
-                embedding_vector = emb_res.data[0].embedding
-                embedding_cache[eh] = embedding_vector
+                try:
+                    res = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "あなたは優秀なスライド要約アシスタントです。与えられたスライドテキストを要約し、"
+                                    "必ず純粋なJSONのみで {\"summary\": \"...\", \"is_valid\": true} の形式で返答してください。"
+                                ),
+                            },
+                            {
+                                "role": "user",
+                                "content": f"スライドの内容: {slide_text}",
+                            },
+                        ],
+                        max_tokens=500,
+                        temperature=0.5,
+                        # response_format は未指定（Noneは渡さない）
+                    )
 
-            embedding_blob = pickle.dumps(embedding_vector)
+                    # ★ None セーフにしてから strip
+                    response_text = (res.choices[0].message.content or "").strip()
 
-        conn.execute(
-            "INSERT INTO summaries (id, filename, slide_index, summary, embedding, is_summary_valid) VALUES (?, ?, ?, ?, ?, ?)",
-            (file_id, save_filename, slide_index + 1, summary, embedding_blob, is_valid)
-        )
+                    # JSON安全パース（コードフェンス/前後文混入対策）
+                    parsed = _safe_json_loads(response_text)
+                    summary = str(parsed.get("summary", "") or "").strip()
+                    is_valid = 1 if bool(parsed.get("is_valid", False)) else 0
 
-        if is_valid:
-            summaries.append({
-                "id": file_id,
-                "filename": save_filename,
-                "slide_index": slide_index + 1,
-                "summary": summary,
-            })
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        json.dump({"summary": summary, "is_valid": is_valid}, f, ensure_ascii=False)
 
-        print(f"✅ スライド {slide_index + 1} 処理完了（valid: {is_valid}）")
+                except Exception as e:
+                    print(f"⚠️ スライド {slide_index + 1} の要約失敗: {e}")
+                    continue
+
+            embedding_blob = None
+            if is_valid and summary:
+                eh = text_hash(summary)
+                if eh in embedding_cache:
+                    embedding_vector = embedding_cache[eh]
+                else:
+                    emb_res = client.embeddings.create(
+                        model="text-embedding-3-small",
+                        input=summary
+                    )
+                    embedding_vector = emb_res.data[0].embedding
+                    embedding_cache[eh] = embedding_vector
+
+                embedding_blob = pickle.dumps(embedding_vector)
+
+            conn.execute(
+                "INSERT INTO summaries (id, filename, slide_index, summary, embedding, is_summary_valid) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (file_id, save_filename, slide_index + 1, summary, embedding_blob, is_valid),
+            )
+
+            if is_valid:
+                summaries.append({
+                    "id": file_id,
+                    "filename": save_filename,
+                    "slide_index": slide_index + 1,
+                    "summary": summary,
+                })
+
+            print(f"✅ スライド {slide_index + 1} 処理完了（valid: {is_valid}）")
         #### 2025.8.1 Mod（reduce api consumption）END
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
 
     #### 2025.8.1 Add（reduce api consumption）START
     # ✅ 追加：キャッシュ保存
-    with open(CACHE_PATH, "w") as f:
-        json.dump(embedding_cache, f)
+    with open(CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(embedding_cache, f, ensure_ascii=False)
     #### 2025.8.1 Add（reduce api consumption）END
+
     return summaries
 
-def summarize_slide_with_validation(client: OpenAI, slide_text: str) -> tuple[str | None, int]:
+def summarize_slide_with_validation(client: OpenAI, slide_text: str) -> Tuple[Optional[str], int]:
     #### 2025.8.1 Add（reduce api consumption）START
     summary_cache_dir = Path("text_summary_cache")
     summary_cache_dir.mkdir(exist_ok=True)
-    
+
     h = text_hash(slide_text)
     cache_file = summary_cache_dir / f"{h}.json"
 
     if cache_file.exists():
-        with open(cache_file, "r") as f:
+        with open(cache_file, "r", encoding="utf-8") as f:
             cached = json.load(f)
-        summary = cached.get("summary")
-        is_valid = cached.get("is_valid", 0)
+        summary = (cached.get("summary") or "").strip()
+        is_valid = int(bool(cached.get("is_valid", 0)))
         print("📦 要約キャッシュを利用しました")
-        return summary, is_valid
+        return (summary if summary else None), is_valid
     #### 2025.8.1 Add（reduce api consumption）END
+
     try:
         res = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4",  # 必要に応じて "gpt-4o" 等へ
             messages=[
-                {"role": "system", "content": (
-                    "あなたは優秀な要約アシスタントです。与えられたスライドを要約し、"
-                    "それが有効かどうかを判定してください。有効とは、情報量が十分で、"
-                    "意味・内容があることを指します。以下のJSON形式で答えてください：\n"
-                    "{\"summary\": \"...\", \"is_valid\": true}"
-                )},
-                {"role": "user", "content": f"このスライドを要約してください:\n{slide_text}"},
+                {
+                    "role": "system",
+                    "content": (
+                        "あなたは優秀な要約アシスタントです。与えられたスライドを要約し、"
+                        "それが有効かどうかを判定してください。有効とは、情報量が十分で、"
+                        "意味・内容があることを指します。必ず純粋なJSONのみで返答："
+                        "{\"summary\": \"...\", \"is_valid\": true}"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"このスライドを要約してください:\n{slide_text}",
+                },
             ],
             max_tokens=500,
-            temperature=0.5
+            temperature=0.5,
+            # response_format は未指定のまま（Noneは渡さない）
         )
-        response_text = res.choices[0].message.content.strip()
+
+        # ★ Noneセーフ
+        response_text = (res.choices[0].message.content or "").strip()
 
         try:
-            parsed = json.loads(response_text)
-            summary = parsed.get("summary", "").strip()
-            is_valid = 1 if parsed.get("is_valid", False) else 0
+            parsed = _safe_json_loads(response_text)
+            summary = str(parsed.get("summary", "") or "").strip()
+            is_valid = 1 if bool(parsed.get("is_valid", False)) else 0
 
-        #### 2025.8.1 Add（reduce api consumption）START
-            # キャッシュ保存
-            with open(cache_file, "w") as f:
+            #### 2025.8.1 Add（reduce api consumption）START
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump({"summary": summary, "is_valid": is_valid}, f, ensure_ascii=False)
+            #### 2025.8.1 Add（reduce api consumption）END
 
-            return summary, is_valid
+            return (summary if summary else None), is_valid
 
         except json.JSONDecodeError:
             print(f"⚠️ JSON解析失敗: {response_text}")
             return None, 0
-        #### 2025.8.1 Add（reduce api consumption）END
 
     except Exception as e:
         print(f"⚠️ 要約失敗: {e}")
         return None, 0
-
+    
 def merge_summaries_by_slide_index(
     summaries_from_text: list[dict],
     summaries_from_image: list[dict]
@@ -2520,8 +2678,9 @@ def search_text_pptx_index(query: str, top_k: int = 5): #### 2025.8.6 Add（no u
     return results[:top_k]
 # pending #
 
-def extract_themes_from_text(text: str, limit: int = 5) -> list[str]:
+def extract_themes_from_text(text: str, limit: int = 5) -> List[str]:
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
     #### 2025.8.1 Add（reduce api consumption）START
     theme_cache_dir = Path("theme_cache")
     theme_cache_dir.mkdir(exist_ok=True)
@@ -2530,10 +2689,13 @@ def extract_themes_from_text(text: str, limit: int = 5) -> list[str]:
     cache_file = theme_cache_dir / f"{th}.json"
 
     if cache_file.exists():
-        with open(cache_file, "r") as f:
-            themes = json.load(f).get("themes", [])
+        with open(cache_file, "r", encoding="utf-8") as f:
+            cached = json.load(f)
+        themes = cached.get("themes", []) if isinstance(cached, dict) else []
         print("📦 テーマキャッシュ使用")
-        return themes[:limit]
+        # 念のため文字列化＆limit適用
+        themes = [str(t).strip() for t in themes if str(t).strip()]
+        return themes[:max(0, limit)]
     #### 2025.8.1 Add（reduce api consumption）END
 
     prompt = (
@@ -2548,17 +2710,22 @@ def extract_themes_from_text(text: str, limit: int = 5) -> list[str]:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5,
             max_tokens=50,
-            stop=["\n\n"]
+            stop=["\n\n"],
         )
-        raw_output = res.choices[0].message.content.strip()
-        #### 2025.8.1 Add（reduce api consumption）START
-        themes = parse_theme_list(raw_output, limit)
+        # ★ Noneセーフにしてからstrip
+        raw_output = (res.choices[0].message.content or "").strip()
 
-        with open(cache_file, "w") as f:
+        #### 2025.8.1 Add（reduce api consumption）START
+        themes = parse_theme_list(raw_output, limit)  # 既存のパーサを利用
+        # 念のため整形
+        themes = [t for t in (s.strip() for s in themes) if t]
+
+        with open(cache_file, "w", encoding="utf-8") as f:
             json.dump({"themes": themes}, f, ensure_ascii=False)
 
-        return themes
+        return themes[:max(0, limit)]
         #### 2025.8.1 Add（reduce api consumption）END
+
     except Exception as e:
         print(f"⚠️ OpenAIリクエスト失敗: {e}")
         return []
@@ -2584,22 +2751,35 @@ def parse_theme_list(text: str, limit: int = 5) -> list[str]:
 def generate_ai_reason_comment(
     query: str,
     content: Optional[str] = None,
-    top_results: Optional[List[dict]] = None,
-    content_type: str = "summary"
+    top_results: Optional[List[Dict]] = None,
+    content_type: str = "summary",
 ) -> str:
     """
     クエリと検索結果に基づいて、AIによる関連性の理由コメントを生成する（キャッシュ対応版）。
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    #### 2025.8.1 Mod（reduce api consumption）START
+
     cache_dir = Path("reason_cache")
     cache_dir.mkdir(exist_ok=True)
 
     # --- キャッシュキー作成
-    if content_type == "summary" and content:
+    key_source: str
+    if content_type == "summary":
+        if not content or not str(content).strip():
+            return "説明用の情報が不足しています。"
         key_source = f"{query}||{normalize_text(content)}"
-    elif content_type == "slide" and top_results:
-        key_source = query + "||" + "||".join(normalize_text(item["summary"]) for item in top_results)
+
+    elif content_type == "slide":
+        items: List[Dict] = top_results or []
+        norm_summaries: List[str] = []
+        for item in items:
+            if isinstance(item, dict):
+                s = str(item.get("summary") or "").strip()
+                if s:
+                    norm_summaries.append(normalize_text(s))
+        if not norm_summaries:
+            return "説明用の情報が不足しています。"
+        key_source = query + "||" + "||".join(norm_summaries)
     else:
         return "説明用の情報が不足しています。"
 
@@ -2607,42 +2787,46 @@ def generate_ai_reason_comment(
     cache_file = cache_dir / f"{cache_hash}.txt"
 
     if cache_file.exists():
-        with open(cache_file, "r") as f:
+        with open(cache_file, "r", encoding="utf-8") as f:
             print("📦 理由コメントキャッシュ利用")
             return f.read().strip()
 
-    #### 2025.8.1 Mod（reduce api consumption）END
     # --- プロンプト生成
     if content_type == "summary":
-        prompt = f"""ユーザーが「{query}」と検索しました。以下のサマリーが特に関連性が高いと考えられる理由を一言で説明してください。
-
-サマリー:
-{content}"""
-    else:  # content_type == "slide"
-        slide_samples = "\n".join(
-            f"- {truncate(item['summary'])}" for item in top_results
+        prompt = (
+            f"ユーザーが「{query}」と検索しました。以下のサマリーが特に関連性が高いと考えられる理由を一言で説明してください。\n\n"
+            f"サマリー:\n{content}"
         )
-        prompt = f"""ユーザーが「{query}」と検索しました。以下のスライド情報との関連性が高いと判断された理由を要約してください。
+    else:  # content_type == "slide"
+        # slide 分岐の中でのみ norm_summaries を使う（未束縛回避）
+        items: List[Dict] = top_results or []
+        norm_summaries: List[str] = []
+        for item in items:
+            if isinstance(item, dict):
+                s = str(item.get("summary") or "").strip()
+                if s:
+                    norm_summaries.append(s)
+        # ここまで来て norm_summaries が空のことは基本ない（上で return 済み）が、念のためガード
+        if not norm_summaries:
+            return "説明用の情報が不足しています。"
+        slide_samples = "\n".join(f"- {truncate(s)}" for s in norm_summaries)
+        prompt = (
+            f"ユーザーが「{query}」と検索しました。以下のスライド情報との関連性が高いと判断された理由を要約してください。\n\n"
+            f"スライド候補:\n{slide_samples}\n\n"
+            "簡潔に一言で説明してください。"
+        )
 
-スライド候補:
-{slide_samples}
-
-簡潔に一言で説明してください。
-"""
-
-    # --- GPT実行
+    # --- GPT実行（Noneセーフ）
     res = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
     )
-    result = res.choices[0].message.content.strip()
+    result = (res.choices[0].message.content or "").strip()
 
-    #### 2025.8.1 Add（reduce api consumption）START
     # --- キャッシュ保存
-    with open(cache_file, "w") as f:
+    with open(cache_file, "w", encoding="utf-8") as f:
         f.write(result)
-    #### 2025.8.1 Add（reduce api consumption）END
 
     return result
 
@@ -2652,8 +2836,8 @@ def truncate(text: str, max_chars: int = 300) -> str:
 
 #### 2025.8.4 Add（Resume）START
 def extract_text_from_pdf_resume(file_path: str) -> str:
-    doc = fitz.open(file_path)
-    text = "\n".join(page.get_text() for page in doc)
+    doc = fitz.open(file_path)  # type: ignore[attr-defined]
+    text = "\n".join(page.get_text() for page in doc)  # type: ignore[attr-defined]
     doc.close()
     return text
 
@@ -2710,13 +2894,16 @@ JSON形式で次のように返してください：
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        temperature=0.2,
     )
 
     try:
-        result = json.loads(response.choices[0].message.content)
+        # Noneセーフ化
+        raw_content = response.choices[0].message.content or ""
+        result = json.loads(raw_content)
         return result
     except Exception as e:
+        # JSONパース失敗時は全て False 扱い
         return {k: {"result": False, "reason": "判定失敗"} for k in must_keywords}
 
 def load_division_profiles(skills_dir: Path) -> list:
@@ -2751,26 +2938,27 @@ def score_resume(file_path: str, candidate_id: str) -> dict:
     common_path = SKILLS_PATH / "common.json"
     must_results = check_must_requirements_llm(content, common_path)
 
-    if not all(item["result"] for item in must_results.values()):
+    # マスト条件NGなら即返す
+    if not all(bool(item.get("result")) for item in must_results.values()):
         result = {
             "user_id": candidate_id,
             "timestamp": datetime.now().isoformat(),
             "must_check": must_results,
             "scores": [],
-            "recommended_division": None
+            "recommended_division": None,
         }
         save_result_to_file(result, candidate_id)
         return result
 
     division_profiles = load_division_profiles(SKILLS_PATH)
 
-    # 🔽 複数部門を1つの文字列にまとめる
+    # 複数部門を1つの文字列にまとめる
     division_descriptions = "\n\n".join(
-        f"部門名: {profile['division']}\n理想の特徴: {', '.join(profile['desired_traits'])}"
+        f"部門名: {profile.get('division','')}\n理想の特徴: {', '.join(profile.get('desired_traits', []))}"
         for profile in division_profiles
     )
 
-    # 🔽 GPTへの一括プロンプト
+    # GPTへの一括プロンプト
     prompt = f"""
 あなたは人事担当者です。
 以下の履歴書情報を読み、複数の部門ごとに適合度を10点満点で評価してください。
@@ -2789,32 +2977,61 @@ def score_resume(file_path: str, candidate_id: str) -> dict:
 ]
 """
 
-    # 🔽 GPT呼び出し：1回だけ
+    # GPT呼び出し：1回だけ（Noneセーフ）
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        temperature=0.2,
     )
 
-    # 🔽 応答をパース（配列）
+    # 応答をパース（配列）。content は str | None → 空文字にフォールバック
+    raw = (response.choices[0].message.content or "").strip()
+    scores: List[Dict[str, Any]]
     try:
-        scores = json.loads(response.choices[0].message.content)
+        parsed = json.loads(raw)
+        # もし単一オブジェクトで返ってきたら配列化
+        if isinstance(parsed, dict):
+            parsed = [parsed]
+        if not isinstance(parsed, list):
+            raise ValueError("JSON is not a list")
+        # 要素型を正規化（division: str, score: float, reason: str）
+        norm: List[Dict[str, Any]] = []
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            division = str(item.get("division", "")).strip()
+            # scoreは数値化（NaNはスキップ）
+            sc = item.get("score", 0)
+            try:
+                score_val = float(sc)
+                if isnan(score_val):
+                    continue
+            except Exception:
+                continue
+            reason = str(item.get("reason", "")).strip()
+            if division:
+                norm.append({"division": division, "score": score_val, "reason": reason})
+        scores = norm if norm else [{
+            "division": "N/A",
+            "score": 0,
+            "reason": "解析エラー: 空または不正なJSON",
+        }]
     except Exception as e:
         scores = [{
             "division": "N/A",
             "score": 0,
-            "reason": f"解析エラー: {str(e)}"
+            "reason": f"解析エラー: {e}",
         }]
 
-    # 🔽 推奨部門の抽出
-    recommended = max(scores, key=lambda x: x["score"], default={"division": None})
+    # 推奨部門の抽出（scores が空でも安全）
+    recommended = max(scores, key=lambda x: x.get("score", -1), default={"division": None})
 
     result = {
         "user_id": candidate_id,
         "timestamp": datetime.now().isoformat(),
         "must_check": must_results,
         "scores": scores,
-        "recommended_division": recommended["division"]
+        "recommended_division": recommended.get("division"),
     }
 
     save_result_to_file(result, candidate_id)
@@ -2855,26 +3072,25 @@ def extract_resume_text_from_xlsx(file_stream: io.BytesIO) -> str:
         return ""
 
 def score_resume_from_text(text: str, candidate_id: str) -> dict:
-    from datetime import datetime
-
     common_path = SKILLS_PATH / "common.json"
     must_results = check_must_requirements_llm(text, common_path)
 
-    if not all(item["result"] for item in must_results.values()):
+    # マスト条件NGなら即保存・返却
+    if not all(bool(item.get("result")) for item in must_results.values()):
         result = {
             "user_id": candidate_id,
             "timestamp": datetime.now().isoformat(),
             "must_check": must_results,
             "scores": [],
-            "recommended_division": None
+            "recommended_division": None,
         }
-        save_result_to_file(result, candidate_id)  # ✅ スコアが出なくても保存
+        save_result_to_file(result, candidate_id)
         return result
 
     division_profiles = load_division_profiles(SKILLS_PATH)
 
     division_descriptions = "\n\n".join(
-        f"部門名: {profile['division']}\n理想の特徴: {', '.join(profile['desired_traits'])}"
+        f"部門名: {profile.get('division','')}\n理想の特徴: {', '.join(profile.get('desired_traits', []))}"
         for profile in division_profiles
     )
 
@@ -2899,30 +3115,63 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        temperature=0.2,
     )
 
+    # ★ None セーフにしてからパース
+    raw = (response.choices[0].message.content or "").strip()
+
     try:
-        scores = json.loads(response.choices[0].message.content)
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            parsed = [parsed]
+        if not isinstance(parsed, list):
+            raise ValueError("JSON is not a list")
+
+        # 要素の正規化
+        scores: List[Dict[str, Any]] = []
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            division = str(item.get("division", "")).strip()
+            reason = str(item.get("reason", "")).strip()
+
+            sc = item.get("score", 0)
+            try:
+                score_val = float(sc)
+                if isnan(score_val):
+                    continue
+            except Exception:
+                continue
+
+            if division:
+                scores.append({"division": division, "score": score_val, "reason": reason})
+
+        if not scores:
+            scores = [{
+                "division": "N/A",
+                "score": 0,
+                "reason": "解析エラー: 空または不正なJSON",
+            }]
+
     except Exception as e:
         scores = [{
             "division": "N/A",
             "score": 0,
-            "reason": f"解析エラー: {str(e)}"
+            "reason": f"解析エラー: {e}",
         }]
 
-    recommended = max(scores, key=lambda x: x["score"], default={"division": None})
+    recommended = max(scores, key=lambda x: x.get("score", -1), default={"division": None})
 
     result = {
         "user_id": candidate_id,
         "timestamp": datetime.now().isoformat(),
         "must_check": must_results,
         "scores": scores,
-        "recommended_division": recommended["division"]
+        "recommended_division": recommended.get("division"),
     }
 
-    save_result_to_file(result, candidate_id)  # ✅ こちらでも保存
-
+    save_result_to_file(result, candidate_id)
     return result
 
 def save_masked_resume_embedding_local(candidate_id: str, text: str):
@@ -3018,7 +3267,9 @@ CREATE TABLE work_history (
         temperature=0.2
     )
 
-    return response.choices[0].message.content.strip()
+    # ★ Noneセーフ化
+    return (response.choices[0].message.content or "").strip()
+
 
 def save_sql_to_sqlite(sql: str):
     try:
@@ -3058,15 +3309,32 @@ def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str
     }
     return [system_prompt] + messages[-5:]
 
-def call_openai_chat(prompt: list[dict], model: str = "gpt-3.5-turbo") -> str:
+def _coerce_messages(prompt: List[Dict[str, Any]]) -> List[ChatCompletionMessageParam]:
+    """ゆるいdictの配列をChatCompletionMessageParamに正規化"""
+    out: List[ChatCompletionMessageParam] = []
+    for m in prompt:
+        role = m.get("role")
+        content = m.get("content")
+        if role == "user":
+            out.append(cast(ChatCompletionUserMessageParam, {"role": "user", "content": content}))
+        elif role == "system":
+            out.append(cast(ChatCompletionSystemMessageParam, {"role": "system", "content": content}))
+        elif role == "assistant":
+            out.append(cast(ChatCompletionAssistantMessageParam, {"role": "assistant", "content": content}))
+        else:
+            # 未知のroleはuser扱いにフォールバック
+            out.append(cast(ChatCompletionUserMessageParam, {"role": "user", "content": content}))
+    return out
+
+def call_openai_chat(prompt: List[Dict[str, Any]], model: str = "gpt-3.5-turbo") -> str:
     try:
+        messages: List[ChatCompletionMessageParam] = _coerce_messages(prompt)
         response = client.chat.completions.create(
             model=model,
-            messages=prompt,
-            temperature=0.3
+            messages=messages,
+            temperature=0.3,
         )
-        # contentがNoneでもstrとして返すように防御
-        return response.choices[0].message.content or ""
+        return (response.choices[0].message.content or "")
     except Exception as e:
         return f"AI応答に失敗しました: {str(e)}"
 
@@ -3334,58 +3602,6 @@ def _load_json(path):
     except Exception as e:
         return {"error": str(e)}
 
-def _shape_block(raw: Dict[str, Any], stage: str) -> Dict[str, Any]:
-    stages = (raw.get("stages") or {})
-    block = stages.get(stage) or {}
-    shaped = {
-        "prepItems": block.get("prepItems", []),
-        "reviewedResume": bool(block.get("reviewedResume", False)),
-        "qualitative": block.get("qualitative") or {},
-        "quantitative": block.get("quantitative") or {},
-        "updated_at": block.get("updated_at"),
-        "ai_score_reviewed": block.get("ai_score_reviewed", False),
-        "eval_required": block.get("eval_required", False),
-    }
-    return shaped
-
-async def get_checksheet_one_async(
-    interviewer_id: str,
-    candidate_id: str,
-    stage: str,
-    base: Optional[Path] = None,
-) -> Dict[str, Any]:
-    """
-    interviewer_checksheet_files/<iid>/<cid>.json から該当 stage ブロックだけ返す（非同期I/O版）
-    返り値: { prepItems, reviewedResume, qualitative, quantitative, updated_at } or {}
-    例外:
-        - FileNotFoundError: ファイルが無い
-        - ValueError: 入力不正
-        - RuntimeError: JSON読込に失敗
-    """
-    if not interviewer_id or not candidate_id or not stage:
-        raise ValueError("interviewer_id, candidate_id, stage は必須です")
-
-    base = base or INTERVIEWER_CHECKSHEET_PATH
-    fp = (base / interviewer_id / f"{candidate_id}.json")
-
-    if not fp.exists():
-        # exists() 自体は同期だが軽い stat。必要なら anyio.to_thread に逃がせる
-        raise FileNotFoundError(str(fp))
-
-    try:
-        # テキストではなく bytes を読み、orjson.loads で高速デコード
-        async with aiofiles.open(fp, "rb") as f:
-            data_bytes = await f.read()
-        doc = orjson.loads(data_bytes) if data_bytes else {}
-    except FileNotFoundError:
-        raise
-    except Exception as e:
-        # デコード失敗や I/O エラーをまとめて RuntimeError に
-        raise RuntimeError(f"JSON read failed: {e}")
-
-    shaped =  _shape_block(doc, stage)
-    return shaped
-
 def list_checksheet_by_interviewer(interviewer_id: str) -> Dict[str, Dict[str, Any]]:
     """
     指定面接官の配下にある全候補者ファイルを {candidate_id: doc} で返す。
@@ -3633,7 +3849,7 @@ def get_current_scores_map(result: dict) -> Dict[str, int]:
 
 def generate_interview_review_prompt(
     *,
-    prep_items: List[PrepItemDict],
+    prep_items: Sequence[Mapping[str, Any]],  # ★ ここを List[Dict...] → Sequence[Mapping...] に変更
     valid_divisions: List[str],
     current_scores: Dict[str, int],
     qualitative: Dict[str, Any] | None = None,
@@ -3661,8 +3877,8 @@ def generate_interview_review_prompt(
     # --- QA（prep_items） ---
     qa_lines: List[str] = []
     for i, it in enumerate(prep_items or [], 1):
-        q = (it.question or "").strip()
-        a = (it.answer or "").strip()
+        q = str(it.get("question", "")).strip()
+        a = str(it.get("answer", "")).strip()
         if q or a:
             qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
 
@@ -3676,23 +3892,23 @@ def generate_interview_review_prompt(
     qual_lines: List[str] = []
     for k in qual_keys:
         v = qualitative.get(k)
-        if v:
+        if v is not None and str(v).strip():
             qual_lines.append(f"- {k}: {v}")
     qual_block = "\n".join(qual_lines) if qual_lines else "（記載なし）"
 
     # --- Quantitative（定量 1-5 + コメント） ---
     quant_lines: List[str] = []
-    for k, v in quantitative.items():
+    for k, v in (quantitative or {}).items():
         if isinstance(v, dict):
             lv = v.get("level")
             cm = v.get("comment", "")
-            if lv or cm:
+            if lv is not None or (isinstance(cm, str) and cm.strip()):
                 quant_lines.append(f"- {k}: level={lv}, comment={cm}")
     quant_block = "\n".join(quant_lines) if quant_lines else "（記載なし）"
 
     # --- 現在スコアを並べる ---
     current_scores_lines = "\n".join(
-        f"- {d}: {current_scores.get(d, 0)}点" for d in valid_divisions
+        f"- {d}: {int(current_scores.get(d, 0))}点" for d in valid_divisions
     )
 
     user = {
@@ -4696,31 +4912,64 @@ def load_role_focus_dict(skills_path: Path) -> dict:
                 role_focus_dict[key] = {"expected_focus": []}
     return role_focus_dict
 
-def load_all_prepitem_tags_by_role(meta: dict, checksheet_path: Path) -> dict:
-    usage_counter = defaultdict(Counter)
+def load_all_prepitem_tags_by_role(meta: Dict[str, Any], checksheet_path: Path) -> Dict[str, Dict[str, int]]:
+    usage_counter: defaultdict[str, Counter[str]] = defaultdict(Counter)
 
     for user_dir in checksheet_path.glob("*"):
         if not user_dir.is_dir():
             continue
+
         user_id = user_dir.name
         user_meta = meta.get(user_id)
-        if not user_meta:
+        if not isinstance(user_meta, Mapping):
             continue
-        dept = user_meta.get("department", "").lower()
-        role = user_meta.get("role", "").lower()
+
+        dept = str(user_meta.get("department", "") or "").lower()
+        role = str(user_meta.get("role", "") or "").lower()
         role_key = f"{dept}:{role}"
 
         for json_file in user_dir.glob("*.json"):
             data = _load_json(json_file)
-            for stage_data in data.get("stages", {}).values():
-                for item in stage_data.get("prepItems", []):
-                    for tag in item.get("tags", []):
-                        # ✅ dict型 or 文字列どちらにも対応
-                        tag_id = tag.get("id") if isinstance(tag, dict) else tag
-                        if tag_id:  # None や空文字は除外
+
+            # stages は dict 前提だが、型安全にガード
+            stages = data.get("stages") if isinstance(data, Mapping) else None
+            if not isinstance(stages, Mapping):
+                continue
+
+            for stage_data in stages.values():
+                if not isinstance(stage_data, Mapping):
+                    continue
+
+                prep_items = stage_data.get("prepItems", [])
+                if not isinstance(prep_items, Iterable):
+                    continue
+
+                for item in prep_items:
+                    if not isinstance(item, Mapping):
+                        continue
+
+                    tags = item.get("tags", [])
+                    # tags が単一文字列/オブジェクトの可能性に備えて配列化
+                    if isinstance(tags, (list, tuple)):
+                        tag_iter = tags
+                    else:
+                        tag_iter = [tags]
+
+                    for tag in tag_iter:
+                        tag_id: str | None
+                        if isinstance(tag, Mapping):
+                            # dict形式のときは id 優先、なければ name などもフォールバック可
+                            tag_id = tag.get("id") or tag.get("name") or None
+                            if tag_id is not None:
+                                tag_id = str(tag_id)
+                        else:
+                            tag_id = str(tag) if isinstance(tag, (str, int, float)) else None
+
+                        if tag_id:
                             usage_counter[role_key][tag_id] += 1
 
-    return usage_counter
+    # defaultdict を通常の dict にして返す（シリアライズ等で扱いやすく）
+    return {rk: dict(cnt) for rk, cnt in usage_counter.items()}
 
 def get_missing_tags(expected_tags: list, used_counter: dict) -> list:
     tag_ids = []

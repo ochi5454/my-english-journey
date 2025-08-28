@@ -1,4 +1,4 @@
-import React, { useState, useImperativeHandle, forwardRef } from 'react';
+import { useState, useImperativeHandle, forwardRef } from 'react';
 
 interface PptxFrequentThemesProps {
     onThemeClick: (theme: string) => void;

@@ -25,13 +25,14 @@ from langchain_community.embeddings import OpenAIEmbeddings
 from langdetect import detect
 from dotenv import load_dotenv
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Mapping, Union, cast
 from fastapi.staticfiles import StaticFiles
 from pptx import Presentation
 import numpy as np
 from sqlalchemy import create_engine, Column, Integer, String, Text, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from pathlib import Path
 
 # 自作モジュール
 from def_library import generate_related_keywords_llm, search_items_in_json, search_database, load_json, save_conversation_to_file, generate_summary, enhance_retrieval_with_topics, clean_related_keywords, recommend_items_with_llm, extract_keywords, get_next_interquest_id, get_user_memory_and_store, get_max_id_num, recommend_generate_items, assign_sequential_ids, mask_personal_info, load_all_documents_texts, search_items_in_documents, load_sharepoint_document, extract_ids_from_llm_text, translate_to_english, get_negative_feedbacks, extract_text_from_pptx, init_filedb, get_public_like_feedbacks_by_product, convert_pptx_to_pdf, search_similar_pptx, build_pptx_index_incremental, generate_ai_reason_comment, search_similar_summaries, save_pptx_file, summarize_and_store_slides, load_valid_summaries, extract_themes_from_text, summarize_pdf_slides_with_vision, merge_summaries_by_slide_index, load_pptx_index_text, process_single_file, score_resume, call_openai_chat, generate_score_review_prompt,parse_score_adjustments, load_division_profiles, extract_original_scores_from_message, build_text_only_pptx_index, search_text_pptx_index, load_interview_config, send_interview_emails, save_interview_schedule, save_result_to_file, save_score_to_history, review_with_interview_checksheet, evaluate_interviewer_single, load_evals_cache_for, filter_cache_rows_in_memory, list_diff_targets, refresh_targets_and_upsert, load_rubric_for_http, load_evals_cache_aggregate, load_division_names, list_checksheet_by_interviewer, get_checksheet_one, merge_block, upsert_checksheets_block, get_checksheet_one_async, _load_json, load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels, list_all_checksheet_blocks, extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, score_resume_from_text, save_masked_resume_embedding_local, generate_resume_sql, save_sql_to_sqlite
@@ -44,6 +45,7 @@ from hashtag_config import load_hashtag_map
 hashtag_map = {}
 
 from contextlib import asynccontextmanager
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -376,7 +378,7 @@ class TrainingRecommendOut(BaseModel):
 # CORS設定を追加
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # フロントエンドのURL
+    allow_origins=["http://localhost:5173"],  # フロントエンドのURL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -677,6 +679,15 @@ def get_chat_history(
         )
 
 #### 2025.7.7 Add（recommend db）START
+def _to_kw_list(x) -> List[str]:
+    """雑に返ってくる値（str/list/None）を List[str] に正規化"""
+    if isinstance(x, list):
+        return [str(s).strip() for s in x if str(s).strip()]
+    if isinstance(x, str):
+        # もし extract_keywords が生テキストを返す可能性に備えて簡易スプリット
+        return [s for s in re.split(r"[,\s、。]+", x) if s]
+    return []
+
 @app.post("/recommend", response_model=RecommendationResponse, summary="Generate product recommendations based on user message")
 async def recommend(req: ProductQuery, request: Request):
     print("✅ Start of /recommend")
@@ -685,9 +696,9 @@ async def recommend(req: ProductQuery, request: Request):
         print(f"✅ query_text: {query_text}")
 
         #### 2025.7.18 Mod（radio checkbox）START
-        basic_keywords=""
-        expanded_keywords=""
-        history_keywords=""
+        basic_keywords: List[str] = []
+        expanded_keywords: List[str] = []
+        history_keywords: List[str] = []
         #### 2025.7.18 Mod（radio checkbox）END
 
     #### 2025.7.11 Mod（remove identify info）START
@@ -703,16 +714,13 @@ async def recommend(req: ProductQuery, request: Request):
 
         # 2. ユーザとの過去のやり取りを取得
         # 2-1. 会話履歴ベクトルストアの取得
-        related_history = ""
+        # ✅ 先に型を固定しておく
+        related_history: List[str] = []
         memory, vectorstore = get_user_memory_and_store(request.state.user_id, embedding)
 
-        # 2-2. 過去の類似チャットを取得（商品検索に限らず）
-        if req.search_level == "conversation": #### 2025.7.17 Mod（radio checkbox）
-            related_history = [doc.page_content for doc in vectorstore.similarity_search(masked_user_query, k=3)] #### 2025.7.11 Mod（remove identify info）
-
-            print(f"🔍 Retrieved {len(related_history)} related history items for query: {masked_user_query}") #### 2025.7.11 Mod（remove identify info）
-            for i, h in enumerate(related_history, 1):
-                print(f"  [{i}] {h}")
+        if req.search_level == "conversation":
+            # extract は List[str] を返すはずだが、念のため正規化
+            related_history = [doc.page_content for doc in vectorstore.similarity_search(masked_user_query, k=3)]
 
         #### 2025.7.18 Add（feedback）START
         # 2-2. 過去のフィードバックを取得（商品検索における）
@@ -721,50 +729,50 @@ async def recommend(req: ProductQuery, request: Request):
         #### 2025.7.18 Add（feedback）END
 
         # 3. 基本キーワード生成
-        basic_keywords = extract_keywords(masked_user_query) #### 2025.7.11 Mod（remove identify info）
+        # ✅ 常に List[str] に正規化
+        basic_keywords = _to_kw_list(extract_keywords(masked_user_query))
         print(f"🎯 基本キーワード: {basic_keywords}")
 
         # 4. 拡張キーワード生成
-        if req.search_level != "basic": #### 2025.7.17 Mod（radio checkbox）
+        if req.search_level != "basic":
             try:
                 raw_related = generate_related_keywords_llm(basic_keywords)
-                related_keywords = clean_related_keywords(raw_related)
+                related_keywords = _to_kw_list(clean_related_keywords(raw_related))
                 print(f"🧠 拡張キーワード: {related_keywords}")
             except Exception as e:
                 print(f"拡張キーワード生成に失敗: {str(e)}")
-                related_keywords = basic_keywords  # fallback
+                related_keywords = basic_keywords  # fallback（List[str]）
 
-        # 5. 拡張キーワードを、さらに短いキーワードに切り分ける
-            related_text = "。".join(related_keywords)  # 句点でつないでも、空白でつないでもOK
-            expanded_keywords = extract_keywords(related_text)
-            print(f"🧠 拡張キーワードから抽出された名詞: {expanded_keywords}")
+                # 5. 拡張キーワードを、さらに短いキーワードに切り分ける
+                related_text = "。".join(related_keywords)  # List[str] -> str
+                expanded_keywords = _to_kw_list(extract_keywords(related_text))
+                print(f"🧠 拡張キーワードから抽出された名詞: {expanded_keywords}")
 
     #### 2025.7.17 Mod（radio checkbox）START
-        # 6. 会話履歴からキーワードを抽出する（頻出履歴キーワードだけに絞る）
+        # 6. 履歴からキーワード抽出（会話レベル時のみ）
         if req.search_level == "conversation":
-            history_text_all = "。".join(related_history)
-            raw_history_keywords = extract_keywords(history_text_all)
+            history_text_all = "。".join(related_history)  # List[str]
+            raw_history_keywords = _to_kw_list(extract_keywords(history_text_all))
             keyword_counts = Counter(raw_history_keywords)
             history_keywords = [kw for kw, _ in keyword_counts.most_common(3)]
             print(f"📜 履歴から頻出キーワード上位3つ: {history_keywords}")
 
         #### 2025.7.18 Mod（feedback）START
-        # 7. 英語キーワードを追加する
+        # 7. 英語キーワードを追加
         if req.include_english:
             try:
-                # 各セットごとに英訳して追加
                 translated_basic = [translate_to_english(kw) for kw in basic_keywords]
-                basic_keywords = list(set(basic_keywords + translated_basic))
+                basic_keywords = list(set(basic_keywords + _to_kw_list(translated_basic)))
                 print(f"🌐 英訳キーワード追加（basic）: {translated_basic}")
 
                 if req.search_level != "basic":
                     translated_expanded = [translate_to_english(kw) for kw in expanded_keywords]
-                    expanded_keywords = list(set(expanded_keywords + translated_expanded))
+                    expanded_keywords = list(set(expanded_keywords + _to_kw_list(translated_expanded)))
                     print(f"🌐 英訳キーワード追加（expanded）: {translated_expanded}")
 
                 if req.search_level == "conversation":
                     translated_history = [translate_to_english(kw) for kw in history_keywords]
-                    history_keywords = list(set(history_keywords + translated_history))
+                    history_keywords = list(set(history_keywords + _to_kw_list(translated_history)))
                     print(f"🌐 英訳キーワード追加（history）: {translated_history}")
 
             except Exception as e:
@@ -800,13 +808,21 @@ async def recommend(req: ProductQuery, request: Request):
         #     print(f"商品データベースの読み込みエラー: {e}")
         #     raise HTTPException(status_code=500, detail="商品データベースの読み込みに失敗しました(sharepoint)")
 
-        # 9. DB検索
-        # 9-1. products.jsonから検索
-        search_results_from_json  = search_items_in_json(basic_keywords, expanded_keywords, history_keywords, products_json)
+        # 9. DB検索（関数が List[str] を要求 → すでに型が保証される）
+        search_results_from_json  = search_items_in_json(
+            basic_keywords,
+            expanded_keywords,
+            history_keywords,
+            products_json
+        )
         print(f"✅ Found {len(search_results_from_json)} matching items(products.json)")
 
-        # 9-2. documentsから検索
-        search_results_from_documents = search_items_in_documents(basic_keywords, expanded_keywords, history_keywords, documents)
+        search_results_from_documents = search_items_in_documents(
+            basic_keywords,
+            expanded_keywords,
+            history_keywords,
+            documents
+        )
         print(f"✅ Found {len(search_results_from_documents)} matching items(documents)")
         
         # 9-3. sharepointから検索
@@ -856,9 +872,13 @@ async def recommend(req: ProductQuery, request: Request):
         #         print(f"✅ 生成した商品: {search_results}")
         # #### 2025.7.10 Mod（generate items）END
 
-        # 11. ChatGPTでおすすめ生成
-        llm_generated_text = recommend_items_with_llm(basic_keywords, search_results, related_history, req.search_level) #### 2025.7.15 Add（attachment files） #### 2025.7.17 Mod（radio checkbox）
-        print(f"✅ 生成した提案: {llm_generated_text}")
+        # 11. ChatGPTでおすすめ生成（history_snippets も List[str] に固定）
+        llm_generated_text = recommend_items_with_llm(
+            basic_keywords,
+            search_results,
+            related_history,            # ← List[str]
+            req.search_level
+        )
 
         # 12. 返却予定の会話内容を先に保存
         # 12-1. 要約生成
@@ -1038,33 +1058,45 @@ async def save_feedback(fb: Feedback):
 #### 2025.7.18 Add（feedback）END
 
 #### 2025.7.30 Mod（pptx defs maintenance）START
-@app.post("/upload_and_index_pptx/") #### 2025.8.4 Mod（/upload_and_index_pptx/ →/update_summary_index in ui）
+@app.post("/upload_and_index_pptx/")  #### 2025.8.4 Mod（/upload_and_index_pptx/ → /update_summary_index in ui）
 async def upload_and_index_pptx(file: UploadFile = File(...)):
-    print("✅ ファイル名:", file.filename)
+    # --- filename の None ガード & 正規化 ---
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名がありません。")
+    # パストラバーサル対策（Windowsの\含む場合もbasename抽出）
+    orig_filename = Path(file.filename).name
 
+    print("✅ ファイル名:", orig_filename)
+
+    # 読み込み
     content = await file.read()
-    file_id, save_filename, pptx_path = save_pptx_file(file.filename, content)
 
+    # 保存（save_pptx_file は filename: str を想定）
+    file_id, save_filename, pptx_path = save_pptx_file(orig_filename, content)
+
+    # PDF化
     pdf_path = convert_pptx_to_pdf(pptx_path, PDFUPLOAD_DIR)
     if pdf_path is None:
         return {"success": False, "error": "PDF変換に失敗しました"}
 
-    slides = extract_text_from_pptx(pptx_path)
+    # スライドテキスト抽出（関数が Path 非対応なら str() でキャスト）
+    slides = extract_text_from_pptx(pptx_path)  # 例: extract_text_from_pptx(str(pptx_path))
     print(f"📊 スライド枚数: {len(slides)}")
 
     #### 2025.7.30 Add（vision ai）START
     # テキストベース要約
     summaries_from_text = summarize_and_store_slides(file_id, save_filename, slides)
-    print(f'✅textベース要約結果👉:{summaries_from_text}')
+    print(f'✅ textベース要約結果👉: {summaries_from_text}')
 
     # Vision（画像）ベース要約
     summaries_from_image = summarize_pdf_slides_with_vision(file_id, pdf_path, save_filename)
-    print(f'✅Visionベース要約結果👉:{summaries_from_image}')
+    print(f'✅ Visionベース要約結果👉: {summaries_from_image}')
 
-    # slide_index をキーに統合（画像→テキスト優先など判断可能）
+    # slide_index をキーに統合
     merged_summaries = merge_summaries_by_slide_index(summaries_from_text, summaries_from_image)
-    merged_summaries_list = list(merged_summaries.values()) 
-    print(f'✅統合した要約結果👉:{summaries_from_image}')
+    merged_summaries_list = list(merged_summaries.values())
+    # 👇 ログの誤参照修正（画像ではなく統合結果を表示）
+    print(f'✅ 統合した要約結果👉: {merged_summaries_list}')
     #### 2025.7.30 Add（vision ai）END
 
     return {
@@ -1365,6 +1397,14 @@ async def resume_score(
             status_code=500
         )
 
+MIME_TO_EXT = {
+    "application/pdf": ".pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/msword": ".doc",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.ms-excel": ".xls",
+}
+
 @app.post("/resume-score-no-save")
 async def resume_score_no_save(
     file: UploadFile = File(...),
@@ -1372,45 +1412,48 @@ async def resume_score_no_save(
     uploader_id: str = Form(...)
 ):
     try:
-        # 1. メモリ読み込み
+        # 0) filename の None ガード & 正規化（パストラバーサル対策で basename 抽出）
+        raw_filename = (file.filename or "").strip()
+        safe_name = Path(raw_filename).name if raw_filename else ""
+        ext = Path(safe_name).suffix.lower()
+
+        # content_type から拡張子フォールバック
+        if not ext and file.content_type in MIME_TO_EXT:
+            ext = MIME_TO_EXT[file.content_type]
+
+        if not ext:
+            return JSONResponse(content={"error": "ファイル拡張子を判定できませんでした"}, status_code=400)
+
+        # 1) メモリ読み込み
         content = await file.read()
         file_stream = io.BytesIO(content)
-        filename = file.filename.lower()
 
-        # 2. ファイル形式ごとの抽出
-        if filename.endswith(".pdf"):
+        # 2) ファイル形式ごとの抽出（ext は必ず小文字）
+        if ext == ".pdf":
             extracted_text = extract_resume_text_from_pdf(file_stream)
-        elif filename.endswith(".docx") or filename.endswith(".doc"):
+        elif ext in (".docx", ".doc"):
             extracted_text = extract_resume_text_from_docx(file_stream)
-        elif filename.endswith(".xlsx") or filename.endswith(".xls"):
+        elif ext in (".xlsx", ".xls"):
             extracted_text = extract_resume_text_from_xlsx(file_stream)
         else:
-            return JSONResponse(content={"error": "未対応のファイル形式です"}, status_code=400)
+            return JSONResponse(content={"error": f"未対応のファイル形式です: {ext}"}, status_code=400)
 
-        if not extracted_text.strip():
+        if not (extracted_text or "").strip():
             return JSONResponse(content={"error": "ファイルからテキストを抽出できませんでした"}, status_code=400)
 
-        # 3. マスク処理
+        # 3) マスク処理
         masked_text = mask_personal_info(extracted_text)
 
-        # 4. 🔽 ベクトルDB保存（候補者ID付き）
+        # 4) ベクトルDB保存（候補者ID付き）
         save_masked_resume_embedding_local(candidate_id, masked_text)
 
-        # 5. 🔽 SQL構造生成（候補者ID付きでプロンプトに入れる）
+        # 5) SQL構造生成（候補者ID付き）
         generated_sql = generate_resume_sql(masked_text, candidate_id)
 
-        # 6. 🔽 SQLiteに保存（SQL文を実行）
-        save_sql_to_sqlite(generated_sql) 
+        # 6) SQLiteに保存
+        save_sql_to_sqlite(generated_sql)
 
-        # # 7. スコア処理（既存）
-        # result = score_resume_from_text(masked_text, candidate_id)
-        # result["uploader_id"] = uploader_id
-        # result["timestamp"] = datetime.now().isoformat()
-
-        # # 8. 🔽 追加情報を結果に含めて返す
-        # result["generated_sql"] = generated_sql
-
-        # 🔽 一時的な返却内容（スコアなし＊ベクトルDBとSQLite保存挙動の検証中）
+        # 返却（スコアはスキップ中）
         result = {
             "candidate_id": candidate_id,
             "uploader_id": uploader_id,
@@ -1418,7 +1461,6 @@ async def resume_score_no_save(
             "generated_sql": generated_sql,
             "message": "✅ ベクトルDBとSQLite保存は成功しました（スコアリングはスキップ中）"
         }
-
         return JSONResponse(content=result)
 
     except Exception as e:
@@ -1531,47 +1573,80 @@ def get_config():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from pydantic import ValidationError
+from def_library import (
+    InterviewSetupRequest as DefLibraryRequest,
+    send_interview_emails,
+    save_interview_schedule,
+)
+
 @app.post("/interview/setup")
 def post_setup(req: InterviewSetupRequest):
     try:
-        send_interview_emails(req)
-        result = save_interview_schedule(req)
+        # ▼ main側 → def_library側の型へ変換（同構造ならこれでOK）
+        req_for_lib: DefLibraryRequest = DefLibraryRequest.model_validate(req.model_dump())
+
+        # ▼ def_library側の関数に渡す（Pylanceの型不一致を解消）
+        send_interview_emails(req_for_lib)
+        result = save_interview_schedule(req_for_lib)
 
         return {
             "message": "面談設定・送信成功",
-            **result
+            **result,
         }
+
+    except ValidationError as ve:
+        # スキーマ差異がある場合は内容を返して調整しやすく
+        raise HTTPException(status_code=400, detail=f"リクエスト変換に失敗しました: {ve.errors()}")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"処理エラー: {str(e)}")
+    
 #### 2025.8.7 Add（interview modal）END
 
 #### 2025.8.13 Add（interview sheet）START
+def _safe_load_json(path: Union[str, Path]) -> Dict[str, Any]:
+    data: Any = _load_json(path)
+    if isinstance(data, Mapping):
+        # Mapping でも確実に Dict[str, Any] に正規化
+        try:
+            return {str(k): v for k, v in data.items()}
+        except Exception:
+            # 万一イテラブルでない等のケースでも dict() にフォールバック
+            return dict(data)  # type: ignore[arg-type]
+    return {}
+
 @app.get("/checksheet/config")
 def get_all_interview_settings(request: Request):
     user_id = request.headers.get("x-user-id")
-    tags = []
+    tags: list[dict] = []
 
     if user_id:
-        meta = _load_json(INTERVIEWER_META_PATH)
+        # meta を Mapping にガード
+        meta = _safe_load_json(INTERVIEWER_META_PATH)
         user_meta = meta.get(user_id)
-        if user_meta:
-            dept = user_meta.get("department")
-            role = user_meta.get("role")
-            path = INTERVIEWER_SKILLS_PATH / f"{dept.lower()}.json"
-            if path.exists():
-                role_data = _load_json(path).get(role)
-                if role_data:
-                    # 変更点👇： id + label セットをそのまま返す
-                    tags = role_data.get("expected_focus", [])
+        if isinstance(user_meta, Mapping):
+            # dept/role を None セーフに正規化
+            dept = str(user_meta.get("department") or "").strip().lower()
+            role = str(user_meta.get("role") or "").strip()
+            if dept and role:
+                path = INTERVIEWER_SKILLS_PATH / f"{dept}.json"
+                if path.exists():
+                    role_file = _safe_load_json(path)
+                    role_data = role_file.get(role)
+                    if isinstance(role_data, Mapping):
+                        exp = role_data.get("expected_focus", [])
+                        # list だけ通す（不正値は無視）
+                        if isinstance(exp, list):
+                            tags = exp
 
     return {
         "divisions": load_division_names(SKILLS_PATH),
-        "quantitativeItems": _load_json(TEMPLATE_QUANTITATIVE_PATH),
-        "qualitativeItems": _load_json(TEMPLATE_QUALITATIVE_PATH),
-        "hiringDecisions": _load_json(TEMPLATE_HIRIING_PATH),
-        "titleOptions": _load_json(TEMPLATE_ROLETITLE_PATH),
-        "focusTags": tags  # [{ "id": ..., "label": ... }]
+        "quantitativeItems": _safe_load_json(TEMPLATE_QUANTITATIVE_PATH),
+        "qualitativeItems": _safe_load_json(TEMPLATE_QUALITATIVE_PATH),
+        "hiringDecisions": _safe_load_json(TEMPLATE_HIRIING_PATH),
+        "titleOptions": _safe_load_json(TEMPLATE_ROLETITLE_PATH),
+        "focusTags": tags,  # [{ "id": ..., "label": ... }]
     }
 
 @app.get("/checksheet/one", response_class=ORJSONResponse)
@@ -1590,36 +1665,48 @@ async def api_get_checksheet_one(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"failed to read checksheet: {e}")
 
+def _as_non_empty_str(x: Any) -> Optional[str]:
+    """値を非空strに正規化。空/None/非strは None を返す。"""
+    if isinstance(x, str):
+        s = x.strip()
+        return s if s else None
+    return None
+
 @app.post("/checksheet")
 def api_upsert_checksheet(payload: Dict[str, Any]):
-    iid = payload.get("interviewer_id")
-    cid = payload.get("candidate_id")
-    stage = payload.get("stage")
-    if not all([iid, cid, stage]):
-        raise HTTPException(400, "interviewer_id, candidate_id, stage は必須です")
+    # 必須キーを取得して非空文字列に正規化
+    iid = _as_non_empty_str(payload.get("interviewer_id"))
+    cid = _as_non_empty_str(payload.get("candidate_id"))
+    stage = _as_non_empty_str(payload.get("stage"))
 
+    if not (iid and cid and stage):
+        raise HTTPException(status_code=400, detail="interviewer_id, candidate_id, stage は必須です")
+
+    # 既存ブロックを安全に読み込み
     try:
         existing = get_checksheet_one(iid, cid, stage) or {}
     except Exception:
         existing = {}
 
+    # incoming は dict 前提だが、None の可能性があるのでフォールバック
     incoming = {
-        "prepItems": payload.get("prepItems"),
-        "reviewedResume": payload.get("reviewedResume"),
-        "qualitative": payload.get("qualitative"),
-        "quantitative": payload.get("quantitative"),
+        "prepItems": payload.get("prepItems") or [],
+        "reviewedResume": payload.get("reviewedResume") or False,
+        "qualitative": payload.get("qualitative") or {},
+        "quantitative": payload.get("quantitative") or {},
     }
+
     block = merge_block(existing, incoming)
-    # 🟡 フラグ追加（保存ボタン押下時は未精査・再評価不要）
+
+    # フラグ追加（保存時は未精査・再評価不要）
     block["ai_score_reviewed"] = False
     block["eval_required"] = False
-
     block["updated_at"] = datetime.now().isoformat()
 
     ok = upsert_checksheets_block(
-        interviewer_id=iid,
-        candidate_id=cid,
-        stage=stage,
+        interviewer_id=iid,   # ← str が確定
+        candidate_id=cid,     # ← str が確定
+        stage=stage,          # ← str が確定
         block=block,
     )
     return {"ok": ok}
@@ -1630,13 +1717,39 @@ def api_list_checksheet_by_interviewer(interviewer_id: str):
 #### 2025.8.13 Add（interview sheet）END
 
 #### 2025.8.12 Add（candidate score update after interview）START
+from def_library import PrepItemDict, review_with_interview_checksheet
+
+def _to_prep_item_dict(pi: Any) -> PrepItemDict:
+    """PrepItem(Pydantic)・dict・その他を PrepItemDict へ正規化"""
+    if hasattr(pi, "model_dump"):           # Pydantic v2
+        d = pi.model_dump()
+    elif hasattr(pi, "dict"):               # Pydantic v1
+        d = pi.dict()
+    elif isinstance(pi, dict):              # すでにdict
+        d = pi
+    else:
+        d = {}
+
+    return {
+        "question": str(d.get("question", "") or ""),
+        "answer":  str(d.get("answer", "") or ""),
+        "tags":    d.get("tags", []) or [],
+    }
+
 @app.post("/interview/review-score")
 async def interview_review_score(payload: InterviewPrepByInterviewerRequest):
+    # PrepItem -> PrepItemDict に実体変換（Noneセーフ）
+    prep_items_normalized: List[PrepItemDict] = [
+        _to_prep_item_dict(pi) for pi in (payload.prepItems or [])
+    ]
+    # （任意）Pylanceに型を明示
+    prep_items_for_review = cast(List[PrepItemDict], prep_items_normalized)
+
     updated = review_with_interview_checksheet(
         candidate_id=payload.candidate_id,
         reviewer_id=payload.interviewer_id,
         stage=payload.stage,
-        prep_items=payload.prepItems,
+        prep_items=prep_items_for_review,  # ← 型が完全一致
         reviewed_resume=getattr(payload, "reviewedResume", False),
         qualitative=getattr(payload, "qualitative", None),
         quantitative=getattr(payload, "quantitative", None),
@@ -1778,30 +1891,30 @@ async def update_hr_review(data: HRReviewUpdate, request: Request):
     user_id = request.headers.get("x-user-id", "unknown")
     now = datetime.utcnow().isoformat()
 
-    # ✅ 保存ファイル名を _result.json に明示的に変更
     file_path = RESULT_PATH / f"{data.candidate_id}_result.json"
 
-    # ファイルの読み込み（存在すれば）
+    # 既存読み込み（型を明示）
     if file_path.exists():
         with open(file_path, "r", encoding="utf-8") as f:
-            existing = json.load(f)
+            existing: Dict[str, Any] = json.load(f)
+            if not isinstance(existing, dict):
+                existing = {}
     else:
-        existing = {
+        existing: Dict[str, Any] = {
             "user_id": data.candidate_id,
-            "timestamp": now
+            "timestamp": now,
         }
 
-    # HR評価の情報を更新（追記）
+    # HR評価を更新
     existing["hr_review"] = {
         "decision": data.decision,
         "division": data.division,
         "title": data.title,
         "annual_income": data.annual_income,
         "updated_by": user_id,
-        "updated_at": now
+        "updated_at": now,
     }
 
-    # 保存
     os.makedirs(RESULT_PATH, exist_ok=True)
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(existing, f, ensure_ascii=False, indent=2)
@@ -1832,19 +1945,35 @@ async def get_resume_by_candidate(candidate_id: str):
 #### 2025.8.12 Add（HR review）END
 
 #### 2025.8.25 Add（Worker DB）START
+from sqlalchemy.orm import Session
+
 @app.get("/api/workers", response_model=List[WorkerOut])
 def get_workers():
-    db = SessionLocal()
+    db: Session = SessionLocal()
     try:
         workers = db.query(Worker).all()
-        result = []
+        result: List[WorkerOut] = []
 
         for w in workers:
-            worker_dict = {
-                **w.__dict__,
-                "tags": json.loads(w.tags or "[]")  # ここでtagsをパッチ
+            # tags を Column[str] -> Optional[str] に“実体型”として明示
+            raw_tags: Optional[str] = cast(Optional[str], getattr(w, "tags", None))
+
+            # JSONとして安全にパース（失敗/非listは [] にフォールバック）
+            try:
+                tags_parsed = json.loads(raw_tags) if raw_tags else []
+                if not isinstance(tags_parsed, list):
+                    tags_parsed = []
+            except Exception:
+                tags_parsed = []
+
+            # SQLAlchemyの内部属性を除去
+            base_dict: Dict[str, Any] = {
+                k: v for k, v in w.__dict__.items() if k != "_sa_instance_state"
             }
-            result.append(WorkerOut.model_validate(worker_dict))
+            base_dict["tags"] = tags_parsed
+
+            result.append(WorkerOut.model_validate(base_dict))
+
         return result
     finally:
         db.close()
@@ -1965,12 +2094,12 @@ def get_all_training_recommendations(
     db = SessionLocal()
     try:
         workers = db.query(Worker).all()
-        reports = db.query(Report).all()
-
         result = {}
+
         for w in workers:
-            my_reports = [r for r in reports if r.target_id == w.id]
-            recs = recommend_trainings_with_gap(db, w, my_reports, gap_threshold, rel_threshold)
+            # Use SQLAlchemy's filter method to filter reports
+            my_reports = db.query(Report).filter(Report.target_id == w.id).all()
+            recs = recommend_trainings_with_gap(db, w, my_reports, gap_threshold, rel_threshold) # type: ignore
             if recs:
                 result[w.id] = recs
 

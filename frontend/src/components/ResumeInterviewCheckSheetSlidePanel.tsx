@@ -3,7 +3,7 @@ import { ResumeRatingBar } from './ResumeRatingBar';
 import { ResumeRubricHint } from './ResumeRubricHint';
 import ResumeAccordion from './ResumeAccordion';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { ConfigResponse, HiringDecision, TitleOption, Division, QualitativeItem, QuantitativeItem } from "./ResumeInterviewCheckSheet";
+import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "./ResumeInterviewCheckSheet";
 
 type FocusTag = {
     id: string;
@@ -75,7 +75,6 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
     onSubmit,
     initialData,
     onAiReviewed,
-    loadingInitial = false,
 }) => {
     const [prepItems, setPrepItems] = useState<PrepItem[]>([]);
     const [newQuestion, setNewQuestion] = useState('');

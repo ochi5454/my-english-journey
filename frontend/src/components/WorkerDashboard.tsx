@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import "./WorkerDashboard.css";
 
@@ -20,23 +20,6 @@ type Report = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type Training = {
-  id: number;
-  title: string;
-  description: string;
-  is_internal: boolean;
-  url: string;
-  rel_self_motivation_fit: number;
-  rel_workstyle_relationships: number;
-  rel_communication: number;
-  rel_leadership: number;
-  rel_logical_thinking: number;
-  rel_execution: number;
-  rel_expertise: number;
-  rel_biz_org_dev: number;
-  recommended_workers?: string[]; // 仮: ワーカー名一覧
-};
-
 type TrainingRecommendation = {
   training_id: number;
   training_title: string;
