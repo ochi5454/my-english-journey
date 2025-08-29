@@ -5,8 +5,6 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import ResumeScoring from './components/ResumeScoring'
 import ResumeInterviewerOverview from './components/ResumeInterviewerOverview'
 import ResumeHRReviewDashboard from './components/ResumeHRReviewDashboard'
-import WorkerDashboard from './components/WorkerDashboard'
-import WorkerDetail from './components/WorkerDetail'
 
 import './App.css'
 
@@ -22,14 +20,13 @@ const App: React.FC = () => {
       <div className="app">
         <nav className="navbar">
           <div className="navbar-left">
-            <div className="nav-brand"><h1>RAG Testing Chat</h1></div>
+            <div className="nav-brand"><h1>RAG Test</h1></div>
           </div>
 
           <div className="navbar-center">
             <div className="nav-links">
               <Link to="/resume-scoring">候補者判定</Link>
               <Link to="/ResumeInterviewerOverview">面接官判定</Link>
-              <Link to="/worker-dashboard">モニタリング</Link>
             </div>
           </div>
 
@@ -53,8 +50,6 @@ const App: React.FC = () => {
             <Route path="/resume-scoring" element={<ResumeScoring userId={userId} />} />
             <Route path="/ResumeInterviewerOverview" element={<ResumeInterviewerOverview />} />
             <Route path="/hr-review-dashboard" element={<ResumeHRReviewDashboard interviewerId={userId} />} />
-            <Route path="/worker-dashboard" element={<WorkerDashboard />} />
-            <Route path="/person/:name" element={<WorkerDetail />} />
             <Route path="*" element={<div>ページが見つかりません</div>} />
           </Routes>
         </main>

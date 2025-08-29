@@ -8,16 +8,12 @@ from fastapi import FastAPI, Request, HTTPException, APIRouter, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse, Response, ORJSONResponse
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from langchain_community.embeddings import OpenAIEmbeddings
 from dotenv import load_dotenv
 from typing import Optional, List, Dict, Any, Mapping, cast
-from sqlalchemy import create_engine, Column, Integer, String, Text, Float
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 from pathlib import Path
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
 from openai_config import create_custom_openapi
 from def_library import (
     mask_personal_info, 
@@ -78,8 +74,7 @@ from config import (
     TEMPLATE_ROLETITLE_PATH, 
     INTERVIEWER_META_PATH, 
     INTERVIEWER_SKILLS_PATH, 
-    INTERVIEWER_CHECKSHEET_PATH, 
-    WORKER_DATABASE_URL
+    INTERVIEWER_CHECKSHEET_PATH
 )
 from contextlib import asynccontextmanager
 
@@ -101,15 +96,7 @@ client = OpenAI(api_key=api_key)
 embedding = OpenAIEmbeddings(api_key=api_key)
 
 # ============================================
-# ✅ 3. SQLite DB セッション設定
-# ============================================
-
-engine = create_engine(WORKER_DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-# ============================================
-# ✅ 4. MIMEタイプと拡張子のマッピング
+# ✅ 3. MIMEタイプと拡張子のマッピング
 # ============================================
 
 MIME_TO_EXT = {
@@ -121,7 +108,7 @@ MIME_TO_EXT = {
 }
 
 # ============================================
-# ✅ 5. FastAPI アプリとルーター初期化
+# ✅ 4. FastAPI アプリとルーター初期化
 # ============================================
 
 @asynccontextmanager
@@ -134,7 +121,7 @@ router = APIRouter()
 app.openapi = lambda: create_custom_openapi(app)
 
 # ============================================
-# ✅ 6. CORS ミドルウェア設定
+# ✅ 5. CORS ミドルウェア設定
 # ============================================
 
 app.add_middleware(
@@ -204,146 +191,6 @@ class HRReviewUpdate(BaseModel):
     division: str
     title: str
     annual_income: Optional[int] = None
-
-# ============================================
-# 📊 3. モニタリング関連（DB）: Worker / Report / Training
-# ============================================
-
-class Worker(Base):
-    __tablename__ = "workers"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    avatar = Column(String)
-    role = Column(String)
-    team = Column(String)
-    tags = Column(Text)  # JSON形式で保存
-    level = Column(Integer)
-
-    # 8観点スコア
-    score_self_motivation_fit = Column(Integer)
-    score_workstyle_relationships = Column(Integer)
-    score_communication = Column(Integer)
-    score_leadership = Column(Integer)
-    score_logical_thinking = Column(Integer)
-    score_execution = Column(Integer)
-    score_expertise = Column(Integer)
-    score_biz_org_dev = Column(Integer)
-
-class Report(Base):
-    __tablename__ = "reports"
-    id = Column(Integer, primary_key=True, index=True)
-    type = Column(String)
-    reporter = Column(String)
-    target = Column(String)
-    summary = Column(String)
-    status = Column(String)
-    timestamp = Column(String)
-    reporter_id = Column(Integer)
-    target_id = Column(Integer)
-
-    # 8観点スコア（他者評価）
-    score_self_motivation_fit = Column(Integer)
-    score_workstyle_relationships = Column(Integer)
-    score_communication = Column(Integer)
-    score_leadership = Column(Integer)
-    score_logical_thinking = Column(Integer)
-    score_execution = Column(Integer)
-    score_expertise = Column(Integer)
-    score_biz_org_dev = Column(Integer)
-
-class Training(Base):
-    __tablename__ = "trainings"
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-
-    # 特化観点（0〜1スケールの関連度）
-    rel_self_motivation_fit = Column(Float)
-    rel_workstyle_relationships = Column(Float)
-    rel_communication = Column(Float)
-    rel_leadership = Column(Float)
-    rel_logical_thinking = Column(Float)
-    rel_execution = Column(Float)
-    rel_expertise = Column(Float)
-    rel_biz_org_dev = Column(Float)
-    is_harassment = Column(Integer, default=0)
-
-# テーブルを作成（Worker, Report, Training含む）
-Base.metadata.create_all(bind=engine)
-
-# ============================================
-# 📊 4. モニタリングAPI用レスポンスモデル
-# ============================================
-
-class WorkerOut(BaseModel):
-    id: int
-    name: str
-    avatar: str
-    role: str
-    team: str
-    tags: List[str]
-    level: int
-
-    # スコア追加
-    score_self_motivation_fit: Optional[int] = None
-    score_workstyle_relationships: Optional[int] = None
-    score_communication: Optional[int] = None
-    score_leadership: Optional[int] = None
-    score_logical_thinking: Optional[int] = None
-    score_execution: Optional[int] = None
-    score_expertise: Optional[int] = None
-    score_biz_org_dev: Optional[int] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-class ReportOut(BaseModel):
-    type: str
-    reporter: str
-    target: str
-    summary: str
-    status: str
-    timestamp: str
-    reporter_id: Optional[int] = None
-    target_id: Optional[int] = None
-
-    # スコア追加（他者評価）
-    score_self_motivation_fit: Optional[int] = None
-    score_workstyle_relationships: Optional[int] = None
-    score_communication: Optional[int] = None
-    score_leadership: Optional[int] = None
-    score_logical_thinking: Optional[int] = None
-    score_execution: Optional[int] = None
-    score_expertise: Optional[int] = None
-    score_biz_org_dev: Optional[int] = None
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True,
-        alias_generator=None
-    )
-
-class TrainingOut(BaseModel):
-    id: int
-    title: str
-    description: Optional[str] = None
-
-    rel_self_motivation_fit: Optional[float] = None
-    rel_workstyle_relationships: Optional[float] = None
-    rel_communication: Optional[float] = None
-    rel_leadership: Optional[float] = None
-    rel_logical_thinking: Optional[float] = None
-    rel_execution: Optional[float] = None
-    rel_expertise: Optional[float] = None
-    rel_biz_org_dev: Optional[float] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-class TrainingRecommendOut(BaseModel):
-    training_id: int
-    training_title: str
-    recommended_users: List[Dict[str, Any]]
-
-    model_config = ConfigDict(from_attributes=True)
 
 #  ============================================
 #  📮 1. 候補者判定機能エンドポイント群
@@ -855,166 +702,3 @@ async def get_resume_by_candidate(candidate_id: str):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=target_file.name
     )
-
-#  ============================================
-#  📮 3.  モニタリング機能エンドポイント群
-#  ============================================
-
-@app.get("/api/workers", response_model=List[WorkerOut])
-def get_workers():
-    db: Session = SessionLocal()
-    try:
-        workers = db.query(Worker).all()
-        result: List[WorkerOut] = []
-
-        for w in workers:
-            # tags を Column[str] -> Optional[str] に“実体型”として明示
-            raw_tags: Optional[str] = cast(Optional[str], getattr(w, "tags", None))
-
-            # JSONとして安全にパース（失敗/非listは [] にフォールバック）
-            try:
-                tags_parsed = json.loads(raw_tags) if raw_tags else []
-                if not isinstance(tags_parsed, list):
-                    tags_parsed = []
-            except Exception:
-                tags_parsed = []
-
-            # SQLAlchemyの内部属性を除去
-            base_dict: Dict[str, Any] = {
-                k: v for k, v in w.__dict__.items() if k != "_sa_instance_state"
-            }
-            base_dict["tags"] = tags_parsed
-
-            result.append(WorkerOut.model_validate(base_dict))
-
-        return result
-    finally:
-        db.close()
-
-@app.get("/api/reports", response_model=List[ReportOut])
-def get_reports():
-    db = SessionLocal()
-    try:
-        reports = db.query(Report).all()
-        return [ReportOut.from_orm(r) for r in reports]
-    finally:
-        db.close()
-
-@app.get("/api/trainings", response_model=List[TrainingOut])
-def get_trainings():
-    db = SessionLocal()
-    try:
-        trainings = db.query(Training).all()
-        return [TrainingOut.from_orm(t) for t in trainings]
-    finally:
-        db.close()
-
-def recommend_trainings_with_gap(
-    db: Training,
-    worker: Worker,
-    reports: List[Report],
-    gap_threshold: float = 0.7,
-    rel_threshold: float = 0.6
-) -> List[TrainingRecommendOut]:
-    recommendations = []
-
-    # ① ハラスメント通報があるか確認
-    has_harassment_report = any(r.type == "ハラスメント通報" for r in reports)
-
-    # ② 通常のスキル観点ギャップ抽出
-    skill_keys = [
-        "score_self_motivation_fit",
-        "score_workstyle_relationships",
-        "score_communication",
-        "score_leadership",
-        "score_logical_thinking",
-        "score_execution",
-        "score_expertise",
-        "score_biz_org_dev",
-    ]
-    skill_to_rel = {
-        "score_self_motivation_fit": "rel_self_motivation_fit",
-        "score_workstyle_relationships": "rel_workstyle_relationships",
-        "score_communication": "rel_communication",
-        "score_leadership": "rel_leadership",
-        "score_logical_thinking": "rel_logical_thinking",
-        "score_execution": "rel_execution",
-        "score_expertise": "rel_expertise",
-        "score_biz_org_dev": "rel_biz_org_dev",
-    }
-
-    gaps = {}
-    for key in skill_keys:
-        self_val = getattr(worker, key)
-        if self_val is None:
-            continue
-        others = [getattr(r, key) for r in reports if getattr(r, key) is not None]
-        if not others:
-            continue
-        avg_others = sum(others) / len(others)
-        gap = self_val - avg_others
-        if abs(gap) >= gap_threshold:
-            gaps[key] = gap
-
-    # ③ トレーニング全件取得（is_harassmentを使い分け）
-    all_trainings = db.query(Training).all()
-    for training in all_trainings:
-        if training.is_harassment:
-            # ハラスメント研修：通報を受けた人だけが対象
-            if has_harassment_report:
-                recommendations.append(TrainingRecommendOut(
-                    training_id=training.id,
-                    training_title=training.title,
-                    recommended_users=[{
-                        "name": worker.name,
-                        "reason": "ハラスメント通報を受けているため"
-                    }]
-                ))
-            continue  # 以降の観点チェックはスキップ
-
-        # 通常研修（ギャップ判定）
-        for score_key, gap in gaps.items():
-            rel_key = skill_to_rel[score_key]
-            rel_raw = getattr(training, rel_key, 0)
-            try:
-                rel_value = float(rel_raw)
-            except (TypeError, ValueError):
-                rel_value = 0.0
-
-            if rel_value >= rel_threshold:
-                reason = (
-                    f"{score_key} にギャップあり（自己: {getattr(worker, score_key)}, "
-                    f"他者平均: {(getattr(worker, score_key) - gap):.2f}）"
-                )
-                recommendations.append(TrainingRecommendOut(
-                    training_id=training.id,
-                    training_title=training.title,
-                    recommended_users=[{
-                        "name": worker.name,
-                        "reason": reason
-                    }]
-                ))
-                break
-
-    return recommendations
-
-@app.get("/api/trainingsRecommend", response_model=Dict[int, List[TrainingRecommendOut]])
-def get_all_training_recommendations(
-    gap_threshold: float = Query(0.7, alias="gap"),
-    rel_threshold: float = Query(0.6, alias="rel")
-):
-    db = SessionLocal()
-    try:
-        workers = db.query(Worker).all()
-        result = {}
-
-        for w in workers:
-            # Use SQLAlchemy's filter method to filter reports
-            my_reports = db.query(Report).filter(Report.target_id == w.id).all()
-            recs = recommend_trainings_with_gap(db, w, my_reports, gap_threshold, rel_threshold) # type: ignore
-            if recs:
-                result[w.id] = recs
-
-        return result
-    finally:
-        db.close()

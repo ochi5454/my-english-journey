@@ -50,11 +50,6 @@ INTERVIEWER_META_PATH = INTERVIEWER_PATH / "interviewer_roletitle.json"
 INTERVIEWER_SKILLS_PATH = DATA_DIR / "resume_interviewer_mustskills_files"
 INTERVIEWER_COMMONSKILLS_PATH = INTERVIEWER_SKILLS_PATH / "common.json"
 
-# ワーカーデータベースの設定
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # backend/ の絶対パス
-WORKER_DATABASE_PATH = os.path.abspath(os.path.join(BASE_DIR, "../data/workers.db"))
-WORKER_DATABASE_URL = f"sqlite:///{WORKER_DATABASE_PATH}"
-
 BASE_DIR = Path(__file__).parent  # backendフォルダー
 SAVE_DIR = BASE_DIR / "savecontext"
 SAVE_DIR.mkdir(exist_ok=True)
