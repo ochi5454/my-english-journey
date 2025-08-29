@@ -42,7 +42,7 @@
         "otherApps": "競合数社に応募中だが、当社のバリューや裁量環境に強く魅力を感じている様子。",
         "overall": "複数の事業フェーズで成果を上げた実績があり、視座・視野ともに十分。リーダーシップと判断力に将来性を感じる。",
         "assignmentPlan": "初期は既存案件のPM補佐として入りつつ、早期にコンサル領域全般を担当可能と考える。戦略案件にも対応可能。",
-        "hiringDecision": "strong_hire",
+        "hiringDecision": "hire_ok",
         "recommendedDivision": "Engineering",
         "recommendedTitle": "SC"
       },
@@ -80,8 +80,8 @@
           "comment": "組織開発や人事制度への関与は限定的。今後の経験で補強が必要。"
         }
       },
-      "updated_at": "2025-08-18T14:21:16.400248",
-      "ai_score_reviewed": true,
+      "updated_at": "2025-08-29T09:50:22.208284",
+      "ai_score_reviewed": false,
       "eval_required": false,
       "interviewer_id": "user123"
     }

@@ -1,0 +1,88 @@
+{
+  "interviewer_id": "user456",
+  "candidate_id": "cand_y0uymf18",
+  "stages": {
+    "面談・1次": {
+      "prepItems": [
+        {
+          "question": "マーケティング施策の中で、特に成果を出したプロジェクトを教えてください。",
+          "answer": "大手化粧品ブランドのSNSプロモーションで、インフルエンサー活用とLINE広告を組み合わせた施策を主導。CTRが前月比250%に改善し、売上への貢献が見られた。",
+          "tags": [
+            "SM_03",
+            "SM_16",
+            "SM_20"
+          ]
+        },
+        {
+          "question": "リーダーシップが求められる局面で、どのようにチームをまとめましたか？",
+          "answer": "新製品のローンチプロジェクトにて、営業・開発・PRチームとの調整役を担い、週次進捗管理とボトルネック潰し込みで予定通りローンチを達成。",
+          "tags": [
+            "SM_27",
+            "SM_19",
+            "SM_24",
+            "SM_30"
+          ]
+        },
+        {
+          "question": "トラブルや計画変更に直面した経験と、その対応を教えてください。",
+          "answer": "広告出稿先メディアの急な方針転換によりプラン変更が必要になった際、代替メディアを即日比較・提案し、予算内かつ予定通りに配信を完了させた。",
+          "tags": [
+            "SM_22",
+            "SM_28",
+            "SM_17",
+            "SM_11",
+            "SM_10"
+          ]
+        }
+      ],
+      "reviewedResume": true,
+      "qualitative": {
+        "careerGoals": "将来的にはCMOとしてブランド全体の戦略立案を担いたい。特にD2CやSNSマーケの領域で力を発揮したい。",
+        "otherApps": "現在は広告代理店A社とD2CスタートアップB社の2社で選考中（いずれもマーケポジション）",
+        "overall": "マーケ領域における実績が豊富で、即戦力として戦略立案〜実行まで対応可能。安定感と改善意識が両立しており、マネジメントへの伸びしろも感じられる。",
+        "assignmentPlan": "新規ブランド立ち上げプロジェクト（9月開始予定）において、プロモーション戦略を主導できる中核メンバーとしてアサイン想定。",
+        "hiringDecision": "hire_ok",
+        "recommendedDivision": "Marketing",
+        "recommendedTitle": "SC"
+      },
+      "quantitative": {
+        "self_management": {
+          "level": 5,
+          "comment": "タスクの優先順位整理、逆算型のスケジューリングができていた"
+        },
+        "workstyle_relation": {
+          "level": 3,
+          "comment": "対人折衝や調整力は標準的。やや受け身な場面もあった"
+        },
+        "communication": {
+          "level": 4,
+          "comment": "論理的かつ丁寧な説明ができており、説得力も高かった"
+        },
+        "leadership": {
+          "level": 4,
+          "comment": "複数部門を巻き込む経験があり、リーダーシップの素地がある"
+        },
+        "logical_thinking": {
+          "level": 3,
+          "comment": "基本的なフレームワーク思考はできているが、やや直感ベースの説明も混ざる"
+        },
+        "execution_pm": {
+          "level": 3,
+          "comment": "自部門でのプロジェクト進行経験はあるが、全社規模の経験はこれから"
+        },
+        "expertise": {
+          "level": 3,
+          "comment": "デジタル広告領域では専門性があるが、オフライン施策には触れていない"
+        },
+        "biz_org_dev": {
+          "level": 3,
+          "comment": "組織的な改善提案もあるが、制度設計や育成には未経験"
+        }
+      },
+      "ai_score_reviewed": true,
+      "eval_required": false,
+      "updated_at": "2025-08-29T12:18:43.620066",
+      "interviewer_id": "user456"
+    }
+  }
+}

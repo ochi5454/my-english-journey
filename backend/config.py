@@ -18,14 +18,7 @@ OPENAI_API_KEY = SecretStr(api_key_str)
 # プロジェクトのルートディレクトリを取得
 PROJECT_ROOT = Path(__file__).parent.parent  # MemoryPersistenceMaruyamaフォルダー（backendの親）
 DATA_DIR = PROJECT_ROOT / "data"
-# 商品推薦
-FEEDBACK_DIR = DATA_DIR / "feedback"
-# PPTX検索
-FILESUMMARY_PATH = DATA_DIR /  "file_summary.db"
-PPTXUPLOAD_DIR = DATA_DIR / "pptx_files"  
-PDFUPLOAD_DIR = DATA_DIR / "pdf_files" 
-IMGUPLOAD_DIR = DATA_DIR / "image_files" 
-PPTX_INDEX_PATH = DATA_DIR / "pptx_index.json" 
+
 # 候補者判定
 ## 履歴書
 RESUME_PATH = DATA_DIR / "resume_candidate_resume_files" 
@@ -61,7 +54,6 @@ INTERVIEWER_COMMONSKILLS_PATH = INTERVIEWER_SKILLS_PATH / "common.json"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # backend/ の絶対パス
 WORKER_DATABASE_PATH = os.path.abspath(os.path.join(BASE_DIR, "../data/workers.db"))
 WORKER_DATABASE_URL = f"sqlite:///{WORKER_DATABASE_PATH}"
-
 
 BASE_DIR = Path(__file__).parent  # backendフォルダー
 SAVE_DIR = BASE_DIR / "savecontext"

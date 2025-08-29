@@ -143,7 +143,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
 
 
         if (Array.isArray(scoreChanges) && scoreChanges.length > 0) {
-            const updateRes = await fetch('/update-score', {
+            const updateRes = await fetch(`${appConfig.API_BASE_URL}/update-score`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -545,7 +545,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                 setShowInterviewPrepModal(false);
             }
             }}
-            // 2025.8.12 Add（candidate score update after interview）START
+
             onAiReviewed={(updated: any) => {
             const stage = interviewStage!;
 
@@ -563,7 +563,6 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                 [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
             });
             }}
-            // 2025.8.12 Add（candidate score update after interview）END
         />
         )}
 

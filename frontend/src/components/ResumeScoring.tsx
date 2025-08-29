@@ -13,7 +13,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [candidateId, setCandidateId] = useState<string>('');
-    const [viewMode, setViewMode] = useState<ViewMode>('form'); // 2025.8.12 Add（interviewer score after interview）
+    const [viewMode, setViewMode] = useState<ViewMode>('form');
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -32,7 +32,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('candidate_id', candidateId);
-        formData.append('uploader_id', userId); // 2025.8.5 Add（uploader id）
+        formData.append('uploader_id', userId);
 
         try {
         const response = await fetch(`${appConfig.API_BASE_URL}/resume-score`, {

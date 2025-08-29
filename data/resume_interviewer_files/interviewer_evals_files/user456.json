@@ -1,6 +1,107 @@
 {
   "rows": [
     {
+      "candidate_id": "cand_y0uymf18",
+      "interviewer_id": "user456",
+      "stage": "面談・1次",
+      "total": 8,
+      "breakdown": {
+        "prep": 7,
+        "coverage": 9,
+        "depth": 8,
+        "evidence": 8,
+        "professionalism": 8
+      },
+      "reasons": [],
+      "suggestions": [],
+      "rubric": [
+        {
+          "key": "prep",
+          "label": "事前準備",
+          "score": 7,
+          "note": "面談者は履歴書と直前スコア、会社理解に基づいて下調べを行っていた。",
+          "weight": 0.25,
+          "guidance": "履歴書と直前スコア、会社理解に基づく下調べ。"
+        },
+        {
+          "key": "coverage",
+          "label": "論点網羅",
+          "score": 9,
+          "note": "質問設計が要件・懸念を網羅しており、適切な質問が用意されていた。",
+          "weight": 0.2,
+          "guidance": "要件・懸念を網羅する質問設計。"
+        },
+        {
+          "key": "depth",
+          "label": "深掘り",
+          "score": 8,
+          "note": "具体例から成果まで深掘りしており、十分な情報を引き出していた。",
+          "weight": 0.2,
+          "guidance": "具体例→成果→再現性まで深掘り。"
+        },
+        {
+          "key": "evidence",
+          "label": "エビデンス活用",
+          "score": 8,
+          "note": "整合性チェックや定量化を適切に活用していた。",
+          "weight": 0.2,
+          "guidance": "整合性チェックと定量化。"
+        },
+        {
+          "key": "professionalism",
+          "label": "プロ意識",
+          "score": 8,
+          "note": "公平性を保ち、時間管理や態度にも配慮していた。",
+          "weight": 0.15,
+          "guidance": "公平性・時間管理・態度・バイアス抑制。"
+        }
+      ],
+      "evaluated_at": "2025-08-29T12:19:45.026547",
+      "source_sig": "d50f48c11179ffa2ec2bc78a25c373cff2259eac",
+      "role_expectation": {
+        "matched": [
+          "ナレッジ運用整備",
+          "組織技術資産化",
+          "事業視点の技術選定",
+          "DevOps方針策定",
+          "技術課題可視化",
+          "品質指標設計",
+          "再現性ある品質改善",
+          "マネジメントライン構築",
+          "評価制度への反映",
+          "開発方針策定",
+          "エンジニアブランディング",
+          "CTO補佐視点"
+        ],
+        "matched_semantic": [],
+        "missing": [
+          "技術戦略策定",
+          "メンタリング体制",
+          "属人性排除施策",
+          "開発文化形成",
+          "採用戦略",
+          "経営と技術の橋渡し",
+          "他部署連携強化",
+          "中期技術計画",
+          "標準技術導入",
+          "システム全体像把握",
+          "組織設計",
+          "大規模リファクタリング",
+          "障害傾向分析",
+          "技術的意思決定",
+          "生産性向上施策",
+          "リスクシナリオ整理",
+          "育成仕組み構築",
+          "部門横断連携"
+        ],
+        "violated": [],
+        "comment": "タグ評価: 期待観点 30 件中 12 件マッチ",
+        "score": 4.0
+      },
+      "skipped": false,
+      "note": ""
+    },
+    {
       "candidate_id": "cand_jrqkhjnn",
       "interviewer_id": "user456",
       "stage": "面談・2次",
@@ -212,5 +313,5 @@
   ],
   "version": "1",
   "interviewer_id": "user456",
-  "generated_at": "2025-08-21T18:11:03.144459"
+  "generated_at": "2025-08-29T12:19:45.027880"
 }

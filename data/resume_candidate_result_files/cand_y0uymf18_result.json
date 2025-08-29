@@ -1,0 +1,107 @@
+{
+  "user_id": "cand_y0uymf18",
+  "timestamp": "2025-08-29T11:37:18.639212",
+  "must_check": {
+    "大卒": {
+      "result": true,
+      "reason": "2010年4月〜2014年3月に東京大学教養学部教養学科を卒業していると記載されているため"
+    },
+    "3年以上の職務経験": {
+      "result": true,
+      "reason": "2014年4月から現在までの職務経験が記載されており、これは3年以上になるため"
+    },
+    "日本語ビジネスレベル": {
+      "result": true,
+      "reason": "履歴書が日本語で書かれており、ビジネス経験も日本の企業であるため"
+    }
+  },
+  "scores": [
+    {
+      "division": "Engineering",
+      "score": 1,
+      "reason": "技術的なスキルや経験が見られないため"
+    },
+    {
+      "division": "Marketing",
+      "score": 10,
+      "reason": "マーケティング施策の成果やリーダーシップ力、経験などが高く評価されたため",
+      "score_history": [
+        {
+          "score": 9,
+          "reason": "マーケティング戦略の立案と実行に5年以上従事し、デジタル広告やSNS運用の経験もあるため",
+          "reviewer": "user456",
+          "reviewed_at": "2025-08-29T12:10:44.508775"
+        }
+      ]
+    },
+    {
+      "division": "Consultant",
+      "score": 6,
+      "reason": "ロジカルシンキングやプレゼンテーション能力が推測されるため",
+      "score_history": [
+        {
+          "score": 4,
+          "reason": "ロジカルシンキングやプレゼンテーション能力は推測できるが、具体的な経験が見られないため",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-29T11:56:06.910235"
+        }
+      ]
+    },
+    {
+      "division": "HR",
+      "score": 2,
+      "reason": "人事関連の経験やスキルが見られないため"
+    },
+    {
+      "division": "Sales",
+      "score": 6,
+      "reason": "マーケティング経験から営業スキルがあると推測されるため",
+      "score_history": [
+        {
+          "score": 4,
+          "reason": "具体的な経験が見られないため",
+          "reviewer": "user123",
+          "reviewed_at": "2025-08-29T11:56:06.910235"
+        }
+      ]
+    }
+  ],
+  "recommended_division": "Marketing",
+  "uploader_id": "user123",
+  "score_history": {
+    "Consultant": [
+      {
+        "score": 6,
+        "reason": "ロジカルシンキングやプレゼンテーション能力が推測されるため",
+        "updated_by": "user123",
+        "updated_at": "2025-08-29T11:56:06.910235",
+        "source": "chat_review"
+      }
+    ],
+    "Sales": [
+      {
+        "score": 6,
+        "reason": "マーケティング経験から営業スキルがあると推測されるため",
+        "updated_by": "user123",
+        "updated_at": "2025-08-29T11:56:06.910235",
+        "source": "chat_review"
+      }
+    ],
+    "Marketing": [
+      {
+        "score": 10,
+        "reason": "マーケティング施策の成果やリーダーシップ力、経験などが高く評価されたため",
+        "updated_by": "user456",
+        "updated_at": "2025-08-29T12:18:43.618536",
+        "source": "interview_review"
+      }
+    ]
+  },
+  "chat_review_書類選考・2次_at": "2025-08-29T11:56:06.909454",
+  "chat_reviewer_書類選考・2次": "user123",
+  "updated_by": "user456",
+  "updated_at": "2025-08-29T12:18:43.619399",
+  "面談・1次_reviewed_resume": true,
+  "chat_review_面談・1次_at": "2025-08-29T12:18:43.619399",
+  "chat_reviewer_面談・1次": "user456"
+}

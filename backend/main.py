@@ -1,7 +1,5 @@
 import os
-import re
 import json
-import traceback
 from openai import OpenAI
 import shutil
 import io
@@ -13,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
 from langchain_community.embeddings import OpenAIEmbeddings
 from dotenv import load_dotenv
-from typing import Optional, List, Dict, Any, Mapping, Union, cast
+from typing import Optional, List, Dict, Any, Mapping, cast
 from sqlalchemy import create_engine, Column, Integer, String, Text, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -22,7 +20,6 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from openai_config import create_custom_openapi
 from def_library import (
-    get_next_interquest_id, 
     mask_personal_info, 
     score_resume, 
     call_openai_chat, 
@@ -63,6 +60,10 @@ from def_library import (
     send_interview_emails,
     save_interview_schedule,
     review_with_interview_checksheet,
+    _safe_load_json,
+    _safe_load_json_list,
+    _as_non_empty_str,
+    _to_prep_item_dict,
     InterviewSetupRequest as DefLibraryRequest,
     PrepItemDict
 )
@@ -345,83 +346,10 @@ class TrainingRecommendOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 #  ============================================
-#  📮 1. ミドルウェアエンドポイント：ユーザーIDの割り当て
+#  📮 1. 候補者判定機能エンドポイント群
 #  ============================================
 
-@app.middleware("http")
-async def assign_user_id(request: Request, call_next):
-    try:
-        user_id = None
-
-        if request.method == "GET":
-            path = request.url.path
-            match = re.search(r"/history/([a-zA-Z0-9_]+)", path)
-            if match:
-                user_id = match.group(1)
-            else:
-                user_id = request.headers.get("X-User-ID")
-            print(f"Check1: {user_id}")
-
-        else:
-            user_id = request.headers.get("X-User-ID")
-            print(f"Check2: {user_id}")
-
-            if not user_id or user_id.strip() == "":
-                body_bytes = await request.body()
-
-                # ★重要：body をキャッシュ
-                async def receive():
-                    return {"type": "http.request", "body": body_bytes}
-
-                request._receive = receive
-
-                if body_bytes:
-                    try:
-                        body = json.loads(body_bytes.decode("utf-8"))
-                        user_id = body.get("user_id") or body.get("session_id")
-                        print(f"Check3: {user_id}")
-                    except Exception as e:
-                        print(f"Error parsing body: {str(e)}")
-                        user_id = None
-                else:
-                    print("Body is empty")
-                    user_id = None
-
-        if not user_id:
-            user_id = get_next_interquest_id()
-            print(f"Generated user_id: {user_id}")
-        else:
-            print(f"Using provided user_id: {user_id}")
-
-        request.state.user_id = user_id
-        response = await call_next(request)
-        response.headers["X-User-ID"] = user_id
-        return response
-
-    except Exception as e:
-        print(f"Error in assign_user_id middleware: {str(e)}")
-        traceback.print_exc()
-        return JSONResponse(
-            content={"error": "Failed to process user ID"},
-            status_code=500
-        )
-
-#  ============================================
-#  📮 2.  ルートエンドポイント：APIの稼働確認用
-#  ============================================
-
-@app.get("/")
-def root(request: Request):
-    return {
-        "message": "LangChain Chat API is running.",
-        "user_id": getattr(request.state, "user_id", None)
-    }
-
-#  ============================================
-#  📮 3. 候補者判定機能エンドポイント群
-#  ============================================
-
-@app.post("/resume-score")
+@app.post("/resume-score") # 📄 パタン1 履歴書をそのまま保存し、スコア判定
 async def resume_score(
     file: UploadFile = File(...),
     candidate_id: str = Form(...),
@@ -449,7 +377,7 @@ async def resume_score(
             status_code=500
         )
 
-@app.post("/resume-score-no-save")
+@app.post("/resume-score-no-save") # 📄 パタン2 履歴書をマスクし、ベクトルDB、SQLに保存し、スコア判定
 async def resume_score_no_save(
     file: UploadFile = File(...),
     candidate_id: str = Form(...),
@@ -635,21 +563,6 @@ def post_setup(req: InterviewSetupRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"処理エラー: {str(e)}")
-    
-def _safe_load_json(path: Union[str, Path]) -> Dict[str, Any]:
-    data: Any = _load_json(path)
-    if isinstance(data, Mapping):
-        try:
-            return {str(k): v for k, v in data.items()}
-        except Exception:
-            return dict(data)  # type: ignore[arg-type]
-    return {}
-
-def _safe_load_json_list(path: Union[str, Path]) -> list:
-    data = _load_json(path)
-    if isinstance(data, list):
-        return data
-    return []
 
 @app.get("/checksheet/config")
 def get_all_interview_settings(request: Request):
@@ -697,13 +610,6 @@ async def api_get_checksheet_one(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"failed to read checksheet: {e}")
 
-def _as_non_empty_str(x: Any) -> Optional[str]:
-    """値を非空strに正規化。空/None/非strは None を返す。"""
-    if isinstance(x, str):
-        s = x.strip()
-        return s if s else None
-    return None
-
 @app.post("/checksheet")
 def api_upsert_checksheet(payload: Dict[str, Any]):
     # 必須キーを取得して非空文字列に正規化
@@ -747,23 +653,6 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
 def api_list_checksheet_by_interviewer(interviewer_id: str):
     return list_checksheet_by_interviewer(interviewer_id)
 
-def _to_prep_item_dict(pi: Any) -> PrepItemDict:
-    """PrepItem(Pydantic)・dict・その他を PrepItemDict へ正規化"""
-    if hasattr(pi, "model_dump"):           # Pydantic v2
-        d = pi.model_dump()
-    elif hasattr(pi, "dict"):               # Pydantic v1
-        d = pi.dict()
-    elif isinstance(pi, dict):              # すでにdict
-        d = pi
-    else:
-        d = {}
-
-    return {
-        "question": str(d.get("question", "") or ""),
-        "answer":  str(d.get("answer", "") or ""),
-        "tags":    d.get("tags", []) or [],
-    }
-
 @app.post("/interview/review-score")
 async def interview_review_score(payload: InterviewPrepByInterviewerRequest):
     # PrepItem -> PrepItemDict に実体変換（Noneセーフ）
@@ -785,7 +674,7 @@ async def interview_review_score(payload: InterviewPrepByInterviewerRequest):
     return JSONResponse(content=updated)
 
 #  ============================================
-#  📮 4.  面接官判定機能エンドポイント群
+#  📮 2.  面接官判定機能エンドポイント群
 #  ============================================
 
 @app.get("/interviewer/rubric")
@@ -968,7 +857,7 @@ async def get_resume_by_candidate(candidate_id: str):
     )
 
 #  ============================================
-#  📮 5.  モニタリング機能エンドポイント群
+#  📮 3.  モニタリング機能エンドポイント群
 #  ============================================
 
 @app.get("/api/workers", response_model=List[WorkerOut])

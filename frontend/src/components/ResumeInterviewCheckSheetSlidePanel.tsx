@@ -86,13 +86,13 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
     const [config, setConfig] = useState<ConfigResponse | null>(null);
     const [newQuestionTags, setNewQuestionTags] = useState<string[]>([]);
     const [editTagIndex, setEditTagIndex] = useState<number | null>(null);
-    const [aiScoreReviewed, setAiScoreReviewed] = useState<boolean>(false); // 2025.8.18 Add（flags）
+    const [aiScoreReviewed, setAiScoreReviewed] = useState<boolean>(false);
 
 
     const applyToState = useCallback((src: any = {}, cfg: ConfigResponse) => {
         setPrepItems(src.prepItems || []);
         setReviewedResume(!!src.reviewedResume);
-        // 2025.8.18 Add（flags）START
+
         setAiScoreReviewed(!!src.ai_score_reviewed);
 
         // ✅ prepItems.tags の正規化処理を追加
@@ -101,7 +101,6 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
             return { ...item, tags };
         });
         setPrepItems(normalizedPrepItems)
-        // 2025.8.18 Add（flags）END
 
         const ql = defaultQual(cfg.qualitativeItems);
 
@@ -161,7 +160,7 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
             body: JSON.stringify({ interviewer_id: interviewerId, candidate_id: candidateId, stage, prepItems, reviewedResume, qualitative, quantitative }),
         });
 
-        const res = await fetch(`/interview/review-score`, {
+        const res = await fetch(`${appConfig.API_BASE_URL}/interview/review-score`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ interviewer_id: interviewerId, candidate_id: candidateId, stage, prepItems, reviewedResume, qualitative, quantitative }),
@@ -170,7 +169,7 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
         if (!res.ok) throw new Error('再スコアに失敗しました');
         const updated = await res.json();
 
-        setAiScoreReviewed(true);// 2025.8.18 Add（flags）
+        setAiScoreReviewed(true);
         onAiReviewed?.(updated);
         alert('AIが面談内容を元に再スコアしました');
         onClose();
@@ -219,7 +218,7 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
             <h3>{stage} の面談シート: {candidateId}</h3>
             <div className="resume-modal-actions header-actions">
             <button onClick={handleSubmit} disabled={isReviewing}>保存</button>
-            <button className="resume-ai-rescore" onClick={handleAiReview}  disabled={isReviewing || aiScoreReviewed}>{isReviewing ? '再スコア中…' : 'AIスコア精査'}</button> {/* 2025.8.18 Add（flags） */}
+            <button className="resume-ai-rescore" onClick={handleAiReview}  disabled={isReviewing || aiScoreReviewed}>{isReviewing ? '再スコア中…' : 'AIスコア精査'}</button>
             <button className="slide-close" onClick={onClose}>✖</button>
             </div>
         </div>

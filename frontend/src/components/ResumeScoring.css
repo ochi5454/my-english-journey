@@ -961,7 +961,6 @@
   border-color: #e0b4b4;
 }
 
-/* 2025.8.12 Add（interviewer score after interview）START */
 /* ==== 面談者品質評価共通 ==== */
 .iq-panel {
   background: #fff;
@@ -1301,7 +1300,6 @@
   overflow: hidden;
   
 }
-/* 2025.8.12 Add（interviewer score after interview）END */
 
 /* 定量テーブルのコメント欄を馴染ませる */
 .iq-table textarea.resume-template-textarea {
@@ -1847,7 +1845,6 @@
   background-color: #265f93;
 }
 
-/* 2025.8.18 Add（interviewer score by role）START */
 .role-matrix-table {
   width: 100%;
   border-collapse: collapse;
@@ -1928,9 +1925,7 @@
   background-color: #fce4ec;
   color: #ad1457;
 }
-/* 2025.8.18 Add（interviewer score by role）END */
 
-/* 2025.8.12 Add（HR review）START */
 .hr-review-wrapper {
   padding: 1rem;
   font-size: 14px;
@@ -2178,9 +2173,7 @@
   text-decoration: underline;
   color: #0077cc;
 }
-/* 2025.8.12 Add（HR review）END */
 
-/* 2025.8.21 Add（diff modal）START */
 .diff-modal-title {
   font-size: 1.25rem;
   font-weight: bold;
@@ -2301,4 +2294,3 @@ th.clickable-header:hover {
   font-size: 0.85rem;
   color: #666;
 }
-/* 2025.8.21 Add（diff modal）END */

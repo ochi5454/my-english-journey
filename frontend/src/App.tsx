@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 
-import ResumeScoring from './components/ResumeScoring'     // 2025.8.4
-import ResumeInterviewerOverview from './components/ResumeInterviewerOverview' // 2025.8.12
-import ResumeHRReviewDashboard from './components/ResumeHRReviewDashboard'     // 2025.8.12
-import WorkerDashboard from './components/WorkerDashboard' // 2025.8.25
-import WorkerDetail from './components/WorkerDetail'       // 2025.8.25
+import ResumeScoring from './components/ResumeScoring'
+import ResumeInterviewerOverview from './components/ResumeInterviewerOverview'
+import ResumeHRReviewDashboard from './components/ResumeHRReviewDashboard'
+import WorkerDashboard from './components/WorkerDashboard'
+import WorkerDetail from './components/WorkerDetail'
 
 import './App.css'
 
@@ -21,21 +21,29 @@ const App: React.FC = () => {
     <Router>
       <div className="app">
         <nav className="navbar">
-          <div className="nav-brand"><h1>RAG Testing Chat</h1></div>
-          <div className="nav-links">
-            <Link to="/resume-scoring">候補者判定</Link>
-            <Link to="/ResumeInterviewerOverview">面接官判定</Link>
-            <Link to="/worker-dashboard">モニタリング</Link>
+          <div className="navbar-left">
+            <div className="nav-brand"><h1>RAG Testing Chat</h1></div>
           </div>
-          <div className="user-info">
-            <label htmlFor="userIdInput">User ID:</label>
-            <input
-              id="userIdInput"
-              type="text"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="ユーザーIDを入力"
-            />
+
+          <div className="navbar-center">
+            <div className="nav-links">
+              <Link to="/resume-scoring">候補者判定</Link>
+              <Link to="/ResumeInterviewerOverview">面接官判定</Link>
+              <Link to="/worker-dashboard">モニタリング</Link>
+            </div>
+          </div>
+
+          <div className="navbar-right">
+            <div className="user-info">
+              <label htmlFor="userIdInput">User ID:</label>
+              <input
+                id="userIdInput"
+                type="text"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="ユーザーIDを入力"
+              />
+            </div>
           </div>
         </nav>
 

@@ -14,15 +14,40 @@
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+.navbar-left,
+.navbar-center,
+.navbar-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+/* 左寄せ */
+.navbar-left {
+  justify-content: flex-start;
+}
+
+/* 中央寄せ */
+.navbar-center {
+  justify-content: center;
+}
+
+/* 右寄せ */
+.navbar-right {
+  justify-content: flex-end;
+}
+
 .nav-brand h1 {
   margin: 0;
   font-size: 1.5rem;
+  text-align: center;
 }
 
 .nav-links {
   display: flex;
   gap: 2rem;
-  font-size: small;
+  font-size: medium;
+  justify-content: center;
 }
 
 .nav-links a {
@@ -37,13 +62,13 @@
   background-color: rgba(255,255,255,0.1);
 }
 
-/* 2025.7.23 Add（summarize pptx）START */
 .user-info {
+  position: absolute;
+  top: 1rem;
+  right: 2rem;
   display: flex;
-  align-items: center; 
+  align-items: center;
   gap: 8px;
-  margin-left: auto;
-  height: 100%;
 }
 
 .user-info label {
@@ -64,7 +89,6 @@
   background-color: white;  
   color: #333;            
 }
-/* 2025.7.23 Add（summarize pptx）END */
 
 .main-content {
   flex: 1;
