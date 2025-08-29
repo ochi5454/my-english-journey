@@ -639,13 +639,17 @@ def post_setup(req: InterviewSetupRequest):
 def _safe_load_json(path: Union[str, Path]) -> Dict[str, Any]:
     data: Any = _load_json(path)
     if isinstance(data, Mapping):
-        # Mapping でも確実に Dict[str, Any] に正規化
         try:
             return {str(k): v for k, v in data.items()}
         except Exception:
-            # 万一イテラブルでない等のケースでも dict() にフォールバック
             return dict(data)  # type: ignore[arg-type]
     return {}
+
+def _safe_load_json_list(path: Union[str, Path]) -> list:
+    data = _load_json(path)
+    if isinstance(data, list):
+        return data
+    return []
 
 @app.get("/checksheet/config")
 def get_all_interview_settings(request: Request):
@@ -653,11 +657,9 @@ def get_all_interview_settings(request: Request):
     tags: list[dict] = []
 
     if user_id:
-        # meta を Mapping にガード
         meta = _safe_load_json(INTERVIEWER_META_PATH)
         user_meta = meta.get(user_id)
         if isinstance(user_meta, Mapping):
-            # dept/role を None セーフに正規化
             dept = str(user_meta.get("department") or "").strip().lower()
             role = str(user_meta.get("role") or "").strip()
             if dept and role:
@@ -667,17 +669,16 @@ def get_all_interview_settings(request: Request):
                     role_data = role_file.get(role)
                     if isinstance(role_data, Mapping):
                         exp = role_data.get("expected_focus", [])
-                        # list だけ通す（不正値は無視）
                         if isinstance(exp, list):
                             tags = exp
 
     return {
-        "divisions": load_division_names(SKILLS_PATH),
-        "quantitativeItems": _safe_load_json(TEMPLATE_QUANTITATIVE_PATH),
-        "qualitativeItems": _safe_load_json(TEMPLATE_QUALITATIVE_PATH),
-        "hiringDecisions": _safe_load_json(TEMPLATE_HIRIING_PATH),
-        "titleOptions": _safe_load_json(TEMPLATE_ROLETITLE_PATH),
-        "focusTags": tags,  # [{ "id": ..., "label": ... }]
+        "divisions": load_division_names(SKILLS_PATH),  # これは配列形式でOK
+        "quantitativeItems": _safe_load_json_list(TEMPLATE_QUANTITATIVE_PATH),
+        "qualitativeItems": _safe_load_json_list(TEMPLATE_QUALITATIVE_PATH),
+        "hiringDecisions": _safe_load_json_list(TEMPLATE_HIRIING_PATH),
+        "titleOptions": _safe_load_json_list(TEMPLATE_ROLETITLE_PATH),
+        "focusTags": tags,
     }
 
 @app.get("/checksheet/one", response_class=ORJSONResponse)
