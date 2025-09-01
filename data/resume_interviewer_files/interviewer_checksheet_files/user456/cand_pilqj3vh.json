@@ -1,0 +1,90 @@
+{
+  "interviewer_id": "user456",
+  "candidate_id": "cand_pilqj3vh",
+  "stages": {
+    "面談・2次": {
+      "prepItems": [
+        {
+          "question": "将来の拡張やメンテナンス性、他のシステムとの互換性などを考慮して技術戦略を作成した経験があるか",
+          "answer": "戦略段階においては既存システム、将来的な観点、他システムとの品質や社内の暗黙のルール的なものを考慮して検討を行った",
+          "tags": [
+            "SM_01",
+            "SM_14",
+            "SM_19"
+          ]
+        },
+        {
+          "question": "あらかじめリスクに関してチェック観点シートを設けるなどして考慮し実装した経験、失敗した経験はあるか",
+          "answer": "ある\n海外向けのアプリリリースにおいて、各国のセキュリティルールに準拠する必要があり、苦労した",
+          "tags": [
+            "SM_21"
+          ]
+        },
+        {
+          "question": "新卒だけでなく中途アサインメンバーも含めたチームマネジメントに関して苦労した経験はあるか",
+          "answer": "特段苦労はしていないが、強いて言えば、技術力の欠ける新卒メンバーを補強するメンバーとして中途メンバーに広く見てもらうなどその辺の調整は行った",
+          "tags": [
+            "SM_03",
+            "SM_02"
+          ]
+        },
+        {
+          "question": "他PJ、他Tと協力してPJを勧めたような経験があるか",
+          "answer": "ある",
+          "tags": [
+            "SM_12",
+            "SM_05"
+          ]
+        }
+      ],
+      "reviewedResume": true,
+      "qualitative": {
+        "careerGoals": "コンサル希望だが、社内のリソース的に、エンジニアでM採用を推奨",
+        "otherApps": "A社内定\nB社最終面談まち\nC社最終面談終了",
+        "overall": "コンサルならSC\nエンジニアならM",
+        "assignmentPlan": "青木さんチームにアサイン",
+        "hiringDecision": "hire_ok",
+        "recommendedDivision": "Engineering",
+        "recommendedTitle": "M"
+      },
+      "quantitative": {
+        "self_management": {
+          "level": 5,
+          "comment": ""
+        },
+        "workstyle_relation": {
+          "level": 4,
+          "comment": ""
+        },
+        "communication": {
+          "level": 5,
+          "comment": ""
+        },
+        "leadership": {
+          "level": 5,
+          "comment": ""
+        },
+        "logical_thinking": {
+          "level": 4,
+          "comment": ""
+        },
+        "execution_pm": {
+          "level": 4,
+          "comment": ""
+        },
+        "expertise": {
+          "level": 5,
+          "comment": ""
+        },
+        "biz_org_dev": {
+          "level": 4,
+          "comment": ""
+        }
+      },
+      "ai_score_reviewed": true,
+      "eval_required": false,
+      "updated_at": "2025-09-01T17:23:12.350367",
+      "interviewer_id": "user456"
+    }
+  }
+}
