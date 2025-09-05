@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import './ResumeInterviewSetupSlidePanel.css';
 import appConfig from '../config.ts';
 
 interface Interviewer {
@@ -83,12 +84,12 @@ const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, i
           <button className="slide-close" onClick={onClose}>✖</button>
         </div>
 
-        <div className="resume-interview-field">
+        <div className="interview-setup-field">
           <label>面談日時:</label>
           <input type="datetime-local" value={interviewDate} onChange={(e) => setInterviewDate(e.target.value)} />
         </div>
 
-        <div className="resume-interview-field">
+        <div className="interview-setup-field">
           <label>面談担当者:</label>
           <select value={selectedInterviewer} onChange={(e) => setSelectedInterviewer(e.target.value)}>
             <option value="">選択してください</option>
@@ -98,11 +99,11 @@ const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, i
           </select>
         </div>
 
-        <div className="resume-interview-field">
+        <div className="interview-setup-field">
           <label>面談前TODO:</label>
-          <div className="resume-todo-list">
+          <div className="setup-todo-list">
             {todoList.map(item => (
-              <div key={item.id} className="resume-todo-item">
+              <div key={item.id} className="setup-todo-item">
                 <input
                   type="checkbox"
                   checked={selectedTodos.includes(item.label)}
@@ -120,21 +121,21 @@ const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, i
           </div>
         </div>
 
-        <div className="resume-interview-field">
+        <div className="interview-setup-field">
           <label>候補者宛メールテンプレート:</label>
           <textarea rows={4} value={candidateMail} onChange={(e) => setCandidateMail(e.target.value)} />
           <p style={{ fontWeight: 'bold', marginTop: '8px' }}>📧 プレビュー:</p>
           <div className="resume-template-preview">{renderTemplate(candidateMail)}</div>
         </div>
 
-        <div className="resume-interview-field">
+        <div className="interview-setup-field">
           <label>担当者宛メールテンプレート:</label>
           <textarea rows={4} value={interviewerMail} onChange={(e) => setInterviewerMail(e.target.value)} />
           <p style={{ fontWeight: 'bold', marginTop: '8px' }}>📧 プレビュー:</p>
           <div className="resume-template-preview">{renderTemplate(interviewerMail)}</div>
         </div>
 
-        <div className="modal-actions resume-modal-actions">
+        <div className="interview-setup-actions">
           <button onClick={handleSubmit}>送信</button>
           <button onClick={onClose}>キャンセル</button>
         </div>
