@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import './ResumeInterviewerRoleFocusOverview.css';
 import axios from 'axios';
 import appConfig from '../config.ts';
 
@@ -63,12 +64,12 @@ const ResumeInterviewerRoleFocusOverview: React.FC = () => {
   );
 
   return (
-    <div className="resume-container">
+    <div className="role-matrix-container">
       {error && <div className="iq-error">{error}</div>}
       {loading ? (
-        <div className="iq-loading">読み込み中...</div>
+        <div>読み込み中...</div>
       ) : (
-        <div className="role-matrix-scroll">
+        <div>
           <table className="role-matrix-table">
             <thead>
               <tr>
@@ -89,7 +90,7 @@ const ResumeInterviewerRoleFocusOverview: React.FC = () => {
                     const tags = cell?.tags ?? [];
                     const usedMap = cell?.used ?? {};
                     return (
-                      <td key={`${dept}:${role}`} className="role-matrix-cell">
+                      <td key={`${dept}:${role}`}>
                         <div className="tag-chip-container">
                             {tags.map((tag, idx) => {
                             const tagId = tag?.id;
