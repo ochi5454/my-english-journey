@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import './ResumeInterviewCheckSheetSlidePanel.css';
 import { ResumeRatingBar } from './ResumeRatingBar';
 import { ResumeRubricHint } from './ResumeRubricHint';
 import ResumeAccordion from './ResumeAccordion';
@@ -216,7 +217,7 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
         <div className={`slide-panel ${isOpen ? 'open' : ''}`}>
         <div className="slide-panel-header">
             <h3>{stage} の面談シート: {candidateId}</h3>
-            <div className="resume-modal-actions header-actions">
+            <div className="resume-modal-actions">
             <button onClick={handleSubmit} disabled={isReviewing}>保存</button>
             <button className="resume-ai-rescore" onClick={handleAiReview}  disabled={isReviewing || aiScoreReviewed}>{isReviewing ? '再スコア中…' : 'AIスコア精査'}</button>
             <button className="slide-close" onClick={onClose}>✖</button>
