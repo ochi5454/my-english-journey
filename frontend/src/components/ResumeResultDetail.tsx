@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import './ResumeResultDetail.css';
 import ResumeInterviewSetupSlidePanel from './ResumeInterviewSetupSlidePanel';
 import ResumeInterviewCheckSheetSlidePanel from './ResumeInterviewCheckSheetSlidePanel';
 import appConfig from '../config.ts';
@@ -215,11 +216,11 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
 
     return (
         <>
-        <div className="resume-modal-overlay" onClick={onClose}></div>
-        <div className="resume-modal">
+        <div className="result-d-modal-overlay" onClick={onClose}></div>
+        <div className="result-d-modal">
 
-            <div className="resume-fixed-header">
-            <div className="resume-header-info-inline">
+            <div className="result-d-fixed-header">
+            <div className="result-d-header-info-inline">
                 <div className="icon">
                     👤 <span className="label">候補者:</span> {localResult.user_id}
                 </div>
@@ -227,11 +228,11 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                     📌 <span className="label">推奨部門:</span> {localResult.recommended_division}
                 </div>
             </div>
-                <button onClick={onClose} className="resume-close-button-absolute">✖ 閉じる</button>
-            <div className="resume-header">
+                <button onClick={onClose} className="result-d-close-button-absolute">✖ 閉じる</button>
+            <div className="result-d-header">
             </div>
 
-            <div className="resume-status-header">
+            <div className="result-d-status-header">
             <h3>選考ステータス</h3>
             <div className="status-bar-horizontal-with-info">
             {statusSteps.map((step, idx) => {
@@ -347,8 +348,8 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
             </div>
             </div>
 
-            <div className="resume-detail-split">
-            <div className="resume-detail-left">
+            <div className="result-d-detail-split">
+            <div className="result-d-detail-left">
                 <h3>スコア</h3>
                 <h4>マスト要件チェック:</h4>
                 <ul>
@@ -362,7 +363,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                 <h4>スコア評価:</h4>
                 {localResult.scores?.map((s: any) => (
                     Array.isArray(s.score_history) ? (
-                        <div key={s.division} className="resume-score-item">
+                        <div key={s.division} className="result-d-score-item">
                         <p><strong>{s.division}</strong>:</p>
 
                         {/* ✅ 最新スコアは s.score / s.reason を使用 */}
@@ -379,7 +380,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
 
                         {/* ✅ スコア履歴（s.score と異なる過去の履歴のみ） */}
                         {s.score_history?.length > 0 && (
-                            <div className="score-history-log">
+                            <div>
                             <h5 style={{ marginBottom: '4px' }}>📜 スコア履歴:</h5>
                             {[...s.score_history]
                                 .filter((entry) => entry.score !== s.score || entry.reason !== s.reason) // 現在スコアと同一は除外
@@ -399,7 +400,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                         )}
                         </div>
                     ) : (
-                        <div key={s.division} className="resume-score-item">
+                        <div key={s.division} className="result-d-score-item">
                             <p><strong>{s.division}</strong>: {s.score}点</p>
                             <p style={{ fontSize: '0.9em', color: '#666' }}>{s.reason}</p>
                         </div>
@@ -407,14 +408,14 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                 ))}
             </div>
 
-            <div className="resume-detail-right">
-                <div className="resume-chat-header">
+            <div className="result-d-detail-right">
+                <div className="result-d-chat-header">
                 <h4>AIとのスコア精査チャット</h4>
                 </div>
 
-                <div className="resume-chat-box">
+                <div className="result-d-chat-box">
                 {chatLog.map((msg, i) => (
-                    <div key={i} className={`resume-chat-msg ${msg.role}`}>
+                    <div key={i} className={`result-d-chat-msg ${msg.role}`}>
                     <strong>{msg.role === 'user' ? '👤' : '🤖'}:</strong> {msg.content}
                     </div>
                 ))}
@@ -423,7 +424,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                 <select
                 value={chatStage}
                 onChange={(e) => setChatStage(e.target.value)}
-                className="resume-chat-stage-selector"
+                className="result-d-chat-stage-selector"
                 >
                 {reviewStages.map((stage) => (
                     <option key={stage} value={stage}>
@@ -433,12 +434,12 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
                 </select>
 
                 <textarea
-                className="resume-chat-input"
+                className="result-d-chat-input"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="質問・修正依頼を入力..."
                 />
-                <button onClick={handleSend} disabled={isSending} className="resume-submit">
+                <button onClick={handleSend} disabled={isSending} className="result-d-submit">
                 {isSending ? '送信中...' : '送信'}
                 </button>
             </div>
@@ -472,7 +473,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
 
                     // 🔽 ここで最新の候補者データを取得
                     if (onResultUpdate) {
-                        const updatedRes = await fetch(`${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`);
+                        const updatedRes = await fetch(`${appConfig.API_BASE_URL}/result-d-result/${localResult.user_id}`);
                         const updatedResult = await updatedRes.json();
                         onResultUpdate(updatedResult);
                     }
@@ -487,11 +488,11 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
         )}
 
         {showConfirmation && (
-            <div className="resume-confirmation-modal">
-            <div className="resume-confirmation-box">
+            <div className="result-d-confirmation-modal">
+            <div className="result-d-confirmation-box">
                 <p>このステータスはすでに調整済みです。</p>
                 <p>再度日程を調整しますか？</p>
-                <div className="resume-modal-actions">
+                <div className="result-d-modal-actions">
                 <button onClick={() => {
                     setShowConfirmation(false);
                     setShowInterviewModal(true);
