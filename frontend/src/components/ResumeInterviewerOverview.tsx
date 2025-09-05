@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import './ResumeInterviewerOverview.css';
 import ResumeInterviewerDetail from './ResumeInterviewerDetail';
 import ResumeInterviewerAnomalyScore from './ResumeInterviewerAnomalyScore';
 import ResumeInterviewerRoleFocusOverview from './ResumeInterviewerRoleFocusOverview';
@@ -256,8 +257,8 @@ const ResumeInterviewerOverview: React.FC = () => {
 
   // ======================== JSX ========================
   return (
-    <div className="resume-container">
-      <div className="resume-header">
+    <div className="interviewer-ov-container">
+      <div className="interviewer-ov-header">
         <div className="iq-tab-switch">
           <button className={`iq-tab-switch-btn ${viewMode === 'interviewer' ? 'active' : ''}`} onClick={() => setViewMode('interviewer')}>
             面接官軸
@@ -272,7 +273,7 @@ const ResumeInterviewerOverview: React.FC = () => {
             ロール軸
           </button>
         </div>
-        <button className="resume-submit" onClick={() => setIsModalOpen(true)} disabled={loading}>
+        <button className="diff-modal-open" onClick={() => setIsModalOpen(true)} disabled={loading}>
           差分を評価
         </button>
       </div>
@@ -280,17 +281,17 @@ const ResumeInterviewerOverview: React.FC = () => {
       {error && <div className="iq-error">{error}</div>}
 
       {viewMode === 'interviewer' && (
-        <div className="resume-matrix-wrapper">
+        <div className="interviewer-ov-matrix-wrapper">
           <h2>面接官の信憑性</h2>
           <input
-            className="resume-filter"
+            className="interviewer-filter"
             placeholder="面接官IDでフィルタ"
             value={interviewerFilter}
             onChange={e => setInterviewerFilter(e.target.value)}
             onBlur={fetchCache}
           />
 
-          <table className="resume-matrix-table">
+          <table className="interviewer-ov-matrix-table">
             <thead>
               <tr>
                 <th>面接官</th>
@@ -359,7 +360,7 @@ const ResumeInterviewerOverview: React.FC = () => {
         <div className="ria-container">
           <h2>異常スコアの検出</h2>
           <input
-            className="resume-filter"
+            className="candidate-iq-filter"
             placeholder="候補者IDでフィルタ"
             value={candidateFilter}
             onChange={e => setCandidateFilter(e.target.value)}
@@ -379,7 +380,7 @@ const ResumeInterviewerOverview: React.FC = () => {
       )}
 
       {viewMode === 'role' && (
-        <div className="resume-matrix-wrapper">
+        <div className="interviewer-ov-matrix-wrapper">
           <h2>質問内容の傾向</h2>
           <ResumeInterviewerRoleFocusOverview />
         </div>
@@ -387,7 +388,7 @@ const ResumeInterviewerOverview: React.FC = () => {
 
       {detailTarget && rubric && (
         <div className="modal-overlay" onClick={() => setDetailTarget(null)}>
-          <div className="modal-box modal-box--lg" onClick={e => e.stopPropagation()}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
             <h4>詳細（{detailTarget.interviewer_id}）</h4>
             {(() => {
               const target = rows.filter(r => r.interviewer_id === detailTarget.interviewer_id);
@@ -412,7 +413,7 @@ const ResumeInterviewerOverview: React.FC = () => {
                 />
               );
             })()}
-            <div className="modal-footer">
+            <div>
               <button onClick={() => setDetailTarget(null)}>閉じる</button>
             </div>
           </div>
@@ -422,7 +423,7 @@ const ResumeInterviewerOverview: React.FC = () => {
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            {loading && <div className="diff-loading-message">評価中です。しばらくお待ちください...</div>}
+            {loading && <div>評価中です。しばらくお待ちください...</div>}
             <h4 className="diff-modal-title">差分評価オプション</h4>
 
             <div className="diff-modal-row">
