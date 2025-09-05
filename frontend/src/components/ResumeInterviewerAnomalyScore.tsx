@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import './ResumeInterviewerAnomalyScore.css';
 import axios from "axios";
 import type { ConfigResponse } from "./ResumeInterviewCheckSheet";
 import appConfig from '../config.ts';
