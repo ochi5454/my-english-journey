@@ -1,5 +1,6 @@
 // components/RubricHint.tsx
 import React, { useState, useRef, useEffect } from 'react';
+import './ResumeRubricHint.css';
 
 export const ResumeRubricHint: React.FC<{ title: string; bullets: string[] }> = ({ title, bullets }) => {
     const [open, setOpen] = useState(false);
