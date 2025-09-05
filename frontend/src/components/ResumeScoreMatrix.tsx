@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import './ResumeScoreMatrix.css';
 import ResumeResultDetail from './ResumeResultDetail';
-import './ResumeScoring.css';
 import appConfig from '../config.ts';
 
 interface Props {
@@ -83,13 +83,13 @@ const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     };
 
     return (
-        <div className="resume-container">
+        <div className="matrix-container">
             <input
                 type="text"
                 placeholder="候補者IDでフィルタ"
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
-                className="resume-filter"
+                className="matrix-filter"
             />
 
             <div className="resume-matrix-wrapper">
@@ -116,7 +116,6 @@ const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                             <tr
                                 key={idx}
                                 onClick={() => handleRowClick(r.user_id)}
-                                className="resume-matrix-row"
                             >
                                 <td>{r.user_id}</td>
                                 <td>{r.timestamp.slice(0, 19).replace('T', ' ')}</td>

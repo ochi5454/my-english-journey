@@ -1,0 +1,71 @@
+.matrix-container {
+    padding: 1.5rem;
+    max-width: 1000px;
+    margin: auto;
+    font-family: sans-serif;
+}
+
+.matrix-filter {
+    padding: 0.5rem;
+    font-size: 1rem;
+    margin-top: 0.25rem;
+    max-width: 400px;
+    margin-bottom: 1rem;
+    width: 250px;
+}
+
+.resume-matrix-wrapper {
+  overflow-x: auto;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+}
+
+.resume-matrix-table {
+  border-collapse: collapse;
+  min-width: 1000px;
+  width: 100%;
+  margin-top: 1rem;
+  font-size: 0.95rem;
+}
+
+.resume-matrix-table th,
+.resume-matrix-table td {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  text-align: center;
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+.resume-matrix-table th {
+  background-color: #f0f0f0;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  vertical-align: middle;
+}
+
+.resume-matrix-table tbody tr:hover {
+  background-color: #f0f8ff;
+}
+
+.resume-matrix-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.resume-matrix-wrapper::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 100, 100, 0.5);
+  border-radius: 4px;
+}
+
+.resume-score-cell {
+  font-weight: 600;
+  color: #256029;
+}
+
+.highlight-recommended {
+  background-color: #e6f4ea;
+  font-weight: bold;
+  border: 1px solid #b7ddb7;
+}
