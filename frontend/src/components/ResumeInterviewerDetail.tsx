@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import './ResumeInterviewerDetail.css';
 import appConfig from '../config.ts';
 
 type Row = {
@@ -227,14 +228,14 @@ const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage,
         </div>
         )}
 
-        {loading && <div className="iq-muted">読み込み中…</div>} 
+        {loading && <div className="iq-load-muted">読み込み中…</div>} 
 
         {/* エラーメッセージ */}
         {error && <div className="iq-error">{error}</div>}
 
         {/* 明細テーブル*/}
-        <div className="iq-table-wrap">
-            <table className="iq-table iq-table--dense iq-table--compact iq-table--stickyhead">
+        <div className="iq-detail-table-wrap">
+            <table className="iq-detail-table">
             <colgroup>
                 <col className="col-id" />        {/* 候補者 */}
                 <col className="col-stage" />     {/* ステージ */}
