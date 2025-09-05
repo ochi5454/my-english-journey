@@ -1,0 +1,226 @@
+.hr-review-wrapper {
+    padding: 1rem;
+    font-size: 14px;
+}
+
+.candidate-filter {
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    width: 250px;
+}
+
+.candidate-block {
+    margin-bottom: 2rem;
+    border: 1px solid #ccc;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.candidate-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.resume-link {
+    margin-left: 1em;
+    font-size: 0.9em;
+    text-decoration: underline;
+    color: #0077cc;
+}
+
+.hr-button-and-note {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.hr-review-btn {
+    background-color: #e53935;
+    color: white;
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.hr-review-btn:hover {
+    background-color: #c62828;
+}
+
+.hr-review-btn.saved {
+    background-color: #aaa;
+    color: white;
+    cursor: default;
+}
+
+.hr-review-btn.saved:hover {
+    background-color: #bbb;
+}
+
+.hr-review-note {
+    color: red;
+    font-size: 0.85em;
+    margin-top: 0.3rem;
+    text-align: right;
+}
+
+.pass {
+    color: green;
+}
+
+.fail {
+    color: red;
+}
+
+.highlight {
+    background-color: #e6f4ea;
+    font-weight: bold;
+    border: 1px solid #b7ddb7;
+}
+
+.qa-entry {
+    text-align: left;
+    margin-bottom: 0.8em;
+    line-height: 1.4;
+}
+
+.qa-entry .question {
+    color: #0070f3; 
+    font-weight: bold;
+}
+
+.qa-entry .answer {
+    color: #e71717;
+    margin-left: 0.5em;
+}
+
+.hire-decision-cell {
+    font-weight: normal;
+    padding: 4px;
+}
+
+.hire-strong,
+.quant-high {
+    background-color: #e6f4ea; 
+    font-weight: bold;
+    border: 1px solid #b7ddb7;
+}
+
+.quant-cell {
+    padding: 4px;
+    text-align: center;
+}
+
+.hr-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+}
+
+.hr-modal {
+    background: white;
+    width: 90%;
+    max-width: 500px;
+    margin: 10vh auto;
+    padding: 2rem;
+    border-radius: 8px;
+    z-index: 1001;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.hr-modal h4 {
+    margin-bottom: 1rem;
+}
+
+.hr-modal label {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.hr-modal select {
+    margin-top: 0.3rem;
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+
+.hr-modal input {
+    margin-top: 0.3rem;
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+
+.hr-modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.hr-modal button {
+    padding: 0.5rem 1rem;
+    border: none;
+    background-color: #444;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.hr-modal button:hover {
+    background-color: #666;
+}
+
+.hr-modal .cancel-button {
+    background-color: #aaa;
+}
+
+.hr-modal .cancel-button:hover {
+    background-color: #bbb;
+}
+
+.hr-review-button {
+    background-color: #e53935;
+    color: white;
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.hr-review-button:hover {
+    background-color: #c62828;
+}
+
+.hr-result-check-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+    table-layout: fixed;
+}
+
+.hr-result-check-table th,
+.hr-result-check-table td {
+    border: 1px solid #e5e7eb;
+    padding: 6px 8px;
+    white-space: normal;
+    word-break: break-word;
+    vertical-align: top;
+    text-align: left;
+}

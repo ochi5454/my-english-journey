@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import './ResumeHRReviewDashboard.css';
 import appConfig from '../config.ts';
 
 interface Score {
@@ -207,7 +208,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
             placeholder="候補者IDでフィルタ"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            className="resume-filter"
+            className="candidate-filter"
         />
         {filteredCandidateIds.map(candidateId => {
             const ai = groupedAI[candidateId];
@@ -233,7 +234,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
                     )}
                 </h3>
                 <div className="hr-button-and-note">
-                    <div className="hr-button-wrapper">
+                    <div>
                     <button
                         onClick={() => setActiveCandidateId(candidateId)}
                         className={`hr-review-btn ${hrEvaluations[candidateId]?.savedAt ? 'saved' : ''}`}
@@ -256,7 +257,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
                 {ai && (
                 <>
                     <h4>AI評価</h4>
-                    <table className="iq-table iq-table--dense">
+                    <table className="hr-result-check-table">
                     <thead>
                         <tr>
                         {Object.keys(ai.must_check).map(key => <th key={key}>{key}</th>)}
@@ -287,7 +288,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
                 {evals.length > 0 && (
                 <>
                     <h4>面接官評価</h4>
-                    <table className="iq-table iq-table--dense">
+                    <table className="hr-result-check-table">
                     <thead>
                         <tr>
                         <th>評価項目</th>
@@ -357,8 +358,8 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
 
                 {/* HR評価モーダル */}
                 {activeCandidateId === candidateId && (
-                <div className="modal-overlay">
-                    <div className="modal">
+                <div className="hr-modal-overlay">
+                    <div className="hr-modal">
                     <h4>HR最終評価（{candidateId}）</h4>
                         <label>
                         採用可否:
@@ -440,7 +441,7 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
                     />
                     </label>
 
-                    <div className="modal-buttons">
+                    <div className="hr-modal-buttons">
                         <button onClick={() => handleSaveHRReview(candidateId)}>保存</button>
                         <button onClick={() => setActiveCandidateId(null)} className="cancel-button">キャンセル</button>
                     </div>
