@@ -1,0 +1,15 @@
+.section{
+  background: #fff;
+  border:1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.section + .section{ margin-top: 12px; }
+
+.section h4{
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: .2px;
+}

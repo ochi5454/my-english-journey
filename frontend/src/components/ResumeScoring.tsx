@@ -1,4 +1,3 @@
-// ResumeScoring.tsx
 import React, { useState } from 'react';
 import './ResumeScoring.css';
 import ResumeScoreMatrix from './ResumeScoreMatrix';
@@ -144,7 +143,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                 <div className="resume-result">
                 <h3 className="resume-recommendation">推奨部門: {result.recommended_division}</h3>
 
-                <div className="resume-must-check">
+                <div>
                 <h4>マスト要件チェック:</h4>
                 <ul>
                     {Object.entries(result.must_check || {}).map(([item, value]: any) => (
@@ -156,10 +155,10 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                 </div>
 
                 {result?.scores?.length > 0 && (
-                    <div className="resume-score-list">
+                    <div>
                         <h4>部門別スコア:</h4>
                         {result.scores.map((s: any) => (
-                        <div key={s.division} className="resume-score-item">
+                        <div key={s.division} >
                             <p><strong>{s.division}</strong>: {s.score}点</p>
                             <p className="resume-score-reason">{s.reason}</p>
                         </div>
@@ -210,10 +209,10 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                 </div>
 
                 {result?.scores?.length > 0 && (
-                    <div className="resume-score-list">
+                    <div>
                         <h4>部門別スコア:</h4>
                         {result.scores.map((s: any) => (
-                        <div key={s.division} className="resume-score-item">
+                        <div key={s.division}>
                             <p><strong>{s.division}</strong>: {s.score}点</p>
                             <p className="resume-score-reason">{s.reason}</p>
                         </div>

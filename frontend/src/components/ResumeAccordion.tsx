@@ -1,5 +1,5 @@
-// ResumeAccordion.tsx
 import React,{useState} from 'react';
+import './ResumeAccordion.css';
 
 export default function ResumeAccordion({
     title, defaultOpen=true, children, span='full', className=''

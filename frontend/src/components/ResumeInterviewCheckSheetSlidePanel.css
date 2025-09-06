@@ -176,6 +176,18 @@
     padding: 6px 10px; 
 }
 
+:root {
+    --fg: #0f172a;
+    --fg-muted: #475569;
+    --line: #e5e7eb;
+    --bg-soft: #f8fafc;
+    --seg-base:    #f0f9ff;
+    --seg-border:  #bae6fd;
+    --seg-fill:    #bfdbfe;
+    --seg-fill-bd: #60a5fa;
+    --acc:         #3b82f6;
+}
+
 .final-eval .rbar--single .rbar-seg{
     background: var(--seg-base);
     border: 1px solid var(--seg-border);
