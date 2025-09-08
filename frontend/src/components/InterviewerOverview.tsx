@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import './ResumeInterviewerOverview.css';
-import ResumeInterviewerDetail from './ResumeInterviewerDetail';
-import ResumeInterviewerAnomalyScore from './ResumeInterviewerAnomalyScore';
-import ResumeInterviewerRoleFocusOverview from './ResumeInterviewerRoleFocusOverview';
+import './InterviewerOverview.css';
+import InterviewerDetail from './InterviewerDetail.tsx';
+import InterviewerAnomalyScore from './InterviewerAnomalyScore.tsx';
+import InterviewerRoleFocusOverview from './InterviewerRoleFocusOverview.tsx';
 import appConfig from '../config.ts';
 
 // ======================== 型定義 ========================
@@ -64,7 +64,7 @@ const defaultReliabilityConfig = {
 } as const;
 
 // ======================== 本体コンポーネント ========================
-const ResumeInterviewerOverview: React.FC = () => {
+const InterviewerOverview: React.FC = () => {
   const [rows, setRows] = useState<Row[]>([]);
   const [rubric, setRubric] = useState<Rubric | null>(null);
   const [loading, setLoading] = useState(false);
@@ -368,7 +368,7 @@ const ResumeInterviewerOverview: React.FC = () => {
           {candidateGroups.map(g => (
             <div key={g.candidate_id} style={{ marginBottom: "2rem" }}>
               <h3>{g.candidate_id}</h3>
-              <ResumeInterviewerAnomalyScore
+              <InterviewerAnomalyScore
                 candidateId={g.candidate_id}
                 stages={g.stages}
                 interviewerIds={Array.from(new Set(g.items.map(it => it.interviewer_id)))}
@@ -382,7 +382,7 @@ const ResumeInterviewerOverview: React.FC = () => {
       {viewMode === 'role' && (
         <div className="interviewer-ov-matrix-wrapper">
           <h2>質問内容の傾向</h2>
-          <ResumeInterviewerRoleFocusOverview />
+          <InterviewerRoleFocusOverview />
         </div>
       )}
 
@@ -406,7 +406,7 @@ const ResumeInterviewerOverview: React.FC = () => {
                 avgMap[c.key] = n ? Math.round(((acc[c.key] || 0) / n) * 10) / 10 : 0;
               });
               return (
-                <ResumeInterviewerDetail
+                <InterviewerDetail
                   interviewerId={detailTarget.interviewer_id}
                   rubric={rubric}
                   avgHeader={{ avgMap, count: n }}
@@ -580,4 +580,4 @@ const ResumeInterviewerOverview: React.FC = () => {
   );
 };
 
-export default ResumeInterviewerOverview;
+export default InterviewerOverview;

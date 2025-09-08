@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import './ResumeInterviewerDetail.css';
+import './InterviewerDetail.css';
 import appConfig from '../config.ts';
 
 type Row = {
@@ -37,7 +37,7 @@ type Props = {
 
 const ALL = 'すべて';
 
-const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubric: rubricProp, avgHeader }) => {
+const InterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubric: rubricProp, avgHeader }) => {
         const [rubric, setRubric] = useState<Rubric | null>(rubricProp ?? null);
         const [rows, setRows] = useState<Row[]>([]);
         const [loading, setLoading] = useState(false);
@@ -300,4 +300,4 @@ const ResumeInterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage,
     );
 };
 
-export default ResumeInterviewerDetail;
+export default InterviewerDetail;

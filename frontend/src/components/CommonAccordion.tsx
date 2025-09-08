@@ -1,7 +1,7 @@
 import React,{useState} from 'react';
-import './ResumeAccordion.css';
+import './CommonAccordion.css';
 
-export default function ResumeAccordion({
+export default function Accordion({
     title, defaultOpen=true, children, span='full', className=''
     }: {
     title:string; defaultOpen?:boolean; children:React.ReactNode;

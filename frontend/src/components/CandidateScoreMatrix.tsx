@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import './ResumeScoreMatrix.css';
-import ResumeResultDetail from './ResumeResultDetail';
+import './CandidateScoreMatrix.css';
+import CandidateResultDetail from './CandidateResultDetail.tsx';
 import appConfig from '../config.ts';
 
 interface Props {
@@ -29,7 +29,7 @@ interface Result {
     scores: Score[];
 }
 
-const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
+const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
     const [filterText, setFilterText] = useState('');
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
@@ -149,7 +149,7 @@ const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
             </div>
 
             {selectedResult && (
-                <ResumeResultDetail
+                <CandidateResultDetail
                     result={selectedResult}
                     onClose={() => setSelectedResult(null)}
                     onResultUpdate={handleResultUpdate}
@@ -160,4 +160,4 @@ const ResumeScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     );
 };
 
-export default ResumeScoreMatrix;
+export default CandidateScoreMatrix;

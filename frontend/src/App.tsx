@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 
 import ResumeScoring from './components/ResumeScoring'
-import ResumeInterviewerOverview from './components/ResumeInterviewerOverview'
-import ResumeHRReviewDashboard from './components/ResumeHRReviewDashboard'
+import InterviewerOverview from './components/InterviewerOverview'
+import HRFinalReview from './components/HRFinalReview'
 
 import './App.css'
 
@@ -26,7 +26,7 @@ const App: React.FC = () => {
           <div className="navbar-center">
             <div className="nav-links">
               <Link to="/resume-scoring">候補者判定</Link>
-              <Link to="/ResumeInterviewerOverview">面接官判定</Link>
+              <Link to="/InterviewerOverview">面接官判定</Link>
             </div>
           </div>
 
@@ -48,8 +48,8 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<ResumeScoring userId={userId} />} />
             <Route path="/resume-scoring" element={<ResumeScoring userId={userId} />} />
-            <Route path="/ResumeInterviewerOverview" element={<ResumeInterviewerOverview />} />
-            <Route path="/hr-review-dashboard" element={<ResumeHRReviewDashboard interviewerId={userId} />} />
+            <Route path="/InterviewerOverview" element={<InterviewerOverview />} />
+            <Route path="/hr-final-review" element={<HRFinalReview interviewerId={userId} />} />
             <Route path="*" element={<div>ページが見つかりません</div>} />
           </Routes>
         </main>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import './ResumeResultDetail.css';
-import ResumeInterviewSetupSlidePanel from './ResumeInterviewSetupSlidePanel';
-import ResumeInterviewCheckSheetSlidePanel from './ResumeInterviewCheckSheetSlidePanel';
+import './CandidateResultDetail.css';
+import InterviewSetupSlidePanel from './InterviewSetupSlidePanel.tsx';
+import InterviewCheckSheetSlidePanel from './InterviewCheckSheetSlidePanel.tsx';
 import appConfig from '../config.ts';
 
 const formatDate = (isoStr: string): string => {
@@ -48,7 +48,7 @@ interface Props {
     interviewerId: string; 
 }
 
-const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId }) => {
+const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId }) => {
     const [chatInput, setChatInput] = useState('');
     const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
     const [localResult, setLocalResult] = useState<any>(result);
@@ -447,7 +447,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
         </div>
 
         {showInterviewModal && interviewStage && (
-            <ResumeInterviewSetupSlidePanel
+            <InterviewSetupSlidePanel
             candidateId={localResult.user_id}
             stage={interviewStage}
             isOpen={showInterviewModal}
@@ -504,7 +504,7 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
         )}
 
         {showInterviewPrepModal && interviewStage && (
-        <ResumeInterviewCheckSheetSlidePanel
+        <InterviewCheckSheetSlidePanel
             key={`${interviewerId}:${localResult.user_id}:${interviewStage}`}
             interviewerId={interviewerId} 
             candidateId={localResult.user_id}
@@ -571,4 +571,4 @@ const ResumeResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, 
     );
 };
 
-export default ResumeResultDetail;
+export default CandidateResultDetail;

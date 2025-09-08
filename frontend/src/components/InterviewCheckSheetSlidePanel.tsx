@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import './ResumeInterviewCheckSheetSlidePanel.css';
-import { ResumeRatingBar } from './ResumeRatingBar';
-import { ResumeRubricHint } from './ResumeRubricHint';
-import ResumeAccordion from './ResumeAccordion';
+import './InterviewCheckSheetSlidePanel.css';
+import { RatingBar } from './CommonRatingBar.tsx';
+import { RubricHint } from './CommonRubricHint.tsx';
+import Accordion from './CommonAccordion.tsx';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "./ResumeInterviewCheckSheet";
+import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "./InterviewCheckSheet.ts";
 import appConfig from '../config.ts';
 
 type FocusTag = {
@@ -68,7 +68,7 @@ const defaultQuant = (items: QuantitativeItem[]): Record<string, QuantitativeRow
         return acc;
     }, {});
 
-const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
+const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
     interviewerId,
     candidateId,
     stage,
@@ -237,11 +237,11 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
         </div>
 
         <div className="sheet-grid">
-            <ResumeAccordion title="最終評価" defaultOpen={false} span="half">
+            <Accordion title="最終評価" defaultOpen={false} span="half">
                 <div className="final-eval">
                 <div className="resume-interview-field">
                     <label>採用可否</label>
-                    <ResumeRatingBar
+                    <RatingBar
                     items={config.hiringDecisions}
                     value={qualitative['hiringDecision'] || null}
                     onChange={v => setQualitative(s => ({ ...s, hiringDecision: v }))}
@@ -262,7 +262,7 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
 
                 <div className="resume-interview-field field--full">
                 <label>タイトル</label>
-                <ResumeRatingBar
+                <RatingBar
                     items={config.titleOptions.map(opt => ({
                     ...opt,
                     label: opt.label.split('（')[0], // または .replace(/（.*$/, '')
@@ -273,9 +273,9 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
                 />
                 </div>
                 </div>
-            </ResumeAccordion>
+            </Accordion>
 
-            <ResumeAccordion title="定性評価" defaultOpen={false} span="half">
+            <Accordion title="定性評価" defaultOpen={false} span="half">
                 {config.qualitativeItems.map(({ key, label, placeholder }) => (
                 <div key={key} className="resume-interview-field">
                     <label>{label}</label>
@@ -291,9 +291,9 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
                     />
                 </div>
                 ))}
-            </ResumeAccordion>
+            </Accordion>
 
-            <ResumeAccordion title="定量評価" defaultOpen={false} span="half">
+            <Accordion title="定量評価" defaultOpen={false} span="half">
                 <div className="iq-table-wrap">
                     <table className="iq-table iq-table--dense iq-table--compact">
                         <thead>
@@ -309,12 +309,12 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
                             <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span>{item.label}</span>
-                                <ResumeRubricHint title={item.label} bullets={item.rubrics} />
+                                <RubricHint title={item.label} bullets={item.rubrics} />
                                 </div>
                                 {item.hint && <div className="iq-muted">※ {item.hint}</div>}
                             </td>
                             <td>
-                                <ResumeRatingBar
+                                <RatingBar
                                 items={item.levels}
                                 value={quantitative[item.key].level || null}
                                 onChange={v => setQuantitative(q => ({ ...q, [item.key]: { ...q[item.key], level: v } }))}
@@ -338,9 +338,9 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
                         </tbody>
                     </table>
                 </div>
-            </ResumeAccordion>
+            </Accordion>
 
-            <ResumeAccordion title="カスタムQA" defaultOpen={false} span="half">
+            <Accordion title="カスタムQA" defaultOpen={false} span="half">
             <div className="resume-interview-field custom-qa-wrapper">
                 <div className="resume-interview-field">
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -469,10 +469,10 @@ const ResumeInterviewCheckSheetSlidePanel: React.FC<Props> = ({
                 </div>
                 ))}
             </div>
-            </ResumeAccordion>
+            </Accordion>
         </div>
     </div>
   );
 };
 
-export default ResumeInterviewCheckSheetSlidePanel;
+export default InterviewCheckSheetSlidePanel;

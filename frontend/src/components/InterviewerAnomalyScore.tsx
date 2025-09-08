@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import './ResumeInterviewerAnomalyScore.css';
+import './InterviewerAnomalyScore.css';
 import axios from "axios";
-import type { ConfigResponse } from "./ResumeInterviewCheckSheet";
+import type { ConfigResponse } from "./InterviewCheckSheet.ts";
 import appConfig from '../config.ts';
 
 type Props = {
@@ -18,7 +18,7 @@ type CriterionRow = {
 
 const FINAL_ITEM_KEYS = ["hiringDecision", "recommendedDivision", "recommendedTitle"];
 
-const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, interviewerIds, reliability }) => {
+const InterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, interviewerIds, reliability }) => {
   const [rows, setRows] = useState<CriterionRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
@@ -203,4 +203,4 @@ const ResumeInterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, i
   );
 };
 
-export default ResumeInterviewerAnomalyScore;
+export default InterviewerAnomalyScore;

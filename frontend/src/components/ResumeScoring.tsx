@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './ResumeScoring.css';
-import ResumeScoreMatrix from './ResumeScoreMatrix';
-import ResumeHRReviewDashboard from './ResumeHRReviewDashboard';
+import CandidateScoreMatrix from './CandidateScoreMatrix.tsx';
+import HRFinalReview from './HRFinalReview.tsx';
 import appConfig from '../config.ts';
 
 type ViewMode = 'form' | 'form_nosave' | 'matrix' | 'hr';
@@ -225,12 +225,12 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
         ) : viewMode === 'matrix' ? (
             <div>
                 <h2 className="resume-title">候補者一覧</h2>
-            <ResumeScoreMatrix interviewerId={userId}/>
+            <CandidateScoreMatrix interviewerId={userId}/>
             </div>
         ) : viewMode === 'hr' ? (
             <div>
                 <h2 className="resume-title">候補者全評価</h2>
-            <ResumeHRReviewDashboard interviewerId={userId}/>
+            <HRFinalReview interviewerId={userId}/>
             </div>
         ) : null}
         </div>

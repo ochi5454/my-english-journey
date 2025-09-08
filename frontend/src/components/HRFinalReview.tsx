@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import './ResumeHRReviewDashboard.css';
+import './HRFinalReview.css';
 import appConfig from '../config.ts';
 
 interface Score {
@@ -43,7 +43,7 @@ interface LabeledOption {
     label: string;
 }
 
-const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ interviewerId }) => {
+const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interviewerId }) => {
     const [aiRawResults, setAiRawResults] = useState<AIRawResult[]>([]);
     const [interviewEvals, setInterviewEvals] = useState<InterviewEval[]>([]);
     const [qualItems, setQualItems] = useState<ConfigResponse['qualitativeItems']>([]);
@@ -456,4 +456,4 @@ const ResumeHRReviewDashboard: React.FC<{ interviewerId: string }> = ({ intervie
     );
 };
 
-export default ResumeHRReviewDashboard;
+export default HRFinalReviewDashboard;

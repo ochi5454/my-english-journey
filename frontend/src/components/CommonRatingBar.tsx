@@ -1,4 +1,4 @@
-import './ResumeRatingBar.css';
+import './CommonRatingBar.css';
 export type RatingVariant = 'single' | 'fill-left';
 export type RatingItem<T extends string | number> = {
     value: T;
@@ -15,7 +15,7 @@ interface Props<T extends string | number> {
     disabled?: boolean;
 }
 
-export function ResumeRatingBar<T extends string | number>({
+export function RatingBar<T extends string | number>({
     items,
     value,
     onChange,

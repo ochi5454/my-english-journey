@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import './ResumeInterviewSetupSlidePanel.css';
+import './InterviewSetupSlidePanel.css';
 import appConfig from '../config.ts';
 
 interface Interviewer {
@@ -27,7 +27,7 @@ interface Props {
   }) => void;
 }
 
-const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, isOpen, onClose, onSubmit }) => {
+const InterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, isOpen, onClose, onSubmit }) => {
   const [interviewDate, setInterviewDate] = useState('');
   const [interviewerList, setInterviewerList] = useState<Interviewer[]>([]);
   const [selectedInterviewer, setSelectedInterviewer] = useState('');
@@ -144,4 +144,4 @@ const ResumeInterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, i
   );
 };
 
-export default ResumeInterviewSetupSlidePanel;
+export default InterviewSetupSlidePanel;

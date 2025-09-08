@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import './ResumeInterviewerRoleFocusOverview.css';
+import './InterviewerRoleFocusOverview.css';
 import axios from 'axios';
 import appConfig from '../config.ts';
 
@@ -19,7 +19,7 @@ type RoleFocusSummary = {
 
 const ROLE_ORDER = ['c', 'sc', 'm', 'sm', 'd+']; // 小文字に統一
 
-const ResumeInterviewerRoleFocusOverview: React.FC = () => {
+const InterviewerRoleFocusOverview: React.FC = () => {
   const [data, setData] = useState<RoleFocusSummary>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,4 +125,4 @@ const ResumeInterviewerRoleFocusOverview: React.FC = () => {
   );
 };
 
-export default ResumeInterviewerRoleFocusOverview;
+export default InterviewerRoleFocusOverview;
