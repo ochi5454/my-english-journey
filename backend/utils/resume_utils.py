@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, Mapping, Union
 from backend.core.config import RESULT_PATH
 from backend.models.trait import ResumeTrait
+from backend.models.checksheet import ResumeHiringDecision
 from backend.core.database import get_db
 from collections import defaultdict
 
@@ -82,6 +83,23 @@ def _safe_load_json_list(path: Union[str, Path]) -> list:
     if isinstance(data, list):
         return data
     return []
+
+# _safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬇️
+def load_hiring_decisions() -> list[dict]:
+    with get_db() as db:
+        rows = db.query(ResumeHiringDecision).order_by(ResumeHiringDecision.order).all()
+        return [
+            {
+                "id": row.id,
+                "value": row.value,
+                "label": row.label,
+                "order": row.order,
+                "description": row.description
+            }
+            for row in rows
+        ]
+
+# _safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬆️
 
 # ============================================
 # 🧠 ファイル保存

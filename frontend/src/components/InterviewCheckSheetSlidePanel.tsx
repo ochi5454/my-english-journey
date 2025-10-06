@@ -242,7 +242,10 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                 <div className="resume-interview-field">
                     <label>採用可否</label>
                     <RatingBar
-                    items={config.hiringDecisions}
+                    items={config.hiringDecisions.map(decision => ({
+                        ...decision,
+                        label: decision.value
+                    }))}
                     value={qualitative['hiringDecision'] || null}
                     onChange={v => setQualitative(s => ({ ...s, hiringDecision: v }))}
                     variant="single"

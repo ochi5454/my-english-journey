@@ -6,7 +6,6 @@ from typing import Dict, Any, Mapping
 from backend.core.config import (
     TEMPLATE_QUANTITATIVE_PATH, 
     TEMPLATE_QUALITATIVE_PATH, 
-    TEMPLATE_HIRIING_PATH, 
     TEMPLATE_ROLETITLE_PATH, 
     INTERVIEWER_META_PATH, 
     INTERVIEWER_SKILLS_PATH, 
@@ -15,7 +14,9 @@ from backend.core.config import (
 from backend.utils.resume_utils import (
     _safe_load_json, 
     load_division_names, 
-    _safe_load_json_list, _load_json
+    _safe_load_json_list,
+    _load_json,
+    load_hiring_decisions
 )
 from backend.services.interview_review.io import (
     get_checksheet_one_async, 
@@ -65,7 +66,7 @@ def get_all_interview_settings(request: Request):
         "divisions": load_division_names(),
         "quantitativeItems": _safe_load_json_list(TEMPLATE_QUANTITATIVE_PATH),
         "qualitativeItems": _safe_load_json_list(TEMPLATE_QUALITATIVE_PATH),
-        "hiringDecisions": _safe_load_json_list(TEMPLATE_HIRIING_PATH),
+        "hiringDecisions": load_hiring_decisions(),
         "titleOptions": _safe_load_json_list(TEMPLATE_ROLETITLE_PATH),
         "focusTags": tags,
     }
