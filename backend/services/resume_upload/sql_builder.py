@@ -1,6 +1,6 @@
-import sqlite3
+from sqlalchemy import text
 import openai
-from backend.core.config import RESUME_MASKED_PATH
+from backend.core.database import get_db
 
 # ============================================
 # 🧠 テキストをSQLiteに保存
@@ -72,16 +72,10 @@ CREATE TABLE work_history (
 
 def save_sql_to_sqlite(sql: str):
     try:
-        db_path = str(RESUME_MASKED_PATH)
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        # 複数の INSERT 文がある前提で split & 実行
-        statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
-        for stmt in statements:
-            cursor.execute(stmt)
-
-        conn.commit()
-        conn.close()
+        with get_db() as db:  # db は Session
+            statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
+            for stmt in statements:
+                db.execute(text(stmt))   # ← cursor.execute の代わり
+            db.commit()
     except Exception as e:
         print(f"❌ SQL実行エラー: {e}")

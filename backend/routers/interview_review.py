@@ -3,7 +3,6 @@ from fastapi import HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from typing import List, cast
-from backend.core.config import SKILLS_PATH
 from backend.schemas.resume import (
     ScoreChatRequest, 
     ScoreUpdateRequest, 
@@ -35,7 +34,7 @@ router = APIRouter()
 @router.post("/chat-score-review")
 async def chat_score_review(payload: ScoreChatRequest):
     messages = [m.dict() for m in payload.messages]
-    division_profiles = load_division_profiles(SKILLS_PATH)
+    division_profiles = load_division_profiles()
     valid_divisions = [p["division"] for p in division_profiles]
 
     # 最新のuserメッセージから元スコアを抽出

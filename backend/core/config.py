@@ -42,11 +42,10 @@ logger = logging.getLogger(__name__)
 
 # --- 履歴書 ---
 RESUME_PATH = DATA_DIR / "resume_candidate_resume_files"
-RESUME_MASKED_PATH = DATA_DIR / "resume_structured.db"
+DB_PATH = DATA_DIR / "resume_structured.db"
 NG_COMPANY_PATH = DATA_DIR / "ng_company_names.txt"
 
 # --- スキル・スコア ---
-SKILLS_PATH = DATA_DIR / "resume_candidate_mustskills_files"
 RESULT_PATH = DATA_DIR / "resume_candidate_result_files"
 
 # --- 面談日程 ---

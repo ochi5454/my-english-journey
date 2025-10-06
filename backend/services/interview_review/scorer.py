@@ -2,7 +2,6 @@ from datetime import datetime
 from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
-from backend.core.config import SKILLS_PATH
 from backend.schemas.resume import PrepItemDict
 from backend.utils.resume_utils import (
     save_result_to_file, 
@@ -45,7 +44,7 @@ def review_with_interview_checksheet(
         raise HTTPException(status_code=404, detail="候補者データが見つかりません")
 
     # 部門候補と現在スコア
-    division_profiles = load_division_profiles(SKILLS_PATH)
+    division_profiles = load_division_profiles()
     valid_divisions = [p["division"] for p in division_profiles]
     current_map = {s["division"]: s.get("score", 0) for s in result.get("scores", [])}
 

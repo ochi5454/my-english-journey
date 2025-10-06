@@ -1,9 +1,9 @@
 import json
 from datetime import datetime
-from pathlib import Path
+from backend.models.trait import ResumeTrait
+from backend.core.database import get_db
 from math import isnan
 from typing import List, Dict, Any
-from backend.core.config import SKILLS_PATH
 from backend.core.openai_config import get_openai_client
 from backend.utils.resume_utils import (
     save_result_to_file, 
@@ -25,8 +25,7 @@ client = get_openai_client()
 
 def score_resume(file_path: str, candidate_id: str) -> dict:
     content = extract_text_from_resume(file_path)
-    common_path = SKILLS_PATH / "common.json"
-    must_results = check_must_requirements_llm(content, common_path)
+    must_results = check_must_requirements_llm(content)
 
     # マスト条件NGなら即返す
     if not all(bool(item.get("result")) for item in must_results.values()):
@@ -40,7 +39,7 @@ def score_resume(file_path: str, candidate_id: str) -> dict:
         save_result_to_file(result, candidate_id)
         return result
 
-    division_profiles = load_division_profiles(SKILLS_PATH)
+    division_profiles = load_division_profiles()
 
     # 複数部門を1つの文字列にまとめる
     division_descriptions = "\n\n".join(
@@ -130,8 +129,7 @@ def score_resume(file_path: str, candidate_id: str) -> dict:
 # --- 📄 パタン2 履歴書をマスクし、ベクトルDB、SQLに保存し、スコア判定（/resume-score-no-save） ------
 
 def score_resume_from_text(text: str, candidate_id: str) -> dict:
-    common_path = SKILLS_PATH / "common.json"
-    must_results = check_must_requirements_llm(text, common_path)
+    must_results = check_must_requirements_llm(text)
 
     # マスト条件NGなら即保存・返却
     if not all(bool(item.get("result")) for item in must_results.values()):
@@ -145,7 +143,7 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
         save_result_to_file(result, candidate_id)
         return result
 
-    division_profiles = load_division_profiles(SKILLS_PATH)
+    division_profiles = load_division_profiles()
 
     division_descriptions = "\n\n".join(
         f"部門名: {profile.get('division','')}\n理想の特徴: {', '.join(profile.get('desired_traits', []))}"
@@ -232,10 +230,16 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
     save_result_to_file(result, candidate_id)
     return result
 
-def check_must_requirements_llm(content: str, common_path: Path) -> dict:
-    with open(common_path, encoding='utf-8') as f:
-        data = json.load(f)
-    must_keywords = data.get("must_requirements", [])
+def check_must_requirements_llm(content: str) -> dict:
+    """
+    ResumeTraitテーブルからCommonのmust_requirementを取得して、LLM判定を行う
+    """
+    with get_db() as db:
+        rows = db.query(ResumeTrait)\
+                    .filter(ResumeTrait.division == "Common")\
+                    .filter(ResumeTrait.trait_type == "must_requirement")\
+                    .all()
+        must_keywords = [r.trait_label.strip() for r in rows if r.trait_label.strip()]
 
     prompt = f"""
 以下はある候補者の履歴書情報です：

@@ -2,31 +2,50 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Mapping, Union
 from backend.core.config import RESULT_PATH
+from backend.models.trait import ResumeTrait
+from backend.core.database import get_db
+from collections import defaultdict
 
 # ============================================
 # 🧠 部署の読込
 # ============================================
 
-def load_division_profiles(skills_dir: Path) -> list:
-    profiles = []
-    for json_file in skills_dir.glob("*.json"):
-        if json_file.name == "common.json":
-            continue
-        with open(json_file, encoding='utf-8') as f:
-            data = json.load(f)
-            profiles.append(data)
-    return profiles
+def load_division_profiles() -> list[dict]:
+    """
+    resume_traits テーブルから division ごとの desired_traits を構成したプロファイル一覧を返す。
+    """
+    with get_db() as db:
+        rows = db.query(ResumeTrait)\
+                    .filter(ResumeTrait.trait_type == "desired_trait")\
+                    .filter(ResumeTrait.division.isnot(None))\
+                    .all()
+        
+        division_map = defaultdict(list)
+        for row in rows:
+            division = row.division.strip()
+            label = row.trait_label.strip()
+            if division and label:
+                division_map[division].append(label)
+        
+        # profilesの形式に変換
+        profiles = [
+            {"division": division, "desired_traits": traits}
+            for division, traits in division_map.items()
+        ]
+        return profiles
 
-def load_division_names(skills_dir: Path) -> list[str]:
-    divisions = []
-    for json_file in skills_dir.glob("*.json"):
-        if json_file.name == "common.json":
-            continue
-        with open(json_file, encoding="utf-8") as f:
-            data = json.load(f)
-            if "division" in data:
-                divisions.append(data["division"])
-    return divisions
+def load_division_names() -> list[str]:
+    """
+    resume_traits テーブルからユニークな division 名を取得。
+    """
+    with get_db() as db:
+        divisions = db.query(ResumeTrait.division)\
+                        .distinct()\
+                        .filter(ResumeTrait.division.isnot(None))\
+                        .order_by(ResumeTrait.division)\
+                        .all()
+        # 結果は list[Tuple[str]] なので、flattenして返す
+        return [d[0] for d in divisions]
 
 # ============================================
 # 🧠 スコア判定結果ファイルの保存

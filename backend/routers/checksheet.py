@@ -4,7 +4,6 @@ from fastapi.responses import ORJSONResponse
 from fastapi.exceptions import HTTPException
 from typing import Dict, Any, Mapping
 from backend.core.config import (
-    SKILLS_PATH, 
     TEMPLATE_QUANTITATIVE_PATH, 
     TEMPLATE_QUALITATIVE_PATH, 
     TEMPLATE_HIRIING_PATH, 
@@ -63,7 +62,7 @@ def get_all_interview_settings(request: Request):
                             tags = exp
 
     return {
-        "divisions": load_division_names(SKILLS_PATH),  # これは配列形式でOK
+        "divisions": load_division_names(),
         "quantitativeItems": _safe_load_json_list(TEMPLATE_QUANTITATIVE_PATH),
         "qualitativeItems": _safe_load_json_list(TEMPLATE_QUALITATIVE_PATH),
         "hiringDecisions": _safe_load_json_list(TEMPLATE_HIRIING_PATH),
