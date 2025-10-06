@@ -328,7 +328,7 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                                 <textarea
                                 className="resume-template-textarea"
                                 rows={2}
-                                placeholder={`${item.commentPlaceholder}${quantitative[item.key].level ? `（レベル${quantitative[item.key].level}の根拠）` : ''}`}
+                                placeholder={`${item.comment_placeholder}${quantitative[item.key].level ? `（レベル${quantitative[item.key].level}の根拠）` : ''}`}
                                 value={quantitative[item.key].comment}
                                 onChange={e => {
                                     autoResize(e.currentTarget);

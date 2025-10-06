@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, Mapping, Union
 from backend.core.config import RESULT_PATH
 from backend.models.trait import ResumeTrait
-from backend.models.checksheet import ResumeHiringDecision, ResumeQualitativeItem
+from backend.models.checksheet import ResumeHiringDecision, ResumeQualitativeItem, ResumeQuantitativeItem
 from backend.core.database import get_db
 from collections import defaultdict
 
@@ -111,6 +111,32 @@ def load_qualitative_items() -> list[dict]:
             }
             for row in rows
         ]
+    
+def load_quantitative_items() -> list[dict]:
+    with get_db() as db:
+        rows = db.query(ResumeQuantitativeItem).all()
+
+        result = []
+        for row in rows:
+            # 関連する levels を value の昇順でソート
+            levels = sorted(row.levels, key=lambda l: l.value)
+
+            result.append({
+                "key": row.key,
+                "label": row.label,
+                "hint": row.hint,
+                "comment_placeholder": row.comment_placeholder,
+                "levels": [
+                    {
+                        "value": level.value,
+                        "label": level.label
+                    }
+                    for level in levels
+                ],
+                "rubrics": [r.rubric for r in row.rubrics]
+            })
+
+        return result
 
 # DB化の修正が完了し、_safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬆️
 

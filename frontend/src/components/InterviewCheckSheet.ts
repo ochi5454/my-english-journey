@@ -24,7 +24,7 @@ export interface QuantitativeItem {
   key: string;
   label: string;
   hint?: string;
-  commentPlaceholder: string;
+  comment_placeholder: string;
   rubrics: string[];
   levels: { value: number; label: string }[];
 }
