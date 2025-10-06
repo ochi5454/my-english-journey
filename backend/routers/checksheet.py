@@ -4,7 +4,6 @@ from fastapi.responses import ORJSONResponse
 from fastapi.exceptions import HTTPException
 from typing import Dict, Any, Mapping
 from backend.core.config import (
-    TEMPLATE_ROLETITLE_PATH, 
     INTERVIEWER_META_PATH, 
     INTERVIEWER_SKILLS_PATH, 
     INTERVIEWER_CHECKSHEET_PATH,
@@ -12,11 +11,11 @@ from backend.core.config import (
 from backend.utils.resume_utils import (
     _safe_load_json, 
     load_division_names, 
-    _safe_load_json_list,
     _load_json,
     load_hiring_decisions,
     load_qualitative_items,
-    load_quantitative_items
+    load_quantitative_items,
+    load_role_titles
 )
 from backend.services.interview_review.io import (
     get_checksheet_one_async, 
@@ -67,7 +66,7 @@ def get_all_interview_settings(request: Request):
         "quantitativeItems": load_quantitative_items(),
         "qualitativeItems": load_qualitative_items(),
         "hiringDecisions": load_hiring_decisions(),
-        "titleOptions": _safe_load_json_list(TEMPLATE_ROLETITLE_PATH),
+        "titleOptions": load_role_titles(),
         "focusTags": tags,
     }
 

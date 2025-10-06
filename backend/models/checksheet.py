@@ -15,6 +15,14 @@ class ResumeHiringDecision(Base):
     order = Column(Integer, nullable=False)  # 並び順
     description = Column(String, nullable=True)  # 説明文
 
+class ResumeRoleTitle(Base):
+    __tablename__ = "resume_roletitle"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    value = Column(String, nullable=False, unique=True)  # 例: 'C'
+    label = Column(String, nullable=False)               # 例: 'C（担当）'
+    order = Column(Integer, nullable=False)              # 例: 1
+
 # ============================================
 # ✅ 定性評価
 # ============================================

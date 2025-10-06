@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, Mapping, Union
 from backend.core.config import RESULT_PATH
 from backend.models.trait import ResumeTrait
-from backend.models.checksheet import ResumeHiringDecision, ResumeQualitativeItem, ResumeQuantitativeItem
+from backend.models.checksheet import ResumeHiringDecision, ResumeRoleTitle, ResumeQualitativeItem, ResumeQuantitativeItem
 from backend.core.database import get_db
 from collections import defaultdict
 
@@ -78,13 +78,6 @@ def _safe_load_json(path: Union[str, Path]) -> Dict[str, Any]:
             return dict(data)  # type: ignore[arg-type]
     return {}
 
-def _safe_load_json_list(path: Union[str, Path]) -> list:
-    data = _load_json(path)
-    if isinstance(data, list):
-        return data
-    return []
-
-# DB化の修正が完了し、_safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬇️
 def load_hiring_decisions() -> list[dict]:
     with get_db() as db:
         rows = db.query(ResumeHiringDecision).order_by(ResumeHiringDecision.order).all()
@@ -95,6 +88,19 @@ def load_hiring_decisions() -> list[dict]:
                 "label": row.label,
                 "order": row.order,
                 "description": row.description
+            }
+            for row in rows
+        ]
+    
+def load_role_titles() -> list[dict]:
+    with get_db() as db:
+        rows = db.query(ResumeRoleTitle).order_by(ResumeRoleTitle.order).all()
+        return [
+            {
+                "id": row.id,
+                "value": row.value,
+                "label": row.label,
+                "order": row.order
             }
             for row in rows
         ]
@@ -137,8 +143,6 @@ def load_quantitative_items() -> list[dict]:
             })
 
         return result
-
-# DB化の修正が完了し、_safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬆️
 
 # ============================================
 # 🧠 ファイル保存
