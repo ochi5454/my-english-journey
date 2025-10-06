@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, Mapping, Union
 from backend.core.config import RESULT_PATH
 from backend.models.trait import ResumeTrait
-from backend.models.checksheet import ResumeHiringDecision
+from backend.models.checksheet import ResumeHiringDecision, ResumeQualitativeItem
 from backend.core.database import get_db
 from collections import defaultdict
 
@@ -84,7 +84,7 @@ def _safe_load_json_list(path: Union[str, Path]) -> list:
         return data
     return []
 
-# _safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬇️
+# DB化の修正が完了し、_safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬇️
 def load_hiring_decisions() -> list[dict]:
     with get_db() as db:
         rows = db.query(ResumeHiringDecision).order_by(ResumeHiringDecision.order).all()
@@ -98,8 +98,21 @@ def load_hiring_decisions() -> list[dict]:
             }
             for row in rows
         ]
+    
+def load_qualitative_items() -> list[dict]:
+    with get_db() as db:
+        rows = db.query(ResumeQualitativeItem).all()
+        return [
+            {
+                "id": row.id,
+                "key": row.key,
+                "label": row.label,
+                "placeholder": row.placeholder
+            }
+            for row in rows
+        ]
 
-# _safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬆️
+# DB化の修正が完了し、_safe_load_json_listが完全に不要になったらutilではなく別ファイルにしても良い ⬆️
 
 # ============================================
 # 🧠 ファイル保存

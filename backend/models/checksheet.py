@@ -9,3 +9,11 @@ class ResumeHiringDecision(Base):
     label = Column(String, nullable=False)  # 表示名: "採用すべきでない"
     order = Column(Integer, nullable=False)  # 並び順
     description = Column(String, nullable=True)  # 説明文
+
+class ResumeQualitativeItem(Base):
+    __tablename__ = "resume_qualitativeitems"
+
+    id = Column(String, primary_key=True, index=True)
+    key = Column(String, nullable=False)
+    label = Column(String, nullable=False)
+    placeholder = Column(String)

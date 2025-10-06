@@ -58,7 +58,6 @@ TEMPLATE_TODO_PATH = INTERVIEWDATE_PATH / "template_todo.json"
 
 # --- 面談シート ---
 INTERVIEWCHECKSHEET_PATH = DATA_DIR / "resume_interviewchecksheet_files"
-TEMPLATE_QUALITATIVE_PATH = INTERVIEWCHECKSHEET_PATH / "template_qualitativeitems.json"
 TEMPLATE_QUANTITATIVE_PATH = INTERVIEWCHECKSHEET_PATH / "template_quantitativeItems.json"
 TEMPLATE_ROLETITLE_PATH = INTERVIEWCHECKSHEET_PATH / "template_roletitle.json"
 
