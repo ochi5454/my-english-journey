@@ -1,7 +1,6 @@
-import json
-import os
 from datetime import datetime
-from backend.core.config import INTERVIEWDATE_EACH_CANDIDATE_PATH
+from backend.core.database import get_db
+from backend.models.interview_schedule import ResumeInterviewSchedule
 from backend.schemas.resume import InterviewSetupRequest
 
 # ============================================
@@ -10,25 +9,34 @@ from backend.schemas.resume import InterviewSetupRequest
 
 def save_interview_schedule(req: InterviewSetupRequest) -> dict:
     key_map = {
-        "面談・1次": "interview_1_date",
-        "面談・2次": "interview_2_date",
-        "最終面談": "interview_final_date"
+        "面談・1次": "interview_1",
+        "面談・2次": "interview_2",
+        "最終面談": "interview_final"
     }
 
-    interview_key = key_map.get(req.stage, "interview_date_other")
-    data_path = os.path.join(INTERVIEWDATE_EACH_CANDIDATE_PATH, f"{req.candidate}.json")
+    interview_stage = key_map.get(req.stage, "interview_other")
 
-    if os.path.exists(data_path):
-        with open(data_path, "r", encoding="utf-8") as f:
-            existing = json.load(f)
-    else:
-        existing = {}
+    with get_db() as db: 
+        existing = db.query(ResumeInterviewSchedule).filter_by(
+            candidate_id=req.candidate,
+            interview_stage=interview_stage
+        ).first()
 
-    existing[interview_key] = req.interviewDate
-    existing["last_updated"] = datetime.now().isoformat()
+        now = datetime.now()
 
-    with open(data_path, "w", encoding="utf-8") as f:
-        json.dump(existing, f, ensure_ascii=False, indent=2)
+        if existing:
+            existing.scheduled_at = req.interviewDate
+            existing.last_updated = now
+        else:
+            new_schedule = ResumeInterviewSchedule(
+                candidate_id=req.candidate,
+                interview_stage=interview_stage,
+                scheduled_at=req.interviewDate,
+                last_updated=now
+            )
+            db.add(new_schedule)
+
+        db.commit()
 
     return {
         "saved_stage": req.stage,

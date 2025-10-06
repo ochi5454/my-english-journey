@@ -50,7 +50,6 @@ RESULT_PATH = DATA_DIR / "resume_candidate_result_files"
 
 # --- 面談日程 ---
 INTERVIEWDATE_PATH = DATA_DIR / "resume_interviewdate_files"
-INTERVIEWDATE_EACH_CANDIDATE_PATH = INTERVIEWDATE_PATH / "interviewdate_files"
 TEMPLATE_EMAIL_CANDIDATE_PATH = INTERVIEWDATE_PATH / "mailtemplate_to_candidate.json"
 TEMPLATE_EMAIL_INTERVIEWER_PATH = INTERVIEWDATE_PATH / "mailtemplate_to_interviewer.json"
 TEMPLATE_INTERVIEWER_PATH = INTERVIEWDATE_PATH / "template_interviewer.json"

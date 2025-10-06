@@ -7,12 +7,13 @@ from fastapi import HTTPException, APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import HTTPException
 from pathlib import Path
+from backend.core.database import get_db
 from backend.core.config import (
     RESUME_PATH, 
     RESULT_PATH, 
-    INTERVIEWDATE_EACH_CANDIDATE_PATH, 
     MIME_TO_EXT
 )
+from backend.models.interview_schedule import ResumeInterviewSchedule
 from backend.utils.resume_utils import save_result_to_file
 from backend.services.resume_upload.scorer import score_resume
 from backend.services.resume_upload.extractor import (
@@ -143,17 +144,30 @@ async def get_result_by_candidate_id(candidate_id: str):
     try:
         with open(files[0], encoding="utf-8") as f:
             result_data = json.load(f)
-        
-        # 面談日程も読み込む（存在する場合）
-        interview_file = os.path.join(INTERVIEWDATE_EACH_CANDIDATE_PATH, f"{candidate_id}.json")
-        if os.path.exists(interview_file):
-            with open(interview_file, encoding="utf-8") as f:
-                interview_data = json.load(f)
-            result_data.update(interview_data)  # 統合
+
+        # ✅ DBセッション
+        with get_db() as db:
+            schedules = db.query(ResumeInterviewSchedule).filter_by(candidate_id=candidate_id).all()
+
+            for s in schedules:
+                if s.interview_stage == "interview_1":
+                    result_data["interview_1_date"] = s.scheduled_at.isoformat()
+                elif s.interview_stage == "interview_2":
+                    result_data["interview_2_date"] = s.scheduled_at.isoformat()
+                elif s.interview_stage == "interview_final":
+                    result_data["interview_final_date"] = s.scheduled_at.isoformat()
+
+            if schedules:
+                result_data["last_updated"] = max(s.last_updated for s in schedules).isoformat()
 
         return JSONResponse(content=result_data)
 
     except Exception as e:
+        # ✅ エラー内容をコンソールに出す
+        print("❌ エラー内容:", str(e))
+        import traceback
+        traceback.print_exc()
+
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @router.get("/resumes/by-candidate/{candidate_id}")
