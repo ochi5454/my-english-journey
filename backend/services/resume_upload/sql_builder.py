@@ -1,6 +1,6 @@
 from sqlalchemy import text
 import openai
-from backend.core.database import get_db
+from backend.core.database import SessionLocal
 
 # ============================================
 # 🧠 テキストをSQLiteに保存
@@ -72,7 +72,7 @@ CREATE TABLE resume_work_history (
 
 def save_sql_to_sqlite(sql: str):
     try:
-        with get_db() as db:  # db は Session
+        with SessionLocal() as db:
             statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
             for stmt in statements:
                 db.execute(text(stmt))   # ← cursor.execute の代わり

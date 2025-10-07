@@ -1,14 +1,12 @@
 import json
 from hashlib import sha1
 from typing import Optional
-from backend.core.config import (
-    INTERVIEWER_CHECKSHEET_PATH,
-)
-from backend.utils.resume_utils import save_json
+from sqlalchemy.orm import Session
+from backend.core.database import get_db
+from backend.models.results_byinterview import ResultByInterview
 from backend.services.interviewer_eval.result_loader import get_resume_or_empty
 from backend.services.interviewer_eval.prep_loader import (
-    load_prep_map_with_owner, 
-    iter_all_prep, 
+    load_prep_map_with_owner,
     pick_qa_block_for
 )
 from backend.services.interviewer_eval.rubric_loader import load_interviewer_skills
@@ -56,31 +54,48 @@ def calc_source_sig(
     j = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return sha1(j.encode("utf-8")).hexdigest()
 
-def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=None) -> dict:
-    prep_map = load_prep_map_with_owner()
+def list_diff_targets(
+    db: Session,
+    stage: str | None = None,
+    q: str | None = None,
+    limit: int | None = None
+) -> dict:
     rubric = load_interviewer_skills()
-
-    # すべての shard を合算して index
-    agg = load_all_evals()  # {"rows": [...]}
-    idx = index_rows(agg.get("rows") or [])
-
     resume_cache: dict[str, dict] = {}
-    missing, stale = [], []
     needle = (q or "").strip().lower()
 
-    for cid, stg, block in iter_all_prep(prep_map):
-        if stage and stg != stage:
-            continue
-        iid = block.get("interviewer_id", "unknown")
+    # 1. eval_required=True のレコードをDBから取得
+    query = db.query(ResultByInterview).filter(ResultByInterview.eval_required == True)
+    if stage:
+        query = query.filter(ResultByInterview.stage_name == stage)
+    if limit:
+        query = query.limit(limit)
+    targets = query.all()
 
-        if not block.get("eval_required", False):
-            continue
+    # ✅ prep_map もここで取得しておく
+    prep_map = load_prep_map_with_owner(db)
+
+    # 2. キャッシュをインデックス化
+    agg = load_all_evals()
+    idx = index_rows(agg.get("rows") or [])
+
+    missing, stale = [], []
+
+    for row in targets:
+        cid = row.candidate_id
+        iid = row.interviewer_id
+        stg = row.stage_name
+
         if needle and (needle not in iid.lower() and needle not in cid.lower()):
             continue
 
         if cid not in resume_cache:
             resume_cache[cid] = get_resume_or_empty(cid)
         resume = resume_cache[cid]
+
+        # ✅ ループ内で get_db() しない
+        qa_block = prep_map.get(cid, {}).get(stg, [])
+        block = next((b for b in qa_block if b.get("interviewer_id") == iid), qa_block[0] if qa_block else {})
 
         rolefit = evaluate_role_expectation_match(iid, block)
         sig = calc_source_sig(cid, stg, block, resume, rubric, rolefit=rolefit)
@@ -98,15 +113,18 @@ def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=No
     return {"missing": missing, "stale": stale}
 
 def refresh_targets_and_upsert(
-        targets: list[dict], 
+        targets: list[dict],
+        db: Session,
         model: str = "gpt-4",
         include_reasons: bool = True,
         skip_eval: bool = False
     ) -> list[dict]:
     if not targets: return []
 
+    print(f"▶️ refresh_targets_and_upsert called with {len(targets)} targets")
+
     rubric = load_interviewer_skills()
-    prep_map = load_prep_map_with_owner()
+    prep_map = load_prep_map_with_owner(db)
     resume_cache: dict[str, dict] = {}
 
     # 面談者ごとに束ねて1ファイルずつ更新
@@ -117,12 +135,15 @@ def refresh_targets_and_upsert(
     updated_rows: list[dict] = []
 
     for iid, iid_targets in by_iid.items():
+        print(f"🧑‍💼 Processing interviewer: {iid}, with {len(iid_targets)} targets")
+
         result = load_evals_for_interviewer(iid)
         rows = result["rows"]
         idx = index_rows(rows)
 
         for t in iid_targets:
             cid, stg = t["candidate_id"], t["stage"]
+            print(f"  📝 Target: candidate_id={cid}, stage={stg}")
             if cid not in resume_cache:
                 resume_cache[cid] = get_resume_or_empty(cid)
             resume = resume_cache[cid]
@@ -131,8 +152,22 @@ def refresh_targets_and_upsert(
             qa_block = next((b for b in blocks if b.get("interviewer_id") == iid),
                             (blocks[0] if blocks else {}))
             
-            if not qa_block.get("eval_required", False):
+            # 🔍 DBから直接 eval_required を確認
+            row_obj = db.query(ResultByInterview).filter_by(
+                candidate_id=cid,
+                interviewer_id=iid,
+                stage_name=stg
+            ).first()
+
+            print(f"    ⏺️ DB row_obj found? {'YES' if row_obj else 'NO'}")
+            if row_obj:
+                print(f"    🔍 eval_required: {row_obj.eval_required}")
+
+            if not (row_obj and row_obj.eval_required):
+                print(f"    ⛔️ Skipped (eval_required not True)")
                 continue
+            else:
+                print(f"    ✅ Proceeding with evaluation")
 
             result = evaluate_interviewer_single(
                 candidate_id=cid,
@@ -153,14 +188,23 @@ def refresh_targets_and_upsert(
             updated_rows.append(row)
 
             # 🔸 ここで eval_required を False に落とす
-            qa_block["eval_required"] = False
+            # 対象の ResultByInterview を取得
+            row_obj = db.query(ResultByInterview).filter_by(
+                candidate_id=cid, 
+                interviewer_id=iid, 
+                stage_name=stg
+            ).first()
+
+            if row_obj:
+                row_obj.eval_required = False
+                db.add(row_obj)  # または不要な場合もある
 
         # idx → rows に戻してこの面談者ファイルにだけ保存
         rows = list(idx.values())
         rows.sort(key=lambda r: (r["stage"], r["interviewer_id"], r["candidate_id"]))
         save_evals_cache_for(iid, rows)
-        save_checksheet_map(prep_map)
 
+        db.commit()
     return updated_rows
 
 def evaluate_interviewer_single(
@@ -217,21 +261,3 @@ def evaluate_interviewer_single(
     result["role_expectation"] = rolefit
 
     return result
-
-def save_checksheet_map(prep_map: dict):
-    for cid, stage_blocks in prep_map.items():
-        for stage, blocks in stage_blocks.items():
-            for block in blocks:
-                iid = block.get("interviewer_id")
-                if not iid:
-                    continue
-                filepath = INTERVIEWER_CHECKSHEET_PATH / iid / f"{cid}.json"
-                # 保存対象の1人分の dict を構成
-                content = {
-                    "interviewer_id": iid,
-                    "candidate_id": cid,
-                    "stages": {
-                        stage: block
-                    }
-                }
-                save_json(filepath, content)

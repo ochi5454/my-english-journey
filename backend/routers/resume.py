@@ -7,7 +7,7 @@ from fastapi import HTTPException, APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import HTTPException
 from pathlib import Path
-from backend.core.database import get_db
+from backend.core.database import SessionLocal
 from backend.core.config import (
     RESUME_PATH, 
     RESULT_PATH, 
@@ -146,7 +146,7 @@ async def get_result_by_candidate_id(candidate_id: str):
             result_data = json.load(f)
 
         # ✅ DBセッション
-        with get_db() as db:
+        with SessionLocal() as db:
             schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
 
             for s in schedules:

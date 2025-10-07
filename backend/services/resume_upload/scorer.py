@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from backend.models.candidate_expectations import CandidateExpectations
-from backend.core.database import get_db
+from backend.core.database import SessionLocal
 from math import isnan
 from typing import List, Dict, Any
 from backend.core.openai_config import get_openai_client
@@ -234,7 +234,7 @@ def check_must_requirements_llm(content: str) -> dict:
     """
     ResumeTraitテーブルからCommonのmust_requirementを取得して、LLM判定を行う
     """
-    with get_db() as db:
+    with SessionLocal() as db:
         rows = db.query(CandidateExpectations)\
                     .filter(CandidateExpectations.division == "Common")\
                     .filter(CandidateExpectations.trait_type == "must_requirement")\

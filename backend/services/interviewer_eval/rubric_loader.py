@@ -1,7 +1,7 @@
 import json
 from hashlib import sha1
 from datetime import date
-from backend.core.database import get_db
+from backend.core.database import SessionLocal
 from backend.models.interviewer_evals import InterviewerCriteriaItem 
 
 # ============================================
@@ -12,7 +12,7 @@ def load_interviewer_skills(version: date | None = None) -> dict:
     """DBから面談評価ルーブリックを読み込んで整形したdictで返す。"""
     from backend.services.interviewer_eval.rubric_loader import default_interviewer_rubric
 
-    with get_db() as db:
+    with SessionLocal() as db:
         query = db.query(InterviewerCriteriaItem)
         if version:
             query = query.filter(InterviewerCriteriaItem.version == version)
@@ -106,7 +106,7 @@ def normalize_rubric(raw: dict) -> dict:
 def get_interviewer_rubric_or_default(version: date | None = None) -> dict:
     from backend.services.interviewer_eval.rubric_loader import default_interviewer_rubric
 
-    with get_db() as db:
+    with SessionLocal() as db:
         query = db.query(InterviewerCriteriaItem)
         if version:
             query = query.filter(InterviewerCriteriaItem.version == version)

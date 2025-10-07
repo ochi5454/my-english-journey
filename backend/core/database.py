@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
-from contextlib import contextmanager
 from typing import Generator
 from backend.core.config import DB_PATH
 
@@ -20,7 +19,6 @@ Base = declarative_base()
 # ✅ DB 取得と終了
 # ============================================
 
-@contextmanager
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:

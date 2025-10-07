@@ -3,7 +3,7 @@ from pathlib import Path
 from backend.core.config import (
     INTERVIEWER_META_PATH,
 )
-from backend.core.database import get_db
+from backend.core.database import SessionLocal
 from backend.utils.resume_utils import get_expected_focus_items
 
 # ============================================
@@ -25,7 +25,7 @@ def evaluate_role_expectation_match(interviewer_id: str, qa_block: dict) -> dict
             "score": 0.0
         }
 
-    with get_db() as db:
+    with SessionLocal() as db:
         expected_items = get_expected_focus_items(dept, role, db)
 
     if not expected_items:

@@ -6,7 +6,7 @@ from backend.core.config import RESULT_PATH
 from backend.models.candidate_expectations import CandidateExpectations
 from backend.models.checksheet import ChecksheetHiringDecision, ChecksheetRoleTitle, ChecksheetQualitativeItem, ChecksheetQuantitativeItem
 from backend.models.interviewer_evals import InterviewerRoleFocusItem
-from backend.core.database import get_db
+from backend.core.database import SessionLocal
 from collections import defaultdict
 
 # ============================================
@@ -17,7 +17,7 @@ def load_division_profiles() -> list[dict]:
     """
     candidate_expectations テーブルから division ごとの desired_traits を構成したプロファイル一覧を返す。
     """
-    with get_db() as db:
+    with SessionLocal() as db:
         rows = db.query(CandidateExpectations)\
                     .filter(CandidateExpectations.trait_type == "desired_trait")\
                     .filter(CandidateExpectations.division.isnot(None))\
@@ -41,7 +41,7 @@ def load_division_names() -> list[str]:
     """
     candidate_expectations テーブルからユニークな division 名を取得。
     """
-    with get_db() as db:
+    with SessionLocal() as db:
         divisions = db.query(CandidateExpectations.division)\
                         .distinct()\
                         .filter(CandidateExpectations.division.isnot(None))\
@@ -85,7 +85,7 @@ def _safe_load_json(path: Union[str, Path]) -> Dict[str, Any]:
 # ============================================
 
 def load_hiring_decisions() -> list[dict]:
-    with get_db() as db:
+    with SessionLocal() as db:
         rows = db.query(ChecksheetHiringDecision).order_by(ChecksheetHiringDecision.order).all()
         return [
             {
@@ -99,7 +99,7 @@ def load_hiring_decisions() -> list[dict]:
         ]
     
 def load_role_titles() -> list[dict]:
-    with get_db() as db:
+    with SessionLocal() as db:
         rows = db.query(ChecksheetRoleTitle).order_by(ChecksheetRoleTitle.order).all()
         return [
             {
@@ -112,7 +112,7 @@ def load_role_titles() -> list[dict]:
         ]
     
 def load_qualitative_items() -> list[dict]:
-    with get_db() as db:
+    with SessionLocal() as db:
         rows = db.query(ChecksheetQualitativeItem).all()
         return [
             {
@@ -125,7 +125,7 @@ def load_qualitative_items() -> list[dict]:
         ]
     
 def load_quantitative_items() -> list[dict]:
-    with get_db() as db:
+    with SessionLocal() as db:
         rows = db.query(ChecksheetQuantitativeItem).all()
 
         result = []
@@ -149,26 +149,6 @@ def load_quantitative_items() -> list[dict]:
             })
 
         return result
-
-# ============================================
-# 🧠 ファイル保存
-# ============================================
-
-def save_json(filepath: Path, data: dict, ensure_dir: bool = True, indent: int = 2) -> None:
-    """
-    指定されたPathにJSONを保存する。
-
-    Args:
-        filepath (Path): 保存先のファイルパス（例: Path("user123/cand_abc.json")）
-        data (dict): 保存するデータ
-        ensure_dir (bool): 親ディレクトリが存在しない場合は作成するか（デフォルト: True）
-        indent (int): インデント幅（整形出力用）
-    """
-    if ensure_dir:
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=indent)
 
 # ============================================
 # 🧠 部門ごとのタグ読込

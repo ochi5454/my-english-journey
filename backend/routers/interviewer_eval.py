@@ -1,8 +1,10 @@
-from fastapi import Request, HTTPException, APIRouter, Query, Body
+from fastapi import Request, HTTPException, APIRouter, Query, Body, Depends
 from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import HTTPException
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
+from sqlalchemy.orm import Session
+from backend.core.database import get_db
 from backend.services.interviewer_eval.rubric_loader import load_rubric_for_http
 from backend.services.interviewer_eval.eval_cache import (
     load_all_evals, 
@@ -63,29 +65,39 @@ async def interviewer_evals_cache_ep(
     )
 
 @router.post("/interviewer/evals-refresh")
-async def interviewer_evals_refresh_ep(payload: dict = Body(...)):
-    """
-    body 例:
-        { "targets": [{candidate_id,interviewer_id,stage}, ...] }
-        または
-        { "auto": true, "stage":"面談・1次", "q":"user", "limit":100 }
-    """
+async def interviewer_evals_refresh_ep(
+    payload: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    print("🚀 /interviewer/evals-refresh called")
+    print(f"📦 payload: {payload}")
+
     targets = payload.get("targets")
     if payload.get("auto"):
-        diff = list_diff_targets(stage=payload.get("stage"), q=payload.get("q"), limit=payload.get("limit"))
+        diff = list_diff_targets(
+            db=db,  # ← 追加
+            stage=payload.get("stage"),
+            q=payload.get("q"),
+            limit=payload.get("limit")
+        )
+        print(f"🧮 diff targets: missing={len(diff['missing'])}, stale={len(diff['stale'])}")
         targets = (diff["missing"] + diff["stale"])
     targets = targets or []
+    print(f"🎯 final targets count: {len(targets)}")
 
     model = payload.get("model") or "gpt-4"
     include_reasons = payload.get("includeReasons", True)
     skip_eval = payload.get("skipEval", False)
 
+    # ✅ db を渡すように修正
     rows = refresh_targets_and_upsert(
-        targets, 
+        targets=targets,
+        db=db,
         model=model, 
         include_reasons=include_reasons,
         skip_eval=skip_eval
     )
+
     return JSONResponse(content={"updated": len(rows), "rows": rows})
 
 @router.post("/interviewer/evaluate")

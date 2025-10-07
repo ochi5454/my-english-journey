@@ -1,62 +1,77 @@
-import json
-from pathlib import Path
 from typing import List, Dict, Optional, Iterable
-from backend.core.config import INTERVIEWER_CHECKSHEET_PATH
+from sqlalchemy.orm import Session, joinedload
+from backend.models.results_byinterview import ResultByInterview
 
 # ============================================
 # 🧠 面接シートの読込
 # ============================================
 
-def load_prep_map_with_owner() -> Dict[str, Dict[str, List[dict]]]:
+def load_prep_map_with_owner(db: Session) -> Dict[str, Dict[str, List[dict]]]:
     """
-    新構成のみ対応:
-        interviewer_checksheet_files/<interviewer_id>/<candidate_id>.json
-
-        返り値の正規化フォーマット:
-        { candidate_id: { stage: [ { ...面談ブロック..., "interviewer_id": <iid> }, ... ] } }
-
-        各ファイルの推奨スキーマ:
-        {
-        "interviewer_id": "user123",        # 省略可（無ければディレクトリ名で補完）
-        "candidate_id": "cand_xxx",         # 省略可（無ければファイル名で補完）
-        "stages": {
-            "面談・1次": {
-            "prepItems": [...],
-            "reviewedResume": true,
-            "qualitative": {...},
-            "quantitative": {...},
-            "updated_at": "ISO8601"
-            },
-            ...
-        }
-    }
+    DBの ResultByInterview テーブルから面談シート情報を収集。
+    戻り値の形式:
+    { candidate_id: { stage: [ { prepItems, qualitative, quantitative, reviewedResume, interviewer_id, updated_at } ] } }
     """
     merged: Dict[str, Dict[str, List[dict]]] = {}
-    base: Path = INTERVIEWER_CHECKSHEET_PATH
-    if not base.exists():
-        return merged
 
-    for iid_dir in base.glob("*"):
-        if not iid_dir.is_dir():
-            continue
-        iid = iid_dir.name
+    records: List[ResultByInterview] = (
+        db.query(ResultByInterview)
+        .options(
+            joinedload(ResultByInterview.prep_items),
+            joinedload(ResultByInterview.qualitative),
+            joinedload(ResultByInterview.quantitative),
+        )
+        .all()
+    )
 
-        for jf in iid_dir.glob("*.json"):
-            try:
-                with open(jf, encoding="utf-8") as f:
-                    doc = json.load(f)
-            except Exception as e:
-                print("読み込み失敗:", jf, e)
-                continue
+    for r in records:
+        cid = r.candidate_id
+        stage = r.stage_name
+        iid = r.interviewer_id
 
-            cid = (doc.get("candidate_id") or jf.stem)
-            interviewer_id = (doc.get("interviewer_id") or iid)
-            stages = doc.get("stages") or {}
+        # prepItems: ResultByInterviewQATag → list[dict]
+        prep_items = [
+            {
+                "question_id": qa.question_id,
+                "question": qa.question,
+                "answer": qa.answer,
+                "tags": qa.tags.split(",") if qa.tags else [],
+            }
+            for qa in r.prep_items
+        ]
 
-            stage_map = merged.setdefault(cid, {})
-            for stage, block in (stages or {}).items():
-                enriched = {**(block or {}), "interviewer_id": interviewer_id}
-                stage_map.setdefault(stage, []).append(enriched)
+        # qualitative: ResultByInterviewQualitative → dict
+        qualitative = (
+            {
+                "careerGoals": r.qualitative.career_goals,
+                "otherApps": r.qualitative.other_apps,
+                "overall": r.qualitative.overall,
+                "assignmentPlan": r.qualitative.assignment_plan,
+            }
+            if r.qualitative
+            else {}
+        )
+
+        # quantitative: ResultByInterviewQuantitative → dict[item_key] = { level, comment }
+        quantitative = {}
+        for qt in r.quantitative:
+            quantitative[qt.item_key] = {
+                "level": qt.level,
+                "comment": qt.comment,
+            }
+
+        block = {
+            "interviewer_id": iid,
+            "prepItems": prep_items,
+            "reviewedResume": r.reviewed_resume or False,
+            "qualitative": qualitative,
+            "quantitative": quantitative,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        }
+
+        # 格納
+        stage_map = merged.setdefault(cid, {})
+        stage_map.setdefault(stage, []).append(block)
 
     return merged
 

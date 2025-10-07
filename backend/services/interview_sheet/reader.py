@@ -1,58 +1,77 @@
-import json
-from backend.core.config import INTERVIEWER_CHECKSHEET_PATH
 from typing import List, Dict, Optional, Any
+from sqlalchemy.orm import Session, joinedload
+from backend.models.results_byinterview import ResultByInterview
 
 # ============================================
 # 🧠 面接シートの読み取り・一覧取得
 # ============================================
 
-def list_checksheet_by_interviewer(interviewer_id: str) -> Dict[str, Dict[str, Any]]:
+def list_checksheet_by_interviewer(interviewer_id: str, db: Session) -> Dict[str, dict]:
     """
-    指定面接官の配下にある全候補者ファイルを {candidate_id: doc} で返す。
+    DBから面接官の全チェックシートを {candidate_id: block} の形式で取得する。
     """
-    base = INTERVIEWER_CHECKSHEET_PATH / interviewer_id
-    if not base.exists():
-        return {}
-    out: Dict[str, Dict[str, Any]] = {}
-    for jf in base.glob("*.json"):
-        try:
-            with open(jf, encoding="utf-8") as f:
-                doc = json.load(f)
-            cid = doc.get("candidate_id") or jf.stem
-            out[cid] = doc
-        except Exception as e:
-            print("読み込み失敗:", jf, e)
-    return out
+    rows = db.query(ResultByInterview).filter(ResultByInterview.interviewer_id == interviewer_id).all()
+    result = {}
+    for row in rows:
+        block = {
+            "reviewedResume": row.reviewed_resume,
+            "ai_score_reviewed": row.ai_score_reviewed,
+            "eval_required": row.eval_required,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            "prepItems": [dict(question=x.question, answer=x.answer, tags=x.tags)
+                        for x in row.prep_items],
+            "qualitative": {
+                "career_goals": row.qualitative.career_goals if row.qualitative else "",
+                "other_apps": row.qualitative.other_apps if row.qualitative else "",
+                "overall": row.qualitative.overall if row.qualitative else "",
+                "assignment_plan": row.qualitative.assignment_plan if row.qualitative else "",
+            },
+            "quantitative": [
+                dict(item_key=x.item_key, level=x.level, comment=x.comment)
+                for x in row.quantitative
+            ]
+        }
+        result[row.candidate_id] = block
+    return result
 
-def list_all_checksheet_blocks():
-    results = []
-
-    for interviewer_dir in INTERVIEWER_CHECKSHEET_PATH.iterdir():
-        if not interviewer_dir.is_dir():
-            continue
-
-        for file in interviewer_dir.glob("*.json"):
-            try:
-                with open(file, encoding="utf-8") as f:
-                    data = json.load(f)
-
-                # ファイル名: {candidate_id}_{stage}.json を分解
-                name_parts = file.stem.split("_")
-                if len(name_parts) < 2:
-                    continue
-                candidate_id = "_".join(name_parts[:-1])
-                stage = name_parts[-1]
-
-                results.append({
-                    "candidate_id": candidate_id,
-                    "interviewer_id": interviewer_dir.name,
-                    "stage": stage,
-                    **data
-                })
-            except Exception:
-                continue  # 読み込みエラーはスキップ
-
-    return results
+def list_all_checksheet_blocks(db: Session) -> list[dict]:
+    rows = db.query(ResultByInterview)\
+        .options(
+            joinedload(ResultByInterview.quantitative),
+            joinedload(ResultByInterview.prep_items),
+            joinedload(ResultByInterview.qualitative)
+        )\
+        .all()
+    result = []
+    for row in rows:
+        result.append({
+            "candidate_id": row.candidate_id,
+            "interviewer_id": row.interviewer_id,
+            "stage": row.stage_name,
+            "reviewedResume": row.reviewed_resume,
+            "ai_score_reviewed": row.ai_score_reviewed,
+            "eval_required": row.eval_required,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            "prepItems": [
+                dict(question=x.question, answer=x.answer, tags=x.tags.split(",") if x.tags else [])
+                for x in row.prep_items
+            ],
+            "qualitative": {
+                "careerGoals": row.qualitative.career_goals if row.qualitative else "",
+                "otherApps": row.qualitative.other_apps if row.qualitative else "",
+                "overall": row.qualitative.overall if row.qualitative else "",
+                "assignmentPlan": row.qualitative.assignment_plan if row.qualitative else "",
+                # 👇 recommended系・decision系もここで返す
+                "hiringDecision": row.hiring_decision,
+                "recommendedDivision": row.recommended_division,
+                "recommendedTitle": row.recommended_title,
+            },
+            "quantitative": [
+                dict(item_key=x.item_key, level=x.level, comment=x.comment)
+                for x in row.quantitative
+            ]
+        })
+    return result
 
 def get_divisions(result: dict) -> List[str]:
     return [s.get("division") for s in result.get("scores", []) if s.get("division")]

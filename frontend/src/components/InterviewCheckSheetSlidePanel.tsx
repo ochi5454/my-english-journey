@@ -13,6 +13,7 @@ type FocusTag = {
 };
 
 export interface PrepItem {
+    question_id: string;
     question: string;
     answer: string;
     tags?: string[];
@@ -357,12 +358,29 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                     <button
                         className="qa-add-button"
                         onClick={() => {
-                        if (newQuestion.trim() === '') return;
-                            setPrepItems([...prepItems, { question: newQuestion.trim(), answer: '', tags: newQuestionTags, }]);
+                            if (newQuestion.trim() === '') return;
+
+                            const usedIds = prepItems
+                                .filter((item) => item.question_id) // question_id があるものだけに絞る
+                                .map((item) => parseInt(item.question_id!.replace(/^Q/, ''))) // ! で非nullを保証
+                                .filter((num) => !isNaN(num));
+                            const maxId = usedIds.length > 0 ? Math.max(...usedIds) : 0;
+                            const nextQuestionId = `Q${String(maxId + 1).padStart(3, '0')}`;
+
+                            const newItem: PrepItem = {
+                            question_id: nextQuestionId,
+                            question: newQuestion.trim(),
+                            answer: '',
+                            tags: newQuestionTags,
+                            };
+
+                            setPrepItems([...prepItems, newItem]);
                             setNewQuestion('');
                             setNewQuestionTags([]);
                         }}
-                    >追加</button>
+                        >
+                        追加
+                    </button>
                     </div>
                 </div>
                 {/* ✅ ここに追加：新規質問用タグセレクター */}

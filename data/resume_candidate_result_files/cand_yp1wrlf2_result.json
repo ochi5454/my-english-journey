@@ -97,8 +97,8 @@
     },
     {
       "division": "Marketing",
-      "score": 2,
-      "reason": "鈴木さんは経理と海外営業の経験が豊富で、財務分析や国際会計のスキルを持っていますが、マーケティング部門の理想的な特徴であるデータドリブンな分析力、SNS運用経験、ブランディングへの関心、プロモーション戦略の企画実行経験については明確な経験やスキルが見られません。そのため、マーケティング部門への適合性は低いと判断します。",
+      "score": 3,
+      "reason": "評価が低いため",
       "score_history": [
         {
           "score": 2,
@@ -110,8 +110,8 @@
     },
     {
       "division": "Consultant",
-      "score": 9,
-      "reason": "DX推進プロジェクトのリードや組織デザイン見直しに寄与した事例が評価されたため",
+      "score": 15,
+      "reason": "リーダーシップと判断力に将来性を感じる",
       "score_history": [
         {
           "score": 7,
@@ -148,6 +148,30 @@
           "reason": "DX推進プロジェクトのリードや組織デザイン見直しに寄与した事例が評価されたため",
           "reviewer": "user789",
           "reviewed_at": "2025-08-18T13:19:19.813256"
+        },
+        {
+          "score": 10,
+          "reason": "経営視点を持ち、事業成長をドライブする意欲やリーダーシップが評価されたため",
+          "reviewer": "user456",
+          "reviewed_at": "2025-10-07T15:48:37.276972"
+        },
+        {
+          "score": 11,
+          "reason": "成果、リーダーシップ、判断力に将来性を感じる",
+          "reviewer": "user456",
+          "reviewed_at": "2025-10-07T16:52:03.814622"
+        },
+        {
+          "score": 12,
+          "reason": "実績とリーダーシップに将来性を感じる",
+          "reviewer": "user456",
+          "reviewed_at": "2025-10-07T16:58:57.702770"
+        },
+        {
+          "score": 14,
+          "reason": "実績とリーダーシップ力が評価され、成長が期待されるため",
+          "reviewer": "user456",
+          "reviewed_at": "2025-10-07T17:07:05.285772"
         }
       ]
     },
@@ -220,10 +244,10 @@
       ]
     }
   ],
-  "recommended_division": "Engineering",
+  "recommended_division": "Consultant",
   "uploader_id": "interquest_100",
-  "updated_by": "user789",
-  "updated_at": "2025-08-18T14:13:48.518261",
+  "updated_by": "user456",
+  "updated_at": "2025-10-07T17:09:08.417569",
   "chat_review_書類選考・2次_at": "2025-08-08T13:28:17.250628",
   "chat_reviewer_書類選考・2次": "user123",
   "score_history": {
@@ -364,6 +388,41 @@
         "updated_by": "user789",
         "updated_at": "2025-08-18T13:19:19.813256",
         "source": "interview_review"
+      },
+      {
+        "score": 10,
+        "reason": "経営視点を持ち、事業成長をドライブする意欲やリーダーシップが評価されたため",
+        "updated_by": "user456",
+        "updated_at": "2025-10-07T15:48:37.275789",
+        "source": "interview_review"
+      },
+      {
+        "score": 11,
+        "reason": "成果、リーダーシップ、判断力に将来性を感じる",
+        "updated_by": "user456",
+        "updated_at": "2025-10-07T16:52:03.812394",
+        "source": "interview_review"
+      },
+      {
+        "score": 12,
+        "reason": "実績とリーダーシップに将来性を感じる",
+        "updated_by": "user456",
+        "updated_at": "2025-10-07T16:58:57.700474",
+        "source": "interview_review"
+      },
+      {
+        "score": 14,
+        "reason": "実績とリーダーシップ力が評価され、成長が期待されるため",
+        "updated_by": "user456",
+        "updated_at": "2025-10-07T17:07:05.278922",
+        "source": "interview_review"
+      },
+      {
+        "score": 15,
+        "reason": "リーダーシップと判断力に将来性を感じる",
+        "updated_by": "user456",
+        "updated_at": "2025-10-07T17:09:08.415378",
+        "source": "interview_review"
       }
     ],
     "HR": [
@@ -381,6 +440,15 @@
         "updated_at": "2025-08-13T18:34:49.156150",
         "source": "interview_review"
       }
+    ],
+    "Marketing": [
+      {
+        "score": 3,
+        "reason": "評価が低いため",
+        "updated_by": "user456",
+        "updated_at": "2025-10-07T16:58:57.700474",
+        "source": "interview_review"
+      }
     ]
   },
   "interview_review_面談・1次_at": "2025-08-12T10:10:50.592674",
@@ -389,7 +457,7 @@
   "chat_review_面談・1次_at": "2025-08-18T14:13:48.518261",
   "chat_reviewer_面談・1次": "user123",
   "面談・2次_reviewed_resume": true,
-  "chat_review_面談・2次_at": "2025-08-18T14:13:48.518261",
+  "chat_review_面談・2次_at": "2025-10-07T17:09:08.417569",
   "chat_reviewer_面談・2次": "user456",
   "最終面談_reviewed_resume": true,
   "chat_review_最終面談_at": "2025-08-18T14:13:48.518261",

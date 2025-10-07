@@ -96,26 +96,9 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
 
         fetch(`${appConfig.API_BASE_URL}/checksheet/all`)
         .then(res => res.json())
-        .then((data: any[]) => {
-            const flattened: InterviewEval[] = [];
-            data.forEach(entry => {
-            const stages = entry.stages || {};
-            Object.entries(stages).forEach(([stage, d]) => {
-                const stageData = d as any;
-                flattened.push({
-                candidate_id: entry.candidate_id,
-                interviewer_id: entry.interviewer_id,
-                stage,
-                prepItems: stageData.prepItems,
-                qualitative: stageData.qualitative,
-                quantitative: stageData.quantitative,
-                reviewed_resume: stageData.reviewedResume,
-                ai_score_reviewed: stageData.ai_score_reviewed,
-                timestamp: stageData.updated_at,
-                });
-            });
-            });
-            setInterviewEvals(flattened);
+        .then((data: InterviewEval[]) => {
+            console.log("チェックシートAPI結果:", data);
+            setInterviewEvals(data);
         })
         .catch(err => console.error('面接官評価の取得に失敗:', err));
 
@@ -165,11 +148,14 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
         const handleSaveHRReview = async (candidateId: string) => {
         const payload = {
             candidate_id: candidateId,
-            decision: hrEvaluations[candidateId]?.decision,
-            division: hrEvaluations[candidateId]?.division,
-            title: hrEvaluations[candidateId]?.title,
-            annual_income: hrEvaluations[candidateId]?.annualIncome,
+            review: {
+                decision: hrEvaluations[candidateId]?.decision,
+                division: hrEvaluations[candidateId]?.division,
+                title: hrEvaluations[candidateId]?.title,
+                annual_income: Number(hrEvaluations[candidateId]?.annualIncome),
+            }
         };
+        console.log("HR送信payload:", payload);
 
         try {
             const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/hr-review`, {
@@ -298,7 +284,12 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td>ステージ</td>{evals.map(r => <td>{r.stage}</td>)}</tr>
+                        <tr>
+                            <td>ステージ</td>
+                            {evals.map(r => (
+                                <td key={`stage-${r.interviewer_id}`}>{r.stage}</td>
+                            ))}
+                        </tr>
                         <tr>
                         <td>採用可否</td>
                         {evals.map((r, i) => {
@@ -307,30 +298,53 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                             return <td key={`hire-${i}`} className={className}>{decision}</td>;
                         })}
                         </tr>
-                        <tr><td>部門</td>{evals.map(r => <td>{r.qualitative?.recommendedDivision ?? '-'}</td>)}</tr>
-                        <tr><td>タイトル</td>{evals.map(r => <td>{r.qualitative?.recommendedTitle ?? '-'}</td>)}</tr>
-                        {qualItems.map(item => (
-                        <tr key={`qual-${item.key}`}>
-                            <td>{item.label}</td>
+                        <tr>
+                            <td>部門</td>
                             {evals.map(r => (
-                            <td key={r.interviewer_id + item.key}>{r.qualitative?.[item.key] ?? '-'}</td>
+                                <td key={`division-${r.interviewer_id}`}>{r.qualitative?.recommendedDivision ?? '-'}</td>
                             ))}
                         </tr>
+
+                        <tr>
+                            <td>タイトル</td>
+                            {evals.map(r => (
+                                <td key={`title-${r.interviewer_id}`}>{r.qualitative?.recommendedTitle ?? '-'}</td>
+                            ))}
+                        </tr>
+                        {qualItems.map(item => (
+                            <tr key={`qual-${item.key}`}>
+                                <td>{item.label}</td>
+                                {evals.map(r => (
+                                <td key={`${r.interviewer_id}-${item.key}`}>
+                                    {r.qualitative?.[item.key] ?? '-'}
+                                </td>
+                                ))}
+                            </tr>
                         ))}
                         {quantItems.map(item => (
-                        <tr key={`quant-${item.key}`}>
-                            <td>{item.label}</td>
-                            {evals.map((r, ) => {
-                            const level = r.quantitative?.[item.key]?.level;
-                            const className =
-                                level === 4 || level === 5 ? 'quant-cell quant-high' : 'quant-cell';
-                            return (
-                                <td key={`${r.interviewer_id}-${item.key}`} className={className}>
-                                {level ?? '-'}
-                                </td>
-                            );
-                            })}
-                        </tr>
+                            <tr key={`quant-${item.key}`}>
+                                <td>{item.label}</td>
+                                {evals.map((r) => {
+                                // ✅ 配列をMapに変換（1人分の評価ごとに）
+                                const quantMap = Array.isArray(r.quantitative)
+                                    ? r.quantitative.reduce((acc, q) => {
+                                        acc[q.item_key] = q;
+                                        return acc;
+                                    }, {} as Record<string, { level: number; comment: string }>)
+                                    : r.quantitative ?? {};
+
+                                // ✅ 表示値の取得
+                                const level = quantMap[item.key]?.level;
+                                const className =
+                                    level === 4 || level === 5 ? 'quant-cell quant-high' : 'quant-cell';
+
+                                return (
+                                    <td key={`${r.interviewer_id}-${item.key}`} className={className}>
+                                    {level ?? '-'}
+                                    </td>
+                                );
+                                })}
+                            </tr>
                         ))}
                         <tr>
                         <td>カスタムQA</td>
@@ -339,9 +353,9 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                             {r.prepItems && r.prepItems.length > 0 ? (
                                 <ul style={{ paddingLeft: '1em', margin: 0 }}>
                                 {r.prepItems.map((qa, index) => (
-                                    <li key={index} className="qa-entry">
-                                    <div><span className="question">Q:</span> {qa.question}</div>
-                                    <div><span className="answer">A:</span> {qa.answer}</div>
+                                    <li key={`qa-${r.interviewer_id}-${index}`} className="qa-entry">
+                                        <div><span className="question">Q:</span> {qa.question}</div>
+                                        <div><span className="answer">A:</span> {qa.answer}</div>
                                     </li>
                                 ))}
                                 </ul>

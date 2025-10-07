@@ -1,9 +1,8 @@
-from pathlib import Path
 from collections import Counter, defaultdict
-from typing import Dict, Any, Iterable, Mapping
+from typing import Mapping
 from sqlalchemy.orm import Session
-from backend.utils.resume_utils import _load_json
 from backend.models.interviewer_evals import InterviewerRoleFocusItem
+from backend.models.results_byinterview import  ResultByInterview, ResultByInterviewQATag
 
 # ============================================
 # 🧠 タグ利用状況の集計・不足分析
@@ -23,14 +22,17 @@ def load_role_focus_dict(db: Session) -> dict:
 
     return dict(role_focus_dict)
 
-def load_all_prepitem_tags_by_role(meta: Dict[str, Any], checksheet_path: Path) -> Dict[str, Dict[str, int]]:
+def load_all_prepitem_tags_by_role(meta: dict, db: Session) -> dict:
     usage_counter: defaultdict[str, Counter[str]] = defaultdict(Counter)
 
-    for user_dir in checksheet_path.glob("*"):
-        if not user_dir.is_dir():
-            continue
+    # すべてのQATag取得（ResultByInterviewとJOIN）
+    query = (
+        db.query(ResultByInterview, ResultByInterviewQATag)
+        .join(ResultByInterviewQATag, ResultByInterview.id == ResultByInterviewQATag.evaluation_id)
+    )
 
-        user_id = user_dir.name
+    for parent, qa in query.all():
+        user_id = parent.interviewer_id
         user_meta = meta.get(user_id)
         if not isinstance(user_meta, Mapping):
             continue
@@ -39,47 +41,12 @@ def load_all_prepitem_tags_by_role(meta: Dict[str, Any], checksheet_path: Path) 
         role = str(user_meta.get("role", "") or "").lower()
         role_key = f"{dept}:{role}"
 
-        for json_file in user_dir.glob("*.json"):
-            data = _load_json(json_file)
+        tag_str = qa.tags or ""
+        tag_list = [t.strip() for t in tag_str.split(",") if t.strip()]
 
-            # stages は dict 前提だが、型安全にガード
-            stages = data.get("stages") if isinstance(data, Mapping) else None
-            if not isinstance(stages, Mapping):
-                continue
+        for tag_id in tag_list:
+            usage_counter[role_key][tag_id] += 1
 
-            for stage_data in stages.values():
-                if not isinstance(stage_data, Mapping):
-                    continue
-
-                prep_items = stage_data.get("prepItems", [])
-                if not isinstance(prep_items, Iterable):
-                    continue
-
-                for item in prep_items:
-                    if not isinstance(item, Mapping):
-                        continue
-
-                    tags = item.get("tags", [])
-                    # tags が単一文字列/オブジェクトの可能性に備えて配列化
-                    if isinstance(tags, (list, tuple)):
-                        tag_iter = tags
-                    else:
-                        tag_iter = [tags]
-
-                    for tag in tag_iter:
-                        tag_id: str | None
-                        if isinstance(tag, Mapping):
-                            # dict形式のときは id 優先、なければ name などもフォールバック可
-                            tag_id = tag.get("id") or tag.get("name") or None
-                            if tag_id is not None:
-                                tag_id = str(tag_id)
-                        else:
-                            tag_id = str(tag) if isinstance(tag, (str, int, float)) else None
-
-                        if tag_id:
-                            usage_counter[role_key][tag_id] += 1
-
-    # defaultdict を通常の dict にして返す（シリアライズ等で扱いやすく）
     return {rk: dict(cnt) for rk, cnt in usage_counter.items()}
 
 def get_missing_tags(expected_tags: list, used_counter: dict) -> list:

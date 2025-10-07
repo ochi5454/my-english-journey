@@ -1,5 +1,5 @@
 from datetime import datetime
-from backend.core.database import get_db
+from backend.core.database import SessionLocal
 from backend.models.interview_schedule import InterviewSchedule
 from backend.schemas.resume import InterviewSetupRequest
 
@@ -16,7 +16,7 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
 
     interview_stage = key_map.get(req.stage, "interview_other")
 
-    with get_db() as db: 
+    with SessionLocal() as db: 
         existing = db.query(InterviewSchedule).filter_by(
             candidate_id=req.candidate,
             interview_stage=interview_stage

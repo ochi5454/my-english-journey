@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
 from backend.schemas.resume import PrepItemDict
+from backend.core.database import SessionLocal
 from backend.utils.resume_utils import (
     save_result_to_file, 
     load_division_profiles
@@ -10,7 +11,7 @@ from backend.utils.resume_utils import (
 from backend.services.interview_review.prompt_generator import generate_interview_review_prompt
 from backend.services.interview_review.io import (
     get_checksheet_one, 
-    upsert_checksheets_block
+    upsert_checksheet
 )
 from backend.services.interview_review.merge import merge_block
 from backend.services.score_adjustment.result_editor import (
@@ -35,10 +36,6 @@ def review_with_interview_checksheet(
     qualitative: dict | None = None,
     quantitative: dict | None = None,
 ) -> dict:
-    """
-    面談シートを考慮してスコアを再評価し、履歴も更新。
-    さらに面談シートそのものを interviewer_checksheet_files に保存（新レイアウト）。
-    """
     result = load_single_result(candidate_id)
     if result is None:
         raise HTTPException(status_code=404, detail="候補者データが見つかりません")
@@ -102,12 +99,15 @@ def review_with_interview_checksheet(
     merged_block["eval_required"] = True
     merged_block["updated_at"] = now_str
 
-    upsert_checksheets_block(
-        interviewer_id=reviewer_id,
-        candidate_id=candidate_id,
-        stage=stage,
-        block=merged_block,
-    )
+
+    with SessionLocal() as db:
+        upsert_checksheet(
+            db=db,
+            interviewer_id=reviewer_id,
+            candidate_id=candidate_id,
+            stage=stage,
+            payload=merged_block,
+        )
 
     return result
 

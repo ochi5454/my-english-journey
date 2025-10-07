@@ -1,13 +1,12 @@
-from datetime import datetime
+import traceback
 from fastapi import Request, HTTPException, APIRouter, Query
 from fastapi.responses import ORJSONResponse
 from fastapi.exceptions import HTTPException
 from typing import Dict, Any, Mapping
 from backend.core.config import (
     INTERVIEWER_META_PATH, 
-    INTERVIEWER_CHECKSHEET_PATH,
 )
-from backend.core.database import get_db
+from backend.core.database import SessionLocal
 from backend.utils.resume_utils import (
     _safe_load_json, 
     load_division_names, 
@@ -19,9 +18,8 @@ from backend.utils.resume_utils import (
     get_expected_focus_items,
 )
 from backend.services.interview_review.io import (
-    get_checksheet_one_async, 
     get_checksheet_one, 
-    upsert_checksheets_block
+    upsert_checksheet
 )
 from backend.services.interview_review.merge import merge_block
 from backend.services.interview_sheet.reader import (
@@ -59,7 +57,7 @@ def get_all_interview_settings(request: Request):
                     dept = str(user_meta.get("department") or "").strip().lower()
                     role = str(user_meta.get("role") or "").strip()
                     if dept and role:
-                        with get_db() as db:
+                        with SessionLocal() as db:
                             tags = get_expected_focus_items(dept, role, db)
 
     return {
@@ -72,24 +70,23 @@ def get_all_interview_settings(request: Request):
     }
 
 @router.get("/checksheet/one", response_class=ORJSONResponse)
-async def api_get_checksheet_one(
+def api_get_checksheet_one(
     interviewer_id: str = Query(...),
     candidate_id: str = Query(...),
     stage: str = Query(...)
 ):
     try:
-        data = await get_checksheet_one_async(interviewer_id, candidate_id, stage)  # async 実装に
+        with SessionLocal() as db:
+            data = get_checksheet_one(db, interviewer_id, candidate_id, stage)
         return ORJSONResponse(content=data or {})
-    except FileNotFoundError:
-        return ORJSONResponse(content={})
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"failed to read checksheet: {e}")
 
 @router.post("/checksheet")
 def api_upsert_checksheet(payload: Dict[str, Any]):
-    # 必須キーを取得して非空文字列に正規化
     iid = _as_non_empty_str(payload.get("interviewer_id"))
     cid = _as_non_empty_str(payload.get("candidate_id"))
     stage = _as_non_empty_str(payload.get("stage"))
@@ -97,13 +94,6 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
     if not (iid and cid and stage):
         raise HTTPException(status_code=400, detail="interviewer_id, candidate_id, stage は必須です")
 
-    # 既存ブロックを安全に読み込み
-    try:
-        existing = get_checksheet_one(iid, cid, stage) or {}
-    except Exception:
-        existing = {}
-
-    # incoming は dict 前提だが、None の可能性があるのでフォールバック
     incoming = {
         "prepItems": payload.get("prepItems") or [],
         "reviewedResume": payload.get("reviewedResume") or False,
@@ -111,32 +101,28 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
         "quantitative": payload.get("quantitative") or {},
     }
 
-    block = merge_block(existing, incoming)
-
-    # フラグ追加（保存時は未精査・再評価不要）
+    # merge_blockなどはここでやってOK
+    block = merge_block({}, incoming)
     block["ai_score_reviewed"] = False
     block["eval_required"] = False
-    block["updated_at"] = datetime.now().isoformat()
 
-    ok = upsert_checksheets_block(
-        interviewer_id=iid,   # ← str が確定
-        candidate_id=cid,     # ← str が確定
-        stage=stage,          # ← str が確定
-        block=block,
-    )
-    return {"ok": ok}
+    # 🔹 ここで get_db() の context を使って db を渡す
+    with SessionLocal() as db:
+        upsert_checksheet(db, iid, cid, stage, block)
+
+    return {"ok": True}
 
 @router.get("/checksheet/interviewer/{interviewer_id}")
 def api_list_checksheet_by_interviewer(interviewer_id: str):
-    return list_checksheet_by_interviewer(interviewer_id)
+    with SessionLocal() as db:
+        return list_checksheet_by_interviewer(interviewer_id, db)
 
 @router.get("/checksheet/role-focus-summary")
 def get_role_focus_summary():
-    with get_db() as db:
+    with SessionLocal() as db:
         role_focus_dict = load_role_focus_dict(db)
-
-    meta = _load_json(INTERVIEWER_META_PATH)
-    usage_counter = load_all_prepitem_tags_by_role(meta, INTERVIEWER_CHECKSHEET_PATH)
+        meta = _load_json(INTERVIEWER_META_PATH)
+        usage_counter = load_all_prepitem_tags_by_role(meta, db)
 
     role_summary = {}
     for role_key, role_data in role_focus_dict.items():
@@ -166,11 +152,11 @@ def get_role_focus_summary():
 def get_interviewer_meta():
     return _load_json(INTERVIEWER_META_PATH)
 
-@router.get("/checksheet/all", response_class=ORJSONResponse)
+@router.get("/checksheet/all")
 async def api_get_all_checksheet_blocks():
     try:
-        results = list_all_checksheet_blocks()
-        return ORJSONResponse(content=results)
+        with SessionLocal() as db:
+            result_dicts = list_all_checksheet_blocks(db)
+        return ORJSONResponse(content=result_dicts)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"failed to load all checksheets: {e}")
-    
