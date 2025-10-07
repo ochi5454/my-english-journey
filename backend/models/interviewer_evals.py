@@ -27,8 +27,8 @@ class InterviewerRoleFocusItem(Base):
 # ✅ 評価
 # ============================================
 
-class InterviewEvaluation(Base):
-    __tablename__ = "interview_evaluations"
+class InterviewerEvaluation(Base):
+    __tablename__ = "interviewer_evaluations"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     candidate_id = Column(String, nullable=False)

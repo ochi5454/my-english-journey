@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from backend.core.database import SessionLocal
 from backend.models.interviewer_evals import (
-    InterviewEvaluation, EvaluationRubricScore, EvaluationComment, EvaluationRoleExpectation
+    InterviewerEvaluation, EvaluationRubricScore, EvaluationComment, EvaluationRoleExpectation
 )
 from datetime import datetime
 
@@ -14,7 +14,7 @@ from datetime import datetime
 def load_evals_for_interviewer(iid: str) -> dict:
     db: Session = SessionLocal()
     try:
-        evaluations = db.query(InterviewEvaluation).filter_by(interviewer_id=iid).all()
+        evaluations = db.query(InterviewerEvaluation).filter_by(interviewer_id=iid).all()
 
         rows = []
         for e in evaluations:
@@ -83,7 +83,7 @@ def save_evals_cache_for(iid: str, rows: list[dict]) -> None:
                     evaluated_at = None
 
             # 既存 evaluation を探す
-            existing = db.query(InterviewEvaluation).filter_by(
+            existing = db.query(InterviewerEvaluation).filter_by(
                 interviewer_id=iid,
                 candidate_id=candidate_id,
                 stage=stage
@@ -101,7 +101,7 @@ def save_evals_cache_for(iid: str, rows: list[dict]) -> None:
                 eval_id = existing.id
             else:
                 # 新規作成
-                new_eval = InterviewEvaluation(
+                new_eval = InterviewerEvaluation(
                     candidate_id=candidate_id,
                     interviewer_id=iid,
                     stage=stage,
@@ -161,7 +161,7 @@ def save_evals_cache_for(iid: str, rows: list[dict]) -> None:
 def load_all_evals() -> dict:
     db: Session = SessionLocal()
     try:
-        all_interviewer_ids = db.query(InterviewEvaluation.interviewer_id).distinct().all()
+        all_interviewer_ids = db.query(InterviewerEvaluation.interviewer_id).distinct().all()
         rows = []
         for (iid,) in all_interviewer_ids:
             result = load_evals_for_interviewer(iid)
