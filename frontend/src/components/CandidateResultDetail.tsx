@@ -259,7 +259,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                         openInterviewFlow(step);
                     } else if (step === "待遇検討" && !!localResult.chat_review_最終面談_at) {
                         // HRダッシュボードに遷移（候補者IDをクエリで渡す）
-                        window.open(`/hr-review-dashboard?filter=${localResult.user_id}`, '_blank');
+                        window.open(`/hr-final-review?filter=${localResult.user_id}`, '_blank');
                     }
                 };
 
