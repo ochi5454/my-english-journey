@@ -24,14 +24,22 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
 
         now = datetime.now()
 
+        # ✅ 型チェックしてdatetimeに変換
+        scheduled_at = req.interviewDate
+        if isinstance(scheduled_at, str):
+            try:
+                scheduled_at = datetime.fromisoformat(scheduled_at)
+            except ValueError:
+                raise ValueError(f"interviewDate が不正な形式です: {scheduled_at}")
+
         if existing:
-            existing.scheduled_at = req.interviewDate
+            existing.scheduled_at = scheduled_at
             existing.last_updated = now
         else:
             new_schedule = ResumeInterviewSchedule(
                 candidate_id=req.candidate,
                 interview_stage=interview_stage,
-                scheduled_at=req.interviewDate,
+                scheduled_at=scheduled_at,
                 last_updated=now
             )
             db.add(new_schedule)
@@ -40,5 +48,5 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
 
     return {
         "saved_stage": req.stage,
-        "saved_date": req.interviewDate
+        "saved_date": scheduled_at
     }

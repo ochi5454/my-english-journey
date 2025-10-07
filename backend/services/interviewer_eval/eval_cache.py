@@ -1,76 +1,180 @@
 import json
-import os
-import tempfile
-import time
 from datetime import datetime
-from pathlib import Path
-from typing import Iterable
-from backend.core.config import INTERVIEWER_EVALS_PATH
+from sqlalchemy.orm import Session
+from backend.core.database import SessionLocal
+from backend.models.interviewer_evals import (
+    InterviewEvaluation, EvaluationRubricScore, EvaluationComment, EvaluationRoleExpectation
+)
+from datetime import datetime
 
 # ============================================
 # 🧠 キャッシュファイルの読込
 # ============================================
 
-def _empty_cache(iid: str | None = None) -> dict:
-    return {"version": "1", "generated_at": None, "interviewer_id": iid, "rows": []}
-
-def _cache_file_for(iid: str) -> Path:
-    INTERVIEWER_EVALS_PATH.mkdir(parents=True, exist_ok=True)
-    safe = iid.replace("/", "_")
-    return INTERVIEWER_EVALS_PATH / f"{safe}.json"
-
-def load_evals_cache_for(iid: str) -> dict:
-    p = _cache_file_for(iid)
-    if not p.exists():
-        return _empty_cache(iid)
+def load_evals_for_interviewer(iid: str) -> dict:
+    db: Session = SessionLocal()
     try:
-        with open(p, encoding="utf-8") as f:
-            data = json.load(f)
-        # 古い形式のファイルでも rows だけあれば救う
-        if "interviewer_id" not in data:
-            data["interviewer_id"] = iid
-        return data
-    except Exception:
-        # 破損は退避して空を返す
-        try:
-            p.rename(p.with_suffix(p.suffix + f".bak.{int(time.time())}"))
-        except Exception:
-            pass
-        return _empty_cache(iid)
+        evaluations = db.query(InterviewEvaluation).filter_by(interviewer_id=iid).all()
 
-def save_evals_cache_for(iid: str, cache: dict) -> None:
-    p = _cache_file_for(iid)
-    cache = {**cache, "version": "1", "interviewer_id": iid, "generated_at": datetime.now().isoformat()}
-    tmp_fd, tmp_path = tempfile.mkstemp(dir=str(INTERVIEWER_EVALS_PATH))
-    try:
-        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-            json.dump(cache, f, ensure_ascii=False, indent=2)
-            f.flush(); os.fsync(f.fileno())
-        os.replace(tmp_path, p)
+        rows = []
+        for e in evaluations:
+            rubrics = db.query(EvaluationRubricScore).filter_by(evaluation_id=e.id).all()
+            comments = db.query(EvaluationComment).filter_by(evaluation_id=e.id).all()
+            role_exp = db.query(EvaluationRoleExpectation).filter_by(evaluation_id=e.id).first()
+
+            breakdown = {}
+            for r in rubrics:
+                if r.key:
+                    breakdown[r.key] = r.score
+
+            total_score = e.total_score
+
+            rows.append({
+                "id": e.id,
+                "candidate_id": e.candidate_id,
+                "interviewer_id": e.interviewer_id,
+                "stage": e.stage,
+                "total": total_score,
+                "breakdown": breakdown, 
+                "evaluated_at": e.evaluated_at.isoformat() if e.evaluated_at else None,
+                "rubrics": [r.__dict__ for r in rubrics],
+                "comments": [c.__dict__ for c in comments],
+                "role_expectation": role_exp.__dict__ if role_exp else None,
+                "note": e.note or "",
+                "comments": [c.__dict__ for c in comments],
+                "display_comment": e.note if e.note else (
+                    next((c.text for c in comments if c.type == "reason"), "")
+                ),
+            })
+
+        return {
+            "version": "1",
+            "generated_at": datetime.now().isoformat(),
+            "interviewer_id": iid,
+            "rows": rows
+        }
+
     finally:
-        if os.path.exists(tmp_path):
-            try: os.remove(tmp_path)
-            except Exception: pass
+        db.close()
 
-def iter_cache_files() -> Iterable[Path]:
-    if not INTERVIEWER_EVALS_PATH.exists():
-        return []
-    return INTERVIEWER_EVALS_PATH.glob("*.json")
+def save_evals_cache_for(iid: str, rows: list[dict]) -> None:
+    db: Session = SessionLocal()
+    try:
+        for r in rows:
+            candidate_id = r.get("candidate_id")
+            stage = r.get("stage")
+            if not (candidate_id and stage):
+                continue
 
-def load_evals_cache_aggregate() -> dict:
-    """全ファイルを合算（閲覧用途）。"""
-    rows, latest = [], None
-    for fp in iter_cache_files():
-        try:
-            with open(fp, encoding="utf-8") as f:
-                d = json.load(f)
-            rows.extend(d.get("rows") or [])
-            ga = d.get("generated_at")
-            if ga and (latest is None or ga > latest):
-                latest = ga
-        except Exception:
-            continue
-    return {"version": "1", "generated_at": latest, "rows": rows}
+            # total_score の取得
+            total_score = r.get("total") or r.get("total_score")
+            skipped = r.get("skipped", False)
+            skipped_int = 1 if skipped else 0
+            note = r.get("note") or ""
+            source_sig = r.get("source_sig") or r.get("sourceSignature") or None
+
+            # evaluated_at
+            evaluated_at_raw = r.get("evaluated_at") or r.get("evaluatedAt") or None
+            evaluated_at = None
+            if evaluated_at_raw:
+                try:
+                    evaluated_at = datetime.fromisoformat(evaluated_at_raw)
+                except Exception:
+                    evaluated_at = None
+
+            # 既存 evaluation を探す
+            existing = db.query(InterviewEvaluation).filter_by(
+                interviewer_id=iid,
+                candidate_id=candidate_id,
+                stage=stage
+            ).first()
+
+            if existing:
+                # 更新
+                existing.total_score = total_score
+                existing.skipped = skipped_int
+                existing.note = note
+                existing.evaluated_at = evaluated_at
+                existing.source_sig = source_sig
+                db.add(existing)
+                db.flush()
+                eval_id = existing.id
+            else:
+                # 新規作成
+                new_eval = InterviewEvaluation(
+                    candidate_id=candidate_id,
+                    interviewer_id=iid,
+                    stage=stage,
+                    total_score=total_score,
+                    skipped=skipped_int,
+                    note=note,
+                    evaluated_at=evaluated_at,
+                    source_sig=source_sig
+                )
+                db.add(new_eval)
+                db.flush()
+                eval_id = new_eval.id
+
+            # --- Rubric（detail scores） ---
+            db.query(EvaluationRubricScore).filter_by(evaluation_id=eval_id).delete(synchronize_session=False)
+            rubric_list = r.get("rubric") or r.get("rubrics") or []
+            for item in rubric_list:
+                rr = EvaluationRubricScore(
+                    evaluation_id=eval_id,
+                    key=item.get("key"),
+                    label=item.get("label"),
+                    score=int(item.get("score")) if item.get("score") is not None else None,
+                    note=item.get("note") or "",
+                    weight=float(item.get("weight")) if item.get("weight") is not None else None,
+                    guidance=item.get("guidance") or ""
+                )
+                db.add(rr)
+
+            # --- comments ---
+            db.query(EvaluationComment).filter_by(evaluation_id=eval_id).delete(synchronize_session=False)
+            for reason in (r.get("reasons") or []):
+                db.add(EvaluationComment(evaluation_id=eval_id, type="reason", text=reason))
+            for sug in (r.get("suggestions") or []):
+                db.add(EvaluationComment(evaluation_id=eval_id, type="suggestion", text=sug))
+
+            # --- role expectation ---
+            db.query(EvaluationRoleExpectation).filter_by(evaluation_id=eval_id).delete(synchronize_session=False)
+            role_exp = r.get("role_expectation") or {}
+            if isinstance(role_exp, dict):
+                db.add(EvaluationRoleExpectation(
+                    evaluation_id=eval_id,
+                    matched_json=json.dumps(role_exp.get("matched", []), ensure_ascii=False),
+                    matched_semantic_json=json.dumps(role_exp.get("matched_semantic", []), ensure_ascii=False),
+                    missing_json=json.dumps(role_exp.get("missing", []), ensure_ascii=False),
+                    violated_json=json.dumps(role_exp.get("violated", []), ensure_ascii=False),
+                    score=float(role_exp.get("score")) if role_exp.get("score") is not None else None,
+                    comment=role_exp.get("comment") or ""
+                ))
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+def load_all_evals() -> dict:
+    db: Session = SessionLocal()
+    try:
+        all_interviewer_ids = db.query(InterviewEvaluation.interviewer_id).distinct().all()
+        rows = []
+        for (iid,) in all_interviewer_ids:
+            result = load_evals_for_interviewer(iid)
+            rows.extend(result["rows"])
+
+        return {
+            "version": "1",
+            "generated_at": datetime.now().isoformat(),
+            "rows": rows
+        }
+
+    finally:
+        db.close()
 
 def index_rows(rows: list[dict]) -> dict[str, dict]:
     from backend.services.interviewer_eval.interviewer_diff import _row_key

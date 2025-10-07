@@ -1,10 +1,12 @@
 from fastapi import Request, HTTPException, APIRouter, Query, Body
 from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import HTTPException
+from fastapi.encoders import jsonable_encoder
+from datetime import datetime
 from backend.services.interviewer_eval.rubric_loader import load_rubric_for_http
 from backend.services.interviewer_eval.eval_cache import (
-    load_evals_cache_for, 
-    load_evals_cache_aggregate, 
+    load_all_evals, 
+    load_evals_for_interviewer, 
     filter_cache_rows_in_memory
 )
 from backend.services.interviewer_eval.interviewer_diff import (
@@ -41,20 +43,24 @@ async def interviewer_evals_cache_ep(
     candidate_id: str|None = Query(None),
     limit: int|None = Query(None, ge=1, le=200),
 ):
-    # 面談者指定なら単一ファイル、未指定なら合算
     if interviewer_id:
-        cache = load_evals_cache_for(interviewer_id)
-        src_rows = cache.get("rows") or []
-        cached_at = cache.get("generated_at")
+        result = load_evals_for_interviewer(interviewer_id)
+        src_rows = result.get("rows") or []
+        cached_at = datetime.now().isoformat()
     else:
-        cache = load_evals_cache_aggregate()
-        src_rows = cache.get("rows") or []
-        cached_at = cache.get("generated_at")
+        result = load_all_evals()
+        src_rows = result.get("rows") or []
+        cached_at = result.get("generated_at")
 
     rows = filter_cache_rows_in_memory(
         src_rows, stage=stage, q=q, interviewer_id=interviewer_id, candidate_id=candidate_id, limit=limit
     )
-    return JSONResponse(content={"rows": rows, "cached_at": cached_at})
+    return JSONResponse(
+        content={
+            "rows": jsonable_encoder(rows),  # ✅ rowsの中身を変換
+            "cached_at": cached_at
+        }
+    )
 
 @router.post("/interviewer/evals-refresh")
 async def interviewer_evals_refresh_ep(payload: dict = Body(...)):
@@ -98,4 +104,3 @@ async def interviewer_evaluate(payload: dict = Body(...)):
         qa_block=payload.get("interview_prep"),
     )
     return JSONResponse(content=out)
-

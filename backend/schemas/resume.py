@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from datetime import datetime
 from typing import Optional, List, Dict, Any, TypedDict
 
 # ============================================
@@ -55,7 +56,7 @@ class InterviewPrepByInterviewerRequest(BaseModel):
     quantitative: Optional[Dict[str, Any]] = None
 
 class InterviewSetupRequest(BaseModel):
-    interviewDate: str
+    interviewDate: datetime
     interviewer: str 
     candidate: str 
     todo: str

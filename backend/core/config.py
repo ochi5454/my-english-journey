@@ -58,7 +58,6 @@ TEMPLATE_TODO_PATH = INTERVIEWDATE_PATH / "template_todo.json"
 # --- 面接官関連 ---
 INTERVIEWER_PATH = DATA_DIR / "resume_interviewer_files"
 INTERVIEWER_CHECKSHEET_PATH = INTERVIEWER_PATH / "interviewer_checksheet_files"
-INTERVIEWER_EVALS_PATH = INTERVIEWER_PATH / "interviewer_evals_files"
 INTERVIEWER_META_PATH = INTERVIEWER_PATH / "interviewer_roletitle.json"
 
 # ============================================

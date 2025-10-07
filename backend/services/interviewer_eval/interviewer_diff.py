@@ -14,10 +14,10 @@ from backend.services.interviewer_eval.prep_loader import (
 from backend.services.interviewer_eval.rubric_loader import load_interviewer_skills
 from backend.services.interviewer_eval.rolefit_evaluator import evaluate_role_expectation_match
 from backend.services.interviewer_eval.eval_cache import (
-    load_evals_cache_aggregate, 
+    load_all_evals, 
     index_rows, 
-    load_evals_cache_for, 
-    save_evals_cache_for
+    load_evals_for_interviewer, 
+    save_evals_cache_for,
 )
 from backend.services.interviewer_eval.interviewer_eval import (
     to_row_from_llm_json, 
@@ -61,7 +61,7 @@ def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=No
     rubric = load_interviewer_skills()
 
     # すべての shard を合算して index
-    agg = load_evals_cache_aggregate()
+    agg = load_all_evals()  # {"rows": [...]}
     idx = index_rows(agg.get("rows") or [])
 
     resume_cache: dict[str, dict] = {}
@@ -117,8 +117,9 @@ def refresh_targets_and_upsert(
     updated_rows: list[dict] = []
 
     for iid, iid_targets in by_iid.items():
-        cache = load_evals_cache_for(iid)
-        idx = index_rows(cache.get("rows") or [])
+        result = load_evals_for_interviewer(iid)
+        rows = result["rows"]
+        idx = index_rows(rows)
 
         for t in iid_targets:
             cid, stg = t["candidate_id"], t["stage"]
@@ -157,7 +158,7 @@ def refresh_targets_and_upsert(
         # idx → rows に戻してこの面談者ファイルにだけ保存
         rows = list(idx.values())
         rows.sort(key=lambda r: (r["stage"], r["interviewer_id"], r["candidate_id"]))
-        save_evals_cache_for(iid, {"rows": rows})
+        save_evals_cache_for(iid, rows)
         save_checksheet_map(prep_map)
 
     return updated_rows

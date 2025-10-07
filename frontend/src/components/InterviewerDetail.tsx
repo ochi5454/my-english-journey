@@ -7,6 +7,7 @@ type Row = {
     stage: string;
     total: number;
     breakdown?: Record<string, number>;
+    display_comment?: string[];
     reasons?: string[];
     evaluated_at: string;
     candidate_id?: string;
@@ -236,15 +237,15 @@ const InterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubri
         {/* 明細テーブル*/}
         <div className="iq-detail-table-wrap">
             <table className="iq-detail-table">
-            <colgroup>
-                <col className="col-id" />        {/* 候補者 */}
-                <col className="col-stage" />     {/* ステージ */}
-                {rubric && <col className="col-score" span={rubric.criteria.length} />}
-                <col className="col-total" />     {/* 総合 */}
-                <col className="col-role-score" />{/* ロールスコア */}
-                <col className="col-reason" />    {/* 最終評価（コメント） */}
-                <col className="col-updated" />   {/* 更新 */}
-            </colgroup>
+                <colgroup>
+                    <col className="col-id" />
+                    <col className="col-stage" />
+                    {rubric && <col className="col-score" span={rubric.criteria.length} />}
+                    <col className="col-total" />
+                    <col className="col-role-score" />
+                    <col className="col-reason" />
+                    <col className="col-updated" />
+                </colgroup>
             <thead>
             <tr>
                 <th>候補者</th>
@@ -289,7 +290,7 @@ const InterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubri
                     ? `${r.role_expectation.score} / 10`
                     : '—'}
                 </td>
-                <td className="td-reason">{r.reasons?.[0] ?? '(省略)'}</td>
+                <td className="td-reason">{r.display_comment || '（省略）'}</td>
                 <td className="td-dim">{new Date(r.evaluated_at).toLocaleString('ja-JP')}</td>
                 </tr>
             ))}
