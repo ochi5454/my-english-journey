@@ -25,8 +25,8 @@ CREATE TABLE resumes (
   notes TEXT
 );
 
-2. education_history（学歴）:
-CREATE TABLE education_history (
+2. resume_education_history（学歴）:
+CREATE TABLE resume_education_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   resume_id TEXT,
   institution TEXT,
@@ -35,8 +35,8 @@ CREATE TABLE education_history (
   end_date TEXT
 );
 
-3. work_history（職歴）:
-CREATE TABLE work_history (
+3. resume_work_history（職歴）:
+CREATE TABLE resume_work_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   resume_id TEXT,
   company TEXT,
@@ -55,7 +55,7 @@ CREATE TABLE work_history (
 
 注意：
 - resumesテーブルの `id` = `{candidate_id}`
-- education_history, work_history の `resume_id` も `{candidate_id}` にしてください。
+- resume_education_history, resume_work_history の `resume_id` も `{candidate_id}` にしてください。
 - 履歴書には「＜人名削除＞」「＜メールアドレス削除＞」「＜電話番号削除＞」などのマスク済み表記があります。
 - これらの表記はそのままSQLに埋め込んでください。
 - 「＜削除＞」や空文字列に変換してはいけません。

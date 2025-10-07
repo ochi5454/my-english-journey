@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import Dict, Any, Mapping, Union
 from sqlalchemy.orm import Session
 from backend.core.config import RESULT_PATH
-from backend.models.resume_trait import ResumeTrait
-from backend.models.checksheet import ResumeHiringDecision, ResumeRoleTitle, ResumeQualitativeItem, ResumeQuantitativeItem
+from backend.models.candidate_expectations import CandidateExpectations
+from backend.models.checksheet import ChecksheetHiringDecision, ChecksheetRoleTitle, ChecksheetQualitativeItem, ChecksheetQuantitativeItem
 from backend.models.interviewer_evals import InterviewerRoleFocusItem
 from backend.core.database import get_db
 from collections import defaultdict
@@ -15,12 +15,12 @@ from collections import defaultdict
 
 def load_division_profiles() -> list[dict]:
     """
-    resume_traits テーブルから division ごとの desired_traits を構成したプロファイル一覧を返す。
+    candidate_expectations テーブルから division ごとの desired_traits を構成したプロファイル一覧を返す。
     """
     with get_db() as db:
-        rows = db.query(ResumeTrait)\
-                    .filter(ResumeTrait.trait_type == "desired_trait")\
-                    .filter(ResumeTrait.division.isnot(None))\
+        rows = db.query(CandidateExpectations)\
+                    .filter(CandidateExpectations.trait_type == "desired_trait")\
+                    .filter(CandidateExpectations.division.isnot(None))\
                     .all()
         
         division_map = defaultdict(list)
@@ -39,13 +39,13 @@ def load_division_profiles() -> list[dict]:
 
 def load_division_names() -> list[str]:
     """
-    resume_traits テーブルからユニークな division 名を取得。
+    candidate_expectations テーブルからユニークな division 名を取得。
     """
     with get_db() as db:
-        divisions = db.query(ResumeTrait.division)\
+        divisions = db.query(CandidateExpectations.division)\
                         .distinct()\
-                        .filter(ResumeTrait.division.isnot(None))\
-                        .order_by(ResumeTrait.division)\
+                        .filter(CandidateExpectations.division.isnot(None))\
+                        .order_by(CandidateExpectations.division)\
                         .all()
         # 結果は list[Tuple[str]] なので、flattenして返す
         return [d[0] for d in divisions]
@@ -86,7 +86,7 @@ def _safe_load_json(path: Union[str, Path]) -> Dict[str, Any]:
 
 def load_hiring_decisions() -> list[dict]:
     with get_db() as db:
-        rows = db.query(ResumeHiringDecision).order_by(ResumeHiringDecision.order).all()
+        rows = db.query(ChecksheetHiringDecision).order_by(ChecksheetHiringDecision.order).all()
         return [
             {
                 "id": row.id,
@@ -100,7 +100,7 @@ def load_hiring_decisions() -> list[dict]:
     
 def load_role_titles() -> list[dict]:
     with get_db() as db:
-        rows = db.query(ResumeRoleTitle).order_by(ResumeRoleTitle.order).all()
+        rows = db.query(ChecksheetRoleTitle).order_by(ChecksheetRoleTitle.order).all()
         return [
             {
                 "id": row.id,
@@ -113,7 +113,7 @@ def load_role_titles() -> list[dict]:
     
 def load_qualitative_items() -> list[dict]:
     with get_db() as db:
-        rows = db.query(ResumeQualitativeItem).all()
+        rows = db.query(ChecksheetQualitativeItem).all()
         return [
             {
                 "id": row.id,
@@ -126,7 +126,7 @@ def load_qualitative_items() -> list[dict]:
     
 def load_quantitative_items() -> list[dict]:
     with get_db() as db:
-        rows = db.query(ResumeQuantitativeItem).all()
+        rows = db.query(ChecksheetQuantitativeItem).all()
 
         result = []
         for row in rows:

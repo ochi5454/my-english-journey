@@ -1,6 +1,6 @@
 from datetime import datetime
 from backend.core.database import get_db
-from backend.models.interview_schedule import ResumeInterviewSchedule
+from backend.models.interview_schedule import InterviewSchedule
 from backend.schemas.resume import InterviewSetupRequest
 
 # ============================================
@@ -17,7 +17,7 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
     interview_stage = key_map.get(req.stage, "interview_other")
 
     with get_db() as db: 
-        existing = db.query(ResumeInterviewSchedule).filter_by(
+        existing = db.query(InterviewSchedule).filter_by(
             candidate_id=req.candidate,
             interview_stage=interview_stage
         ).first()
@@ -36,7 +36,7 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
             existing.scheduled_at = scheduled_at
             existing.last_updated = now
         else:
-            new_schedule = ResumeInterviewSchedule(
+            new_schedule = InterviewSchedule(
                 candidate_id=req.candidate,
                 interview_stage=interview_stage,
                 scheduled_at=scheduled_at,

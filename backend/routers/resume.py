@@ -13,7 +13,7 @@ from backend.core.config import (
     RESULT_PATH, 
     MIME_TO_EXT
 )
-from backend.models.interview_schedule import ResumeInterviewSchedule
+from backend.models.interview_schedule import InterviewSchedule
 from backend.utils.resume_utils import save_result_to_file
 from backend.services.resume_upload.scorer import score_resume
 from backend.services.resume_upload.extractor import (
@@ -147,7 +147,7 @@ async def get_result_by_candidate_id(candidate_id: str):
 
         # ✅ DBセッション
         with get_db() as db:
-            schedules = db.query(ResumeInterviewSchedule).filter_by(candidate_id=candidate_id).all()
+            schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
 
             for s in schedules:
                 if s.interview_stage == "interview_1":
