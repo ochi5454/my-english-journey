@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
 from typing import Dict, Any, Mapping, Union
+from sqlalchemy.orm import Session
 from backend.core.config import RESULT_PATH
-from backend.models.trait import ResumeTrait
+from backend.models.resume_trait import ResumeTrait
 from backend.models.checksheet import ResumeHiringDecision, ResumeRoleTitle, ResumeQualitativeItem, ResumeQuantitativeItem
+from backend.models.interviewer_evals import InterviewerRoleFocusItem
 from backend.core.database import get_db
 from collections import defaultdict
 
@@ -77,6 +79,10 @@ def _safe_load_json(path: Union[str, Path]) -> Dict[str, Any]:
         except Exception:
             return dict(data)  # type: ignore[arg-type]
     return {}
+
+# ============================================
+# 🧠 チェックシート画面の定数読込
+# ============================================
 
 def load_hiring_decisions() -> list[dict]:
     with get_db() as db:
@@ -163,3 +169,18 @@ def save_json(filepath: Path, data: dict, ensure_dir: bool = True, indent: int =
 
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=indent)
+
+# ============================================
+# 🧠 部門ごとのタグ読込
+# ============================================
+
+def get_expected_focus_items(department: str, role: str, db: Session) -> list[dict]:
+    rows = db.query(InterviewerRoleFocusItem).filter_by(
+        division=department.lower().strip(),  # ← division列を使う
+        role=role.strip()
+    ).all()
+
+    return [
+        {"id": row.focus_id, "label": row.focus_label}  # ← カラム名に合わせて修正
+        for row in rows
+    ]

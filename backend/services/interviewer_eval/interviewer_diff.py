@@ -3,7 +3,6 @@ from hashlib import sha1
 from typing import Optional
 from backend.core.config import (
     INTERVIEWER_CHECKSHEET_PATH,
-    INTERVIEWER_COMMONSKILLS_PATH,
 )
 from backend.utils.resume_utils import save_json
 from backend.services.interviewer_eval.result_loader import get_resume_or_empty
@@ -59,7 +58,7 @@ def calc_source_sig(
 
 def list_diff_targets(stage: str|None=None, q: str|None=None, limit: int|None=None) -> dict:
     prep_map = load_prep_map_with_owner()
-    rubric = load_interviewer_skills(INTERVIEWER_COMMONSKILLS_PATH)
+    rubric = load_interviewer_skills()
 
     # すべての shard を合算して index
     agg = load_evals_cache_aggregate()
@@ -106,7 +105,7 @@ def refresh_targets_and_upsert(
     ) -> list[dict]:
     if not targets: return []
 
-    rubric = load_interviewer_skills(INTERVIEWER_COMMONSKILLS_PATH)
+    rubric = load_interviewer_skills()
     prep_map = load_prep_map_with_owner()
     resume_cache: dict[str, dict] = {}
 
@@ -183,7 +182,7 @@ def evaluate_interviewer_single(
         prep_map = load_prep_map_with_owner()
         qa_block = pick_qa_block_for(prep_map, candidate_id, stage, interviewer_id)
 
-    rubric = load_interviewer_skills(INTERVIEWER_COMMONSKILLS_PATH)
+    rubric = load_interviewer_skills()
     if not skip_eval:
         raw = eval_interviewer_once(
             interviewer_id, stage, 

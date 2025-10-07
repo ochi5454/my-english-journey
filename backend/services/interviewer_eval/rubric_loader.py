@@ -1,16 +1,46 @@
 import json
-from pathlib import Path
 from hashlib import sha1
-from backend.core.config import INTERVIEWER_COMMONSKILLS_PATH
+from datetime import date
+from backend.core.database import get_db
+from backend.models.interviewer_evals import InterviewerCriteriaItem 
 
 # ============================================
 # 🧠 基礎スコア評価
 # ============================================
 
-def load_interviewer_skills(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> dict:
-    """面談者評価のルーブリック(JSON)を読み込み"""
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+def load_interviewer_skills(version: date | None = None) -> dict:
+    """DBから面談評価ルーブリックを読み込んで整形したdictで返す。"""
+    from backend.services.interviewer_eval.rubric_loader import default_interviewer_rubric
+
+    with get_db() as db:
+        query = db.query(InterviewerCriteriaItem)
+        if version:
+            query = query.filter(InterviewerCriteriaItem.version == version)
+        items = query.order_by(InterviewerCriteriaItem.id).all()
+
+        if not items:
+            return default_interviewer_rubric()
+
+        # 重み合計が0なら等分配（normalize_rubric内でも実施されるが念のため）
+        weights = [i.weight for i in items]
+        if sum(weights) == 0:
+            equal_weight = round(1.0 / len(items), 4)
+            weights = [equal_weight] * len(items)
+
+        criteria = [
+            {
+                "key": i.key,
+                "label": i.label,
+                "weight": w,
+                "guidance": i.guidance or ""
+            }
+            for i, w in zip(items, weights)
+        ]
+        return {
+            "version": str(items[0].version),
+            "max_score": 10,
+            "criteria": criteria,
+        }
 
 def default_interviewer_rubric() -> dict:
     """ファイルが無い/壊れている場合のデフォルト."""
@@ -25,11 +55,6 @@ def default_interviewer_rubric() -> dict:
             {"key": "professionalism","label": "プロ意識",     "weight": 0.15, "guidance": ""},
         ],
     }
-
-def read_interviewer_rubric_file(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> dict:
-    """ルーブリックJSONをそのまま読む（存在しなければ例外）。"""
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
 
 def make_rubric_etag(data: dict) -> str:
     body = json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -78,23 +103,41 @@ def normalize_rubric(raw: dict) -> dict:
 
     return {"version": version, "max_score": max_score, "criteria": norm}
 
-def get_interviewer_rubric_or_default(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> dict:
-    """
-    ファイル → 正規化。失敗時はデフォルト → 正規化。
-    UIがそのまま使える形を保証して返す。
-    """
-    try:
-        raw = read_interviewer_rubric_file(path)
-    except FileNotFoundError:
-        raw = default_interviewer_rubric()
-    except Exception:
-        # 破損等は安全側でデフォルト
-        raw = default_interviewer_rubric()
-    return normalize_rubric(raw)
+def get_interviewer_rubric_or_default(version: date | None = None) -> dict:
+    from backend.services.interviewer_eval.rubric_loader import default_interviewer_rubric
 
-def load_rubric_for_http(path: Path = INTERVIEWER_COMMONSKILLS_PATH) -> tuple[dict, str]:
+    with get_db() as db:
+        query = db.query(InterviewerCriteriaItem)
+        if version:
+            query = query.filter(InterviewerCriteriaItem.version == version)
+        items = query.order_by(InterviewerCriteriaItem.id).all()
+
+        if not items:
+            return normalize_rubric(default_interviewer_rubric())
+
+        weights = [i.weight for i in items]
+        if sum(weights) == 0:
+            equal_weight = round(1.0 / len(items), 4)
+            weights = [equal_weight] * len(items)
+
+        criteria = [
+            {
+                "key": i.key,
+                "label": i.label,
+                "weight": w,
+                "guidance": i.guidance or ""
+            }
+            for i, w in zip(items, weights)
+        ]
+        return normalize_rubric({
+            "version": str(items[0].version),
+            "max_score": 10,
+            "criteria": criteria,
+        })
+
+def load_rubric_for_http(version: date | None = None) -> tuple[dict, str]:
     """
-    HTTP レスポンス向けに (data, etag) を用意。
+    HTTP レスポンス向けに (data, etag) を用意（DBから取得）。
     """
-    data = get_interviewer_rubric_or_default(path)
+    data = get_interviewer_rubric_or_default(version)
     return data, make_rubric_etag(data)

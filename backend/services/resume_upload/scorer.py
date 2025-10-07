@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from backend.models.trait import ResumeTrait
+from backend.models.resume_trait import ResumeTrait
 from backend.core.database import get_db
 from math import isnan
 from typing import List, Dict, Any

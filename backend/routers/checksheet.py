@@ -5,9 +5,9 @@ from fastapi.exceptions import HTTPException
 from typing import Dict, Any, Mapping
 from backend.core.config import (
     INTERVIEWER_META_PATH, 
-    INTERVIEWER_SKILLS_PATH, 
     INTERVIEWER_CHECKSHEET_PATH,
 )
+from backend.core.database import get_db
 from backend.utils.resume_utils import (
     _safe_load_json, 
     load_division_names, 
@@ -15,7 +15,8 @@ from backend.utils.resume_utils import (
     load_hiring_decisions,
     load_qualitative_items,
     load_quantitative_items,
-    load_role_titles
+    load_role_titles,
+    get_expected_focus_items,
 )
 from backend.services.interview_review.io import (
     get_checksheet_one_async, 
@@ -51,15 +52,15 @@ def get_all_interview_settings(request: Request):
         if isinstance(user_meta, Mapping):
             dept = str(user_meta.get("department") or "").strip().lower()
             role = str(user_meta.get("role") or "").strip()
-            if dept and role:
-                path = INTERVIEWER_SKILLS_PATH / f"{dept}.json"
-                if path.exists():
-                    role_file = _safe_load_json(path)
-                    role_data = role_file.get(role)
-                    if isinstance(role_data, Mapping):
-                        exp = role_data.get("expected_focus", [])
-                        if isinstance(exp, list):
-                            tags = exp
+            if user_id:
+                meta = _safe_load_json(INTERVIEWER_META_PATH)
+                user_meta = meta.get(user_id)
+                if isinstance(user_meta, Mapping):
+                    dept = str(user_meta.get("department") or "").strip().lower()
+                    role = str(user_meta.get("role") or "").strip()
+                    if dept and role:
+                        with get_db() as db:
+                            tags = get_expected_focus_items(dept, role, db)
 
     return {
         "divisions": load_division_names(),
@@ -131,7 +132,9 @@ def api_list_checksheet_by_interviewer(interviewer_id: str):
 
 @router.get("/checksheet/role-focus-summary")
 def get_role_focus_summary():
-    role_focus_dict = load_role_focus_dict(INTERVIEWER_SKILLS_PATH)
+    with get_db() as db:
+        role_focus_dict = load_role_focus_dict(db)
+
     meta = _load_json(INTERVIEWER_META_PATH)
     usage_counter = load_all_prepitem_tags_by_role(meta, INTERVIEWER_CHECKSHEET_PATH)
 

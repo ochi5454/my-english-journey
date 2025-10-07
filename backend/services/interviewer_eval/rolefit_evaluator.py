@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
 from backend.core.config import (
-    INTERVIEWER_SKILLS_PATH,
     INTERVIEWER_META_PATH,
 )
+from backend.core.database import get_db
+from backend.utils.resume_utils import get_expected_focus_items
 
 # ============================================
 # 🧠 観点スコア評価（部門・ロール観点におけるタグ網羅性）
@@ -24,32 +25,17 @@ def evaluate_role_expectation_match(interviewer_id: str, qa_block: dict) -> dict
             "score": 0.0
         }
 
-    path = INTERVIEWER_SKILLS_PATH / f"{dept}.json"
-    if not path.exists():
+    with get_db() as db:
+        expected_items = get_expected_focus_items(dept, role, db)
+
+    if not expected_items:
         return {
             "matched": [],
-            "matched_semantic": [],
             "missing": [],
             "violated": [],
-            "comment": f"{dept}.json が存在しない",
+            "comment": f"DBにロール {role} の期待観点が存在しない",
             "score": 0.0
         }
-
-    with open(path, encoding="utf-8") as f:
-        role_map = json.load(f)
-
-    role_data = role_map.get(role)
-    if not role_data:
-        return {
-            "matched": [],
-            "matched_semantic": [],
-            "missing": [],
-            "violated": [],
-            "comment": f"{dept}.json にロール {role} の設定が存在しない",
-            "score": 0.0
-        }
-
-    expected_items = role_data.get("expected_focus", [])
     expected_ids = {item["id"] for item in expected_items}
     id_to_label = {item["id"]: item["label"] for item in expected_items}
 

@@ -1,29 +1,27 @@
 from pathlib import Path
 from collections import Counter, defaultdict
 from typing import Dict, Any, Iterable, Mapping
+from sqlalchemy.orm import Session
 from backend.utils.resume_utils import _load_json
+from backend.models.interviewer_evals import InterviewerRoleFocusItem
 
 # ============================================
 # 🧠 タグ利用状況の集計・不足分析
 # ============================================
 
-def load_role_focus_dict(skills_path: Path) -> dict:
-    role_focus_dict = {}
-    for skill_file in skills_path.glob("*.json"):
-        skill_data = _load_json(skill_file)
-        for role, role_data in skill_data.items():
-            key = f"{skill_file.stem.lower()}:{role.lower()}"
+def load_role_focus_dict(db: Session) -> dict:
+    """DBから division:role 単位の expected_focus を返す"""
+    role_focus_dict = defaultdict(lambda: {"expected_focus": []})
 
-            if isinstance(role_data, dict):
-                # ✅ 正常な形式
-                role_focus_dict[key] = role_data
-            elif isinstance(role_data, list):
-                # ✅ 旧形式への対応： expected_focus を dict に包む
-                role_focus_dict[key] = {"expected_focus": role_data}
-            else:
-                # fallback
-                role_focus_dict[key] = {"expected_focus": []}
-    return role_focus_dict
+    rows = db.query(InterviewerRoleFocusItem).all()
+    for row in rows:
+        role_key = f"{row.division.lower().strip()}:{row.role.lower().strip()}"
+        role_focus_dict[role_key]["expected_focus"].append({
+            "id": row.focus_id,
+            "label": row.focus_label
+        })
+
+    return dict(role_focus_dict)
 
 def load_all_prepitem_tags_by_role(meta: Dict[str, Any], checksheet_path: Path) -> Dict[str, Dict[str, int]]:
     usage_counter: defaultdict[str, Counter[str]] = defaultdict(Counter)

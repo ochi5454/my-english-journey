@@ -60,8 +60,6 @@ INTERVIEWER_PATH = DATA_DIR / "resume_interviewer_files"
 INTERVIEWER_CHECKSHEET_PATH = INTERVIEWER_PATH / "interviewer_checksheet_files"
 INTERVIEWER_EVALS_PATH = INTERVIEWER_PATH / "interviewer_evals_files"
 INTERVIEWER_META_PATH = INTERVIEWER_PATH / "interviewer_roletitle.json"
-INTERVIEWER_SKILLS_PATH = DATA_DIR / "resume_interviewer_mustskills_files"
-INTERVIEWER_COMMONSKILLS_PATH = INTERVIEWER_SKILLS_PATH / "common.json"
 
 # ============================================
 # ✅ MIMEタイプマッピング
