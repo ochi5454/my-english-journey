@@ -145,16 +145,23 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
     const allCandidateIds = Array.from(new Set([...Object.keys(groupedAI), ...Object.keys(groupedInterview)]));
     const filteredCandidateIds = allCandidateIds.filter(id => id.toLowerCase().includes(filterText.toLowerCase()));
 
-        const handleSaveHRReview = async (candidateId: string) => {
+    const handleSaveHRReview = async (candidateId: string) => {
+        const rawIncome = hrEvaluations[candidateId]?.annualIncome;
+        const parsedIncome =
+            rawIncome === '' || rawIncome === undefined || rawIncome === null
+            ? 0
+            : Number(rawIncome);
+
         const payload = {
             candidate_id: candidateId,
             review: {
-                decision: hrEvaluations[candidateId]?.decision,
-                division: hrEvaluations[candidateId]?.division,
-                title: hrEvaluations[candidateId]?.title,
-                annual_income: Number(hrEvaluations[candidateId]?.annualIncome),
-            }
+            decision: hrEvaluations[candidateId]?.decision,
+            division: hrEvaluations[candidateId]?.division,
+            title: hrEvaluations[candidateId]?.title,
+            annual_income: isNaN(parsedIncome) ? 0 : parsedIncome, // ← NaN防止！
+            },
         };
+
         console.log("HR送信payload:", payload);
 
         try {
@@ -162,22 +169,20 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-user-id': interviewerId, // ヘッダで reviewer を通知
+                'x-user-id': interviewerId,
             },
             body: JSON.stringify(payload),
             });
 
             if (!res.ok) throw new Error('保存に失敗しました');
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
 
-            // 保存後にUIにメモを表示する（例: 直近の更新内容をローカルに一時保存）
             setHrEvaluations(prev => ({
             ...prev,
             [candidateId]: {
                 ...prev[candidateId],
-                savedAt: new Date().toISOString(), // 保存された時刻をメモ
-                savedBy: interviewerId
-            }
+                savedAt: new Date().toISOString(),
+                savedBy: interviewerId,
+            },
             }));
 
             setActiveCandidateId(null);
@@ -185,7 +190,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
             alert('HR評価の保存に失敗しました');
             console.error(err);
         }
-        };
+    };
 
     return (
         <div className="hr-review-wrapper">

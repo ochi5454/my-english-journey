@@ -68,9 +68,12 @@ class InterviewSetupRequest(BaseModel):
 # 📊 HR評価
 # ============================================
 
+class HRReview(BaseModel):
+    decision: Optional[str]
+    division: Optional[str]
+    title: Optional[str]
+    annual_income: Optional[int]
+
 class HRReviewUpdate(BaseModel):
     candidate_id: str
-    decision: str
-    division: str
-    title: str
-    annual_income: Optional[int] = None
+    review: HRReview
