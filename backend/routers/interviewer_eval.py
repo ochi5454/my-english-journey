@@ -1,21 +1,13 @@
+from datetime import datetime
+from sqlalchemy.orm import Session
 from fastapi import Request, HTTPException, APIRouter, Query, Body, Depends
 from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import HTTPException
 from fastapi.encoders import jsonable_encoder
-from datetime import datetime
-from sqlalchemy.orm import Session
 from backend.core.database import get_db
-from backend.services.interviewer_eval.rubric_loader import load_rubric_for_http
-from backend.services.interviewer_eval.eval_cache import (
-    load_all_evals, 
-    load_evals_for_interviewer, 
-    filter_cache_rows_in_memory
-)
-from backend.services.interviewer_eval.interviewer_diff import (
-    list_diff_targets, 
-    refresh_targets_and_upsert, 
-    evaluate_interviewer_single
-)
+from backend.services.score_ofinterviewer.score_rubric import load_rubric_for_http
+from backend.services.score_ofinterviewer.cache import load_all_evals, load_evals_for_interviewer, filter_cache_rows_in_memory
+from backend.services.score_ofinterviewer.diffcheck import list_diff_targets, refresh_targets_and_upsert, evaluate_interviewer_single
 
 router = APIRouter()
 

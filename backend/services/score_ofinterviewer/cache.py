@@ -2,10 +2,8 @@ import json
 from datetime import datetime
 from sqlalchemy.orm import Session
 from backend.core.database import SessionLocal
-from backend.models.interviewer_evals import (
-    InterviewerEvaluation, EvaluationRubricScore, EvaluationComment, EvaluationRoleExpectation
-)
-from datetime import datetime
+from backend.models.interviewer_evals import InterviewerEvaluation, EvaluationRubricScore, EvaluationComment, EvaluationRoleExpectation
+from backend.services.score_ofinterviewer.diffcheck import _row_key
 
 # ============================================
 # 🧠 キャッシュファイルの読込
@@ -177,7 +175,6 @@ def load_all_evals() -> dict:
         db.close()
 
 def index_rows(rows: list[dict]) -> dict[str, dict]:
-    from backend.services.interviewer_eval.interviewer_diff import _row_key
     idx = {}
     for r in rows or []:
         k = _row_key(r["candidate_id"], r["interviewer_id"], r["stage"])

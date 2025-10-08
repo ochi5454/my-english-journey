@@ -2,26 +2,13 @@ import json
 from hashlib import sha1
 from typing import Optional
 from sqlalchemy.orm import Session
-from backend.core.database import get_db
 from backend.models.results_byinterview import ResultByInterview
-from backend.services.interviewer_eval.result_loader import get_resume_or_empty
-from backend.services.interviewer_eval.prep_loader import (
-    load_prep_map_with_owner,
-    pick_qa_block_for
-)
-from backend.services.interviewer_eval.rubric_loader import load_interviewer_skills
-from backend.services.interviewer_eval.rolefit_evaluator import evaluate_role_expectation_match
-from backend.services.interviewer_eval.eval_cache import (
-    load_all_evals, 
-    index_rows, 
-    load_evals_for_interviewer, 
-    save_evals_cache_for,
-)
-from backend.services.interviewer_eval.interviewer_eval import (
-    to_row_from_llm_json, 
-    normalize_interviewer_eval_output, 
-    eval_interviewer_once
-)
+from backend.services.checksheet.read_byowner import load_prep_map_with_owner, pick_qa_block_for
+from backend.services.score_ofinterviewer.read import get_resume_or_empty
+from backend.services.score_ofinterviewer.score_rubric import load_interviewer_skills
+from backend.services.score_ofinterviewer.score_role import evaluate_role_expectation_match
+from backend.services.score_ofinterviewer.cache import load_all_evals, index_rows, load_evals_for_interviewer, save_evals_cache_for
+from backend.services.score_ofinterviewer.score import to_row_from_llm_json, normalize_interviewer_eval_output, eval_interviewer_once
 
 # ============================================
 # 🧠 差分検出・再評価
@@ -93,7 +80,6 @@ def list_diff_targets(
             resume_cache[cid] = get_resume_or_empty(cid)
         resume = resume_cache[cid]
 
-        # ✅ ループ内で get_db() しない
         qa_block = prep_map.get(cid, {}).get(stg, [])
         block = next((b for b in qa_block if b.get("interviewer_id") == iid), qa_block[0] if qa_block else {})
 

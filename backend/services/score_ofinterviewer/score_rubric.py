@@ -10,7 +10,7 @@ from backend.models.interviewer_evals import InterviewerCriteriaItem
 
 def load_interviewer_skills(version: date | None = None) -> dict:
     """DBから面談評価ルーブリックを読み込んで整形したdictで返す。"""
-    from backend.services.interviewer_eval.rubric_loader import default_interviewer_rubric
+    from backend.services.score_ofinterviewer.score_rubric import default_interviewer_rubric
 
     with SessionLocal() as db:
         query = db.query(InterviewerCriteriaItem)
@@ -104,7 +104,7 @@ def normalize_rubric(raw: dict) -> dict:
     return {"version": version, "max_score": max_score, "criteria": norm}
 
 def get_interviewer_rubric_or_default(version: date | None = None) -> dict:
-    from backend.services.interviewer_eval.rubric_loader import default_interviewer_rubric
+    from backend.services.score_ofinterviewer.score_rubric import default_interviewer_rubric
 
     with SessionLocal() as db:
         query = db.query(InterviewerCriteriaItem)

@@ -8,7 +8,7 @@ from backend.core.database import SessionLocal
 from backend.models.candidate_evals import Candidate, CandidateStatus
 from backend.schemas.checksheet import PrepItemDict
 from backend.utils.division import load_division_profiles
-from backend.services.checksheet.one import get_checksheet_one, upsert_checksheet
+from backend.services.checksheet.upsert import get_checksheet_one, upsert_checksheet
 from backend.services.score_byinterview.merge import merge_block
 from backend.services.score_adjustment.save import load_single_result, save_score_to_history
 from backend.services.score_adjustment.score import call_openai_chat, parse_score_adjustments
