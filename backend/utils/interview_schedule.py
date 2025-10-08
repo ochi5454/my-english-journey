@@ -1,10 +1,5 @@
 import json
-from backend.core.config import (
-    TEMPLATE_INTERVIEWER_PATH,
-    TEMPLATE_TODO_PATH,
-    TEMPLATE_EMAIL_INTERVIEWER_PATH,
-    TEMPLATE_EMAIL_CANDIDATE_PATH,
-)
+from backend.core.config import TEMPLATE_INTERVIEWER_PATH, TEMPLATE_TODO_PATH, TEMPLATE_EMAIL_INTERVIEWER_PATH, TEMPLATE_EMAIL_CANDIDATE_PATH
 
 # ============================================
 # 🧠 面談日程テンプレートの読み込み

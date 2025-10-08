@@ -2,9 +2,9 @@ from fastapi import HTTPException, APIRouter
 from fastapi.exceptions import HTTPException
 from pydantic import ValidationError
 from backend.schemas.interview_schedule import InterviewSetupRequest
-from backend.services.interview_schedule.config_loader import load_interview_config
-from backend.services.interview_schedule.email_sender import send_interview_emails
-from backend.services.interview_schedule.schedule_saver import save_interview_schedule
+from backend.utils.interview_schedule import load_interview_config
+from backend.services.interview_schedule.email import send_interview_emails
+from backend.services.interview_schedule.save import save_interview_schedule
 
 router = APIRouter()
 
