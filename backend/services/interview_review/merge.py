@@ -20,43 +20,47 @@ def merge_quant(old: dict, new: dict) -> dict:
     return out
 
 def merge_block(existing: dict, incoming: dict) -> dict:
-    """
-    prepItems / reviewedResume / qualitative / quantitative を壊さずマージ。
-    incoming が「空/None」の場合は existing を残す。
-    """
     existing = existing or {}
     incoming = incoming or {}
 
-    # prepItems（空配列なら保持）
+    # prepItems
     prep = incoming.get("prepItems")
-    if isinstance(prep, list) and len(prep) > 0:
-        prepItems = prep
-    else:
-        prepItems = existing.get("prepItems", [])
+    prepItems = prep if isinstance(prep, list) and len(prep) > 0 else existing.get("prepItems", [])
 
-    # reviewedResume（bool はそのまま。未指定(None)なら既存）
-    if "reviewedResume" in incoming:
-        reviewedResume = bool(incoming.get("reviewedResume"))
-    else:
-        reviewedResume = bool(existing.get("reviewedResume", False))
+    # reviewedResume
+    reviewedResume = bool(incoming.get("reviewedResume")) if "reviewedResume" in incoming else bool(existing.get("reviewedResume", False))
 
-    # qualitative（シャローに new 優先でマージ。ただし new が None/{} なら既存）
+    # qualitative
     ql_new = incoming.get("qualitative")
-    if isinstance(ql_new, dict) and ql_new:
-        qualitative = {**(existing.get("qualitative") or {}), **ql_new}
-    else:
-        qualitative = existing.get("qualitative", {})
+    qualitative = {**(existing.get("qualitative") or {}), **ql_new} if isinstance(ql_new, dict) and ql_new else existing.get("qualitative", {})
 
-    # quantitative（キーごとに level/comment をマージ）
+    # quantitative
     qt_new = incoming.get("quantitative")
-    if isinstance(qt_new, dict) and qt_new:
-        quantitative = merge_quant(existing.get("quantitative") or {}, qt_new)
-    else:
-        quantitative = existing.get("quantitative", {})
+    quantitative = merge_quant(existing.get("quantitative") or {}, qt_new) if isinstance(qt_new, dict) and qt_new else existing.get("quantitative", {})
+
+    # ✅ 最終評価3カラム: qualitative 内もフォールバックとして参照
+    hiringDecision = (
+        incoming.get("hiringDecision")
+        or (qualitative.get("hiringDecision") if isinstance(qualitative, dict) else None)
+        or existing.get("hiringDecision")
+    )
+    recommendedDivision = (
+        incoming.get("recommendedDivision")
+        or (qualitative.get("recommendedDivision") if isinstance(qualitative, dict) else None)
+        or existing.get("recommendedDivision")
+    )
+    recommendedTitle = (
+        incoming.get("recommendedTitle")
+        or (qualitative.get("recommendedTitle") if isinstance(qualitative, dict) else None)
+        or existing.get("recommendedTitle")
+    )
 
     return {
         "prepItems": prepItems,
         "reviewedResume": reviewedResume,
         "qualitative": qualitative,
         "quantitative": quantitative,
+        "hiringDecision": hiringDecision,
+        "recommendedDivision": recommendedDivision,
+        "recommendedTitle": recommendedTitle,
     }

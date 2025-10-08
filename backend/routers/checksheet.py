@@ -99,6 +99,9 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
         "reviewedResume": payload.get("reviewedResume") or False,
         "qualitative": payload.get("qualitative") or {},
         "quantitative": payload.get("quantitative") or {},
+        "hiringDecision": payload.get("hiringDecision"),
+        "recommendedDivision": payload.get("recommendedDivision"),
+        "recommendedTitle": payload.get("recommendedTitle"),
     }
 
     # merge_blockなどはここでやってOK

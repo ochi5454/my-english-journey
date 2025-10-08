@@ -1,5 +1,10 @@
 from backend.models.results_byinterview import ResultByInterview
 from sqlalchemy.orm import Session
+from backend.models.results_byinterview import (
+    ResultByInterview, ResultByInterviewQualitative,
+    ResultByInterviewQuantitative, ResultByInterviewQATag
+)
+from datetime import datetime
 
 # ============================================
 # 🧠 面談シート抽出・更新
@@ -69,11 +74,6 @@ def upsert_checksheet(
     stage: str,
     payload: dict
 ) -> None:
-    from backend.models.results_byinterview import (
-        ResultByInterview, ResultByInterviewQualitative,
-        ResultByInterviewQuantitative, ResultByInterviewQATag
-    )
-    from datetime import datetime
 
     # 既存または新規取得
     result = (
@@ -92,6 +92,9 @@ def upsert_checksheet(
 
     # ステータス更新
     result.reviewed_resume = payload.get("reviewedResume", False)
+    result.hiring_decision = payload.get("hiringDecision")
+    result.recommended_division = payload.get("recommendedDivision")
+    result.recommended_title = payload.get("recommendedTitle")
     result.updated_at = datetime.now()
 
     # --- prepItems 保存 ---

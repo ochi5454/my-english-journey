@@ -62,14 +62,26 @@
     },
     {
       "division": "Consultant",
-      "score": 6,
-      "reason": "候補者はIT業界での10年以上の経験を持ち、ロジカルシンキングや課題解決力を持っていると推測できます。また、プロジェクトマネージャーとしての経験から、クライアントとの折衝能力もあると考えられます。しかし、その経験は主に技術的なものであり、コンサルタントとして必要なビジネス視点の経験やExcelモデリングのスキルについては明確には述べられていません。また、プレゼンテーション能力についても触れられていません。",
+      "score": 5,
+      "reason": "面談内容や定性メモから、実務経験が浅い中でもコミュニケーションや問題解決能力が評価されており、スコアの調整が適切と判断される",
       "score_history": [
         {
           "score": 6,
           "reason": "候補者はIT業界での10年以上の経験を持ち、ロジカルシンキングや課題解決力を持っていると推測できます。また、プロジェクトマネージャーとしての経験から、クライアントとの折衝能力もあると考えられます。しかし、その経験は主に技術的なものであり、コンサルタントとして必要なビジネス視点の経験やExcelモデリングのスキルについては明確には述べられていません。また、プレゼンテーション能力についても触れられていません。",
           "reviewer": "interquest_100",
           "reviewed_at": "2025-08-05T16:31:17.320832"
+        },
+        {
+          "score": 5,
+          "reason": "実務経験が浅く、技術面で伸び代があるため",
+          "reviewer": "user456",
+          "reviewed_at": "2025-10-08T09:50:06.076920"
+        },
+        {
+          "score": 4,
+          "reason": "実務経験が浅く、技術面に伸び代があるため",
+          "reviewer": "user456",
+          "reviewed_at": "2025-10-08T09:57:45.444525"
         }
       ]
     },
@@ -102,8 +114,8 @@
   ],
   "recommended_division": "Engineering",
   "uploader_id": "interquest_100",
-  "updated_by": "user123",
-  "updated_at": "2025-08-12T10:48:55.029514",
+  "updated_by": "user456",
+  "updated_at": "2025-10-08T10:05:48.082644",
   "chat_review_書類選考・2次_at": "2025-08-05T16:34:16.811560",
   "chat_reviewer_書類選考・2次": "user123",
   "score_history": {
@@ -124,13 +136,36 @@
         "updated_at": "2025-08-12T10:48:55.028121",
         "source": "interview_review"
       }
+    ],
+    "Consultant": [
+      {
+        "score": 5,
+        "reason": "実務経験が浅く、技術面で伸び代があるため",
+        "updated_by": "user456",
+        "updated_at": "2025-10-08T09:50:06.076143",
+        "source": "interview_review"
+      },
+      {
+        "score": 4,
+        "reason": "実務経験が浅く、技術面に伸び代があるため",
+        "updated_by": "user456",
+        "updated_at": "2025-10-08T09:57:45.443457",
+        "source": "interview_review"
+      },
+      {
+        "score": 5,
+        "reason": "面談内容や定性メモから、実務経験が浅い中でもコミュニケーションや問題解決能力が評価されており、スコアの調整が適切と判断される",
+        "updated_by": "user456",
+        "updated_at": "2025-10-08T10:02:08.223957",
+        "source": "interview_review"
+      }
     ]
   },
   "面談・1次_reviewed_resume": true,
   "chat_review_面談・1次_at": "2025-08-12T10:48:55.029514",
   "chat_reviewer_面談・1次": "user123",
   "面談・2次_reviewed_resume": true,
-  "chat_review_面談・2次_at": "2025-08-18T14:13:48.518261",
+  "chat_review_面談・2次_at": "2025-10-08T10:05:48.082644",
   "chat_reviewer_面談・2次": "user456",
   "最終面談_reviewed_resume": true,
   "chat_review_最終面談_at": "2025-08-18T14:13:48.518261",

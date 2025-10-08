@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from backend.schemas.resume import PrepItemDict
 from backend.core.database import SessionLocal
 from backend.utils.resume_utils import (
@@ -31,10 +31,13 @@ def review_with_interview_checksheet(
     candidate_id: str,
     reviewer_id: str,     # = interviewer_id
     stage: str,
-    prep_items: List[PrepItemDict],  # ← ✅ 型を明示
+    prep_items: List[PrepItemDict],
     reviewed_resume: bool = False,
     qualitative: dict | None = None,
     quantitative: dict | None = None,
+    hiring_decision: Optional[str] = None,
+    recommended_division: Optional[str] = None,
+    recommended_title: Optional[str] = None,
 ) -> dict:
     result = load_single_result(candidate_id)
     if result is None:
@@ -91,6 +94,9 @@ def review_with_interview_checksheet(
         "reviewedResume": reviewed_resume,
         "qualitative": qualitative or {},
         "quantitative": quantitative or {},
+        "hiringDecision": hiring_decision,
+        "recommendedDivision": recommended_division,
+        "recommendedTitle": recommended_title,
     }
 
     # ← ここで壊さずマージ

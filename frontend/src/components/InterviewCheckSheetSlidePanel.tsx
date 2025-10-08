@@ -35,6 +35,9 @@ export interface Props {
         reviewedResume: boolean;
         qualitative?: Record<string, string>;
         quantitative?: Record<string, QuantitativeRow>;
+        hiringDecision?: string;
+        recommendedDivision?: string;
+        recommendedTitle?: string;
     }) => void;
     initialData?: {
         prepItems?: PrepItem[];
@@ -94,42 +97,42 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
     const applyToState = useCallback((src: any = {}, cfg: ConfigResponse) => {
         setPrepItems(src.prepItems || []);
         setReviewedResume(!!src.reviewedResume);
-
         setAiScoreReviewed(!!src.ai_score_reviewed);
 
-        // ✅ prepItems.tags の正規化処理を追加
         const normalizedPrepItems = (src.prepItems || []).map((item: any) => {
             const tags = (item.tags || []).map((t: any) => typeof t === 'string' ? t : t.id);
             return { ...item, tags };
         });
-        setPrepItems(normalizedPrepItems)
+        setPrepItems(normalizedPrepItems);
 
         const ql = defaultQual(cfg.qualitativeItems);
 
-        // 明示的に保持するキー一覧
-        const preservedKeys = ['hiringDecision', 'recommendedDivision', 'recommendedTitle'];
+        // 🟢 snake_case → camelCase 変換関数
+        const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
-        // config側のキーを設定
         cfg.qualitativeItems.forEach(({ key }) => {
-        ql[key] = src.qualitative?.[key] || '';
+            // 同じ意味のキーを src.qualitative から探す
+            const srcKey = Object.keys(src.qualitative || {}).find(
+            (k) => snakeToCamel(k) === key
+            );
+            ql[key] = src.qualitative?.[srcKey ?? key] || '';
         });
 
-        // preservedKeys の値を後から追加（上書きされないように）
-        preservedKeys.forEach(key => {
-        if (src.qualitative?.[key]) {
-            ql[key] = src.qualitative[key];
-        }
+        ['hiringDecision', 'recommendedDivision', 'recommendedTitle'].forEach((key) => {
+            if (src[key] !== undefined && src[key] !== null) {
+                ql[key] = src[key];
+            }
         });
 
         setQualitative(ql);
 
         const qt = defaultQuant(cfg.quantitativeItems);
         cfg.quantitativeItems.forEach(({ key }) => {
-        const row = src.quantitative?.[key] || {};
-        qt[key] = {
+            const row = src.quantitative?.[key] || {};
+            qt[key] = {
             level: [1, 2, 3, 4, 5].includes(row.level) ? row.level : 0,
             comment: row.comment || '',
-        };
+            };
         });
         setQuantitative(qt);
     }, []);
@@ -149,7 +152,15 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
     }, [isOpen, initialData, applyToState, interviewerId]);
 
     const handleSubmit = () => {
-        onSubmit({ prepItems, reviewedResume, qualitative, quantitative });
+        onSubmit({
+            prepItems,
+            reviewedResume,
+            qualitative,
+            quantitative,
+            hiringDecision: qualitative.hiringDecision,
+            recommendedDivision: qualitative.recommendedDivision,
+            recommendedTitle: qualitative.recommendedTitle,
+        });
         onClose();
     };
 
@@ -159,13 +170,35 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
         await fetch(`${appConfig.API_BASE_URL}/checksheet`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ interviewer_id: interviewerId, candidate_id: candidateId, stage, prepItems, reviewedResume, qualitative, quantitative }),
+            body: JSON.stringify({
+                interviewer_id: interviewerId,
+                candidate_id: candidateId,
+                stage,
+                prepItems,
+                reviewedResume,
+                qualitative,
+                quantitative,
+                hiringDecision: qualitative.hiringDecision,
+                recommendedDivision: qualitative.recommendedDivision,
+                recommendedTitle: qualitative.recommendedTitle,
+            }),
         });
 
         const res = await fetch(`${appConfig.API_BASE_URL}/interview/review-score`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ interviewer_id: interviewerId, candidate_id: candidateId, stage, prepItems, reviewedResume, qualitative, quantitative }),
+            body: JSON.stringify({ 
+                interviewer_id: interviewerId, 
+                candidate_id: candidateId, 
+                stage, 
+                prepItems, 
+                reviewedResume, 
+                qualitative, 
+                quantitative,
+                hiringDecision: qualitative.hiringDecision,
+                recommendedDivision: qualitative.recommendedDivision,
+                recommendedTitle: qualitative.recommendedTitle,
+            }),
         });
 
         if (!res.ok) throw new Error('再スコアに失敗しました');
