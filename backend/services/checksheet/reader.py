@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Any
+from typing import Dict, Optional, Any
 from sqlalchemy.orm import Session, joinedload
 from backend.models.results_byinterview import ResultByInterview
 
@@ -72,9 +72,6 @@ def list_all_checksheet_blocks(db: Session) -> list[dict]:
             ]
         })
     return result
-
-def get_divisions(result: dict) -> List[str]:
-    return [s.get("division") for s in result.get("scores", []) if s.get("division")]
 
 def _as_non_empty_str(x: Any) -> Optional[str]:
     """値を非空strに正規化。空/None/非strは None を返す。"""
