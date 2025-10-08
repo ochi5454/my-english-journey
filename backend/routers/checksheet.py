@@ -88,7 +88,6 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
     block["ai_score_reviewed"] = False
     block["eval_required"] = False
 
-    # 🔹 ここで get_db() の context を使って db を渡す
     with SessionLocal() as db:
         upsert_checksheet(db, iid, cid, stage, block)
 

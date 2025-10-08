@@ -17,14 +17,14 @@ async def interview_review_score(payload: InterviewPrepByInterviewerRequest):
     prep_items_normalized: List[PrepItemDict] = [
         _to_prep_item_dict(pi) for pi in (payload.prepItems or [])
     ]
-    # （任意）Pylanceに型を明示
+
     prep_items_for_review = cast(List[PrepItemDict], prep_items_normalized)
 
     updated = review_with_interview_checksheet(
         candidate_id=payload.candidate_id,
         reviewer_id=payload.interviewer_id,
         stage=payload.stage,
-        prep_items=prep_items_for_review,  # ← 型が完全一致
+        prep_items=prep_items_for_review,
         reviewed_resume=getattr(payload, "reviewedResume", False),
         qualitative=getattr(payload, "qualitative", None),
         quantitative=getattr(payload, "quantitative", None),

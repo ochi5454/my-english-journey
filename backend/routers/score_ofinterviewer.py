@@ -67,7 +67,7 @@ async def interviewer_evals_refresh_ep(
     targets = payload.get("targets")
     if payload.get("auto"):
         diff = list_diff_targets(
-            db=db,  # ← 追加
+            db=db,
             stage=payload.get("stage"),
             q=payload.get("q"),
             limit=payload.get("limit")
@@ -81,7 +81,6 @@ async def interviewer_evals_refresh_ep(
     include_reasons = payload.get("includeReasons", True)
     skip_eval = payload.get("skipEval", False)
 
-    # ✅ db を渡すように修正
     rows = refresh_targets_and_upsert(
         targets=targets,
         db=db,

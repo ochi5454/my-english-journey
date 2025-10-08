@@ -65,7 +65,7 @@ async def resume_score_save(
         generated_sql = generate_resume_sql(masked_text, candidate_id)
         save_sql_to_sqlite(generated_sql)
 
-        # === ⑥ の前に Candidate を保存 ===
+        # === ⑥ Candidate を保存 ===
         now = datetime.utcnow()
 
         with SessionLocal() as db:
@@ -84,10 +84,10 @@ async def resume_score_save(
                 candidate.updated_at = now
             db.commit()
 
-        # === ⑥ LLMスコアリング実行 ===
+        # === ⑦ LLMスコアリング実行 ===
         scoring_result = score_resume_from_text(masked_text, candidate_id)
 
-        # === ⑦ スコア・must_checkをDBに保存 ===
+        # === ⑧ スコア・must_checkをDBに保存 ===
         now = datetime.utcnow()
 
         with SessionLocal() as db:
@@ -108,7 +108,7 @@ async def resume_score_save(
                 candidate.updated_by = "system"
                 candidate.updated_at = now
 
-            # 🎯 must_check項目 保存（一旦削除→追加）
+            # 🎯 must_check項目 保存
             db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).delete()
             for name, info in scoring_result.get("must_check", {}).items():
                 db.add(CandidateMustCheckItem(
@@ -119,7 +119,7 @@ async def resume_score_save(
                     reason=info.get("reason", "")
                 ))
 
-            # 🎯 divisionスコア 保存（削除→追加）
+            # 🎯 divisionスコア 保存
             db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).delete()
             for s in scoring_result.get("scores", []):
                 db.add(CandidateDivisionScore(
@@ -130,7 +130,7 @@ async def resume_score_save(
                     reason=s["reason"]
                 ))
 
-                # 🎯 スコア履歴（追加のみ）
+                # 🎯 スコア履歴 保存
                 db.add(CandidateScoreHistory(
                     id=str(uuid4()),
                     user_id=candidate_id,
@@ -144,7 +144,7 @@ async def resume_score_save(
 
             db.commit()
 
-        # === ⑧ 応答 ===
+        # === ⑨ 応答 ===
         return JSONResponse(content={
             "candidate_id": candidate_id,
             "uploader_id": uploader_id,
