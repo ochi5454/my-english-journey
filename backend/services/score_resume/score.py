@@ -6,7 +6,7 @@ from math import isnan
 from typing import List, Dict, Any
 from backend.core.openai_config import get_openai_client
 from backend.utils.division import load_division_profiles
-from backend.services.score_adjustment.result_editor import save_score_to_history
+from backend.services.score_adjustment.save import save_score_to_history
 
 # ============================================
 # ✅ GPT呼び出し

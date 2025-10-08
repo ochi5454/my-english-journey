@@ -16,11 +16,11 @@ from backend.services.interview_review.io import (
     upsert_checksheet
 )
 from backend.services.interview_review.merge import merge_block
-from backend.services.score_adjustment.result_editor import (
+from backend.services.score_adjustment.save import (
     load_single_result, 
     save_score_to_history
 )
-from backend.services.score_adjustment.prompt_generator import (
+from backend.services.score_adjustment.score import (
     call_openai_chat, 
     parse_score_adjustments
 )

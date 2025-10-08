@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from typing import List
-from backend.services.score_adjustment.prompt_generator import call_openai_chat
+from backend.services.score_adjustment.score import call_openai_chat
 
 # ============================================
 # 🧠 面接官のスコアリング

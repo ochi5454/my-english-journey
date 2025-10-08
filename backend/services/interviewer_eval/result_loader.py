@@ -1,4 +1,4 @@
-from backend.services.score_adjustment.result_editor import load_single_result
+from backend.services.score_adjustment.save import load_single_result
 
 # ============================================
 # 🧠 結果シートの読込
