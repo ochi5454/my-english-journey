@@ -2,6 +2,10 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
+# ============================================
+# ✅ 面接官が入力した面談シートのデータ
+# ============================================
+
 class ResultByInterview(Base):
     __tablename__ = "results_byinterview"
 

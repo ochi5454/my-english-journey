@@ -1,7 +1,21 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text
+from backend.core.database import Base
 
-Base = declarative_base()
+# ============================================
+# ✅ 評価の元となる定義
+# ============================================
+
+class CandidateExpectations(Base):
+    __tablename__ = "candidate_expectations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    division = Column(String, nullable=True)
+    trait_type = Column(String, nullable=False)  # 例: "must_requirement" or "desired_trait"
+    trait_label = Column(String, nullable=False)
+
+# ============================================
+# ✅ 評価
+# ============================================
 
 class Candidate(Base):
     __tablename__ = "candidates"
@@ -17,7 +31,6 @@ class Candidate(Base):
     hr_title = Column(String)
     hr_income = Column(Integer)
 
-
 class CandidateMustCheckItem(Base):
     __tablename__ = "candidates_must_check_items"
     id = Column(String, primary_key=True)
@@ -26,7 +39,6 @@ class CandidateMustCheckItem(Base):
     result = Column(Boolean, nullable=False)
     reason = Column(Text)
 
-
 class CandidateDivisionScore(Base):
     __tablename__ = "candidates_division_scores"
     id = Column(String, primary_key=True)
@@ -34,7 +46,6 @@ class CandidateDivisionScore(Base):
     division = Column(String, nullable=False)
     score = Column(Integer)
     reason = Column(Text)
-
 
 class CandidateScoreHistory(Base):
     __tablename__ = "candidates_score_histories"
@@ -47,7 +58,6 @@ class CandidateScoreHistory(Base):
     reviewed_at = Column(DateTime)
     source = Column(String)  # 例: "interview_review"
 
-
 class CandidateStatus(Base):
     __tablename__ = "candidates_status"
     id = Column(String, primary_key=True)
@@ -56,11 +66,3 @@ class CandidateStatus(Base):
     chat_reviewer = Column(String)
     reviewed_at = Column(DateTime)
     reviewed_resume = Column(Boolean)
-
-class CandidateExpectations(Base):
-    __tablename__ = "candidate_expectations"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    division = Column(String, nullable=True)
-    trait_type = Column(String, nullable=False)  # 例: "must_requirement" or "desired_trait"
-    trait_label = Column(String, nullable=False)

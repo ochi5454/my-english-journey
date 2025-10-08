@@ -4,6 +4,7 @@ from backend.core.database import Base
 # ============================================
 # ✅ 評価の元となる定義
 # ============================================
+
 class InterviewerCriteriaItem(Base):
     __tablename__ = "interviewer_criteria_items"
 
@@ -40,7 +41,6 @@ class InterviewerEvaluation(Base):
     evaluated_at = Column(DateTime, nullable=False)
     source_sig = Column(String, nullable=False)
 
-
 class EvaluationRubricScore(Base):
     __tablename__ = "evaluation_rubric_scores"
 
@@ -53,7 +53,6 @@ class EvaluationRubricScore(Base):
     weight = Column(Float, nullable=False)
     guidance = Column(Text, nullable=False)
 
-
 class EvaluationComment(Base):
     __tablename__ = "evaluation_comments"
 
@@ -61,8 +60,6 @@ class EvaluationComment(Base):
     evaluation_id = Column(Integer, nullable=False)
     type = Column(String, nullable=False)  # 'reason' or 'suggestion'
     text = Column(Text, nullable=False)
-
-
 class EvaluationRoleExpectation(Base):
     __tablename__ = "evaluation_role_expectation"
 

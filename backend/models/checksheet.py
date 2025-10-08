@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
 # ============================================
-# ✅ 最終評価
+# ✅ 最終評価のラベル
 # ============================================
 
 class ChecksheetHiringDecision(Base):
@@ -24,7 +24,7 @@ class ChecksheetRoleTitle(Base):
     order = Column(Integer, nullable=False)              # 例: 1
 
 # ============================================
-# ✅ 定性評価
+# ✅ 定性評価のラベル
 # ============================================
 
 class ChecksheetQualitativeItem(Base):
@@ -36,7 +36,7 @@ class ChecksheetQualitativeItem(Base):
     placeholder = Column(String)
 
 # ============================================
-# ✅ 定量評価
+# ✅ 定量評価のラベル
 # ============================================
 class ChecksheetQuantitativeItem(Base):
     __tablename__ = "checksheet_quantitativeitems"
