@@ -166,7 +166,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
         console.log("HR送信payload:", payload);
 
         try {
-            const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/hr-review`, {
+            const res = await fetch(`${appConfig.API_BASE_URL}/hr-review`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

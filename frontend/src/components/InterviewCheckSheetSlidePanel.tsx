@@ -184,7 +184,7 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
             }),
         });
 
-        const res = await fetch(`${appConfig.API_BASE_URL}/interview/review-score`, {
+        const res = await fetch(`${appConfig.API_BASE_URL}/interview/ai-score`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 

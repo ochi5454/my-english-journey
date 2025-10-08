@@ -7,7 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from backend.core.database import get_db
 from backend.services.score_ofinterviewer.score_rubric import load_rubric_for_http
 from backend.services.score_ofinterviewer.cache import load_all_evals, load_evals_for_interviewer, filter_cache_rows_in_memory
-from backend.services.score_ofinterviewer.diffcheck import list_diff_targets, refresh_targets_and_upsert, evaluate_interviewer_single
+from backend.services.score_ofinterviewer.diffcheck import list_diff_targets, refresh_targets_and_upsert
 
 router = APIRouter()
 
@@ -91,20 +91,3 @@ async def interviewer_evals_refresh_ep(
     )
 
     return JSONResponse(content={"updated": len(rows), "rows": rows})
-
-@router.post("/interviewer/evaluate")
-async def interviewer_evaluate(payload: dict = Body(...)):
-    candidate_id = payload.get("candidate_id")
-    interviewer_id = payload.get("interviewer_id")
-    stage = payload.get("stage", "面談・1次")
-    if not candidate_id or not interviewer_id:
-        raise HTTPException(status_code=400, detail="candidate_id と interviewer_id は必須です")
-
-    out = evaluate_interviewer_single(
-        candidate_id=candidate_id,
-        interviewer_id=interviewer_id,
-        stage=stage,
-        resume_result=payload.get("resume_result"),
-        qa_block=payload.get("interview_prep"),
-    )
-    return JSONResponse(content=out)

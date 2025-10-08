@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.routers import (
-    hr,
+    score_resume,
+    score_adjustment,
     interview_schedule, 
     checksheet, 
     score_byinterview,
     score_ofinterviewer,
-    score_resume
+    hr,
 )
 
 app = FastAPI()
@@ -28,8 +29,9 @@ app.add_middleware(
 # ============================================
 
 app.include_router(score_resume.router)
+app.include_router(score_adjustment.router)
 app.include_router(interview_schedule.router)
-app.include_router(score_byinterview.router)
 app.include_router(checksheet.router)
+app.include_router(score_byinterview.router)
 app.include_router(score_ofinterviewer.router)
 app.include_router(hr.router)

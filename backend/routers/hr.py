@@ -11,7 +11,7 @@ router = APIRouter()
 #  📮 最終HR判定
 #  ============================================
 
-@router.post("/resume-result/hr-review")
+@router.post("/hr-review")
 async def update_hr_review(
     data: HRReviewUpdate,
     request: Request,
