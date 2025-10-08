@@ -67,8 +67,8 @@ const InterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, isOpen,
         interviewDate,
         interviewer: selectedInterviewer,
         todo: selectedTodos.join(', '),
-        candidateMail: renderTemplate(candidateMail),     // ← 展開済みに
-        interviewerMail: renderTemplate(interviewerMail),  // ← 展開済みに
+        candidateMail: renderTemplate(candidateMail),
+        interviewerMail: renderTemplate(interviewerMail),
         stage 
       });
 

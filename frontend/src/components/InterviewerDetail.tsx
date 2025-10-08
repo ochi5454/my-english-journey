@@ -26,7 +26,7 @@ type RoleExpectation = {
     missing: string[];
     violated: string[];
     comment?: string;
-    score?: number; // 👈 任意（例えば matched / total で算出された 0-10）
+    score?: number;
 };
 
 type Props = {
@@ -44,12 +44,10 @@ const InterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubri
         const [loading, setLoading] = useState(false);
         const [error, setError]   = useState<string | null>(null);
 
-        // フィルタ
         const [iid, setIid] = useState<string>(interviewerId || '');
         const [candidateFilter, setCandidateFilter] = useState<string>('');
         const [stageFilter, setStageFilter] = useState<string>(defaultStage || ALL);
 
-    // ルータ代替：#/interviewer-detail?iid=xxx&stage=面談・1次
     useEffect(() => {
         if (interviewerId) return;
         const hash = window.location.hash || '';
@@ -57,7 +55,6 @@ const InterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubri
         const s = hash.match(/stage=([^&#]+)/);
         if (m && !iid) setIid(decodeURIComponent(m[1]));
         if (s && !defaultStage) setStageFilter(decodeURIComponent(s[1]));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // rubric は親から来ていれば fetch しない
@@ -76,7 +73,7 @@ const InterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubri
     const p = new URLSearchParams();
     if (iid) p.set('interviewer_id', iid);
     if (stageFilter && stageFilter !== ALL) p.set('stage', stageFilter);
-    if (candidateFilter) p.set('q', candidateFilter); // ★ ここを candidate_id → q に
+    if (candidateFilter) p.set('q', candidateFilter);
     return p.toString();
     };
 
@@ -107,9 +104,8 @@ const InterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubri
     // iid 変化で再取得（初回含む）
     useEffect(() => {
         if (!iid) return;                   // 面談者IDがなければ叩かない
-        const t = setTimeout(fetchCache, 250); // 250ms デバウンス
+        const t = setTimeout(fetchCache, 250);
         return () => clearTimeout(t);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [iid, candidateFilter, stageFilter]);
 
     const prevIidRef = useRef<string>('');
@@ -152,10 +148,9 @@ const InterviewerDetail: React.FC<Props> = ({ interviewerId, defaultStage, rubri
         <div className="iq-panel">
         <div className="iq-header">
             <h2 className="iq-title">面談者詳細（サブスコア）</h2>
-            {/* 緑ボタンは不要なので削除 */}
         </div>
 
-        {/* 追加：平均スコア×重みヘッダー（「平均内訳」を包括） */}
+        {/* 平均スコア×重みヘッダー（「平均内訳」を包括） */}
         {rubric && avgHeader && (
         <div className="iq-metricbar">
             {rubric.criteria.map(c => (

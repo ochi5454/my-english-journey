@@ -112,7 +112,6 @@ const InterviewerOverview: React.FC = () => {
     }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchCache(); }, []);
 
   // ======================== 差分評価の実行 ========================
@@ -469,8 +468,8 @@ const InterviewerOverview: React.FC = () => {
               <button
                 className="diff-modal-btn execute-btn"
                   onClick={async () => {
-                    await handleRefreshDiff();   // ← 評価が終わるまで待つ
-                    setIsModalOpen(false);       // ← その後モーダルを閉じる
+                    await handleRefreshDiff();
+                    setIsModalOpen(false);
                   }}
                 disabled={loading}
               >

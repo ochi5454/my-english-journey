@@ -8,7 +8,7 @@ type Props = {
   candidateId: string;
   stages: string[];
   interviewerIds: string[];
-  reliability: Record<string, number>; // 0‰1
+  reliability: Record<string, number>;
 };
 
 type CriterionRow = {
@@ -64,7 +64,7 @@ const InterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, intervi
             });
 
           FINAL_ITEM_KEYS.forEach((key) => {
-            const value = (res.data as any)[key]; // 👈 直接取り出す
+            const value = (res.data as any)[key];
             if (value !== undefined && value !== null && value !== "") {
               let row = allData.find((r) => r.criterion === key);
               if (!row) {
@@ -98,7 +98,7 @@ const InterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, intervi
       const match = config?.hiringDecisions?.find(d => d.value === key) ||
                     config?.divisions?.includes(key) ||
                     config?.titleOptions?.find(t => t.value === key);
-      if (typeof match === "string") map[key] = key; // for divisions
+      if (typeof match === "string") map[key] = key;
     });
     map["hiringDecision"] = "採用可否";
     map["recommendedDivision"] = "推奨部門";

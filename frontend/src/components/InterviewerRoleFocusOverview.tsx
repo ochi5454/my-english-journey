@@ -12,7 +12,7 @@ type FocusTag = {
 type RoleFocusSummary = {
     [roleKey: string]: {
         expected_tags: FocusTag[];
-        used_tags: Record<string, number>;  // ※ keyは tag.id
+        used_tags: Record<string, number>;
         missing_tags: FocusTag[];
     };
 };
@@ -59,7 +59,7 @@ const InterviewerRoleFocusOverview: React.FC = () => {
     }, [data]);
 
   const departments = useMemo(() =>
-    Object.keys(matrixData).sort(), // common は already 除外済み
+    Object.keys(matrixData).sort(),
     [matrixData]
   );
 

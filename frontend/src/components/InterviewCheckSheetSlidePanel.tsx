@@ -3,7 +3,6 @@ import './InterviewCheckSheetSlidePanel.css';
 import { RatingBar } from './CommonRatingBar.tsx';
 import { RubricHint } from './CommonRubricHint.tsx';
 import Accordion from './CommonAccordion.tsx';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "./InterviewCheckSheet.ts";
 import appConfig from '../config.ts';
 

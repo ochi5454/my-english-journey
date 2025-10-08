@@ -75,12 +75,11 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         }
     };
 
-    // ✅ AI調整後に子コンポーネントから呼ばれる
     const handleResultUpdate = (updated: Result) => {
         setResults((prev) =>
             prev.map((r) => r.user_id === updated.user_id ? updated : r)
         );
-        setSelectedResult(updated); // 詳細表示も更新
+        setSelectedResult(updated);
     };
 
     return (

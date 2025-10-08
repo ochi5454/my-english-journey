@@ -151,7 +151,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                     candidate_id: localResult.user_id,
                     reviewer_id: interviewerId,
                     stage: chatStage,
-                    adjustments: scoreChanges  // ← まとめて送る
+                    adjustments: scoreChanges
                 }),
             });
 
@@ -207,7 +207,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         if (!r.ok) return;
         const block = await r.json();
 
-        // 画面で使いやすい「ステージごとのブロック」の形で保持
         setInterviewPrepData(prev => ({ ...prev, [stage]: block }));
     }
 

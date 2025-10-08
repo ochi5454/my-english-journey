@@ -76,7 +76,6 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                 latestMap.set(item.user_id, item);
                 }
 
-                // ✅ HR評価があればメモ用に保存
                 if ((item as any).hr_review) {
                 const hr = (item as any).hr_review;
                 hrMap[item.user_id] = {
@@ -91,7 +90,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
             });
 
             setAiRawResults(Array.from(latestMap.values()));
-            setHrEvaluations(hrMap); // ✅ ロード直後にセット
+            setHrEvaluations(hrMap);
             })
         .catch(err => console.error('AIスコアの取得に失敗:', err));
 
@@ -123,7 +122,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                 ? config.divisions.map((value) =>
                     typeof value === "string"
                     ? { value, label: value }
-                    : { value: value.value, label: value.label }  // 念のため fallback
+                    : { value: value.value, label: value.label }
                 )
                 : []
             );
@@ -159,7 +158,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
             decision: hrEvaluations[candidateId]?.decision,
             division: hrEvaluations[candidateId]?.division,
             title: hrEvaluations[candidateId]?.title,
-            annual_income: isNaN(parsedIncome) ? 0 : parsedIncome, // ← NaN防止！
+            annual_income: isNaN(parsedIncome) ? 0 : parsedIncome,
             },
         };
 
