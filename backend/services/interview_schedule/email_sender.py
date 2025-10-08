@@ -1,4 +1,4 @@
-from backend.schemas.resume import InterviewSetupRequest
+from backend.schemas.interview_schedule import InterviewSetupRequest
 
 # ============================================
 # 🧠 面談日程メールの送付

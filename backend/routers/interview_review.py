@@ -6,15 +6,10 @@ from typing import List, cast
 from backend.core.database import SessionLocal
 import uuid
 from backend.models.candidate_evals import Candidate, CandidateStatus
-from backend.schemas.resume import (
-    ScoreChatRequest, 
-    ScoreUpdateRequest, 
-    InterviewPrepByInterviewerRequest, 
-    PrepItemDict
-)
-from backend.utils.resume_utils import (
-    load_division_profiles, 
-)
+from backend.schemas.interview_schedule import InterviewPrepByInterviewerRequest
+from backend.schemas.checksheet import PrepItemDict
+from backend.schemas.ai_score import ScoreChatRequest, ScoreUpdateRequest
+from backend.utils.resume_utils import load_division_profiles
 from backend.services.score_adjustment.prompt_generator import (
     extract_original_scores_from_message, 
     generate_score_review_prompt, 

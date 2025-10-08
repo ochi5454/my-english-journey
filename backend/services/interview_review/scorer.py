@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-from backend.schemas.resume import PrepItemDict
+from backend.schemas.checksheet import PrepItemDict
 from backend.core.database import SessionLocal
 import uuid
 import json
