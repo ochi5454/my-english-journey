@@ -2,7 +2,7 @@ import io
 import docx
 import openpyxl
 import pdfplumber
-from backend.services.resume_upload.text_sanitizer import normalize_pdf_text
+from backend.services.score_resume.sanitizer import normalize_pdf_text
 
 # ============================================
 # 🧠 履歴書からテキストの抽出

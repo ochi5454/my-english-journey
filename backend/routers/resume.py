@@ -13,15 +13,15 @@ from backend.core.config import (
 )
 from backend.models.candidate_evals import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
-from backend.services.resume_upload.scorer import score_resume_from_text
-from backend.services.resume_upload.extractor import (
+from backend.services.score_resume.score import score_resume_from_text
+from backend.services.score_resume.extract import (
     extract_resume_text_from_pdf, 
     extract_resume_text_from_docx, 
     extract_resume_text_from_xlsx
 )
-from backend.services.resume_upload.text_sanitizer import mask_personal_info
-from backend.services.resume_upload.vectorstore import save_masked_resume_embedding_local
-from backend.services.resume_upload.sql_builder import (
+from backend.services.score_resume.sanitizer import mask_personal_info
+from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
+from backend.services.score_resume.sql import (
     generate_resume_sql, 
     save_sql_to_sqlite
 )

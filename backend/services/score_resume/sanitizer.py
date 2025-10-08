@@ -1,5 +1,5 @@
 import re
-from janome.tokenizer import Tokenizer, Token
+from janome.tokenizer import Token
 from backend.core.config import NG_COMPANY_PATH
 from backend.core.tokenizer_config import get_tokenizer
 
