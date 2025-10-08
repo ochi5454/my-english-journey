@@ -14,8 +14,8 @@ class ResultByInterview(Base):
     recommended_division = Column(String)
     recommended_title = Column(String)
     updated_at = Column(DateTime)
-    ai_score_reviewed = Column(Boolean)
-    eval_required = Column(Boolean)
+    ai_score_reviewed = Column(Boolean, nullable=False, default=False)
+    eval_required = Column(Boolean, nullable=False, default=False)
 
     prep_items = relationship("ResultByInterviewQATag", cascade="all, delete-orphan")
     qualitative = relationship("ResultByInterviewQualitative", uselist=False, cascade="all, delete-orphan")

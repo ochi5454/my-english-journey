@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from backend.schemas.resume import PrepItemDict
 from backend.core.database import SessionLocal
 import uuid
+import json
 from backend.models.candidate_evals import Candidate, CandidateStatus
 from backend.utils.resume_utils import (
     load_division_profiles
@@ -88,9 +89,15 @@ def review_with_interview_checksheet(
         "updated_at": now_str
     }
 
+    print("🟦 incoming_block", json.dumps(incoming_block, indent=2, ensure_ascii=False))
+
     merged_block = merge_block(existing_block, incoming_block)
 
+    print("🟩 merged_block", json.dumps(merged_block, indent=2, ensure_ascii=False))
+
     with SessionLocal() as db:
+        print("📨 payload to upsert_checksheet")
+        print(json.dumps(merged_block, indent=2, ensure_ascii=False))
         upsert_checksheet(
             db=db,
             interviewer_id=reviewer_id,

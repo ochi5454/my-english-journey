@@ -74,7 +74,9 @@ def upsert_checksheet(
     stage: str,
     payload: dict
 ) -> None:
-
+    print("📥 payload values inside upsert_checksheet")
+    print("ai_score_reviewed:", payload.get("ai_score_reviewed"))
+    print("eval_required:", payload.get("eval_required"))
     # 既存または新規取得
     result = (
         db.query(ResultByInterview)
@@ -96,6 +98,13 @@ def upsert_checksheet(
     result.recommended_division = payload.get("recommendedDivision")
     result.recommended_title = payload.get("recommendedTitle")
     result.updated_at = datetime.now()
+
+    result.ai_score_reviewed = payload.get("ai_score_reviewed", False)
+    result.eval_required = payload.get("eval_required", False)
+
+    print("📝 result に代入された値")
+    print("ai_score_reviewed:", result.ai_score_reviewed)
+    print("eval_required:", result.eval_required)
 
     # --- prepItems 保存 ---
     existing_tags = {

@@ -35,7 +35,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
 
     useEffect(() => {
-        fetch(`${appConfig.API_BASE_URL}/resume-results`)
+        fetch(`${appConfig.API_BASE_URL}/resume-results`, { cache: 'no-store' })
             .then((res) => res.json())
             .then((data: Result[]) => {
                 // ユーザーごとに最新のtimestampのデータだけを保持する
@@ -118,7 +118,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                 onClick={() => handleRowClick(r.user_id)}
                             >
                                 <td>{r.user_id}</td>
-                                <td>{r.timestamp.slice(0, 19).replace('T', ' ')}</td>
+                                <td>{r.timestamp ? r.timestamp.slice(0, 19).replace('T', ' ') : '-'}</td>
                                 <td>{r.recommended_division}</td>
                                 {allMustKeys.map((k) => (
                                     <td

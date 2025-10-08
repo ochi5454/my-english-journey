@@ -477,7 +477,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
                     // 🔽 ここで最新の候補者データを取得
                     if (onResultUpdate) {
-                        const updatedRes = await fetch(`${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`);
+                        const updatedRes = await fetch(`${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`, { cache: 'no-store' });
                         const updatedResult = await updatedRes.json();
                         setLocalResult(updatedResult);
                         onResultUpdate(updatedResult);
