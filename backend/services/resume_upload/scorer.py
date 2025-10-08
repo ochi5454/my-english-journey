@@ -5,7 +5,7 @@ from backend.core.database import SessionLocal
 from math import isnan
 from typing import List, Dict, Any
 from backend.core.openai_config import get_openai_client
-from backend.utils.resume_utils import load_division_profiles
+from backend.utils.division import load_division_profiles
 from backend.services.score_adjustment.result_editor import save_score_to_history
 
 # ============================================

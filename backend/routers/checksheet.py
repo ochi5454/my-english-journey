@@ -3,20 +3,11 @@ from fastapi import Request, HTTPException, APIRouter, Query
 from fastapi.responses import ORJSONResponse
 from fastapi.exceptions import HTTPException
 from typing import Dict, Any, Mapping
-from backend.core.config import (
-    INTERVIEWER_META_PATH, 
-)
+from backend.core.config import INTERVIEWER_META_PATH
 from backend.core.database import SessionLocal
-from backend.utils.resume_utils import (
-    _safe_load_json, 
-    load_division_names, 
-    _load_json,
-    load_hiring_decisions,
-    load_qualitative_items,
-    load_quantitative_items,
-    load_role_titles,
-    get_expected_focus_items,
-)
+from backend.utils.checksheet import load_hiring_decisions, load_role_titles, load_qualitative_items, load_quantitative_items
+from backend.utils.load_json import _load_json, _safe_load_json
+from backend.utils.division import load_division_names, get_expected_focus_items
 from backend.services.interview_review.io import (
     get_checksheet_one, 
     upsert_checksheet

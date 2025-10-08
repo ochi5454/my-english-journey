@@ -1,10 +1,8 @@
 import json
 from pathlib import Path
-from backend.core.config import (
-    INTERVIEWER_META_PATH,
-)
+from backend.core.config import INTERVIEWER_META_PATH
 from backend.core.database import SessionLocal
-from backend.utils.resume_utils import get_expected_focus_items
+from backend.utils.division import get_expected_focus_items
 
 # ============================================
 # 🧠 観点スコア評価（部門・ロール観点におけるタグ網羅性）

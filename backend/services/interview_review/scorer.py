@@ -7,7 +7,7 @@ from backend.core.database import SessionLocal
 import uuid
 import json
 from backend.models.candidate_evals import Candidate, CandidateStatus
-from backend.utils.resume_utils import (
+from backend.utils.division import (
     load_division_profiles
 )
 from backend.services.interview_review.prompt_generator import generate_interview_review_prompt
