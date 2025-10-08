@@ -12,7 +12,7 @@ from backend.schemas.ai_score import ScoreChatRequest, ScoreUpdateRequest
 from backend.utils.division import load_division_profiles
 from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments
 from backend.services.score_adjustment.save import save_score_to_history
-from backend.services.interview_review.scorer import _to_prep_item_dict, review_with_interview_checksheet
+from backend.services.score_byinterview.score import _to_prep_item_dict, review_with_interview_checksheet
 
 router = APIRouter()
 
