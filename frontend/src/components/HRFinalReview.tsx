@@ -15,6 +15,7 @@ interface MustCheckItem {
 
 interface AIRawResult {
     user_id: string;
+    user_name?: string;
     timestamp: string;
     recommended_division: string;
     must_check: Record<string, MustCheckItem>;
@@ -212,7 +213,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
             return (
             <div key={candidateId} className="candidate-block">
                 <div className="candidate-header">
-                <h3 style={{ margin: 0 }}>候補者ID: {candidateId}
+                <h3 style={{ margin: 0 }}>候補者: {candidateId}{ai?.user_name && `（${ai.user_name}）`}
                     {resumeURL && (
                         <a
                         href={resumeURL}

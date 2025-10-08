@@ -20,6 +20,7 @@ interface MustCheckItem {
 
 interface Result {
     user_id: string;
+    user_name?: string;
     timestamp: string;
     uploader_id?: string; // 1次評価者
     updated_at?: string;  // 2次評価日時
@@ -97,6 +98,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                     <thead>
                         <tr>
                             <th rowSpan={2}>候補者ID</th>
+                            <th rowSpan={2}>名前</th>
                             <th rowSpan={2}>評価日</th>
                             <th rowSpan={2}>推奨部門</th>
                             <th colSpan={allMustKeys.length}>必須</th>
@@ -118,6 +120,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                 onClick={() => handleRowClick(r.user_id)}
                             >
                                 <td>{r.user_id}</td>
+                                <td>{r.user_name || '-'}</td>
                                 <td>{r.timestamp ? r.timestamp.slice(0, 19).replace('T', ' ') : '-'}</td>
                                 <td>{r.recommended_division}</td>
                                 {allMustKeys.map((k) => (

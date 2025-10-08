@@ -194,6 +194,7 @@ async def get_resume_results():
 
             result = {
                 "user_id": user_id,
+                "user_name": c.name,
                 "recommended_division": c.recommended_div,
                 "uploader_id": c.uploader_id,
                 "timestamp": c.updated_at.isoformat() if c.updated_at else None,
