@@ -3,6 +3,9 @@ from fastapi import HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from typing import List, cast
+from backend.core.database import SessionLocal
+import uuid
+from backend.models.candidate_evals import Candidate, CandidateStatus
 from backend.schemas.resume import (
     ScoreChatRequest, 
     ScoreUpdateRequest, 
@@ -11,7 +14,6 @@ from backend.schemas.resume import (
 )
 from backend.utils.resume_utils import (
     load_division_profiles, 
-    save_result_to_file
 )
 from backend.services.score_adjustment.prompt_generator import (
     extract_original_scores_from_message, 
@@ -57,12 +59,12 @@ async def update_score(payload: ScoreUpdateRequest):
     reviewer_id = payload.reviewer_id
     stage = payload.stage
 
-    now_str = datetime.now().isoformat()
+    now = datetime.utcnow()
 
     if not payload.adjustments:
         raise HTTPException(status_code=400, detail="調整内容がありません")
 
-    # JSON形式に変換（save_score_to_historyの仕様に合わせる）
+    # JSON形式に変換（save_score_to_history の仕様に合わせる）
     new_scores = [
         {
             "division": adj.division,
@@ -72,27 +74,41 @@ async def update_score(payload: ScoreUpdateRequest):
         for adj in payload.adjustments
     ]
 
-    # 保存・推薦部門の更新含む
-    result = save_score_to_history(
-        candidate_id=candidate_id,
-        new_scores=new_scores,
-        updated_by=reviewer_id,
-        source="chat_review"
-    )
+    # スコア保存（DivisionScore 更新 ＋ ScoreHistory に記録 ＋ 推薦部門更新）
+    try:
+        save_score_to_history(
+            candidate_id=candidate_id,
+            new_scores=new_scores,
+            updated_by=reviewer_id,
+            source="chat_review"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存エラー: {str(e)}")
 
-    if not result:
-        raise HTTPException(status_code=500, detail="保存に失敗しました")
+    # ステージ別レビュー履歴を CandidateStatus に保存（履歴形式なので毎回INSERT）
+    with SessionLocal() as db:
+        db.add(CandidateStatus(
+            id=str(uuid.uuid4()),
+            user_id=candidate_id,
+            stage=stage,
+            chat_reviewer=reviewer_id,
+            reviewed_at=now,
+            reviewed_resume=False  # 必要なら受け取って反映
+        ))
 
-    # ステージ別のレビュー履歴
-    if stage:
-        result[f"chat_review_{stage}_at"] = now_str
-        result[f"chat_reviewer_{stage}"] = reviewer_id
+        # 最終更新者も Candidate テーブルに反映
+        candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="候補者が見つかりません")
 
-    result["updated_by"] = reviewer_id
-    result["updated_at"] = now_str
+        candidate.updated_by = reviewer_id
+        candidate.updated_at = now
 
-    save_result_to_file(result, candidate_id)
-    return JSONResponse(content=result)
+        db.commit()
+
+    return JSONResponse(content={"status": "ok", "candidate_id": candidate_id})
 
 @router.post("/interview/review-score")
 async def interview_review_score(payload: InterviewPrepByInterviewerRequest):

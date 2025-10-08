@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Mapping, Union
 from sqlalchemy.orm import Session
-from backend.core.config import RESULT_PATH
 from backend.models.candidate_expectations import CandidateExpectations
 from backend.models.checksheet import ChecksheetHiringDecision, ChecksheetRoleTitle, ChecksheetQualitativeItem, ChecksheetQuantitativeItem
 from backend.models.interviewer_evals import InterviewerRoleFocusItem
@@ -49,16 +48,6 @@ def load_division_names() -> list[str]:
                         .all()
         # 結果は list[Tuple[str]] なので、flattenして返す
         return [d[0] for d in divisions]
-
-# ============================================
-# 🧠 スコア判定結果ファイルの保存
-# ============================================
-
-def save_result_to_file(result: dict, candidate_id: str):
-    out_path = RESULT_PATH / f"{candidate_id}_result.json"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2)
 
 # ============================================
 # 🧠 ファイル読込

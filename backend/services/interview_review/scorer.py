@@ -4,8 +4,9 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from backend.schemas.resume import PrepItemDict
 from backend.core.database import SessionLocal
+import uuid
+from backend.models.candidate_evals import Candidate, CandidateStatus
 from backend.utils.resume_utils import (
-    save_result_to_file, 
     load_division_profiles
 )
 from backend.services.interview_review.prompt_generator import generate_interview_review_prompt
@@ -29,7 +30,7 @@ from backend.services.score_adjustment.prompt_generator import (
 
 def review_with_interview_checksheet(
     candidate_id: str,
-    reviewer_id: str,     # = interviewer_id
+    reviewer_id: str,
     stage: str,
     prep_items: List[PrepItemDict],
     reviewed_resume: bool = False,
@@ -39,16 +40,16 @@ def review_with_interview_checksheet(
     recommended_division: Optional[str] = None,
     recommended_title: Optional[str] = None,
 ) -> dict:
+    now_str = datetime.now().isoformat()
     result = load_single_result(candidate_id)
     if result is None:
         raise HTTPException(status_code=404, detail="候補者データが見つかりません")
 
-    # 部門候補と現在スコア
+    # ▼ AIプロンプト生成とOpenAI応答
     division_profiles = load_division_profiles()
     valid_divisions = [p["division"] for p in division_profiles]
     current_map = {s["division"]: s.get("score", 0) for s in result.get("scores", [])}
 
-    # 🔹 プロンプト生成に定性・定量を追加
     prompt = generate_interview_review_prompt(
         prep_items=prep_items,
         valid_divisions=valid_divisions,
@@ -57,33 +58,18 @@ def review_with_interview_checksheet(
         quantitative=quantitative or {},
     )
     reply = call_openai_chat(prompt)
-
-    # スコア調整
     adjustments = parse_score_adjustments(reply, current_map, allow_nochange=True)
+
+    # ▼ スコア保存・履歴登録・推薦部門更新（save_score_to_history に一任）
     if adjustments:
-        result = save_score_to_history(
+        save_score_to_history(
             candidate_id=candidate_id,
             new_scores=adjustments,
             updated_by=reviewer_id,
-            source="interview_review",
+            source="interview_review"
         )
 
-    # 🔥 推奨部門をスコアから再設定
-    if result.get("scores"):
-        top_div = max(result["scores"], key=lambda x: x.get("score", -1))
-        result["recommended_division"] = top_div.get("division", None)
-
-    # 🔹 ステージ別フラグ・タイムスタンプ
-    now_str = datetime.now().isoformat()
-    result[f"{stage}_reviewed_resume"] = reviewed_resume
-    result[f"chat_review_{stage}_at"] = now_str
-    result[f"chat_reviewer_{stage}"] = reviewer_id
-    result["updated_by"] = reviewer_id
-    result["updated_at"] = now_str
-    save_result_to_file(result, candidate_id)
-
-    now_str = datetime.now().isoformat()
-    # 既存ブロックを取得
+    # ▼ AIレビュー内容（チェックシート）をマージ保存
     try:
         existing_block = get_checksheet_one(reviewer_id, candidate_id, stage) or {}
     except Exception:
@@ -97,14 +83,12 @@ def review_with_interview_checksheet(
         "hiringDecision": hiring_decision,
         "recommendedDivision": recommended_division,
         "recommendedTitle": recommended_title,
+        "ai_score_reviewed": True,
+        "eval_required": True,
+        "updated_at": now_str
     }
 
-    # ← ここで壊さずマージ
     merged_block = merge_block(existing_block, incoming_block)
-    merged_block["ai_score_reviewed"] = True
-    merged_block["eval_required"] = True
-    merged_block["updated_at"] = now_str
-
 
     with SessionLocal() as db:
         upsert_checksheet(
@@ -114,6 +98,24 @@ def review_with_interview_checksheet(
             stage=stage,
             payload=merged_block,
         )
+
+        # CandidateStatus にステージ記録（resume_reviewedフラグ含む）
+        db.add(CandidateStatus(
+            id=str(uuid.uuid4()),
+            user_id=candidate_id,
+            stage=stage,
+            chat_reviewer=reviewer_id,
+            reviewed_at=datetime.utcnow(),
+            reviewed_resume=reviewed_resume
+        ))
+
+        # Candidate に更新情報（updated_by, updated_at）を反映
+        candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+        if candidate:
+            candidate.updated_by = reviewer_id
+            candidate.updated_at = datetime.utcnow()
+
+        db.commit()
 
     return result
 

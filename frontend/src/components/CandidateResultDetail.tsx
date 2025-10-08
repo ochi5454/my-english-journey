@@ -62,6 +62,13 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
     const [isPrepLoading, setIsPrepLoading] = useState(false);
 
     useEffect(() => {
+        console.log("🧪 受け取ったresult:", result);
+        console.log("📆 interview_1_date:", result?.interview_1_date);
+        console.log("📆 interview_2_date:", result?.interview_2_date);
+        console.log("📆 interview_final_date:", result?.interview_final_date);
+    }, [result]);
+    
+    useEffect(() => {
         setLocalResult(result);
     }, [result]);
 
@@ -197,9 +204,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         setShowInterviewModal(true);
         }
     };
-
-    const isDocumentReview2Done = !!localResult.updated_at;
-
+    
     async function refreshChecksheet(stage: string) {
         const url = new URL(`${appConfig.API_BASE_URL}/checksheet/one`, window.location.origin);
         url.searchParams.set('interviewer_id', interviewerId);
@@ -255,7 +260,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                         !localResult.hr_review?.updated_at);
 
                 const handleClick = () => {
-                    if (interviewStages.includes(step) && isDocumentReview2Done) {
+                    if (interviewStages.includes(step)) {
                         openInterviewFlow(step);
                     } else if (step === "待遇検討" && !!localResult.chat_review_最終面談_at) {
                         // HRダッシュボードに遷移（候補者IDをクエリで渡す）
@@ -383,7 +388,14 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                             <div>
                             <h5 style={{ marginBottom: '4px' }}>📜 スコア履歴:</h5>
                             {[...s.score_history]
-                                .filter((entry) => entry.score !== s.score || entry.reason !== s.reason) // 現在スコアと同一は除外
+                                .filter((entry, idx, arr) => {
+                                    const isLast = idx === arr.length - 1;
+                                    const isSameAsLatest =
+                                        entry.score === s.score &&
+                                        entry.reason === s.reason &&
+                                        (entry.reviewed_at === arr[arr.length - 1]?.reviewed_at || entry.updated_at === arr[arr.length - 1]?.updated_at);
+                                    return !isLast && !isSameAsLatest;
+                                })
                                 .reverse()
                                 .map((entry: any, idx: number) => (
                                 <div key={idx} style={{ paddingLeft: '10px', borderLeft: '2px solid #ccc', marginBottom: '5px' }}>

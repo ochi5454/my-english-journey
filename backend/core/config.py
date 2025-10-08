@@ -45,9 +45,6 @@ RESUME_PATH = DATA_DIR / "resume_candidate_resume_files"
 DB_PATH = DATA_DIR / "resume_structured.db"
 NG_COMPANY_PATH = DATA_DIR / "ng_company_names.txt"
 
-# --- スキル・スコア ---
-RESULT_PATH = DATA_DIR / "resume_candidate_result_files"
-
 # --- 面談日程 ---
 INTERVIEWDATE_PATH = DATA_DIR / "resume_interviewdate_files"
 TEMPLATE_EMAIL_CANDIDATE_PATH = INTERVIEWDATE_PATH / "mailtemplate_to_candidate.json"
