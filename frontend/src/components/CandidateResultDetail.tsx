@@ -60,13 +60,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
     const [showInterviewPrepModal, setShowInterviewPrepModal] = useState(false);
     const [interviewPrepData, setInterviewPrepData] = useState<Record<string, any>>({});
     const [isPrepLoading, setIsPrepLoading] = useState(false);
-
-    useEffect(() => {
-        console.log("🧪 受け取ったresult:", result);
-        console.log("📆 interview_1_date:", result?.interview_1_date);
-        console.log("📆 interview_2_date:", result?.interview_2_date);
-        console.log("📆 interview_final_date:", result?.interview_final_date);
-    }, [result]);
     
     useEffect(() => {
         setLocalResult(result);
@@ -196,12 +189,11 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
     };
 
     const openInterviewFlow = (stage: string) => {
-        if (!localResult.updated_at) return;
         setInterviewStage(stage);
         if (isInterviewScheduled(stage)) {
-        setShowConfirmation(true);
+            setShowConfirmation(true);
         } else {
-        setShowInterviewModal(true);
+            setShowInterviewModal(true);
         }
     };
     
@@ -485,8 +477,9 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
                     // 🔽 ここで最新の候補者データを取得
                     if (onResultUpdate) {
-                        const updatedRes = await fetch(`${appConfig.API_BASE_URL}/result-d-result/${localResult.user_id}`);
+                        const updatedRes = await fetch(`${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`);
                         const updatedResult = await updatedRes.json();
+                        setLocalResult(updatedResult);
                         onResultUpdate(updatedResult);
                     }
 

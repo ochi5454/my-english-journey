@@ -262,7 +262,6 @@ async def get_result_by_candidate_id(candidate_id: str):
 
         # ✅ 面談日程情報
         schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
-        print("📅 面談スケジュール件数:", len(schedules))
         for s in schedules:
             if s.interview_stage == "interview_1":
                 result_data["interview_1_date"] = s.scheduled_at.isoformat()
@@ -280,12 +279,6 @@ async def get_result_by_candidate_id(candidate_id: str):
             if stage:
                 result_data[f"chat_review_{stage}_at"] = status.reviewed_at.isoformat() if status.reviewed_at else None
                 result_data[f"chat_reviewer_{stage}"] = status.chat_reviewer
-
-        print("✅ candidate_id:", candidate_id)
-        print("📦 result_data keys:", result_data.keys())
-        print("📆 interview_1_date:", result_data.get("interview_1_date"))
-        print("📆 interview_2_date:", result_data.get("interview_2_date"))
-        print("📆 interview_final_date:", result_data.get("interview_final_date"))
 
         return JSONResponse(content=result_data)
 
