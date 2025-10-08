@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from backend.models.candidate_evals import CandidateExpectations
+from backend.models.score_resume import CandidateExpectations
 from backend.core.database import SessionLocal
 from math import isnan
 from typing import List, Dict, Any

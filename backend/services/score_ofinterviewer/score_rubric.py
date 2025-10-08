@@ -2,7 +2,7 @@ import json
 from hashlib import sha1
 from datetime import date
 from backend.core.database import SessionLocal
-from backend.models.interviewer_evals import InterviewerCriteriaItem 
+from backend.models.score_ofinterviewer import InterviewerCriteriaItem 
 
 # ============================================
 # 🧠 基礎スコア評価

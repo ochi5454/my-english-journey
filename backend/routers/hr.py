@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.core.database import get_db
-from backend.models.candidate_evals import Candidate 
+from backend.models.score_resume import Candidate 
 from backend.schemas.hr_review import HRReviewUpdate
 
 router = APIRouter()

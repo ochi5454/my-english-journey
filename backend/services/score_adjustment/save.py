@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 from backend.core.database import SessionLocal
-from backend.models.candidate_evals import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem
+from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem
 
 # ============================================
 # 🧠 スコア更新・履歴保存ロジック

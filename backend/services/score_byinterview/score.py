@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Sequence, Mapping
 from backend.core.database import SessionLocal
-from backend.models.candidate_evals import Candidate, CandidateStatus
+from backend.models.score_resume import Candidate, CandidateStatus
 from backend.schemas.checksheet import PrepItemDict
 from backend.utils.division import load_division_profiles
 from backend.services.checksheet.upsert import get_checksheet_one, upsert_checksheet

@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from sqlalchemy.orm import Session
 from backend.core.database import SessionLocal
-from backend.models.interviewer_evals import InterviewerEvaluation, EvaluationRubricScore, EvaluationComment, EvaluationRoleExpectation
+from backend.models.score_ofinterviewer import InterviewerEvaluation, EvaluationRubricScore, EvaluationComment, EvaluationRoleExpectation
 
 # ============================================
 # 🧠 キャッシュファイルの読込

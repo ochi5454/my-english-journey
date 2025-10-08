@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 from collections import defaultdict
 from backend.core.database import SessionLocal
-from backend.models.candidate_evals import CandidateExpectations
-from backend.models.interviewer_evals import InterviewerRoleFocusItem
+from backend.models.score_resume import CandidateExpectations
+from backend.models.score_ofinterviewer import InterviewerRoleFocusItem
 
 # ============================================
 # 🧠 部門の読込

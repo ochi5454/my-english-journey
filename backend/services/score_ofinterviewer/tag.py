@@ -1,7 +1,7 @@
 from collections import Counter, defaultdict
 from typing import Mapping
 from sqlalchemy.orm import Session
-from backend.models.interviewer_evals import InterviewerRoleFocusItem
+from backend.models.score_ofinterviewer import InterviewerRoleFocusItem
 from backend.models.results_byinterview import  ResultByInterview, ResultByInterviewQATag
 
 # ============================================

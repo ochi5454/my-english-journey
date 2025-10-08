@@ -4,7 +4,7 @@ from fastapi import HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from backend.core.database import SessionLocal
-from backend.models.candidate_evals import Candidate, CandidateStatus
+from backend.models.score_resume import Candidate, CandidateStatus
 from backend.schemas.ai_score import ScoreChatRequest, ScoreUpdateRequest
 from backend.utils.division import load_division_profiles
 from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments
