@@ -7,24 +7,14 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import HTTPException
 from pathlib import Path
 from backend.core.database import SessionLocal
-from backend.core.config import (
-    RESUME_PATH, 
-    MIME_TO_EXT
-)
+from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.candidate_evals import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
 from backend.services.score_resume.score import score_resume_from_text
-from backend.services.score_resume.extract import (
-    extract_resume_text_from_pdf, 
-    extract_resume_text_from_docx, 
-    extract_resume_text_from_xlsx
-)
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
-from backend.services.score_resume.sql import (
-    generate_resume_sql, 
-    save_sql_to_sqlite
-)
+from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
 
 router = APIRouter()
 

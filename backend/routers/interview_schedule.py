@@ -39,4 +39,3 @@ def post_setup(req: InterviewSetupRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"処理エラー: {str(e)}")
-
