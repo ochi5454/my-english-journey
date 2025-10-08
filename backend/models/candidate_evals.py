@@ -56,3 +56,11 @@ class CandidateStatus(Base):
     chat_reviewer = Column(String)
     reviewed_at = Column(DateTime)
     reviewed_resume = Column(Boolean)
+
+class CandidateExpectations(Base):
+    __tablename__ = "candidate_expectations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    division = Column(String, nullable=True)
+    trait_type = Column(String, nullable=False)  # 例: "must_requirement" or "desired_trait"
+    trait_label = Column(String, nullable=False)

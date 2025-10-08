@@ -40,20 +40,22 @@ logger = logging.getLogger(__name__)
 # ✅ データディレクトリ定義
 # ============================================
 
-# --- 履歴書 ---
-RESUME_PATH = DATA_DIR / "resume_candidate_resume_files"
 DB_PATH = DATA_DIR / "resume_structured.db"
-NG_COMPANY_PATH = DATA_DIR / "ng_company_names.txt"
 
-# --- 面談日程 ---
-INTERVIEWDATE_PATH = DATA_DIR / "resume_interviewdate_files"
-TEMPLATE_EMAIL_CANDIDATE_PATH = INTERVIEWDATE_PATH / "mailtemplate_to_candidate.json"
-TEMPLATE_EMAIL_INTERVIEWER_PATH = INTERVIEWDATE_PATH / "mailtemplate_to_interviewer.json"
-TEMPLATE_INTERVIEWER_PATH = INTERVIEWDATE_PATH / "template_interviewer.json"
-TEMPLATE_TODO_PATH = INTERVIEWDATE_PATH / "template_todo.json"
+# --- 履歴書ファイル（→外部dbとの接続により削除予定） ---
+RESUME_PATH = DATA_DIR / "candidate_resume_files"
 
-# --- 面接官関連 ---
+# --- 面談日程関連テンプレ ---
+TEMPLATE_EMAIL_CANDIDATE_PATH = DATA_DIR / "mailtemplate_to_candidate.json"
+TEMPLATE_EMAIL_INTERVIEWER_PATH = DATA_DIR / "mailtemplate_to_interviewer.json"
+TEMPLATE_INTERVIEWER_PATH = DATA_DIR / "template_interviewer.json"
+TEMPLATE_TODO_PATH = DATA_DIR / "template_todo.json"
+
+# --- 面接官情報（→外部dbとの接続により削除予定）---
 INTERVIEWER_META_PATH = DATA_DIR / "interviewer_roletitle.json"
+
+# --- マスク対象会社データ ---
+NG_COMPANY_PATH = DATA_DIR / "ng_company_names.txt"
 
 # ============================================
 # ✅ MIMEタイプマッピング

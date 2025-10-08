@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Mapping, Union
 from sqlalchemy.orm import Session
-from backend.models.candidate_expectations import CandidateExpectations
+from backend.models.candidate_evals import CandidateExpectations
 from backend.models.checksheet import ChecksheetHiringDecision, ChecksheetRoleTitle, ChecksheetQualitativeItem, ChecksheetQuantitativeItem
 from backend.models.interviewer_evals import InterviewerRoleFocusItem
 from backend.core.database import SessionLocal
