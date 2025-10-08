@@ -46,8 +46,7 @@ const InterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, intervi
           for (const iid of interviewerIds) {
             const res = await axios.get(`${appConfig.API_BASE_URL}/checksheet/one?interviewer_id=${encodeURIComponent(iid)}&candidate_id=${encodeURIComponent(candidateId)}&stage=${encodeURIComponent(stage)}`);
             const qdata = (res.data as { quantitative?: Record<string, any> })?.quantitative || {};
-            const qldata = (res.data as { qualitative?: Record<string, any> })?.qualitative || {};
-
+            
             Object.entries(qdata).forEach(([criterion, scoreObj]) => {
               let scoreValue: number | string = "-";
               if (typeof scoreObj === "number") {
@@ -64,17 +63,17 @@ const InterviewerAnomalyScore: React.FC<Props> = ({ candidateId, stages, intervi
               row.scores[iid] = scoreValue;
             });
 
-            FINAL_ITEM_KEYS.forEach((key) => {
-              const value = qldata[key];
-              if (value !== undefined) {
-                let row = allData.find((r) => r.criterion === key);
-                if (!row) {
-                  row = { criterion: key, scores: {} };
-                  allData.push(row);
-                }
-                row.scores[iid] = value;
+          FINAL_ITEM_KEYS.forEach((key) => {
+            const value = (res.data as any)[key]; // 👈 直接取り出す
+            if (value !== undefined && value !== null && value !== "") {
+              let row = allData.find((r) => r.criterion === key);
+              if (!row) {
+                row = { criterion: key, scores: {} };
+                allData.push(row);
               }
-            });
+              row.scores[iid] = value;
+            }
+          });
           }
         }
 
