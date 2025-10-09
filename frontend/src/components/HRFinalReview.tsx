@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import './HRFinalReview.css';
 import appConfig from '../config.ts';
 
@@ -16,6 +16,8 @@ interface MustCheckItem {
 interface AIRawResult {
     user_id: string;
     user_name?: string;
+    gender?: string;
+    status?: string;
     timestamp: string;
     recommended_division: string;
     must_check: Record<string, MustCheckItem>;
@@ -44,24 +46,52 @@ interface LabeledOption {
     label: string;
 }
 
+const renderMustCheckChip = (result: boolean | undefined, reason?: string) => {
+    if (result === true) {
+        return <span className="hr-mustcheck-chip hr-mustcheck-ok" title={reason}>合格</span>;
+    } else if (result === false) {
+        return <span className="hr-mustcheck-chip hr-mustcheck-ng" title={reason}>不合格</span>;
+    } else {
+        return <span className="hr-mustcheck-chip hr-mustcheck-unknown" title="未評価">--</span>;
+    }
+};
+
 const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interviewerId }) => {
     const [aiRawResults, setAiRawResults] = useState<AIRawResult[]>([]);
     const [interviewEvals, setInterviewEvals] = useState<InterviewEval[]>([]);
     const [qualItems, setQualItems] = useState<ConfigResponse['qualitativeItems']>([]);
     const [quantItems, setQuantItems] = useState<ConfigResponse['quantitativeItems']>([]);
-    const initialFilter = new URLSearchParams(window.location.search).get('filter') || '';
-    const [filterText, setFilterText] = useState(initialFilter);
+    const [filters, setFilters] = useState({
+        userId: '',
+        userName: '',
+        gender: '',
+        status: '',
+        division: '',
+        mustCheckAllPassed: false,
+    });
+    const allMustKeys = useMemo(() => {
+        const first = aiRawResults.find((r) => r && r.must_check);
+        return first ? Object.keys(first.must_check) : [];
+    }, [aiRawResults]);
     const [titleOptions, setTitleOptions] = useState<LabeledOption[]>([]);
     const [divisionOptions, setDivisionOptions] = useState<LabeledOption[]>([]);
     const [hrEvaluations, setHrEvaluations] = useState<Record<string, {
-    decision?: string;
-    division?: string;
-    title?: string;
-    annualIncome?: string;
-    savedAt?: string;
-    savedBy?: string;
+        decision?: string;
+        division?: string;
+        title?: string;
+        annualIncome?: string;
+        savedAt?: string;
+        savedBy?: string;
     }>>({});
     const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        setFilters(prev => ({
+            ...prev,
+            userId: query.get('filter') || '',  // ← ここで filter → userId にマッピング
+        }));
+    }, []);
 
     useEffect(() => {
         fetch(`${appConfig.API_BASE_URL}/resume-results`)
@@ -143,7 +173,24 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
     }, {});
 
     const allCandidateIds = Array.from(new Set([...Object.keys(groupedAI), ...Object.keys(groupedInterview)]));
-    const filteredCandidateIds = allCandidateIds.filter(id => id.toLowerCase().includes(filterText.toLowerCase()));
+    const filteredCandidateIds = allCandidateIds.filter((id) => {
+        const ai = groupedAI[id];
+        const { userId, userName, gender, status, division, mustCheckAllPassed } = filters;
+
+        // AI評価がない場合、user_name, gender, division などでは判定できない
+        if (!ai) return false;
+
+        const idMatch = id.toLowerCase().includes(userId.toLowerCase());
+        const nameMatch = (ai.user_name || '').toLowerCase().includes(userName.toLowerCase());
+        const genderMatch = gender === '' || ai.gender === gender;
+        const statusMatch = status === '' || (ai.status || '').includes(status); // statusがある場合のみ
+        const divisionMatch = division === '' || (ai.recommended_division || '').includes(division);
+        const mustPassed =
+            !mustCheckAllPassed ||
+            Object.values(ai.must_check || {}).every((m) => m.result === true);
+
+        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed;
+    });
 
     const handleSaveHRReview = async (candidateId: string) => {
         const rawIncome = hrEvaluations[candidateId]?.annualIncome;
@@ -194,13 +241,51 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
 
     return (
         <div className="hr-review-wrapper">
-        <input
-            type="text"
-            placeholder="候補者IDでフィルタ"
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            className="candidate-filter"
-        />
+            <div className="candidate-filters">
+                <input
+                    type="text"
+                    placeholder="候補者ID"
+                    value={filters.userId}
+                    onChange={(e) => setFilters({ ...filters, userId: e.target.value })}
+                />
+                <input
+                    type="text"
+                    placeholder="名前"
+                    value={filters.userName}
+                    onChange={(e) => setFilters({ ...filters, userName: e.target.value })}
+                />
+                <select
+                    value={filters.gender}
+                    onChange={(e) => setFilters({ ...filters, gender: e.target.value })}
+                >
+                    <option value="">性別を選択</option>
+                    <option value="男">男性</option>
+                    <option value="女">女性</option>
+                    <option value="その他">その他</option>
+                </select>
+                <input
+                    type="text"
+                    placeholder="ステータス"
+                    value={filters.status}
+                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                />
+                <input
+                    type="text"
+                    placeholder="推奨部門"
+                    value={filters.division}
+                    onChange={(e) => setFilters({ ...filters, division: e.target.value })}
+                />
+                <label>
+                    <input
+                        type="checkbox"
+                        checked={filters.mustCheckAllPassed}
+                        onChange={(e) =>
+                            setFilters({ ...filters, mustCheckAllPassed: e.target.checked })
+                        }
+                    />
+                    必須全合格のみ
+                </label>
+            </div>
         {filteredCandidateIds.map(candidateId => {
             const ai = groupedAI[candidateId];
             const evals = (groupedInterview[candidateId] || []).slice().sort((a, b) => {
@@ -212,7 +297,21 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
             return (
             <div key={candidateId} className="candidate-block">
                 <div className="candidate-header">
-                <h3 style={{ margin: 0 }}>候補者: {candidateId}{ai?.user_name && `（${ai.user_name}）`}
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5em', flexWrap: 'wrap' }}>
+                    👤 {ai?.user_name || '-'}（{candidateId}）
+
+                    {ai?.gender && (
+                        <span className={`hr-gender-chip ${ai.gender === '男' ? 'male' : ai.gender === '女' ? 'female' : 'other'}`}>
+                        {ai.gender === '男' ? '男性' : ai.gender === '女' ? '女性' : 'その他'}
+                        </span>
+                    )}
+
+                    {ai?.status && (
+                        <span className="hr-status-chip">
+                        {ai.status}
+                        </span>
+                    )}
+
                     {resumeURL && (
                         <a
                         href={resumeURL}
@@ -257,9 +356,9 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                     </thead>
                     <tbody>
                         <tr>
-                        {Object.values(ai.must_check).map((v, idx) => (
-                            <td key={`must-check-${idx}`} className={v.result ? 'pass' : 'fail'}>
-                            {v.result ? '✅' : '❌'}
+                        {allMustKeys.map((key) => (
+                            <td key={`must-${candidateId}-${key}`}>
+                                {renderMustCheckChip(ai.must_check?.[key]?.result, ai.must_check?.[key]?.reason)}
                             </td>
                         ))}
                         {ai.scores.map(s => (

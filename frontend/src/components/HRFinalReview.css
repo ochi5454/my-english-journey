@@ -3,13 +3,36 @@
     font-size: 14px;
 }
 
-.candidate-filter {
-    padding: 0.5rem;
-    font-size: 1rem;
-    margin-top: 0.25rem;
-    max-width: 400px;
-    margin-bottom: 1rem;
-    width: 250px;
+.candidate-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.candidate-filters input[type="text"],
+.candidate-filters select {
+    padding: 6px 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    min-width: 150px;
+}
+
+.candidate-filters label {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    gap: 6px;
+    padding: 2px 4px;
+}
+
+.candidate-filters input[type="checkbox"] {
+    transform: scale(1.1);
 }
 
 .candidate-block {
@@ -25,6 +48,38 @@
     align-items: flex-start;
     flex-wrap: wrap;
 }
+
+.hr-gender-chip,
+.hr-status-chip {
+    display: inline-block;
+    padding: 2px 10px;
+    font-size: 12px;
+    border-radius: 999px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.hr-gender-chip.male {
+    background-color: #007bff; /* ブルー */
+    color: white;
+}
+
+.hr-gender-chip.female {
+    background-color: #e83e8c; /* ピンク */
+    color: white;
+}
+
+.hr-gender-chip.other {
+    background-color: #6c757d; /* グレー */
+    color: white;
+}
+
+/* ステータスチップ */
+.hr-status-chip {
+    background-color: #eee;
+    color: #333;
+    border: 1px solid #ccc;
+    }
 
 .resume-link {
     margin-left: 1em;
@@ -83,6 +138,30 @@
     background-color: #e6f4ea;
     font-weight: bold;
     border: 1px solid #b7ddb7;
+}
+
+.hr-mustcheck-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.hr-mustcheck-ok {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.hr-mustcheck-ng {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.hr-mustcheck-unknown {
+    background-color: #e2e3e5;
+    color: #6c757d;
 }
 
 .qa-entry {
