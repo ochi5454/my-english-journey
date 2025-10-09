@@ -5,13 +5,36 @@
     font-family: sans-serif;
 }
 
-.matrix-filter {
-    padding: 0.5rem;
-    font-size: 1rem;
-    margin-top: 0.25rem;
-    max-width: 400px;
-    margin-bottom: 1rem;
-    width: 250px;
+.matrix-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.matrix-filters input[type="text"],
+.matrix-filters select {
+    padding: 6px 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    min-width: 150px;
+}
+
+.matrix-filters label {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    gap: 6px;
+    padding: 2px 4px;
+}
+
+.matrix-filters input[type="checkbox"] {
+    transform: scale(1.1);
 }
 
 .resume-matrix-wrapper {

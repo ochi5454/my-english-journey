@@ -64,7 +64,14 @@ const renderMustCheckChip = (result: boolean | undefined, reason?: string) => {
 
 const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
-    const [filterText, setFilterText] = useState('');
+    const [filters, setFilters] = useState({
+        userId: '',
+        userName: '',
+        gender: '',
+        status: '',
+        division: '',
+        mustCheckAllPassed: false,
+    });
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
 
     useEffect(() => {
@@ -87,9 +94,18 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
             .catch((err) => console.error('読み込みエラー:', err));
     }, []);
 
-    const filteredResults = results.filter((r) =>
-        r.user_id.toLowerCase().includes(filterText.toLowerCase())
-    );
+    const filteredResults = results.filter((r) => {
+        const { userId, userName, gender, status, division, mustCheckAllPassed } = filters;
+
+        const idMatch = r.user_id.toLowerCase().includes(userId.toLowerCase());
+        const nameMatch = (r.user_name || '').toLowerCase().includes(userName.toLowerCase());
+        const genderMatch = gender === '' || r.gender === gender;
+        const statusMatch = status === '' || (r.status || '').includes(status);
+        const divisionMatch = division === '' || r.recommended_division.includes(division);
+        const mustPassed = !mustCheckAllPassed || Object.values(r.must_check || {}).every(m => m.result === true);
+
+        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed;
+    });
 
     const allDivisions = Array.from(
         new Set(results.flatMap((r) => r.scores.map((s) => s.division)))
@@ -116,13 +132,22 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
 
     return (
         <div className="matrix-container">
-            <input
-                type="text"
-                placeholder="候補者IDでフィルタ"
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                className="matrix-filter"
-            />
+            <div className="matrix-filters">
+                <input type="text" placeholder="候補者ID" value={filters.userId} onChange={(e) => setFilters({...filters, userId: e.target.value})} />
+                <input type="text" placeholder="名前" value={filters.userName} onChange={(e) => setFilters({...filters, userName: e.target.value})} />
+                <select value={filters.gender} onChange={(e) => setFilters({...filters, gender: e.target.value})}>
+                    <option value="">全て</option>
+                    <option value="男">男性</option>
+                    <option value="女">女性</option>
+                    <option value="その他">その他</option>
+                </select>
+                <input type="text" placeholder="ステータス" value={filters.status} onChange={(e) => setFilters({...filters, status: e.target.value})} />
+                <input type="text" placeholder="推奨部門" value={filters.division} onChange={(e) => setFilters({...filters, division: e.target.value})} />
+                <label>
+                    <input type="checkbox" checked={filters.mustCheckAllPassed} onChange={(e) => setFilters({...filters, mustCheckAllPassed: e.target.checked})} />
+                    必須全合格のみ
+                </label>
+            </div>
 
             <div className="resume-matrix-wrapper">
                 <table className="resume-matrix-table">
