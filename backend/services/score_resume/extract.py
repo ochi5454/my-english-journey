@@ -1,4 +1,5 @@
 import io
+import re
 import docx
 import openpyxl
 import pdfplumber
@@ -40,3 +41,20 @@ def extract_resume_text_from_xlsx(file_stream: io.BytesIO) -> str:
     except Exception as e:
         print(f"❌ XLSX抽出エラー: {e}")
         return ""
+
+# ============================================
+# 🧠 履歴書から性別の抽出
+# ============================================
+
+def extract_gender_from_text(text: str) -> str:
+    # よくある性別の表現にマッチ
+    if re.search(r"性別\s*[:：]?\s*男", text) or re.search(r"\b男性\b", text):
+        return "男"
+    elif re.search(r"性別\s*[:：]?\s*女", text) or re.search(r"\b女性\b", text):
+        return "女"
+    elif re.search(r"\b男\b", text):
+        return "男"
+    elif re.search(r"\b女\b", text):
+        return "女"
+    else:
+        return "不明"

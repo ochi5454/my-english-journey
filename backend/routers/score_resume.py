@@ -11,7 +11,7 @@ from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
 from backend.services.score_resume.score import score_resume_from_text
-from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, extract_gender_from_text
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
@@ -55,8 +55,9 @@ async def resume_score_save(
         if not extracted_text.strip():
             return JSONResponse(content={"error": "テキスト抽出失敗"}, status_code=400)
 
-        # === ③ マスキング処理 ＆ 氏名抽出 ===
+        # === ③ マスキング処理 ＆ 氏名性別抽出 ===
         masked_text, extracted_name = mask_personal_info(extracted_text)
+        extracted_gender = extract_gender_from_text(extracted_text)
 
         # === ④ ベクトルDB保存 ===
         save_masked_resume_embedding_local(candidate_id, masked_text)
@@ -75,6 +76,7 @@ async def resume_score_save(
                     id=str(uuid4()),
                     user_id=candidate_id,
                     name=extracted_name,
+                    gender=extracted_gender,
                     uploader_id=uploader_id,
                     updated_by="system",
                     updated_at=now

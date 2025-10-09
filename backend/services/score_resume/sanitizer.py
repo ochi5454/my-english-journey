@@ -29,15 +29,20 @@ def mask_names_by_label(text: str) -> Tuple[str, Optional[str]]:
     extracted_name = None
 
     for label in name_labels:
-        # 改行や空白を挟んで氏名が続くパターンにマッチ
-        pattern = rf"({label}\s*[\r\n]*)[^\s\n]+[\s　]+[^\s\n]+"
+        # 改行や空白を挟んで氏名が続くパターンにマッチ（全体を抽出）
+        pattern = rf"({label}\s*[:：]?\s*)([^\s\n（(]+)[\s　]+([^\s\n（(]+)"
         match = re.search(pattern, text)
         if match:
-            # 氏名部分を抽出
-            full_match = match.group(0)
-            after_label = re.sub(label, '', full_match).strip()
-            extracted_name = re.sub(r'\s+', ' ', after_label)
-            # マスク
+            # マッチした名前の部分を正しく抽出（括弧前で切る）
+            name_part = f"{match.group(2)} {match.group(3)}".strip()
+
+            # 不要な括弧以降を削除
+            name_part = re.sub(r"[（(].*", "", name_part).strip()
+
+            # 抽出結果を格納
+            extracted_name = name_part
+
+            # マスキング：labelを残し、名前部分のみ削除
             text = re.sub(pattern, rf"\1＜人名削除＞", text)
             break
 
