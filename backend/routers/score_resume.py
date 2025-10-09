@@ -8,10 +8,11 @@ from fastapi.exceptions import HTTPException
 from pathlib import Path
 from backend.core.database import SessionLocal
 from backend.core.config import RESUME_PATH, MIME_TO_EXT
+from backend.models.resume import Resume
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
-from backend.services.score_resume.score import score_resume_from_text
-from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, extract_gender_from_text
+from backend.services.score_resume.score import score_resume_from_text, score_motivation_statement
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, extract_gender_from_text, summarize_motivation
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
@@ -94,12 +95,24 @@ async def resume_score_save(
         now = datetime.utcnow()
 
         with SessionLocal() as db:
+            # 🎯 Resumeからnotes（志望動機）を取得
+            resume = db.query(Resume).filter_by(id=candidate_id).first()
+            motivation_text = resume.notes if resume else None
+
+            # ✅ 100文字以内の要約
+            summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
+
+            # ✅ スコア計算（GPTを使って）
+            score_motivation = score_motivation_statement(motivation_text) if motivation_text else None
+
             # 🎯 candidates テーブル更新 or INSERT
             candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
             if not candidate:
                 candidate = Candidate(
                     id=str(uuid4()),
                     user_id=candidate_id,
+                    notes=summarized_motivation,
+                    score_notes=score_motivation,
                     recommended_div=scoring_result.get("recommended_division"),
                     uploader_id=uploader_id,
                     updated_by="system",
@@ -107,6 +120,8 @@ async def resume_score_save(
                 )
                 db.add(candidate)
             else:
+                candidate.notes = summarized_motivation
+                candidate.score_notes = score_motivation
                 candidate.recommended_div = scoring_result.get("recommended_division")
                 candidate.updated_by = "system"
                 candidate.updated_at = now
@@ -199,6 +214,8 @@ async def get_resume_results():
                 "user_name": c.name,
                 "gender": c.gender,
                 "status": status_value,
+                "notes": c.notes,
+                "score_notes":c.score_notes,
                 "recommended_division": c.recommended_div,
                 "uploader_id": c.uploader_id,
                 "timestamp": c.updated_at.isoformat() if c.updated_at else None,

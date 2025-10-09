@@ -3,7 +3,14 @@ import re
 import docx
 import openpyxl
 import pdfplumber
+from backend.core.openai_config import get_openai_client
 from backend.services.score_resume.sanitizer import normalize_pdf_text
+
+# ============================================
+# ✅ GPT呼び出し
+# ============================================
+
+client = get_openai_client()
 
 # ============================================
 # 🧠 履歴書からテキストの抽出
@@ -58,3 +65,20 @@ def extract_gender_from_text(text: str) -> str:
         return "女"
     else:
         return "不明"
+
+def summarize_motivation(text: str, max_length: int = 100) -> str:
+    prompt = f"""
+以下の志望動機を{max_length}文字以内で要約してください。候補者の熱意や志望理由が簡潔に伝わるようにしてください。
+
+志望動機:
+{text}
+
+要約（{max_length}文字以内）:
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+    return response.choices[0].message.content.strip()

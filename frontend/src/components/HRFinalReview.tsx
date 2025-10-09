@@ -68,6 +68,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
         status: '',
         division: '',
         mustCheckAllPassed: false,
+        aiScoreMinPercentile: '',
     });
     const allMustKeys = useMemo(() => {
         const first = aiRawResults.find((r) => r && r.must_check);
@@ -189,7 +190,12 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
             !mustCheckAllPassed ||
             Object.values(ai.must_check || {}).every((m) => m.result === true);
 
-        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed;
+        const aiScoreMin = Number(filters.aiScoreMinPercentile);
+        const aiScoreMatch =
+            filters.aiScoreMinPercentile === '' ||
+            ((ai as any).ai_score_percentile ?? 0) >= aiScoreMin;
+
+        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed && aiScoreMatch;
     });
 
     const handleSaveHRReview = async (candidateId: string) => {
@@ -274,6 +280,14 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                     placeholder="推奨部門"
                     value={filters.division}
                     onChange={(e) => setFilters({ ...filters, division: e.target.value })}
+                />
+                <input
+                    type="number"
+                    placeholder="AI推薦度(%)以上"
+                    value={filters.aiScoreMinPercentile}
+                    onChange={(e) => setFilters({ ...filters, aiScoreMinPercentile: e.target.value })}
+                    min={0}
+                    max={100}
                 />
                 <label>
                     <input

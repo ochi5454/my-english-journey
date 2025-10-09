@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import './CandidateScoreMatrix.css';
 import CandidateResultDetail from './CandidateResultDetail.tsx';
+import type { AIWeights } from './AIRecommendationPanel.tsx';
+import AIRecommendationPanel from './AIRecommendationPanel.tsx';
 import appConfig from '../config.ts';
 
 interface Props {
@@ -23,6 +25,8 @@ interface Result {
     user_name?: string;
     gender?: string;
     status?: string;
+    notes?: string; 
+    score_notes?: string;
     timestamp: string;
     uploader_id?: string; // 1次評価者
     updated_at?: string;  // 2次評価日時
@@ -30,6 +34,8 @@ interface Result {
     recommended_division: string;
     must_check: Record<string, MustCheckItem>;
     scores: Score[];
+    ai_score?: number;
+    ai_score_percentile?: number;
 }
 
 const renderGenderChip = (gender?: string) => {
@@ -62,6 +68,19 @@ const renderMustCheckChip = (result: boolean | undefined, reason?: string) => {
     }
 };
 
+const renderAIRecommendationChip = (percentile?: number) => {
+    if (percentile === undefined) return <span className="ai-chip ai-unknown">-</span>;
+
+    let className = 'ai-chip ai-low'; // デフォルトはグレー
+    if (percentile >= 75) {
+        className = 'ai-chip ai-high';
+    } else if (percentile >= 50) {
+        className = 'ai-chip ai-mid';
+    }
+
+    return <span className={className}>{percentile}%</span>;
+};
+
 const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
     const [filters, setFilters] = useState({
@@ -71,14 +90,48 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         status: '',
         division: '',
         mustCheckAllPassed: false,
+        aiScoreMinPercentile: '',
     });
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
+    const [showAIPanel, setShowAIPanel] = useState(false);
+    // 重みの初期値：女性 → 1.0、男性 → 1.2（補正）
+    const [aiWeights, setAiWeights] = useState<AIWeights>({
+        gender: 1.2, // 男性補正（1.2倍）
+        motivation_score: 1.0,
+    });
+
+    const calculateAIScore = (candidate: Result, weights: AIWeights): number => {
+        const motivation = Number(candidate.score_notes) || 0;
+        const weightedMotivation = motivation * weights.motivation_score;
+
+        const genderMultiplier = candidate.gender === '男' ? weights.gender : 1.0;
+
+        return weightedMotivation * genderMultiplier;
+    };
+
+    // --- 同スコア同順位のパーセンタイル（統計的パーセンタイル） ---
+    const calculateTruePercentiles = (data: Result[]): Result[] => {
+        const scores = data
+            .filter(r => r.ai_score !== undefined)
+            .map(r => r.ai_score ?? 0);
+
+        return data.map(r => {
+            const score = r.ai_score ?? 0;
+            const countBelow = scores.filter(s => s < score).length;
+            const countEqual = scores.filter(s => s === score).length;
+            const percentile = ((countBelow + 0.5 * countEqual) / scores.length) * 100;
+
+            return {
+                ...r,
+                ai_score_percentile: Math.round(percentile),
+            };
+        });
+    };
 
     useEffect(() => {
         fetch(`${appConfig.API_BASE_URL}/resume-results`, { cache: 'no-store' })
             .then((res) => res.json())
             .then((data: Result[]) => {
-                // ユーザーごとに最新のtimestampのデータだけを保持する
                 const latestMap = new Map<string, Result>();
 
                 data.forEach((item) => {
@@ -88,14 +141,22 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                     }
                 });
 
-                // Mapから配列に変換してセット
-                setResults(Array.from(latestMap.values()));
+                // AIスコア計算
+                const withAIScore = Array.from(latestMap.values()).map((r) => ({
+                    ...r,
+                    ai_score: calculateAIScore(r, aiWeights),
+                }));
+
+                // パーセンタイル化
+                const withPercentiles = calculateTruePercentiles(withAIScore);
+
+                setResults(withPercentiles);
             })
             .catch((err) => console.error('読み込みエラー:', err));
     }, []);
 
     const filteredResults = results.filter((r) => {
-        const { userId, userName, gender, status, division, mustCheckAllPassed } = filters;
+        const { userId, userName, gender, status, division, mustCheckAllPassed, aiScoreMinPercentile } = filters;
 
         const idMatch = r.user_id.toLowerCase().includes(userId.toLowerCase());
         const nameMatch = (r.user_name || '').toLowerCase().includes(userName.toLowerCase());
@@ -104,7 +165,12 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         const divisionMatch = division === '' || r.recommended_division.includes(division);
         const mustPassed = !mustCheckAllPassed || Object.values(r.must_check || {}).every(m => m.result === true);
 
-        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed;
+        const percentileThreshold = Number(aiScoreMinPercentile);
+        const aiScoreMatch =
+            aiScoreMinPercentile === '' || // 未指定なら全件通す
+            (r.ai_score_percentile ?? 0) >= percentileThreshold;
+
+        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed && aiScoreMatch;
     });
 
     const allDivisions = Array.from(
@@ -143,6 +209,18 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                 </select>
                 <input type="text" placeholder="ステータス" value={filters.status} onChange={(e) => setFilters({...filters, status: e.target.value})} />
                 <input type="text" placeholder="推奨部門" value={filters.division} onChange={(e) => setFilters({...filters, division: e.target.value})} />
+                <input
+                    type="number"
+                    placeholder="AI推薦度(%)以上"
+                    value={filters.aiScoreMinPercentile}
+                    onChange={(e) => setFilters({
+                        ...filters,
+                        aiScoreMinPercentile: e.target.value
+                    })}
+                    min={0}
+                    max={100}
+                    style={{ width: '140px' }}
+                />
                 <label>
                     <input type="checkbox" checked={filters.mustCheckAllPassed} onChange={(e) => setFilters({...filters, mustCheckAllPassed: e.target.checked})} />
                     必須全合格のみ
@@ -158,9 +236,15 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                             <th rowSpan={2}>性別</th>
                             <th rowSpan={2}>ステータス</th>
                             <th rowSpan={2}>評価日</th>
-                            <th rowSpan={2}>推奨部門</th>
+                            <th rowSpan={2} onClick={() => setShowAIPanel(true)} style={{ cursor: 'pointer' }}>
+                                AI推薦度 ▼
+                            </th>
+                            <th rowSpan={2}>AI推薦スコア</th>
+                            <th rowSpan={2}>推薦部門</th>
                             <th colSpan={allMustKeys.length}>必須</th>
-                            <th colSpan={allDivisions.length}>AIスコア</th>
+                            <th colSpan={allDivisions.length}>部門スコア</th>
+                            <th rowSpan={2}>志望動機スコア</th> 
+                            <th rowSpan={2}>志望動機・自己PRサマリ</th>
                         </tr>
                         <tr>
                             {allMustKeys.map((k) => (
@@ -182,6 +266,8 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                 <td>{renderGenderChip(r.gender)}</td>
                                 <td>{renderStatusChip(r.status)}</td>
                                 <td>{r.timestamp ? r.timestamp.slice(0, 19).replace('T', ' ') : '-'}</td>
+                                <td>{renderAIRecommendationChip(r.ai_score_percentile)}</td>
+                                <td>{r.ai_score?.toFixed(2) ?? '-'}</td>
                                 <td>{r.recommended_division}</td>
                                 {allMustKeys.map((k) => (
                                     <td
@@ -203,6 +289,8 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                         </td>
                                     );
                                 })}
+                                <td>{r.score_notes || '-'}</td>
+                                <td>{r.notes || '-'}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -216,6 +304,25 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                     onResultUpdate={handleResultUpdate}
                     interviewerId={interviewerId}
                 />
+            )}
+
+            {showAIPanel && (
+                <>
+                    <div className="ai-panel-overlay" onClick={() => setShowAIPanel(false)} />
+                    <AIRecommendationPanel
+                        weights={aiWeights}
+                        onChange={(key, value) => setAiWeights(prev => ({ ...prev, [key]: value }))}
+                        onRecalculate={() => {
+                            const updated = results.map((r) => ({
+                                ...r,
+                                ai_score: calculateAIScore(r, aiWeights), // ← 最新の重みを渡す
+                            }));
+                            const withPercentiles = calculateTruePercentiles(updated);
+                            setResults(withPercentiles);
+                        }}
+                        onClose={() => setShowAIPanel(false)}
+                    />
+                </>
             )}
         </div>
     );

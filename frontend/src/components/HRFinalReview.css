@@ -15,12 +15,16 @@
 }
 
 .candidate-filters input[type="text"],
+.candidate-filters input[type="number"],
 .candidate-filters select {
     padding: 6px 10px;
     font-size: 14px;
+    line-height: 1.4;
+    vertical-align: middle;
     border: 1px solid #ccc;
     border-radius: 6px;
-    min-width: 150px;
+    width: 100px;
+    box-sizing: border-box;
 }
 
 .candidate-filters label {
@@ -60,13 +64,13 @@
 }
 
 .hr-gender-chip.male {
-    background-color: #007bff; /* ブルー */
-    color: white;
+    background-color: #d1ecf1;
+    color: #0c5460; 
 }
 
 .hr-gender-chip.female {
-    background-color: #e83e8c; /* ピンク */
-    color: white;
+    background-color: #f8d7da;
+    color: #721c24;
 }
 
 .hr-gender-chip.other {
@@ -155,8 +159,8 @@
 }
 
 .hr-mustcheck-ng {
-    background-color: #f8d7da;
-    color: #721c24;
+    background-color: #e2e3e5;  /* グレー */
+    color: #6c757d;
 }
 
 .hr-mustcheck-unknown {
