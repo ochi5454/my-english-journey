@@ -178,6 +178,15 @@ async def get_resume_results():
         for c in candidates:
             user_id = c.user_id
 
+            # status取得（存在しない場合は"アップロード"）
+            latest_status = (
+                db.query(CandidateStatus)
+                .filter_by(user_id=user_id)
+                .order_by(CandidateStatus.reviewed_at.desc())  # reviewed_atで最新を取る（任意）
+                .first()
+            )
+            status_value = latest_status.stage if latest_status else "アップロード"
+
             must_checks = db.query(CandidateMustCheckItem)\
                 .filter_by(user_id=user_id).all()
             scores = db.query(CandidateDivisionScore)\
@@ -186,6 +195,8 @@ async def get_resume_results():
             result = {
                 "user_id": user_id,
                 "user_name": c.name,
+                "gender": c.gender,
+                "status": status_value,
                 "recommended_division": c.recommended_div,
                 "uploader_id": c.uploader_id,
                 "timestamp": c.updated_at.isoformat() if c.updated_at else None,

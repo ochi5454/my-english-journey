@@ -21,6 +21,8 @@ interface MustCheckItem {
 interface Result {
     user_id: string;
     user_name?: string;
+    gender?: string;
+    status?: string;
     timestamp: string;
     uploader_id?: string; // 1次評価者
     updated_at?: string;  // 2次評価日時
@@ -29,6 +31,36 @@ interface Result {
     must_check: Record<string, MustCheckItem>;
     scores: Score[];
 }
+
+const renderGenderChip = (gender?: string) => {
+    let label = 'その他';
+    let className = 'gender-chip other';
+    if (gender === '男') {
+        label = '男性';
+        className = 'gender-chip male';
+    } else if (gender === '女') {
+        label = '女性';
+        className = 'gender-chip female';
+    }
+    return <span className={className}>{label}</span>;
+};
+
+const renderStatusChip = (status?: string) => {
+    if (!status || status === 'アップロード') {
+        return <span className="matrix-status-chip matrix-status-upload">アップロード</span>;
+    }
+    return <span className="matrix-status-chip matrix-status-active">{status}</span>;
+};
+
+const renderMustCheckChip = (result: boolean | undefined, reason?: string) => {
+    if (result === true) {
+        return <span className="mustcheck-chip mustcheck-ok" title={reason}>合格</span>;
+    } else if (result === false) {
+        return <span className="mustcheck-chip mustcheck-ng" title={reason}>不合格</span>;
+    } else {
+        return <span className="mustcheck-chip mustcheck-unknown" title="未評価">--</span>;
+    }
+};
 
 const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
@@ -98,6 +130,8 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                         <tr>
                             <th rowSpan={2}>候補者ID</th>
                             <th rowSpan={2}>名前</th>
+                            <th rowSpan={2}>性別</th>
+                            <th rowSpan={2}>ステータス</th>
                             <th rowSpan={2}>評価日</th>
                             <th rowSpan={2}>推奨部門</th>
                             <th colSpan={allMustKeys.length}>必須</th>
@@ -120,15 +154,15 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                             >
                                 <td>{r.user_id}</td>
                                 <td>{r.user_name || '-'}</td>
+                                <td>{renderGenderChip(r.gender)}</td>
+                                <td>{renderStatusChip(r.status)}</td>
                                 <td>{r.timestamp ? r.timestamp.slice(0, 19).replace('T', ' ') : '-'}</td>
                                 <td>{r.recommended_division}</td>
                                 {allMustKeys.map((k) => (
                                     <td
                                         key={`must-${k}-${idx}`}
-                                        style={{ color: r.must_check[k]?.result ? 'green' : 'red' }}
-                                        title={r.must_check[k]?.reason}
                                     >
-                                        {r.must_check[k]?.result ? '✅' : '❌'}
+                                        {renderMustCheckChip(r.must_check[k]?.result, r.must_check[k]?.reason)}
                                     </td>
                                 ))}
                                 {allDivisions.map((d) => {
