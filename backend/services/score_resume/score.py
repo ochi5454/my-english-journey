@@ -19,10 +19,15 @@ client = get_openai_client()
 # ============================================
 
 def score_resume_from_text(text: str, candidate_id: str) -> dict:
+    print("📥 score_resume_from_text() called: candidate_id=%s", candidate_id)
+
     must_results = check_must_requirements_llm(text)
+
+    print("✅ must_check 結果: %s", must_results)
 
     # マスト条件NGなら即保存・返却
     if not all(bool(item.get("result")) for item in must_results.values()):
+        print("❌ must_check NGのためスコアリング中断 → 候補者ID: %s", candidate_id)
         result = {
             "user_id": candidate_id,
             "timestamp": datetime.now().isoformat(),
@@ -39,6 +44,7 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
         return result
 
     division_profiles = load_division_profiles()
+    print("🧠 division_profiles: %s", division_profiles)
 
     division_descriptions = "\n\n".join(
         f"部門名: {profile.get('division','')}\n理想の特徴: {', '.join(profile.get('desired_traits', []))}"
@@ -71,9 +77,11 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
 
     # ★ None セーフにしてからパース
     raw = (response.choices[0].message.content or "").strip()
+    print("🧠 GPT 応答 raw: %s", raw)
 
     try:
         parsed = json.loads(raw)
+        print("✅ GPT応答 JSONパース成功。件数: %d", len(parsed) if isinstance(parsed, list) else 1)
         if isinstance(parsed, dict):
             parsed = [parsed]
         if not isinstance(parsed, list):
@@ -106,11 +114,8 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
             }]
 
     except Exception as e:
-        scores = [{
-            "division": "N/A",
-            "score": 0,
-            "reason": f"解析エラー: {e}",
-        }]
+        print("❌ GPT応答 JSONパース失敗: %s", e)
+        print("🧠 GPT raw応答: %s", raw)
 
     recommended = max(scores, key=lambda x: x.get("score", -1), default={"division": None})
 
@@ -128,6 +133,9 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
         source="resume_upload",
         updated_by="system",
     )
+
+    print("📊 正常に取得したスコア: %s", scores)
+    print("🏆 recommended_division: %s", recommended.get("division"))
     return result
 
 def check_must_requirements_llm(content: str) -> dict:

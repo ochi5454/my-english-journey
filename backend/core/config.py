@@ -54,9 +54,6 @@ TEMPLATE_TODO_PATH = DATA_DIR / "template_todo.json"
 # --- 面接官情報（→外部dbとの接続により削除予定）---
 INTERVIEWER_META_PATH = DATA_DIR / "interviewer_roletitle.json"
 
-# --- マスク対象会社データ ---
-NG_COMPANY_PATH = DATA_DIR / "ng_company_names.txt"
-
 # ============================================
 # ✅ MIMEタイプマッピング
 # ============================================

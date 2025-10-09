@@ -55,8 +55,8 @@ async def resume_score_save(
         if not extracted_text.strip():
             return JSONResponse(content={"error": "テキスト抽出失敗"}, status_code=400)
 
-        # === ③ マスキング処理 ===
-        masked_text = mask_personal_info(extracted_text)
+        # === ③ マスキング処理 ＆ 氏名抽出 ===
+        masked_text, extracted_name = mask_personal_info(extracted_text)
 
         # === ④ ベクトルDB保存 ===
         save_masked_resume_embedding_local(candidate_id, masked_text)
@@ -74,6 +74,7 @@ async def resume_score_save(
                 candidate = Candidate(
                     id=str(uuid4()),
                     user_id=candidate_id,
+                    name=extracted_name,
                     uploader_id=uploader_id,
                     updated_by="system",
                     updated_at=now

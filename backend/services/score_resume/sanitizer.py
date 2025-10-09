@@ -1,6 +1,6 @@
 import re
 from janome.tokenizer import Token
-from backend.core.config import NG_COMPANY_PATH
+from typing import Tuple, Optional
 from backend.core.tokenizer_config import get_tokenizer
 
 # ============================================
@@ -24,26 +24,35 @@ NON_NAME_WHITELIST = {
 # 🧠 個人情報マスキングユーティリティ
 # ============================================
 
-def mask_names_by_label(text: str) -> str:
-    # ラベルの候補
+def mask_names_by_label(text: str) -> Tuple[str, Optional[str]]:
     name_labels = ["氏名", "姓名", "名前", "Name", "Full Name"]
-    
+    extracted_name = None
+
     for label in name_labels:
         # 改行や空白を挟んで氏名が続くパターンにマッチ
         pattern = rf"({label}\s*[\r\n]*)[^\s\n]+[\s　]+[^\s\n]+"
-        text = re.sub(pattern, r"\1＜人名削除＞", text)
+        match = re.search(pattern, text)
+        if match:
+            # 氏名部分を抽出
+            full_match = match.group(0)
+            after_label = re.sub(label, '', full_match).strip()
+            extracted_name = re.sub(r'\s+', ' ', after_label)
+            # マスク
+            text = re.sub(pattern, rf"\1＜人名削除＞", text)
+            break
 
-    return text
+    return text, extracted_name
 
-def mask_name_headline(text: str) -> str:
-    # 文頭〜2行目くらいを対象にする
+def mask_name_headline(text: str) -> Tuple[str, Optional[str]]:
     lines = text.splitlines()
+    extracted_name = None
     for i in range(min(3, len(lines))):
         line = lines[i].strip()
         if re.match(r"^[\u4E00-\u9FFF]{1,4}[\s　][\u3040-\u9FFF]{1,4}$", line):
+            extracted_name = line.strip()
             lines[i] = '＜人名削除＞'
             break
-    return '\n'.join(lines)
+    return '\n'.join(lines), extracted_name
 
 def normalize_pdf_text(text: str) -> str:
     text = text.replace('\u3000', ' ')  # 全角スペースを半角に
@@ -51,18 +60,21 @@ def normalize_pdf_text(text: str) -> str:
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
-def mask_personal_info(text: str) -> str:
-    # ステップ1: ラベル付き氏名をマスク
-    text = mask_names_by_label(text)
+def mask_personal_info(text: str) -> Tuple[str, Optional[str]]:
+    name1 = None
+    name2 = None
 
-    # ステップ2: 文頭のラベルなし氏名をマスク
-    text = mask_name_headline(text)
+    # ステップ1: ラベル付き氏名
+    text, name1 = mask_names_by_label(text)
 
-    # ステップ3: メールアドレスと電話番号をマスク
+    # ステップ2: 文頭氏名
+    text, name2 = mask_name_headline(text)
+
+    # ステップ3: メール・電話番号マスク
     text = EMAIL_REGEX.sub('＜メールアドレス削除＞', text)
     text = PHONE_REGEX.sub('＜電話番号削除＞', text)
 
-    # ステップ4: 人名（文中）をマスク
+    # ステップ4: 形態素解析による人名除去（変更なし）
     tokens = tokenizer.tokenize(text)
     masked_words = []
     in_name = False
@@ -83,40 +95,16 @@ def mask_personal_info(text: str) -> str:
             )
         )
 
-        if is_name:
-            # ホワイトリストに含まれていたらスキップ（＝そのまま出力）
-            if surface in NON_NAME_WHITELIST:
-                masked_words.append(surface)
-                in_name = False
-            else:
-                if not in_name:
-                    masked_words.append("＜人名削除＞")
-                    in_name = True
-                # 連続人名はスキップ
+        if is_name and surface not in NON_NAME_WHITELIST:
+            if not in_name:
+                masked_words.append("＜人名削除＞")
+                in_name = True
         else:
             masked_words.append(surface)
             in_name = False
 
     masked_text = ''.join(masked_words)
 
-    # 会社名マスク（必要なら再有効化）
-    # company_names = load_company_names()
-    # masked_text = mask_company_names(masked_text, company_names)
-
-    return masked_text
-
-# --- 📄 * 必要に応じて会社名マスク ---------------
-
-def load_company_names() -> list[str]:
-    try:        
-        with NG_COMPANY_PATH.open("r", encoding="utf-8") as f:
-            return [line.strip() for line in f if line.strip()]
-    except Exception as e:
-        print(f"⚠️ 会社名ファイルの読み込み失敗: {e}")
-        return []
-
-def mask_company_names(text: str, company_names: list[str]) -> str:
-    for name in company_names:
-        if name in text:
-            text = text.replace(name, '＜会社名削除＞')
-    return text
+    # 最終的な候補名（どちらか取れた方）
+    extracted_name = name1 or name2
+    return masked_text, extracted_name
