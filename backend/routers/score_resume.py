@@ -12,7 +12,7 @@ from backend.models.resume import Resume
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
 from backend.services.score_resume.score import score_resume_from_text, score_motivation_statement
-from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, extract_gender_from_text, summarize_motivation
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, extract_gender_from_text, extract_motivation, summarize_motivation
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
@@ -99,11 +99,20 @@ async def resume_score_save(
             resume = db.query(Resume).filter_by(id=candidate_id).first()
             motivation_text = resume.notes if resume else None
 
-            # ✅ 100文字以内の要約
-            summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
+            # motivation_text が空なら masked_text から再抽出し、Resume に保存
+            if not motivation_text:
+                print("⚠️ Resume.notes が空。extract_motivation を使用して再抽出します。")
+                motivation_text = extract_motivation(masked_text)
+                if motivation_text and resume:
+                    resume.notes = motivation_text
+                    db.commit()
+                    print("✅ Resume.notes を再抽出結果で更新しました。")
 
-            # ✅ スコア計算（GPTを使って）
+            # 要約とスコアは、motivation_text があれば実行
+            summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
             score_motivation = score_motivation_statement(motivation_text) if motivation_text else None
+            print(f"志望動機サマリ: {summarized_motivation}")
+            print(f"志望動機スコア: {score_motivation}")
 
             # 🎯 candidates テーブル更新 or INSERT
             candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
@@ -148,7 +157,23 @@ async def resume_score_save(
                     reason=s["reason"]
                 ))
 
-                # 🎯 スコア履歴 保存
+            # 🎯 スコア履歴 保存（重複チェックあり）
+            for s in scoring_result.get("scores", []):
+                # --- 重複チェック ---
+                existing = db.query(CandidateScoreHistory).filter(
+                    CandidateScoreHistory.user_id == candidate_id,
+                    CandidateScoreHistory.division == s["division"],
+                    CandidateScoreHistory.score == s["score"],
+                    CandidateScoreHistory.reason == s["reason"],
+                    CandidateScoreHistory.source.in_(["resume_upload", "resume_score_save"])
+                ).first()
+
+                if existing:
+                    # 既に 行がある -> 挿入スキップ
+                    print(f"skip duplicate score history for {candidate_id} {s['division']} cus it is added already")
+                    continue
+
+                # 重複がなければ挿入
                 db.add(CandidateScoreHistory(
                     id=str(uuid4()),
                     user_id=candidate_id,

@@ -353,58 +353,63 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 </ul>
 
                 <h4>スコア評価:</h4>
-                {localResult.scores?.map((s: any) => (
-                    Array.isArray(s.score_history) ? (
-                        <div key={s.division} className="result-d-score-item">
-                        <p><strong>{s.division}</strong>:</p>
-
-                        {/* ✅ 最新スコアは s.score / s.reason を使用 */}
-                        <div style={{ marginBottom: '10px' }}>
-                            <span>最新スコア: {s.score}点</span><br />
-                            <span style={{ fontSize: '0.9em', color: '#666' }}>理由: {s.reason}</span><br />
-                            {/* 表示上のレビュアーや日時は score_history の最後から取ることも可 */}
-                            {s.score_history?.length > 0 && (
-                            <span style={{ fontSize: '0.8em', color: '#999' }}>
-                                by {s.score_history[s.score_history.length - 1].reviewer || s.score_history[s.score_history.length - 1].updated_by} at {formatDate(s.score_history[s.score_history.length - 1].reviewed_at || s.score_history[s.score_history.length - 1].updated_at)}
-                            </span>
-                            )}
-                        </div>
-
-                        {/* ✅ スコア履歴（s.score と異なる過去の履歴のみ） */}
-                        {s.score_history?.length > 0 && (
-                            <div>
-                            <h5 style={{ marginBottom: '4px' }}>📜 スコア履歴:</h5>
-                            {[...s.score_history]
-                                .filter((entry, idx, arr) => {
-                                    const isLast = idx === arr.length - 1;
-                                    const isSameAsLatest =
-                                        entry.score === s.score &&
-                                        entry.reason === s.reason &&
-                                        (entry.reviewed_at === arr[arr.length - 1]?.reviewed_at || entry.updated_at === arr[arr.length - 1]?.updated_at);
-                                    return !isLast && !isSameAsLatest;
-                                })
-                                .reverse()
-                                .map((entry: any, idx: number) => (
-                                <div key={idx} style={{ paddingLeft: '10px', borderLeft: '2px solid #ccc', marginBottom: '5px' }}>
-                                    <p style={{ margin: 0 }}>
-                                    <span style={{ textDecoration: 'line-through', color: 'gray' }}>{entry.score}点</span><br />
-                                    <span style={{ fontSize: '0.9em' }}>理由: {entry.reason}</span><br />
-                                    <span style={{ fontSize: '0.8em', color: '#999' }}>
-                                        by {entry.reviewer || entry.updated_by} at {formatDate(entry.reviewed_at || entry.updated_at)}
-                                    </span>
-                                    </p>
-                                </div>
-                                ))}
+                    {localResult.scores?.map((s: any) => {
+                        if (!Array.isArray(s.score_history)) return (
+                            <div key={s.division} className="result-d-score-item">
+                                <p><strong>{s.division}</strong>: {s.score}点</p>
+                                <p style={{ fontSize: '0.9em', color: '#666' }}>{s.reason}</p>
                             </div>
-                        )}
-                        </div>
-                    ) : (
-                        <div key={s.division} className="result-d-score-item">
-                            <p><strong>{s.division}</strong>: {s.score}点</p>
-                            <p style={{ fontSize: '0.9em', color: '#666' }}>{s.reason}</p>
-                        </div>
-                    )
-                ))}
+                        );
+
+                        // 最新スコアに対応する履歴を特定
+                        const latestEntry = [...s.score_history].reverse().find(entry => {
+                            return (
+                                entry.score === s.score &&
+                                entry.reason === s.reason
+                            );
+                        });
+
+                        return (
+                            <div key={s.division} className="result-d-score-item">
+                                <p><strong>{s.division}</strong>:</p>
+
+                                {/* ✅ 最新スコア */}
+                                <div style={{ marginBottom: '10px' }}>
+                                    <span>最新スコア: {s.score}点</span><br />
+                                    <span style={{ fontSize: '0.9em', color: '#666' }}>理由: {s.reason}</span><br />
+                                    {latestEntry && (
+                                        <span style={{ fontSize: '0.8em', color: '#999' }}>
+                                            by {latestEntry.reviewer || latestEntry.updated_by} at {formatDate(latestEntry.reviewed_at || latestEntry.updated_at)}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* ✅ スコア履歴（最新を除く） */}
+                                <div>
+                                    <h5 style={{ marginBottom: '4px' }}>📜 スコア履歴:</h5>
+                                    {[...s.score_history].reverse()
+                                        .filter(entry => {
+                                            return !(
+                                                entry.score === latestEntry?.score &&
+                                                entry.reason === latestEntry?.reason &&
+                                                (entry.reviewed_at === latestEntry?.reviewed_at || entry.updated_at === latestEntry?.updated_at)
+                                            );
+                                        })
+                                        .map((entry: any, idx: number) => (
+                                            <div key={idx} style={{ paddingLeft: '10px', borderLeft: '2px solid #ccc', marginBottom: '5px' }}>
+                                                <p style={{ margin: 0 }}>
+                                                    <span style={{ textDecoration: 'line-through', color: 'gray' }}>{entry.score}点</span><br />
+                                                    <span style={{ fontSize: '0.9em' }}>理由: {entry.reason}</span><br />
+                                                    <span style={{ fontSize: '0.8em', color: '#999' }}>
+                                                        by {entry.reviewer || entry.updated_by} at {formatDate(entry.reviewed_at || entry.updated_at)}
+                                                    </span>
+                                                </p>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        );
+                    })}
             </div>
 
             <div className="result-d-detail-right">

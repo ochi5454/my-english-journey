@@ -65,6 +65,35 @@ def extract_gender_from_text(text: str) -> str:
         return "女"
     else:
         return "不明"
+    
+# ============================================
+# 🧠 履歴書から志望動機の抽出
+# ============================================
+
+def extract_motivation(text: str) -> str:
+    if not text or not text.strip():
+        return ""
+
+    prompt = f"""
+以下の履歴書の本文から、「志望動機」または「自己PR」に該当する部分のみを抽出してください。
+見つからない場合は空文字で構いません。
+
+履歴書内容:
+{text}
+
+抽出結果:
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"❌ 志望動機抽出に失敗: {e}")
+        return ""
 
 def summarize_motivation(text: str, max_length: int = 100) -> str:
     prompt = f"""
