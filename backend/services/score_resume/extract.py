@@ -3,8 +3,10 @@ import re
 import docx
 import openpyxl
 import pdfplumber
+from dateutil.relativedelta import relativedelta
+from datetime import datetime
+from typing import Optional
 from backend.core.openai_config import get_openai_client
-from backend.services.score_resume.sanitizer import normalize_pdf_text
 
 # ============================================
 # ✅ GPT呼び出し
@@ -25,13 +27,30 @@ def extract_resume_text_from_pdf(file_stream: io.BytesIO) -> str:
         print(f"❌ PDF抽出エラー: {e}")
         return ""
 
-def extract_resume_text_from_docx(file_stream: io.BytesIO) -> str:
-    try:
-        document = docx.Document(file_stream)
-        return "\n".join(p.text for p in document.paragraphs if p.text.strip())
-    except Exception as e:
-        print(f"❌ DOCX抽出エラー: {e}")
-        return ""
+def extract_resume_text_from_docx(file_stream):
+    from docx import Document
+
+    doc = Document(file_stream)
+    lines = []
+
+    # ① 段落（paragraph）を抽出
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text:
+            lines.append(text)
+
+    # ② 表（table）を抽出
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = []
+            for cell in row.cells:
+                cell_text = cell.text.strip()
+                if cell_text:
+                    row_text.append(cell_text)
+            if row_text:
+                lines.append(" ".join(row_text))  # 行ごとに連結して1行として扱う
+
+    return "\n".join(lines)
 
 def extract_resume_text_from_xlsx(file_stream: io.BytesIO) -> str:
     try:
@@ -48,23 +67,38 @@ def extract_resume_text_from_xlsx(file_stream: io.BytesIO) -> str:
     except Exception as e:
         print(f"❌ XLSX抽出エラー: {e}")
         return ""
+    
+def normalize_pdf_text(text: str) -> str:
+    text = text.replace('\u3000', ' ')  # 全角スペースを半角に
+    text = re.sub(r'(?<=[^\n])\n(?=[^\n])', '', text)
+    text = re.sub(r'[ \t]{2,}', ' ', text)
+    return text.strip()
+
+# ============================================
+# 🧠 履歴書から名前の抽出
+# ============================================
+
+def extract_name_from_table(text: str) -> Optional[str]:
+    # 氏名 ラベルに続く任意の空白やタブ、全角スペース
+    match = re.search(r"氏名[ \t\u3000]*([^\s（(]+)[\s\u3000]+([^\s（(]+)", text)
+    if match:
+        full_name = f"{match.group(1)} {match.group(2)}"
+        return re.sub(r"[（(].*", "", full_name).strip()
+    return None
 
 # ============================================
 # 🧠 履歴書から性別の抽出
 # ============================================
 
 def extract_gender_from_text(text: str) -> str:
-    # よくある性別の表現にマッチ
-    if re.search(r"性別\s*[:：]?\s*男", text) or re.search(r"\b男性\b", text):
-        return "男"
-    elif re.search(r"性別\s*[:：]?\s*女", text) or re.search(r"\b女性\b", text):
-        return "女"
-    elif re.search(r"\b男\b", text):
-        return "男"
-    elif re.search(r"\b女\b", text):
-        return "女"
-    else:
-        return "不明"
+    match = re.search(r"性別[ \t\u3000]*([男女]性?)", text)
+    if match:
+        value = match.group(1)
+        if "男" in value:
+            return "男"
+        elif "女" in value:
+            return "女"
+    return "不明"
     
 # ============================================
 # 🧠 履歴書から志望動機の抽出
@@ -111,3 +145,47 @@ def summarize_motivation(text: str, max_length: int = 100) -> str:
         temperature=0.3,
     )
     return response.choices[0].message.content.strip()
+
+# ============================================
+# 🧠 履歴書から社会人歴の抽出
+# ============================================
+
+def parse_date(date_str):
+    if date_str in ["現在", "今"]:
+        return datetime.today()
+    try:
+        match = re.match(r"(\d{4})年(\d{1,2})月", date_str)
+        if match:
+            return datetime(year=int(match.group(1)), month=int(match.group(2)), day=1)
+    except Exception:
+        pass
+    return None
+
+def calculate_total_experience(work_histories):
+    periods = []
+
+    for history in work_histories:
+        start = parse_date(history.start_date)
+        end = parse_date(history.end_date) or datetime.today()
+
+        if start and end:
+            periods.append((start, end))
+
+    # 重複期間のマージ
+    periods.sort()
+    merged = []
+
+    for start, end in periods:
+        if not merged:
+            merged.append((start, end))
+        else:
+            last_start, last_end = merged[-1]
+            if start <= last_end:
+                merged[-1] = (last_start, max(last_end, end))
+            else:
+                merged.append((start, end))
+
+    # 総経験年数を月単位で計算
+    total_months = sum((relativedelta(end, start).years * 12 + relativedelta(end, start).months for start, end in merged))
+
+    return round(total_months / 12, 1)  # 年数を1桁小数で返す

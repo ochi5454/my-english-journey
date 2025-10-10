@@ -27,6 +27,7 @@ interface Result {
     status?: string;
     notes?: string; 
     score_notes?: string;
+    experience?: number;
     timestamp: string;
     uploader_id?: string; // 1次評価者
     updated_at?: string;  // 2次評価日時
@@ -343,6 +344,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                             <th rowSpan={2}>候補者ID</th>
                             <th rowSpan={2}>名前</th>
                             <th rowSpan={2}>性別</th>
+                            <th rowSpan={2}>社会人歴</th> 
                             <th rowSpan={2}>ステータス</th>
                             <th rowSpan={2}>評価日</th>
                             <th rowSpan={2} onClick={() => setShowAIPanel(true)} style={{ cursor: 'pointer' }}>
@@ -373,6 +375,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                 <td>{r.user_id}</td>
                                 <td>{r.user_name || '-'}</td>
                                 <td>{renderGenderChip(r.gender)}</td>
+                                <td>{typeof r.experience === 'number' ? `${r.experience.toFixed(1)} 年` : '-'}</td>
                                 <td>{renderStatusChip(r.status)}</td>
                                 <td>{r.timestamp ? r.timestamp.slice(0, 19).replace('T', ' ') : '-'}</td>
                                 <td>{renderAIRecommendationChip(r.ai_score_percentile)}</td>

@@ -25,6 +25,7 @@ class Candidate(Base):
     gender = Column(String)
     notes = Column(String)
     score_notes = Column(Integer)
+    experience = Column(Integer)
     recommended_div = Column(String)
     uploader_id = Column(String)
     updated_by = Column(String)

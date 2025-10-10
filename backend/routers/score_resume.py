@@ -8,11 +8,11 @@ from fastapi.exceptions import HTTPException
 from pathlib import Path
 from backend.core.database import SessionLocal
 from backend.core.config import RESUME_PATH, MIME_TO_EXT
-from backend.models.resume import Resume
+from backend.models.resume import Resume, ResumeWorkHistory
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
 from backend.services.score_resume.score import score_resume_from_text, score_motivation_statement
-from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, extract_gender_from_text, extract_motivation, summarize_motivation
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, calculate_total_experience
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
@@ -56,6 +56,12 @@ async def resume_score_save(
         if not extracted_text.strip():
             return JSONResponse(content={"error": "テキスト抽出失敗"}, status_code=400)
 
+        # 正規化（追加）
+        extracted_text = normalize_pdf_text(extracted_text)
+
+        print("=== 抽出テキスト ===")
+        print(extracted_text)
+
         # === ③ マスキング処理 ＆ 氏名性別抽出 ===
         masked_text, extracted_name = mask_personal_info(extracted_text)
         extracted_gender = extract_gender_from_text(extracted_text)
@@ -71,13 +77,18 @@ async def resume_score_save(
         now = datetime.utcnow()
 
         with SessionLocal() as db:
+
+            work_histories = db.query(ResumeWorkHistory).filter_by(resume_id=candidate_id).all()
+            experience_years = calculate_total_experience(work_histories)
             candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+
             if not candidate:
                 candidate = Candidate(
                     id=str(uuid4()),
                     user_id=candidate_id,
                     name=extracted_name,
                     gender=extracted_gender,
+                    experience=experience_years,
                     uploader_id=uploader_id,
                     updated_by="system",
                     updated_at=now
@@ -86,6 +97,7 @@ async def resume_score_save(
             else:
                 candidate.updated_by = "system"
                 candidate.updated_at = now
+                candidate.experience = experience_years
             db.commit()
 
             new_status = CandidateStatus(
@@ -252,6 +264,7 @@ async def get_resume_results():
                 "status": status_value,
                 "notes": c.notes,
                 "score_notes":c.score_notes,
+                "experience": c.experience,
                 "recommended_division": c.recommended_div,
                 "uploader_id": c.uploader_id,
                 "timestamp": c.updated_at.isoformat() if c.updated_at else None,
@@ -305,6 +318,7 @@ async def get_result_by_candidate_id(candidate_id: str):
             "status": latest_status.stage if latest_status else None,
             "notes": c.notes,
             "score_notes": c.score_notes,
+            "experience": c.experience,
             "recommended_division": c.recommended_div,
             "uploader_id": c.uploader_id,
             "timestamp": latest_reviewed_at.isoformat() if latest_reviewed_at else None,  # ← ここを修正
