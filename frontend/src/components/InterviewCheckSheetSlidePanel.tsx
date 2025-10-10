@@ -292,7 +292,9 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                     onChange={e => setQualitative(s => ({ ...s, recommendedDivision: e.target.value }))}
                     >
                     <option value="">選択してください</option>
-                    {config.divisions.map(d => <option key={d} value={d}>{d}</option>)}
+                    {config.divisions
+                        .filter(d => d !== 'Common') // Common を除外
+                        .map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                 </div>
 
