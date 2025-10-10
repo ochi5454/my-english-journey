@@ -14,6 +14,25 @@
     background-color: #f0f0f0;
     border-radius: 8px;
     border: 1px solid #e0e0e0;
+    position: relative;
+}
+
+.filter-clear-icon {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    border: none;
+    background: transparent;
+    font-size: 18px;
+    font-weight: bold;
+    color: #555;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.filter-clear-icon:hover {
+    color: #000;
 }
 
 .matrix-filters input[type="text"],
@@ -41,60 +60,92 @@
     transform: scale(1.1);
 }
 
+.matrix-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 16px; /* スペースを適宜調整 */
+    flex-wrap: wrap; /* 幅が狭い画面では折り返す */
+    margin-bottom: 12px;
+}
+
+.matrix-count-summary {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.ai-percentile-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.highlight-count {
+    color: #007acc;         /* 青系。お好みで変更可 */
+    font-weight: bold;
+    font-size: 20px;
+}
+
+.summary-label {
+    font-weight: bold;
+    margin-right: 4px;
+    font-size: 14px;
+}
+
 .resume-matrix-wrapper {
-  overflow-x: auto;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
 }
 
 .resume-matrix-table {
-  border-collapse: collapse;
-  min-width: 1000px;
-  width: 100%;
-  margin-top: 1rem;
-  font-size: 0.95rem;
+    border-collapse: collapse;
+    min-width: 1000px;
+    width: 100%;
+    margin-top: 1rem;
+    font-size: 0.95rem;
 }
 
 .resume-matrix-table th,
 .resume-matrix-table td {
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  text-align: center;
-  white-space: nowrap;
-  min-width: 120px;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    text-align: center;
+    white-space: nowrap;
+    min-width: 120px;
 }
 
 .resume-matrix-table th {
-  background-color: #f0f0f0;
-  font-weight: bold;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  vertical-align: middle;
+    background-color: #f0f0f0;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    vertical-align: middle;
 }
 
 .resume-matrix-table tbody tr:hover {
-  background-color: #f0f8ff;
+    background-color: #f0f8ff;
 }
 
 .resume-matrix-wrapper::-webkit-scrollbar {
-  height: 8px;
+    height: 8px;
 }
 
 .resume-matrix-wrapper::-webkit-scrollbar-thumb {
-  background-color: rgba(100, 100, 100, 0.5);
-  border-radius: 4px;
+    background-color: rgba(100, 100, 100, 0.5);
+    border-radius: 4px;
 }
 
 .resume-score-cell {
-  font-weight: 600;
-  color: #256029;
+    font-weight: 600;
+    color: #256029;
 }
 
 .highlight-recommended {
-  background-color: #e6f4ea;
-  font-weight: bold;
-  border: 1px solid #b7ddb7;
+    background-color: #e6f4ea;
+    font-weight: bold;
+    border: 1px solid #b7ddb7;
 }
 
 .gender-chip {

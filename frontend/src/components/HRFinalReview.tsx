@@ -64,11 +64,6 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
     const [filters, setFilters] = useState({
         userId: '',
         userName: '',
-        gender: '',
-        status: '',
-        division: '',
-        mustCheckAllPassed: false,
-        aiScoreMinPercentile: '',
     });
     const allMustKeys = useMemo(() => {
         const first = aiRawResults.find((r) => r && r.must_check);
@@ -176,26 +171,15 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
     const allCandidateIds = Array.from(new Set([...Object.keys(groupedAI), ...Object.keys(groupedInterview)]));
     const filteredCandidateIds = allCandidateIds.filter((id) => {
         const ai = groupedAI[id];
-        const { userId, userName, gender, status, division, mustCheckAllPassed } = filters;
+        const { userId, userName } = filters;
 
-        // AI評価がない場合、user_name, gender, division などでは判定できない
+        // AI評価がない場合、user_nameでは判定できない
         if (!ai) return false;
 
         const idMatch = id.toLowerCase().includes(userId.toLowerCase());
         const nameMatch = (ai.user_name || '').toLowerCase().includes(userName.toLowerCase());
-        const genderMatch = gender === '' || ai.gender === gender;
-        const statusMatch = status === '' || (ai.status || '').includes(status); // statusがある場合のみ
-        const divisionMatch = division === '' || (ai.recommended_division || '').includes(division);
-        const mustPassed =
-            !mustCheckAllPassed ||
-            Object.values(ai.must_check || {}).every((m) => m.result === true);
 
-        const aiScoreMin = Number(filters.aiScoreMinPercentile);
-        const aiScoreMatch =
-            filters.aiScoreMinPercentile === '' ||
-            ((ai as any).ai_score_percentile ?? 0) >= aiScoreMin;
-
-        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed && aiScoreMatch;
+        return idMatch && nameMatch ;
     });
 
     const handleSaveHRReview = async (candidateId: string) => {
@@ -248,6 +232,22 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
     return (
         <div className="hr-review-wrapper">
             <div className="candidate-filters">
+
+            {/* クリアボタン：右上に × 表示 */}
+                <button
+                    className="hr-filter-clear-icon"
+                    onClick={() =>
+                    setFilters({
+                        userId: '',
+                        userName: '',
+                    })
+                    }
+                    aria-label="フィルタをすべてクリア"
+                    title="フィルタをクリア"
+                >
+                    ×
+                </button>
+
                 <input
                     type="text"
                     placeholder="候補者ID"
@@ -260,330 +260,299 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                     value={filters.userName}
                     onChange={(e) => setFilters({ ...filters, userName: e.target.value })}
                 />
-                <select
-                    value={filters.gender}
-                    onChange={(e) => setFilters({ ...filters, gender: e.target.value })}
-                >
-                    <option value="">性別を選択</option>
-                    <option value="男">男性</option>
-                    <option value="女">女性</option>
-                    <option value="その他">その他</option>
-                </select>
-                <input
-                    type="text"
-                    placeholder="ステータス"
-                    value={filters.status}
-                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                />
-                <input
-                    type="text"
-                    placeholder="推奨部門"
-                    value={filters.division}
-                    onChange={(e) => setFilters({ ...filters, division: e.target.value })}
-                />
-                <input
-                    type="number"
-                    placeholder="AI推薦度(%)以上"
-                    value={filters.aiScoreMinPercentile}
-                    onChange={(e) => setFilters({ ...filters, aiScoreMinPercentile: e.target.value })}
-                    min={0}
-                    max={100}
-                />
-                <label>
-                    <input
-                        type="checkbox"
-                        checked={filters.mustCheckAllPassed}
-                        onChange={(e) =>
-                            setFilters({ ...filters, mustCheckAllPassed: e.target.checked })
-                        }
-                    />
-                    必須全合格のみ
-                </label>
             </div>
-        {filteredCandidateIds.map(candidateId => {
-            const ai = groupedAI[candidateId];
-            const evals = (groupedInterview[candidateId] || []).slice().sort((a, b) => {
-                const order = ["面談・1次", "面談・2次", "最終面談"];
-                return order.indexOf(a.stage) - order.indexOf(b.stage);
-            });
-            const normalizedCandidateId = candidateId.replace(/^cand_/, '');
-            const resumeURL = `http://localhost:8000/resumes/by-candidate/${normalizedCandidateId}`;
-            return (
-            <div key={candidateId} className="candidate-block">
-                <div className="candidate-header">
-                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5em', flexWrap: 'wrap' }}>
-                    👤 {ai?.user_name || '-'}（{candidateId}）
 
-                    {ai?.gender && (
-                        <span className={`hr-gender-chip ${ai.gender === '男' ? 'male' : ai.gender === '女' ? 'female' : 'other'}`}>
-                        {ai.gender === '男' ? '男性' : ai.gender === '女' ? '女性' : 'その他'}
-                        </span>
-                    )}
-
-                    {ai?.status && (
-                        <span className="hr-status-chip">
-                        {ai.status}
-                        </span>
-                    )}
-
-                    {resumeURL && (
-                        <a
-                        href={resumeURL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="resume-link"
-                        >
-                        📄 履歴書を表示
-                        </a>
-                    )}
-                </h3>
-                <div className="hr-button-and-note">
-                    <div>
-                    <button
-                        onClick={() => setActiveCandidateId(candidateId)}
-                        className={`hr-review-btn ${hrEvaluations[candidateId]?.savedAt ? 'saved' : ''}`}
-                        >
-                        HR評価を入力
-                    </button>
-                    </div>
-                    {hrEvaluations[candidateId]?.savedAt && (
-                    <div className="hr-review-note">
-                        保存済: {new Date(hrEvaluations[candidateId].savedAt!).toLocaleString()}
-                        {hrEvaluations[candidateId].decision && ` / ${hrEvaluations[candidateId].decision}`}
-                        {hrEvaluations[candidateId].division && ` / ${hrEvaluations[candidateId].division}`}
-                        {hrEvaluations[candidateId].title && ` / ${hrEvaluations[candidateId].title}`}
-                        {hrEvaluations[candidateId].annualIncome && ` / ${hrEvaluations[candidateId].annualIncome}万円`}
-                    </div>
-                    )}
+            <div className="candidate-summary-row">
+                <div className="candidate-count-summary">
+                    検索結果（全 {allCandidateIds.length} 件中 <span className="hr-highlight-count">{filteredCandidateIds.length}</span> 件を表示中）
                 </div>
-                </div>
+            </div>
 
-                {ai && (
-                <>
-                    <h4>AI評価</h4>
-                    <table className="hr-result-check-table">
-                    <thead>
-                        <tr>
-                        {Object.keys(ai.must_check).map(key => <th key={key}>{key}</th>)}
-                        {ai.scores.map(s => <th key={s.division}>{s.division}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                        {allMustKeys.map((key) => (
-                            <td key={`must-${candidateId}-${key}`}>
-                                {renderMustCheckChip(ai.must_check?.[key]?.result, ai.must_check?.[key]?.reason)}
-                            </td>
-                        ))}
-                        {ai.scores.map(s => (
-                            <td
-                            key={s.division}
-                            className={s.division === ai.recommended_division ? 'highlight' : ''}
-                            >
-                            {s.score}
-                            </td>
-                        ))}
-                        </tr>
-                    </tbody>
-                    </table>
-                </>
-                )}
+            {filteredCandidateIds.map(candidateId => {
+                const ai = groupedAI[candidateId];
+                const evals = (groupedInterview[candidateId] || []).slice().sort((a, b) => {
+                    const order = ["面談・1次", "面談・2次", "最終面談"];
+                    return order.indexOf(a.stage) - order.indexOf(b.stage);
+                });
+                const normalizedCandidateId = candidateId.replace(/^cand_/, '');
+                const resumeURL = `http://localhost:8000/resumes/by-candidate/${normalizedCandidateId}`;
+                return (
 
-                {evals.length > 0 && (
-                <>
-                    <h4>面接官評価</h4>
-                    <table className="hr-result-check-table">
-                    <thead>
-                        <tr>
-                        <th>評価項目</th>
-                        {evals.map((r, i) => (
-                            <th key={`interviewer-${i}`}>{r.interviewer_id}</th>
-                        ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>ステージ</td>
-                            {evals.map(r => (
-                                <td key={`stage-${r.interviewer_id}`}>{r.stage}</td>
-                            ))}
-                        </tr>
-                        <tr>
-                        <td>採用可否</td>
-                        {evals.map((r, i) => {
-                            const decision = r.qualitative?.hiringDecision ?? '-';
-                            const className = decision === 'strong_hire' ? 'hire-decision-cell hire-strong' : 'hire-decision-cell';
-                            return <td key={`hire-${i}`} className={className}>{decision}</td>;
-                        })}
-                        </tr>
-                        <tr>
-                            <td>部門</td>
-                            {evals.map(r => (
-                                <td key={`division-${r.interviewer_id}`}>{r.qualitative?.recommendedDivision ?? '-'}</td>
-                            ))}
-                        </tr>
+                <div key={candidateId} className="candidate-block">
+                    <div className="candidate-header">
+                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5em', flexWrap: 'wrap' }}>
+                            👤 {ai?.user_name || '-'}（{candidateId}）
 
-                        <tr>
-                            <td>タイトル</td>
-                            {evals.map(r => (
-                                <td key={`title-${r.interviewer_id}`}>{r.qualitative?.recommendedTitle ?? '-'}</td>
-                            ))}
-                        </tr>
-                        {qualItems.map(item => (
-                            <tr key={`qual-${item.key}`}>
-                                <td>{item.label}</td>
-                                {evals.map(r => (
-                                <td key={`${r.interviewer_id}-${item.key}`}>
-                                    {r.qualitative?.[item.key] ?? '-'}
-                                </td>
-                                ))}
-                            </tr>
-                        ))}
-                        {quantItems.map(item => (
-                            <tr key={`quant-${item.key}`}>
-                                <td>{item.label}</td>
-                                {evals.map((r) => {
-                                // ✅ 配列をMapに変換（1人分の評価ごとに）
-                                const quantMap = Array.isArray(r.quantitative)
-                                    ? r.quantitative.reduce((acc, q) => {
-                                        acc[q.item_key] = q;
-                                        return acc;
-                                    }, {} as Record<string, { level: number; comment: string }>)
-                                    : r.quantitative ?? {};
-
-                                // ✅ 表示値の取得
-                                const level = quantMap[item.key]?.level;
-                                const className =
-                                    level === 4 || level === 5 ? 'quant-cell quant-high' : 'quant-cell';
-
-                                return (
-                                    <td key={`${r.interviewer_id}-${item.key}`} className={className}>
-                                    {level ?? '-'}
-                                    </td>
-                                );
-                                })}
-                            </tr>
-                        ))}
-                        <tr>
-                        <td>カスタムQA</td>
-                        {evals.map((r) => (
-                            <td key={`qa-${r.interviewer_id}`}>
-                            {r.prepItems && r.prepItems.length > 0 ? (
-                                <ul style={{ paddingLeft: '1em', margin: 0 }}>
-                                {r.prepItems.map((qa, index) => (
-                                    <li key={`qa-${r.interviewer_id}-${index}`} className="qa-entry">
-                                        <div><span className="question">Q:</span> {qa.question}</div>
-                                        <div><span className="answer">A:</span> {qa.answer}</div>
-                                    </li>
-                                ))}
-                                </ul>
-                            ) : (
-                                '-'
+                            {ai?.gender && (
+                                <span className={`hr-gender-chip ${ai.gender === '男' ? 'male' : ai.gender === '女' ? 'female' : 'other'}`}>
+                                {ai.gender === '男' ? '男性' : ai.gender === '女' ? '女性' : 'その他'}
+                                </span>
                             )}
-                            </td>
-                        ))}
-                        </tr>
-                    </tbody>
-                    </table>
-                </>
-                )}
 
-                {/* HR評価モーダル */}
-                {activeCandidateId === candidateId && (
-                <div className="hr-modal-overlay">
-                    <div className="hr-modal">
-                    <h4>HR最終評価（{candidateId}）</h4>
+                            {ai?.status && (
+                                <span className="hr-status-chip">
+                                {ai.status}
+                                </span>
+                            )}
+
+                            {resumeURL && (
+                                <a
+                                href={resumeURL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="resume-link"
+                                >
+                                📄 履歴書を表示
+                                </a>
+                            )}
+                        </h3>
+                        <div className="hr-button-and-note">
+                            <div>
+                            <button
+                                onClick={() => setActiveCandidateId(candidateId)}
+                                className={`hr-review-btn ${hrEvaluations[candidateId]?.savedAt ? 'saved' : ''}`}
+                                >
+                                HR評価を入力
+                            </button>
+                            </div>
+                            {hrEvaluations[candidateId]?.savedAt && (
+                            <div className="hr-review-note">
+                                保存済: {new Date(hrEvaluations[candidateId].savedAt!).toLocaleString()}
+                                {hrEvaluations[candidateId].decision && ` / ${hrEvaluations[candidateId].decision}`}
+                                {hrEvaluations[candidateId].division && ` / ${hrEvaluations[candidateId].division}`}
+                                {hrEvaluations[candidateId].title && ` / ${hrEvaluations[candidateId].title}`}
+                                {hrEvaluations[candidateId].annualIncome && ` / ${hrEvaluations[candidateId].annualIncome}万円`}
+                            </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {ai && (
+                    <>
+                        <h4>AI評価</h4>
+                        <table className="hr-result-check-table">
+                        <thead>
+                            <tr>
+                            {Object.keys(ai.must_check).map(key => <th key={key}>{key}</th>)}
+                            {ai.scores.map(s => <th key={s.division}>{s.division}</th>)}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                            {allMustKeys.map((key) => (
+                                <td key={`must-${candidateId}-${key}`}>
+                                    {renderMustCheckChip(ai.must_check?.[key]?.result, ai.must_check?.[key]?.reason)}
+                                </td>
+                            ))}
+                            {ai.scores.map(s => (
+                                <td
+                                key={s.division}
+                                className={s.division === ai.recommended_division ? 'highlight' : ''}
+                                >
+                                {s.score}
+                                </td>
+                            ))}
+                            </tr>
+                        </tbody>
+                        </table>
+                    </>
+                    )}
+
+                    {evals.length > 0 && (
+                        <>
+                            <h4>面接官評価</h4>
+                            <table className="hr-result-check-table">
+                            <thead>
+                                <tr>
+                                <th>評価項目</th>
+                                {evals.map((r, i) => (
+                                    <th key={`interviewer-${i}`}>{r.interviewer_id}</th>
+                                ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>ステージ</td>
+                                    {evals.map(r => (
+                                        <td key={`stage-${r.interviewer_id}`}>{r.stage}</td>
+                                    ))}
+                                </tr>
+                                <tr>
+                                <td>採用可否</td>
+                                {evals.map((r, i) => {
+                                    const decision = r.qualitative?.hiringDecision ?? '-';
+                                    const className = decision === 'strong_hire' ? 'hire-decision-cell hire-strong' : 'hire-decision-cell';
+                                    return <td key={`hire-${i}`} className={className}>{decision}</td>;
+                                })}
+                                </tr>
+                                <tr>
+                                    <td>部門</td>
+                                    {evals.map(r => (
+                                        <td key={`division-${r.interviewer_id}`}>{r.qualitative?.recommendedDivision ?? '-'}</td>
+                                    ))}
+                                </tr>
+
+                                <tr>
+                                    <td>タイトル</td>
+                                    {evals.map(r => (
+                                        <td key={`title-${r.interviewer_id}`}>{r.qualitative?.recommendedTitle ?? '-'}</td>
+                                    ))}
+                                </tr>
+                                {qualItems.map(item => (
+                                    <tr key={`qual-${item.key}`}>
+                                        <td>{item.label}</td>
+                                        {evals.map(r => (
+                                        <td key={`${r.interviewer_id}-${item.key}`}>
+                                            {r.qualitative?.[item.key] ?? '-'}
+                                        </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                                {quantItems.map(item => (
+                                    <tr key={`quant-${item.key}`}>
+                                        <td>{item.label}</td>
+                                        {evals.map((r) => {
+                                        // ✅ 配列をMapに変換（1人分の評価ごとに）
+                                        const quantMap = Array.isArray(r.quantitative)
+                                            ? r.quantitative.reduce((acc, q) => {
+                                                acc[q.item_key] = q;
+                                                return acc;
+                                            }, {} as Record<string, { level: number; comment: string }>)
+                                            : r.quantitative ?? {};
+
+                                        // ✅ 表示値の取得
+                                        const level = quantMap[item.key]?.level;
+                                        const className =
+                                            level === 4 || level === 5 ? 'quant-cell quant-high' : 'quant-cell';
+
+                                        return (
+                                            <td key={`${r.interviewer_id}-${item.key}`} className={className}>
+                                            {level ?? '-'}
+                                            </td>
+                                        );
+                                        })}
+                                    </tr>
+                                ))}
+                                <tr>
+                                <td>カスタムQA</td>
+                                {evals.map((r) => (
+                                    <td key={`qa-${r.interviewer_id}`}>
+                                    {r.prepItems && r.prepItems.length > 0 ? (
+                                        <ul style={{ paddingLeft: '1em', margin: 0 }}>
+                                        {r.prepItems.map((qa, index) => (
+                                            <li key={`qa-${r.interviewer_id}-${index}`} className="qa-entry">
+                                                <div><span className="question">Q:</span> {qa.question}</div>
+                                                <div><span className="answer">A:</span> {qa.answer}</div>
+                                            </li>
+                                        ))}
+                                        </ul>
+                                    ) : (
+                                        '-'
+                                    )}
+                                    </td>
+                                ))}
+                                </tr>
+                            </tbody>
+                            </table>
+                        </>
+                    )}
+
+                    {/* HR評価モーダル */}
+                    {activeCandidateId === candidateId && (
+                    <div className="hr-modal-overlay">
+                        <div className="hr-modal">
+                        <h4>HR最終評価（{candidateId}）</h4>
+                            <label>
+                            採用可否:
+                            <select
+                                value={hrEvaluations[candidateId]?.decision || ''}
+                                onChange={(e) =>
+                                setHrEvaluations(prev => ({
+                                    ...prev,
+                                    [candidateId]: {
+                                    ...prev[candidateId],
+                                    decision: e.target.value
+                                    }
+                                }))
+                                }
+                            >
+                                <option value="">選択してください</option>
+                                <option value="hire_ok">✅ 採用</option>
+                                <option value="hire_ng">🙅‍♂️ 不採用</option>
+                            </select>
+                            </label>
+
                         <label>
-                        採用可否:
-                        <select
-                            value={hrEvaluations[candidateId]?.decision || ''}
+                            部門:
+                            <select
+                            value={hrEvaluations[candidateId]?.division || ''}
+                            onChange={(e) =>
+                                setHrEvaluations(prev => ({
+                                ...prev,
+                                [candidateId]: {
+                                    ...prev[candidateId],
+                                    division: e.target.value
+                                }
+                                }))
+                            }
+                            >
+                            <option value="">選択してください</option>
+                            {divisionOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                            </select>
+                        </label>
+
+                        <label>
+                            タイトル:
+                            <select
+                            value={hrEvaluations[candidateId]?.title || ''}
+                            onChange={(e) =>
+                                setHrEvaluations(prev => ({
+                                ...prev,
+                                [candidateId]: {
+                                    ...prev[candidateId],
+                                    title: e.target.value
+                                }
+                                }))
+                            }
+                            >
+                            <option value="">選択してください</option>
+                            {titleOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                            </select>
+                        </label>
+
+                        <label>
+                        年収（万円）:
+                        <input
+                            type="number"
+                            placeholder="例: 600"
+                            value={hrEvaluations[candidateId]?.annualIncome || ''}
                             onChange={(e) =>
                             setHrEvaluations(prev => ({
                                 ...prev,
                                 [candidateId]: {
                                 ...prev[candidateId],
-                                decision: e.target.value
+                                annualIncome: e.target.value
                                 }
                             }))
                             }
-                        >
-                            <option value="">選択してください</option>
-                            <option value="hire_ok">✅ 採用</option>
-                            <option value="hire_ng">🙅‍♂️ 不採用</option>
-                        </select>
+                        />
                         </label>
 
-                    <label>
-                        部門:
-                        <select
-                        value={hrEvaluations[candidateId]?.division || ''}
-                        onChange={(e) =>
-                            setHrEvaluations(prev => ({
-                            ...prev,
-                            [candidateId]: {
-                                ...prev[candidateId],
-                                division: e.target.value
-                            }
-                            }))
-                        }
-                        >
-                        <option value="">選択してください</option>
-                        {divisionOptions.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                        </select>
-                    </label>
-
-                    <label>
-                        タイトル:
-                        <select
-                        value={hrEvaluations[candidateId]?.title || ''}
-                        onChange={(e) =>
-                            setHrEvaluations(prev => ({
-                            ...prev,
-                            [candidateId]: {
-                                ...prev[candidateId],
-                                title: e.target.value
-                            }
-                            }))
-                        }
-                        >
-                        <option value="">選択してください</option>
-                        {titleOptions.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                        </select>
-                    </label>
-
-                    <label>
-                    年収（万円）:
-                    <input
-                        type="number"
-                        placeholder="例: 600"
-                        value={hrEvaluations[candidateId]?.annualIncome || ''}
-                        onChange={(e) =>
-                        setHrEvaluations(prev => ({
-                            ...prev,
-                            [candidateId]: {
-                            ...prev[candidateId],
-                            annualIncome: e.target.value
-                            }
-                        }))
-                        }
-                    />
-                    </label>
-
-                    <div className="hr-modal-buttons">
-                        <button onClick={() => handleSaveHRReview(candidateId)}>保存</button>
-                        <button onClick={() => setActiveCandidateId(null)} className="cancel-button">キャンセル</button>
+                        <div className="hr-modal-buttons">
+                            <button onClick={() => handleSaveHRReview(candidateId)}>保存</button>
+                            <button onClick={() => setActiveCandidateId(null)} className="cancel-button">キャンセル</button>
+                        </div>
+                        </div>
                     </div>
-                    </div>
+                    )}
+
                 </div>
-                )}
-
-            </div>
-            );
-        })}
+                );
+            })}
         </div>
     );
 };

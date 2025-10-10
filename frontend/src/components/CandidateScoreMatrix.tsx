@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import './CandidateScoreMatrix.css';
 import CandidateResultDetail from './CandidateResultDetail.tsx';
 import type { AIWeights } from './AIRecommendationPanel.tsx';
@@ -91,6 +91,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         division: '',
         mustCheckAllPassed: false,
         aiScoreMinPercentile: '',
+        aiScoreMaxPercentile: '',
     });
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
     const [showAIPanel, setShowAIPanel] = useState(false);
@@ -156,7 +157,10 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     }, []);
 
     const filteredResults = results.filter((r) => {
-        const { userId, userName, gender, status, division, mustCheckAllPassed, aiScoreMinPercentile } = filters;
+        const {
+            userId, userName, gender, status, division,
+            mustCheckAllPassed, aiScoreMinPercentile, aiScoreMaxPercentile
+        } = filters;
 
         const idMatch = r.user_id.toLowerCase().includes(userId.toLowerCase());
         const nameMatch = (r.user_name || '').toLowerCase().includes(userName.toLowerCase());
@@ -165,13 +169,46 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         const divisionMatch = division === '' || r.recommended_division.includes(division);
         const mustPassed = !mustCheckAllPassed || Object.values(r.must_check || {}).every(m => m.result === true);
 
-        const percentileThreshold = Number(aiScoreMinPercentile);
-        const aiScoreMatch =
-            aiScoreMinPercentile === '' || // 未指定なら全件通す
-            (r.ai_score_percentile ?? 0) >= percentileThreshold;
+        const p = r.ai_score_percentile ?? 0;
+        const min = Number(aiScoreMinPercentile) || 0;
+        const max = Number(aiScoreMaxPercentile) || 100;
+        const aiScoreMatch = p >= min && p < max;
 
         return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed && aiScoreMatch;
     });
+
+    const aiScoreCounts = useMemo(() => {
+        let low = 0, mid = 0, high = 0;
+        filteredResults.forEach(r => {
+            const p = r.ai_score_percentile ?? -1;
+            if (p < 50) low++;
+            else if (p < 75) mid++;
+            else high++;
+        });
+        return { low, mid, high };
+    }, [filteredResults]);
+
+    const handleAIScoreFilter = (range: 'low' | 'mid' | 'high') => {
+        if (range === 'low') {
+            setFilters(prev => ({
+                ...prev,
+                aiScoreMinPercentile: '0',
+                aiScoreMaxPercentile: '50',
+            }));
+        } else if (range === 'mid') {
+            setFilters(prev => ({
+                ...prev,
+                aiScoreMinPercentile: '50',
+                aiScoreMaxPercentile: '75',
+            }));
+        } else if (range === 'high') {
+            setFilters(prev => ({
+                ...prev,
+                aiScoreMinPercentile: '75',
+                aiScoreMaxPercentile: '', // 上限なし
+            }));
+        }
+    };
 
     const allDivisions = Array.from(
         new Set(results.flatMap((r) => r.scores.map((s) => s.division)))
@@ -199,6 +236,28 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     return (
         <div className="matrix-container">
             <div className="matrix-filters">
+
+            {/* クリアボタン：右上に × 表示 */}
+                <button
+                    className="filter-clear-icon"
+                    onClick={() =>
+                    setFilters({
+                        userId: '',
+                        userName: '',
+                        gender: '',
+                        status: '',
+                        division: '',
+                        mustCheckAllPassed: false,
+                        aiScoreMinPercentile: '',
+                        aiScoreMaxPercentile: '',
+                    })
+                    }
+                    aria-label="フィルタをすべてクリア"
+                    title="フィルタをクリア"
+                >
+                    ×
+                </button>
+
                 <input type="text" placeholder="候補者ID" value={filters.userId} onChange={(e) => setFilters({...filters, userId: e.target.value})} />
                 <input type="text" placeholder="名前" value={filters.userName} onChange={(e) => setFilters({...filters, userName: e.target.value})} />
                 <select value={filters.gender} onChange={(e) => setFilters({...filters, gender: e.target.value})}>
@@ -221,10 +280,35 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                     max={100}
                     style={{ width: '140px' }}
                 />
+                <input
+                    type="number"
+                    placeholder="AI推薦度(%)未満"
+                    value={filters.aiScoreMaxPercentile}
+                    onChange={(e) => setFilters({
+                        ...filters,
+                        aiScoreMaxPercentile: e.target.value
+                    })}
+                    min={0}
+                    max={100}
+                    style={{ width: '140px', marginLeft: '8px' }}
+                />
                 <label>
                     <input type="checkbox" checked={filters.mustCheckAllPassed} onChange={(e) => setFilters({...filters, mustCheckAllPassed: e.target.checked})} />
                     必須全合格のみ
                 </label>
+            </div>
+
+            <div className="matrix-summary-row">
+                <div className="matrix-count-summary">
+                    検索結果（全 {results.length} 件中 <span className="highlight-count">{filteredResults.length}</span> 件を表示中）
+                </div>
+
+                <div className="ai-percentile-summary">
+                    <span className="summary-label">AI推薦度</span>
+                    <span className="ai-chip ai-high" onClick={() => handleAIScoreFilter('high')}>高 {aiScoreCounts.high} 件</span>
+                    <span className="ai-chip ai-mid" onClick={() => handleAIScoreFilter('mid')}>中 {aiScoreCounts.mid} 件</span>
+                    <span className="ai-chip ai-low" onClick={() => handleAIScoreFilter('low')}>低 {aiScoreCounts.low} 件</span>
+                </div>
             </div>
 
             <div className="resume-matrix-wrapper">
