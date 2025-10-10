@@ -67,7 +67,7 @@ async def resume_score_save(
         generated_sql = generate_resume_sql(masked_text, candidate_id)
         save_sql_to_sqlite(generated_sql)
 
-        # === ⑥ Candidate を保存 ===
+        # === ⑥ Candidateと CandidateStatusを保存 ===
         now = datetime.utcnow()
 
         with SessionLocal() as db:
@@ -86,6 +86,17 @@ async def resume_score_save(
             else:
                 candidate.updated_by = "system"
                 candidate.updated_at = now
+            db.commit()
+
+            new_status = CandidateStatus(
+                id=str(uuid4()),
+                user_id=candidate_id,
+                stage="アップロード",
+                chat_reviewer=uploader_id,
+                reviewed_at=now,
+                reviewed_resume=False
+            )
+            db.add(new_status)
             db.commit()
 
         # === ⑦ LLMスコアリング実行 ===

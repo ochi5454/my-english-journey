@@ -17,8 +17,8 @@ const formatDate = (isoStr: string): string => {
 };
 
 const statusSteps = [
-    "書類選考・1次",
-    "書類選考・2次",
+    "アップロード",
+    "書類選考",
     "面談・1次",
     "面談・2次",
     "最終面談",
@@ -29,8 +29,8 @@ const statusSteps = [
 ];
 
 const reviewStages = [
-    "書類選考・1次", 
-    "書類選考・2次",
+    "アップロード", 
+    "書類選考",
     "面談・1次",
     "面談・2次",
     "最終面談"
@@ -53,7 +53,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
     const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
     const [localResult, setLocalResult] = useState<any>(result);
     const [isSending, setIsSending] = useState(false);
-    const [chatStage, setChatStage] = useState<string>('書類選考・1次');
+    const [chatStage, setChatStage] = useState<string>('アップロード');
     const [interviewStage, setInterviewStage] = useState<string | null>(null);
     const [showInterviewModal, setShowInterviewModal] = useState(false);
     const [showConfirmation, setShowConfirmation] = useState(false);
@@ -235,8 +235,8 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 const isActive = localResult.status === step;
                 // 完全にステップ完了している状態（＝緑にしたい条件）
                 const isStepDone = (
-                    (step === '書類選考・1次' && !!localResult.timestamp) ||
-                    (step === '書類選考・2次' && !!localResult.updated_at) || 
+                    (step === 'アップロード' && !!localResult.timestamp) ||
+                    (step === '書類選考' && !!localResult.updated_at) || 
                     (reviewStages.includes(step) && !!localResult[`chat_review_${step}_at`]) ||
                     (step === '待遇検討' && !!localResult.hr_review?.updated_at)
                 );

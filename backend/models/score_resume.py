@@ -65,7 +65,7 @@ class CandidateStatus(Base):
     __tablename__ = "candidates_status"
     id = Column(String, primary_key=True)
     user_id = Column(String, nullable=False)
-    stage = Column(String)  # 例: "書類選考・2次", "面談・1次"
+    stage = Column(String)  # 例: "アップロード", "書類選考", "面談・1次"
     chat_reviewer = Column(String)
     reviewed_at = Column(DateTime)
     reviewed_resume = Column(Boolean)
