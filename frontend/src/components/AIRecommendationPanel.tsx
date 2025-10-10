@@ -4,6 +4,7 @@ import './AIRecommendationPanel.css';
 export interface AIWeights {
     gender: number;
     motivation_score: number;
+    experience: number;
 }
 
 interface AIRecommendationPanelProps {
@@ -16,6 +17,7 @@ interface AIRecommendationPanelProps {
 const INITIAL_VALUES: AIWeights = {
     gender: 1.2,
     motivation_score: 1.0,
+    experience: 0.05,
 };
 
 const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
@@ -40,36 +42,59 @@ const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
             <h3>AI推薦度の重み設定</h3>
 
             <p className="ai-panel-description">
-                <code>AI推薦度 = （志望動機スコア × 重み） × ジェンダー倍率</code>
+                <code>
+                    推薦スコア = （志望動機スコア × 重み） × ジェンダー倍率 ×（1 + 就業年数 × 重み）
+                </code>
                 <br />
                 <small className="ai-panel-note">
-                    ※ AI推薦度の%は統計的パーセンタイルで算出されています。
-                    同じスコアの候補者が複数いる場合は「平均順位法」で中間値をとり、公平に評価されます。
+                    ※ 推薦スコアは各候補者ごとに計算され、推薦度（%）は<br />
+                    すべての候補者のスコアに対して統計的パーセンタイルで算出されます。<br />
+                    同じスコアの候補者が複数存在する場合は「平均順位法」により中間値を用いて評価されます。
                 </small>
             </p>
 
             <div className="ai-panel-grid">
-                {Object.entries(weights).map(([key, value]) => {
-                    const label = labelMap[key as keyof AIWeights] || key;
-                    const initial = INITIAL_VALUES[key as keyof AIWeights];
-                    return (
-                        <div className="ai-panel-row" key={key}>
-                            <label className="ai-panel-label">{label}</label>
-                            <input
-                                type="number"
-                                step="0.1"
-                                min={0.1}
-                                max={2}
-                                value={value}
-                                onChange={(e) =>
-                                    onChange(key as keyof AIWeights, parseFloat(e.target.value))
-                                }
-                                className="ai-panel-input"
-                            />
-                            <span className="ai-panel-initial">（初期値: {initial}）/ 範囲: 0.1〜2.0）</span>
-                        </div>
-                    );
-                })}
+                <div className="ai-panel-row">
+                    <label className="ai-panel-label">ジェンダー倍率（男性）</label>
+                    <input
+                        type="number"
+                        step="0.1"
+                        min={0.1}
+                        max={2}
+                        value={weights.gender}
+                        onChange={(e) => onChange('gender', parseFloat(e.target.value))}
+                        className="ai-panel-input"
+                    />
+                    <span className="ai-panel-initial">（初期値: 1.2）/ 範囲: 0.1〜2.0</span>
+                </div>
+
+                <div className="ai-panel-row">
+                    <label className="ai-panel-label">志望動機重み</label>
+                    <input
+                        type="number"
+                        step="0.1"
+                        min={0.1}
+                        max={2}
+                        value={weights.motivation_score}
+                        onChange={(e) => onChange('motivation_score', parseFloat(e.target.value))}
+                        className="ai-panel-input"
+                    />
+                    <span className="ai-panel-initial">（初期値: 1.0）/ 範囲: 0.1〜2.0</span>
+                </div>
+
+                <div className="ai-panel-row">
+                    <label className="ai-panel-label">就業年数重み（1年あたり）</label>
+                    <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        max={0.2}
+                        value={weights.experience}
+                        onChange={(e) => onChange('experience', parseFloat(e.target.value))}
+                        className="ai-panel-input"
+                    />
+                    <span className="ai-panel-initial">（初期値: 0.05）/ 範囲: 0〜0.2</span>
+                </div>
             </div>
 
             <div className="ai-panel-actions">
@@ -85,11 +110,6 @@ const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
             </div>
         </div>
     );
-};
-
-const labelMap: Record<keyof AIWeights, string> = {
-    gender: 'ジェンダー倍率（男性）',
-    motivation_score: '志望動機スコア重み',
 };
 
 export default AIRecommendationPanel;

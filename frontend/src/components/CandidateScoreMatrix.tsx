@@ -84,6 +84,17 @@ const renderAIRecommendationChip = (percentile?: number) => {
 
 const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
+    const allStatuses = [
+        "アップロード",
+        "書類選考",
+        "面談・1次",
+        "面談・2次",
+        "最終面談",
+        "待遇検討",
+        "内定通知",
+        "内定受諾",
+        "内定辞退"
+    ];
     const [filters, setFilters] = useState({
         userId: '',
         userName: '',
@@ -100,15 +111,18 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const [aiWeights, setAiWeights] = useState<AIWeights>({
         gender: 1.2, // 男性補正（1.2倍）
         motivation_score: 1.0,
+        experience: 0.05,
     });
 
     const calculateAIScore = (candidate: Result, weights: AIWeights): number => {
         const motivation = Number(candidate.score_notes) || 0;
+        const experience = candidate.experience ?? 0; // 就業年数
+
         const weightedMotivation = motivation * weights.motivation_score;
-
         const genderMultiplier = candidate.gender === '男' ? weights.gender : 1.0;
+        const experienceMultiplier = 1 + (experience * (weights.experience ?? 0.05)); // 例：年数1年あたり+5%
 
-        return weightedMotivation * genderMultiplier;
+        return weightedMotivation * genderMultiplier * experienceMultiplier;
     };
 
     // --- 同スコア同順位のパーセンタイル（統計的パーセンタイル） ---
@@ -167,7 +181,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         const nameMatch = (r.user_name || '').toLowerCase().includes(userName.toLowerCase());
         const genderMatch = gender === '' || r.gender === gender;
         const statusMatch = status === '' || (r.status || '').includes(status);
-        const divisionMatch = division === '' || r.recommended_division.includes(division);
+        const divisionMatch = division === '' || (r.recommended_division || '').includes(division);
         const mustPassed = !mustCheckAllPassed || Object.values(r.must_check || {}).every(m => m.result === true);
 
         const p = r.ai_score_percentile ?? 0;
@@ -287,13 +301,33 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                 <input type="text" placeholder="候補者ID" value={filters.userId} onChange={(e) => setFilters({...filters, userId: e.target.value})} />
                 <input type="text" placeholder="名前" value={filters.userName} onChange={(e) => setFilters({...filters, userName: e.target.value})} />
                 <select value={filters.gender} onChange={(e) => setFilters({...filters, gender: e.target.value})}>
-                    <option value="">全て</option>
+                    <option value="">性別不問</option>
                     <option value="男">男性</option>
                     <option value="女">女性</option>
                     <option value="その他">その他</option>
                 </select>
-                <input type="text" placeholder="ステータス" value={filters.status} onChange={(e) => setFilters({...filters, status: e.target.value})} />
-                <input type="text" placeholder="推奨部門" value={filters.division} onChange={(e) => setFilters({...filters, division: e.target.value})} />
+                <select
+                    value={filters.status}
+                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                >
+                    <option value="">全ステータス</option>
+                    {allStatuses.map((status) => (
+                        <option key={status} value={status}>
+                            {status}
+                        </option>
+                    ))}
+                </select>
+                <select
+                    value={filters.division}
+                    onChange={(e) => setFilters({ ...filters, division: e.target.value })}
+                >
+                    <option value="">全部門</option>
+                    {allDivisions.map((division) => (
+                        <option key={division} value={division}>
+                            {division}
+                        </option>
+                    ))}
+                </select>
                 <input
                     type="number"
                     placeholder="AI推薦度(%)以上"
@@ -344,18 +378,18 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                             <th rowSpan={2}>候補者ID</th>
                             <th rowSpan={2}>名前</th>
                             <th rowSpan={2}>性別</th>
-                            <th rowSpan={2}>社会人歴</th> 
+                            <th rowSpan={2}>就業年数</th> 
                             <th rowSpan={2}>ステータス</th>
-                            <th rowSpan={2}>評価日</th>
                             <th rowSpan={2} onClick={() => setShowAIPanel(true)} style={{ cursor: 'pointer' }}>
-                                AI推薦度 ▼
+                                AI推薦度 🔽
                             </th>
                             <th rowSpan={2}>AI推薦スコア</th>
+                            <th rowSpan={2}>志望動機スコア</th> 
                             <th rowSpan={2}>推薦部門</th>
                             <th colSpan={allMustKeys.length}>必須</th>
                             <th colSpan={allDivisions.length}>部門スコア</th>
-                            <th rowSpan={2}>志望動機スコア</th> 
                             <th rowSpan={2}>志望動機・自己PRサマリ</th>
+                            <th rowSpan={2}>評価日</th>
                         </tr>
                         <tr>
                             {allMustKeys.map((k) => (
@@ -375,11 +409,11 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                 <td>{r.user_id}</td>
                                 <td>{r.user_name || '-'}</td>
                                 <td>{renderGenderChip(r.gender)}</td>
-                                <td>{typeof r.experience === 'number' ? `${r.experience.toFixed(1)} 年` : '-'}</td>
+                                <td>{typeof r.experience === 'number' ? `${r.experience.toFixed(1)} ` : '-'}</td>
                                 <td>{renderStatusChip(r.status)}</td>
-                                <td>{r.timestamp ? r.timestamp.slice(0, 19).replace('T', ' ') : '-'}</td>
                                 <td>{renderAIRecommendationChip(r.ai_score_percentile)}</td>
                                 <td>{r.ai_score?.toFixed(2) ?? '-'}</td>
+                                <td>{r.score_notes || '-'}</td>
                                 <td>{r.recommended_division}</td>
                                 {allMustKeys.map((k) => (
                                     <td
@@ -401,8 +435,8 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                         </td>
                                     );
                                 })}
-                                <td>{r.score_notes || '-'}</td>
                                 <td>{r.notes || '-'}</td>
+                                <td>{r.timestamp ? r.timestamp.slice(0, 19).replace('T', ' ') : '-'}</td>
                             </tr>
                         ))}
                     </tbody>
