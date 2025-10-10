@@ -19,7 +19,14 @@
     border-collapse: collapse;
 }
 
-.role-matrix-table th,
+.role-matrix-table th {
+    border: 1px solid #ddd;
+    padding: 8px;
+    vertical-align: middle; 
+    white-space: nowrap; 
+    height: 48px; 
+}
+
 .role-matrix-table td {
     border: 1px solid #ddd;
     padding: 8px;

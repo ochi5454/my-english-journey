@@ -1,18 +1,18 @@
 {
   "user123": {
-    "department": "Consultant",
+    "department": "人事",
     "role": "D+"
   },
   "user456": {
-    "department": "Engineer",
+    "department": "法務",
     "role": "SM"
   },
   "user789": {
-    "department": "Marketing",
+    "department": "経理",
     "role": "M"
   },
   "user666": {
-    "department": "HR",
+    "department": "ファシリティ",
     "role": "SC"
   }
 }
