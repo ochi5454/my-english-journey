@@ -2,7 +2,6 @@ import React from 'react';
 import './AIRecommendationPanel.css';
 
 export interface AIWeights {
-    gender: number;
     motivation_score: number;
     experience: number;
 }
@@ -15,7 +14,6 @@ interface AIRecommendationPanelProps {
 }
 
 const INITIAL_VALUES: AIWeights = {
-    gender: 1.2,
     motivation_score: 1.0,
     experience: 0.05,
 };
@@ -43,7 +41,7 @@ const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
 
             <p className="ai-panel-description">
                 <code>
-                    推薦スコア = （志望動機スコア × 重み） × ジェンダー倍率 ×（1 + 就業年数 × 重み）
+                    推薦スコア = （志望動機スコア × 重み） ×（1 + 就業年数 × 重み）
                 </code>
                 <br />
                 <small className="ai-panel-note">
@@ -54,20 +52,6 @@ const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
             </p>
 
             <div className="ai-panel-grid">
-                <div className="ai-panel-row">
-                    <label className="ai-panel-label">ジェンダー倍率（男性）</label>
-                    <input
-                        type="number"
-                        step="0.1"
-                        min={0.1}
-                        max={2}
-                        value={weights.gender}
-                        onChange={(e) => onChange('gender', parseFloat(e.target.value))}
-                        className="ai-panel-input"
-                    />
-                    <span className="ai-panel-initial">（初期値: 1.2）/ 範囲: 0.1〜2.0</span>
-                </div>
-
                 <div className="ai-panel-row">
                     <label className="ai-panel-label">志望動機重み</label>
                     <input

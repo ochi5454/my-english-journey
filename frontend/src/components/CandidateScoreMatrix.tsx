@@ -107,22 +107,19 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     });
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
     const [showAIPanel, setShowAIPanel] = useState(false);
-    // 重みの初期値：女性 → 1.0、男性 → 1.2（補正）
     const [aiWeights, setAiWeights] = useState<AIWeights>({
-        gender: 1.2, // 男性補正（1.2倍）
         motivation_score: 1.0,
         experience: 0.05,
     });
 
     const calculateAIScore = (candidate: Result, weights: AIWeights): number => {
         const motivation = Number(candidate.score_notes) || 0;
-        const experience = candidate.experience ?? 0; // 就業年数
+        const experience = candidate.experience ?? 0;
 
         const weightedMotivation = motivation * weights.motivation_score;
-        const genderMultiplier = candidate.gender === '男' ? weights.gender : 1.0;
-        const experienceMultiplier = 1 + (experience * (weights.experience ?? 0.05)); // 例：年数1年あたり+5%
+        const experienceMultiplier = 1 + (experience * (weights.experience ?? 0.05));
 
-        return weightedMotivation * genderMultiplier * experienceMultiplier;
+        return weightedMotivation * experienceMultiplier;
     };
 
     // --- 同スコア同順位のパーセンタイル（統計的パーセンタイル） ---
