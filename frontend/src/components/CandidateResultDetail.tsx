@@ -60,6 +60,10 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
     const [showInterviewPrepModal, setShowInterviewPrepModal] = useState(false);
     const [interviewPrepData, setInterviewPrepData] = useState<Record<string, any>>({});
     const [isPrepLoading, setIsPrepLoading] = useState(false);
+    const hasMustCheckFailure = (): boolean => {
+        const mustCheck = localResult.must_check || {};
+        return Object.values(mustCheck).some((item: any) => item.result === false);
+    };
     
     useEffect(() => {
         setLocalResult(result);
@@ -352,7 +356,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 ))}
                 </ul>
 
-                <h4>スコア評価:</h4>
+                <h4>部門別スコア評価:</h4>
                     {localResult.scores?.map((s: any) => {
                         if (!Array.isArray(s.score_history)) return (
                             <div key={s.division} className="result-d-score-item">
@@ -426,9 +430,10 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 </div>
 
                 <select
-                value={chatStage}
-                onChange={(e) => setChatStage(e.target.value)}
-                className="result-d-chat-stage-selector"
+                    value={chatStage}
+                    onChange={(e) => setChatStage(e.target.value)}
+                    className="result-d-chat-stage-selector"
+                    disabled={hasMustCheckFailure()}
                 >
                 {reviewStages
                     .filter(stage => stage !== 'アップロード')
@@ -440,13 +445,22 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 </select>
 
                 <textarea
-                className="result-d-chat-input"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="質問・修正依頼を入力..."
+                    className="result-d-chat-input"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder={
+                        hasMustCheckFailure()
+                            ? '⚠️ マスト要件未達のため、アップロード時のAI部門別スコアが存在しません'
+                            : '質問・修正依頼を入力...'
+                    }
+                    disabled={hasMustCheckFailure()}
                 />
-                <button onClick={handleSend} disabled={isSending} className="result-d-submit">
-                {isSending ? '送信中...' : '送信'}
+                <button 
+                    onClick={handleSend} 
+                    disabled={isSending || hasMustCheckFailure()} 
+                    className="result-d-submit"
+                >
+                    {isSending ? '送信中...' : '送信'}
                 </button>
             </div>
             </div>
