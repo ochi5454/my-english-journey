@@ -430,10 +430,12 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 onChange={(e) => setChatStage(e.target.value)}
                 className="result-d-chat-stage-selector"
                 >
-                {reviewStages.map((stage) => (
-                    <option key={stage} value={stage}>
-                    {stage}
-                    </option>
+                {reviewStages
+                    .filter(stage => stage !== 'アップロード')
+                    .map(stage => (
+                        <option key={stage} value={stage}>
+                        {stage}
+                        </option>
                 ))}
                 </select>
 
