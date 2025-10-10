@@ -163,8 +163,7 @@ def check_must_requirements_llm(content: str) -> dict:
 回答形式:
 JSON形式で次のように返してください：
 {{
-  "大卒": {{"result": true, "reason": "東京大学卒業と明記されているため"}},
-  "3年以上の職務経験": {{"result": true, "reason": "合計6年の職歴が記載されているため"}},
+  "大卒以上": {{"result": true, "reason": "東京大学卒業と明記されているため"}},
   ...
 }}
 """

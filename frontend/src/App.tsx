@@ -20,7 +20,12 @@ const App: React.FC = () => {
       <div className="app">
         <nav className="navbar">
           <div className="navbar-left">
-            <div className="nav-brand"><h1>RAG Test</h1></div>
+            <div className="nav-brand">
+              <h1 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                RAG Test
+                <span className="badge">本社ver</span>
+              </h1>
+            </div>
           </div>
 
           <div className="navbar-center">

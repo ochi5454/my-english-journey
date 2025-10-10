@@ -91,7 +91,8 @@ def extract_name_from_table(text: str) -> Optional[str]:
 # ============================================
 
 def extract_gender_from_text(text: str) -> str:
-    match = re.search(r"性別[ \t\u3000]*([男女]性?)", text)
+    # コロンまたは空白で区切られているパターンに対応
+    match = re.search(r"性別[\s\u3000:：]*([男女][性]?)", text)
     if match:
         value = match.group(1)
         if "男" in value:

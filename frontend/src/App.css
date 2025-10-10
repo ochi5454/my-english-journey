@@ -37,6 +37,18 @@
   justify-content: flex-end;
 }
 
+.badge {
+  background-color: #ff6666;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-right: 10px;
+  align-self: center;
+  white-space: nowrap;
+}
+
 .nav-brand h1 {
   margin: 0;
   font-size: 1.5rem;

@@ -298,7 +298,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                 <input type="text" placeholder="候補者ID" value={filters.userId} onChange={(e) => setFilters({...filters, userId: e.target.value})} />
                 <input type="text" placeholder="名前" value={filters.userName} onChange={(e) => setFilters({...filters, userName: e.target.value})} />
                 <select value={filters.gender} onChange={(e) => setFilters({...filters, gender: e.target.value})}>
-                    <option value="">性別不問</option>
+                    <option value="">性別</option>
                     <option value="男">男性</option>
                     <option value="女">女性</option>
                     <option value="その他">その他</option>
@@ -307,7 +307,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                     value={filters.status}
                     onChange={(e) => setFilters({ ...filters, status: e.target.value })}
                 >
-                    <option value="">全ステータス</option>
+                    <option value="">ステータス</option>
                     {allStatuses.map((status) => (
                         <option key={status} value={status}>
                             {status}
@@ -318,7 +318,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                     value={filters.division}
                     onChange={(e) => setFilters({ ...filters, division: e.target.value })}
                 >
-                    <option value="">全部門</option>
+                    <option value="">部門</option>
                     {allDivisions.map((division) => (
                         <option key={division} value={division}>
                             {division}
