@@ -264,6 +264,11 @@ async def get_result_by_candidate_id(candidate_id: str):
 
         result_data = {
             "user_id": candidate_id,
+            "user_name": c.name,
+            "gender": c.gender,
+            "status": latest_status.stage if latest_status else None,
+            "notes": c.notes,
+            "score_notes": c.score_notes,
             "recommended_division": c.recommended_div,
             "uploader_id": c.uploader_id,
             "timestamp": latest_reviewed_at.isoformat() if latest_reviewed_at else None,  # ← ここを修正

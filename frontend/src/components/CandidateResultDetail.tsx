@@ -260,12 +260,8 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 };
 
                 // 🔧 各ステップに対応する reviewer / date 情報をここで取得
-                const reviewDateKey = step === "書類選考・1次"
-                    ? "timestamp"
-                    : `chat_review_${step}_at`;
-                const reviewerKey = step === "書類選考・1次"
-                    ? "uploader_id"
-                    : `chat_reviewer_${step}`;
+                const reviewerKey = `chat_reviewer_${step}`;
+                const reviewDateKey = `chat_review_${step}_at`;
                 const reviewDate = localResult[reviewDateKey];
                 const reviewer = localResult[reviewerKey];
 

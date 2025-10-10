@@ -226,11 +226,36 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         }
     };
 
-    const handleResultUpdate = (updated: Result) => {
-        setResults((prev) =>
-            prev.map((r) => r.user_id === updated.user_id ? updated : r)
-        );
-        setSelectedResult(updated);
+    const handleResultUpdate = async (updated: Result) => {
+        try {
+            // 1. 最新の候補者データを取得
+            const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/${updated.user_id}`, {
+            cache: 'no-store',
+            });
+            const latest = await res.json();
+
+            // 2. AIスコアの再計算
+            const latestWithScore = {
+            ...latest,
+            ai_score: calculateAIScore(latest, aiWeights),
+            };
+
+            // 3. percentile 再計算のために全体を更新
+            const updatedList = results.map((r) =>
+            r.user_id === latest.user_id ? latestWithScore : r
+            );
+            const withPercentiles = calculateTruePercentiles(updatedList);
+
+            // 4. state に反映
+            setResults(withPercentiles);
+
+            // 詳細ビュー（Detail側）にも反映
+            const refreshed = withPercentiles.find(r => r.user_id === latest.user_id) || latestWithScore;
+            setSelectedResult(refreshed);
+
+        } catch (e) {
+            console.error("更新後データ取得エラー:", e);
+        }
     };
 
     return (
