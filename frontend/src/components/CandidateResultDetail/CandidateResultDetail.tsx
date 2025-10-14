@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './CandidateResultDetail.css';
-import InterviewSetupSlidePanel from '../InterviewSetupSlidePanel.tsx';
+import InterviewSetupSlidePanel from '../InterviewSetupSlidePanel/InterviewSetupSlidePanel.tsx';
 import InterviewCheckSheetSlidePanel from '../InterviewCheckSheetSlidePanel/InterviewCheckSheetSlidePanel.tsx';
 import appConfig from '../../config.ts';
 import HrDecisionEditor from './HrDecisionEditor';

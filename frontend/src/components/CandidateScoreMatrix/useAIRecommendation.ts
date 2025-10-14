@@ -1,5 +1,5 @@
 import type { Result } from './types';
-import type { AIWeights } from '../AIRecommendationPanel';
+import type { AIWeights } from '../AIRecommendationPanel/AIRecommendationPanel';
 
 export const calculateAIScore = (candidate: Result, weights: AIWeights): number => {
     const motivation = Number(candidate.score_notes) || 0;

@@ -1,6 +1,6 @@
 import React from "react";
-import { formatDate } from "./format";
-import { statusSteps, reviewStages } from "./candidateStatus";
+import { formatDate } from "../Utils/format";
+import { statusSteps, reviewStages } from "../Utils/candidateStatus";
 
 interface Props {
     localResult: any;

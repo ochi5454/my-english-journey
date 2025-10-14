@@ -1,5 +1,5 @@
 import React from "react";
-import { reviewStages } from "./candidateStatus";
+import { reviewStages } from "../Utils/candidateStatus";
 
 type ChatMessage = {
     role: "user" | "assistant";

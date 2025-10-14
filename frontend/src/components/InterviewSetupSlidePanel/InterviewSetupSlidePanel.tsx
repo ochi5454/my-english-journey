@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './InterviewSetupSlidePanel.css';
-import appConfig from '../config.ts';
+import appConfig from '../../config.ts';
 
 interface Interviewer {
   name: string;

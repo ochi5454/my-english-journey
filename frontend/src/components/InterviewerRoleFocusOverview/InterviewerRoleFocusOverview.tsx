@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './InterviewerRoleFocusOverview.css';
 import axios from 'axios';
-import appConfig from '../config.ts';
+import appConfig from '../../config.ts';
 
 // ======================== 型定義 ========================
 type FocusTag = {

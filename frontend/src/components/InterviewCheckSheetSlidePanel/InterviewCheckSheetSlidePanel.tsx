@@ -3,7 +3,7 @@ import './InterviewCheckSheetSlidePanel.css';
 import { RatingBar } from './RatingBar.tsx';
 import { RubricHint } from './RubricHint.tsx';
 import Accordion from './Accordion.tsx';
-import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "../InterviewCheckSheet.ts";
+import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "../Utils/InterviewCheckSheet.ts";
 import appConfig from '../../config.ts';
 
 type FocusTag = {

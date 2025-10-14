@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import './CandidateScoreMatrix.css';
 import CandidateResultDetail from './bk1014_CandidateResultDetail.tsx';
-import type { AIWeights } from './AIRecommendationPanel.tsx';
-import AIRecommendationPanel from './AIRecommendationPanel.tsx';
+import type { AIWeights } from './AIRecommendationPanel/AIRecommendationPanel.tsx';
+import AIRecommendationPanel from './AIRecommendationPanel/AIRecommendationPanel.tsx';
 import appConfig from '../config.ts';
 
 interface Props {

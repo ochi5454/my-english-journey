@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './InterviewerDetail.css';
-import appConfig from '../config.ts';
+import appConfig from '../../config.ts';
 
 type Row = {
     interviewer_id: string;

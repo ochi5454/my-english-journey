@@ -1,5 +1,5 @@
 import React from "react";
-import { formatDate } from "./format";
+import { formatDate } from "../Utils/format";
 
 interface Props {
     localResult: any;

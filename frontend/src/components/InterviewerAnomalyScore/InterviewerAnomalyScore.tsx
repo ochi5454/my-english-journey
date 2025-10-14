@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import './InterviewerAnomalyScore.css';
 import axios from "axios";
-import type { ConfigResponse } from "./InterviewCheckSheet.ts";
-import appConfig from '../config.ts';
+import type { ConfigResponse } from "../Utils/InterviewCheckSheet.ts";
+import appConfig from '../../config.ts';
 
 type Props = {
   candidateId: string;

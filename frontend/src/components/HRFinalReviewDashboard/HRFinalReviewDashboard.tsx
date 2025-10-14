@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import './HRFinalReview.css';
-import appConfig from '../config.ts';
+import './HRFinalReviewDashboard.css';
+import appConfig from '../../config.ts';
 
 interface Score {
     division: string;

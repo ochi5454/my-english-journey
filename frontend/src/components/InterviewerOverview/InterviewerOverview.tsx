@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './InterviewerOverview.css';
-import InterviewerDetail from './InterviewerDetail.tsx';
-import InterviewerAnomalyScore from './InterviewerAnomalyScore.tsx';
-import InterviewerRoleFocusOverview from './InterviewerRoleFocusOverview.tsx';
-import appConfig from '../config.ts';
+import InterviewerDetail from '../InterviewerDetail/InterviewerDetail.tsx';
+import InterviewerAnomalyScore from '../InterviewerAnomalyScore/InterviewerAnomalyScore.tsx';
+import InterviewerRoleFocusOverview from '../InterviewerRoleFocusOverview/InterviewerRoleFocusOverview.tsx';
+import appConfig from '../../config.ts';
 
 // ======================== 型定義 ========================
 type Row = {
