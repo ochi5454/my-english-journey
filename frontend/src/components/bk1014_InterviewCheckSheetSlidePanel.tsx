@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './InterviewCheckSheetSlidePanel.css';
-import { RatingBar } from './RatingBar.tsx';
-import { RubricHint } from './RubricHint.tsx';
-import Accordion from './Accordion.tsx';
-import type { ConfigResponse } from "../Utils/InterviewCheckSheet.ts";
-import { fetchConfig, defaultQual, defaultQuant } from './interviewCheckSheetUtils';
-import { TagSelector } from './TagSelector';
-import { useAiReview } from './useAiReview';
+import { RatingBar } from './InterviewCheckSheetSlidePanel/RatingBar.tsx';
+import { RubricHint } from './InterviewCheckSheetSlidePanel/RubricHint.tsx';
+import Accordion from './InterviewCheckSheetSlidePanel/Accordion.tsx';
+import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "./Utils/InterviewCheckSheet.ts";
+import appConfig from '../config.ts';
+
+type FocusTag = {
+    id: string;
+    label: string;
+};
 
 export interface PrepItem {
     question_id: string;
@@ -46,6 +49,28 @@ export interface Props {
     onAiReviewed?: (updatedResult: any) => void;
 }
 
+const fetchConfig = async (interviewerId: string): Promise<ConfigResponse> => {
+    const res = await fetch(`${appConfig.API_BASE_URL}/checksheet/config`, {
+        headers: {
+        'x-user-id': interviewerId
+        }
+    });
+    if (!res.ok) throw new Error('設定の取得に失敗しました');
+    return res.json();
+};
+
+const defaultQual = (items: QualitativeItem[]): Record<string, string> =>
+    items.reduce((acc: Record<string, string>, item: QualitativeItem) => {
+        acc[item.key] = '';
+        return acc;
+    }, {});
+
+const defaultQuant = (items: QuantitativeItem[]): Record<string, QuantitativeRow> =>
+    items.reduce((acc: Record<string, QuantitativeRow>, item: QuantitativeItem) => {
+        acc[item.key] = { level: 0, comment: '' };
+        return acc;
+    }, {});
+
 const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
     interviewerId,
     candidateId,
@@ -59,16 +84,19 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
     const [prepItems, setPrepItems] = useState<PrepItem[]>([]);
     const [newQuestion, setNewQuestion] = useState('');
     const [reviewedResume, setReviewedResume] = useState(false);
+    const [isReviewing, setIsReviewing] = useState(false);
     const [qualitative, setQualitative] = useState<Record<string, string>>({});
     const [quantitative, setQuantitative] = useState<Record<string, QuantitativeRow>>({});
     const [config, setConfig] = useState<ConfigResponse | null>(null);
     const [newQuestionTags, setNewQuestionTags] = useState<string[]>([]);
     const [editTagIndex, setEditTagIndex] = useState<number | null>(null);
-    const { isReviewing, aiScoreReviewed, handleAiReview } = useAiReview(onAiReviewed);
+    const [aiScoreReviewed, setAiScoreReviewed] = useState<boolean>(false);
+
 
     const applyToState = useCallback((src: any = {}, cfg: ConfigResponse) => {
         setPrepItems(src.prepItems || []);
         setReviewedResume(!!src.reviewedResume);
+        setAiScoreReviewed(!!src.ai_score_reviewed);
 
         const normalizedPrepItems = (src.prepItems || []).map((item: any) => {
             const tags = (item.tags || []).map((t: any) => typeof t === 'string' ? t : t.id);
@@ -135,6 +163,58 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
         onClose();
     };
 
+    const handleAiReview = async () => {
+        try {
+        setIsReviewing(true);
+        await fetch(`${appConfig.API_BASE_URL}/checksheet`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                interviewer_id: interviewerId,
+                candidate_id: candidateId,
+                stage,
+                prepItems,
+                reviewedResume,
+                qualitative,
+                quantitative,
+                hiringDecision: qualitative.hiringDecision,
+                recommendedDivision: qualitative.recommendedDivision,
+                recommendedTitle: qualitative.recommendedTitle,
+            }),
+        });
+
+        const res = await fetch(`${appConfig.API_BASE_URL}/interview/ai-score`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                interviewer_id: interviewerId, 
+                candidate_id: candidateId, 
+                stage, 
+                prepItems, 
+                reviewedResume, 
+                qualitative, 
+                quantitative,
+                hiringDecision: qualitative.hiringDecision,
+                recommendedDivision: qualitative.recommendedDivision,
+                recommendedTitle: qualitative.recommendedTitle,
+            }),
+        });
+
+        if (!res.ok) throw new Error('再スコアに失敗しました');
+        const updated = await res.json();
+
+        setAiScoreReviewed(true);
+        onAiReviewed?.(updated);
+        alert('AIが面談内容を元に再スコアしました');
+        onClose();
+        } catch (e: unknown) {
+        const err = e as Error;
+        alert(err.message || '再スコア中にエラーが発生しました');
+        } finally {
+        setIsReviewing(false);
+        }
+    };
+
     const autoResize = (el: HTMLTextAreaElement) => {
         el.style.height = 'auto';
         el.style.height = `${el.scrollHeight}px`;
@@ -142,35 +222,37 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
 
     if (!config) return null;
 
+    const TagSelector = ({
+    allTags,
+    selectedTags,
+    onToggleTag
+    }: {
+    allTags: FocusTag[];
+    selectedTags: string[];
+    onToggleTag: (id: string) => void;
+    }) => {
+    return (
+        <div className="resume-tag-list">
+        {allTags.map(tag => (
+            <div
+            key={tag.id}
+            className={`resume-tag ${selectedTags.includes(tag.id) ? 'selected' : ''}`}
+            onClick={() => onToggleTag(tag.id)}
+            >
+            {tag.label}
+            </div>
+        ))}
+        </div>
+    );
+    };
+
     return (
         <div className={`slide-panel ${isOpen ? 'open' : ''}`}>
         <div className="slide-panel-header">
             <h3>{stage} の面談シート: {candidateId}</h3>
             <div className="resume-modal-actions">
             <button onClick={handleSubmit} disabled={isReviewing}>保存</button>
-            <button
-                className="resume-ai-rescore"
-                onClick={() =>
-                    handleAiReview(
-                    {
-                        interviewer_id: interviewerId,
-                        candidate_id: candidateId,
-                        stage,
-                        prepItems,
-                        reviewedResume,
-                        qualitative,
-                        quantitative,
-                        hiringDecision: qualitative.hiringDecision,
-                        recommendedDivision: qualitative.recommendedDivision,
-                        recommendedTitle: qualitative.recommendedTitle,
-                    },
-                    onClose
-                    )
-                }
-                disabled={isReviewing || aiScoreReviewed}
-            >
-                {isReviewing ? '再スコア中…' : 'AIスコア精査'}
-            </button>
+            <button className="resume-ai-rescore" onClick={handleAiReview}  disabled={isReviewing || aiScoreReviewed}>{isReviewing ? '再スコア中…' : 'AIスコア精査'}</button>
             <button className="slide-close" onClick={onClose}>✖</button>
             </div>
         </div>
