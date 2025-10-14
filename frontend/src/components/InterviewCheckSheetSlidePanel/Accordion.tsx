@@ -1,5 +1,5 @@
 import React,{useState} from 'react';
-import './CommonAccordion.css';
+import './Accordion.css';
 
 export default function Accordion({
     title, defaultOpen=true, children, span='full', className=''

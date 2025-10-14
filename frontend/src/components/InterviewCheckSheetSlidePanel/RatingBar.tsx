@@ -1,4 +1,4 @@
-import './CommonRatingBar.css';
+import './RatingBar.css';
 export type RatingVariant = 'single' | 'fill-left';
 export type RatingItem<T extends string | number> = {
     value: T;

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './InterviewCheckSheetSlidePanel.css';
-import { RatingBar } from './CommonRatingBar.tsx';
-import { RubricHint } from './CommonRubricHint.tsx';
-import Accordion from './CommonAccordion.tsx';
-import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "./InterviewCheckSheet.ts";
-import appConfig from '../config.ts';
+import { RatingBar } from './RatingBar.tsx';
+import { RubricHint } from './RubricHint.tsx';
+import Accordion from './Accordion.tsx';
+import type { ConfigResponse, QualitativeItem, QuantitativeItem } from "../InterviewCheckSheet.ts";
+import appConfig from '../../config.ts';
 
 type FocusTag = {
     id: string;

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import './CommonRubricHint.css';
+import './RubricHint.css';
 
 export const RubricHint: React.FC<{ title: string; bullets: string[] }> = ({ title, bullets }) => {
     const [open, setOpen] = useState(false);

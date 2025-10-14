@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './CandidateResultDetail.css';
 import InterviewSetupSlidePanel from './InterviewSetupSlidePanel.tsx';
-import InterviewCheckSheetSlidePanel from './InterviewCheckSheetSlidePanel.tsx';
+import InterviewCheckSheetSlidePanel from './InterviewCheckSheetSlidePanel/InterviewCheckSheetSlidePanel.tsx';
 import appConfig from '../config.ts';
 
 const formatDate = (isoStr: string): string => {

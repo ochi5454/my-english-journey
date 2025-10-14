@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import '../CandidateScoreMatrix.css';
+import './CandidateScoreMatrix.css';
 import CandidateMatrixFilters from './CandidateMatrixFilters';
 import CandidateMatrixTable from './CandidateMatrixTable';
 import CandidateResultDetail from '../CandidateResultDetail/CandidateResultDetail';
