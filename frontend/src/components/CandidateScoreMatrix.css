@@ -270,3 +270,30 @@
     background-color: #d4edda;
     color: #155724;
 }
+
+/* 横並び一括ボタン */
+.bulk-actions-inline {
+    display: flex;
+    gap: 6px;
+    margin-left: 16px;
+}
+
+.matrix-action-btn.subtle {
+    border: 1px solid #ddd;
+    background-color: #fafafa;
+    color: #333;
+    font-size: 0.85rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.matrix-action-btn.subtle:hover:not(:disabled) {
+    background-color: #f0f0f0;
+    border-color: #ccc;
+}
+
+.matrix-action-btn.subtle:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

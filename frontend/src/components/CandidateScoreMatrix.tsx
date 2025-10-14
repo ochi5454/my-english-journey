@@ -126,6 +126,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         motivation_score: 1.0,
         experience: 0.05,
     });
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     const calculateAIScore = (candidate: Result, weights: AIWeights): number => {
         const motivation = Number(candidate.score_notes) || 0;
@@ -393,6 +394,92 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                     <span className="ai-chip ai-high" onClick={() => handleAIScoreFilter('high')}>高 {aiScoreCounts.high} 件</span>
                     <span className="ai-chip ai-mid" onClick={() => handleAIScoreFilter('mid')}>中 {aiScoreCounts.mid} 件</span>
                     <span className="ai-chip ai-low" onClick={() => handleAIScoreFilter('low')}>低 {aiScoreCounts.low} 件</span>
+
+                {/* ✅ 一括ボタンを右端に横並び配置 */}
+                <div className="bulk-actions-inline">
+                    <button
+                        className="matrix-action-btn subtle negative"
+                        disabled={selectedIds.size === 0}
+                        onClick={async () => {
+                        if (!window.confirm(`${selectedIds.size}名を不採用にしますか？`)) return;
+                        try {
+                            for (const id of selectedIds) {
+                            const candidate = results.find(r => r.user_id === id);
+                            await fetch(`${appConfig.API_BASE_URL}/hr-review`, {
+                                method: 'POST',
+                                headers: {
+                                'Content-Type': 'application/json',
+                                'x-user-id': interviewerId,
+                                },
+                                body: JSON.stringify({
+                                candidate_id: id,
+                                review: {
+                                    decision: 'hire_ng',
+                                    division: candidate?.hr_division || '',
+                                    title: candidate?.hr_title || '',
+                                    annual_income: candidate?.hr_income || 0,
+                                },
+                                }),
+                            });
+                            }
+                            alert('不採用処理が完了しました。');
+                            setResults(prev =>
+                            prev.map(r =>
+                                selectedIds.has(r.user_id)
+                                ? { ...r, hr_decision: 'hire_ng' }
+                                : r
+                            )
+                            );
+                            setSelectedIds(new Set());
+                        } catch (err) {
+                            console.error('不採用一括処理エラー:', err);
+                            alert('一部または全件でエラーが発生しました。');
+                        }
+                        }}
+                    >
+                        一括不採用
+                    </button>
+
+                    <button
+                        className="matrix-action-btn subtle primary"
+                        disabled={selectedIds.size === 0}
+                        onClick={async () => {
+                        if (!window.confirm(`${selectedIds.size}名のステータスを1段階進めますか？`)) return;
+                        try {
+                            const res = await fetch(`${appConfig.API_BASE_URL}/hr/candidates/advance-status`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-user-id': interviewerId,
+                            },
+                            body: JSON.stringify({
+                                user_ids: Array.from(selectedIds),
+                                advanced_by: interviewerId,
+                            }),
+                            });
+
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.detail || '更新エラー');
+
+                            alert(`${data.count} 名のステータスを更新しました。`);
+
+                            setResults(prev =>
+                            prev.map(r => {
+                                const updated = data.updated.find((u: any) => u.user_id === r.user_id);
+                                if (updated) return { ...r, status: updated.new_stage };
+                                return r;
+                            })
+                            );
+                            setSelectedIds(new Set());
+                        } catch (err) {
+                            console.error('一括ステータス進行エラー:', err);
+                            alert('一部または全件でステータス更新に失敗しました。');
+                        }
+                        }}
+                    >
+                        一括ステータス前進
+                    </button>
+                    </div>
                 </div>
             </div>
 
@@ -400,6 +487,19 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                 <table className="resume-matrix-table">
                     <thead>
                         <tr>
+                            <th rowSpan={2}>
+                                <input
+                                    type="checkbox"
+                                    checked={filteredResults.length > 0 && filteredResults.every(r => selectedIds.has(r.user_id))}
+                                    onChange={(e) => {
+                                    if (e.target.checked) {
+                                        setSelectedIds(new Set(filteredResults.map(r => r.user_id)));
+                                    } else {
+                                        setSelectedIds(new Set());
+                                    }
+                                    }}
+                                />
+                            </th>
                             <th rowSpan={2}>候補者ID</th>
                             <th rowSpan={2}>名前</th>
                             <th rowSpan={2}>性別</th>
@@ -432,6 +532,20 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                 key={idx}
                                 onClick={() => handleRowClick(r.user_id)}
                             >
+                                <td onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds.has(r.user_id)}
+                                        onChange={(e) => {
+                                        setSelectedIds(prev => {
+                                            const newSet = new Set(prev);
+                                            if (e.target.checked) newSet.add(r.user_id);
+                                            else newSet.delete(r.user_id);
+                                            return newSet;
+                                        });
+                                        }}
+                                    />
+                                </td>
                                 <td>{r.user_id}</td>
                                 <td>{r.user_name || '-'}</td>
                                 <td>{renderGenderChip(r.gender)}</td>
