@@ -1,0 +1,33 @@
+export interface Score {
+    division: string;
+    score: number;
+    reason: string;
+}
+
+export interface MustCheckItem {
+    result: boolean;
+    reason: string;
+}
+
+export interface Result {
+    user_id: string;
+    user_name?: string;
+    gender?: string;
+    status?: string;
+    notes?: string;
+    score_notes?: string;
+    experience?: number;
+    timestamp: string;
+    uploader_id?: string;
+    updated_at?: string;
+    updated_by?: string;
+    recommended_division: string;
+    hr_decision?: string;
+    hr_division: string;
+    hr_title: string;
+    hr_income: number;
+    must_check: Record<string, MustCheckItem>;
+    scores: Score[];
+    ai_score?: number;
+    ai_score_percentile?: number;
+}

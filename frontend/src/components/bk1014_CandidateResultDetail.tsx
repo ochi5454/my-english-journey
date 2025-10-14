@@ -48,7 +48,7 @@ interface Props {
     interviewerId: string; 
 }
 
-const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId }) => {
+const bk1014_CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId }) => {
     const [chatInput, setChatInput] = useState('');
     const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
     const [localResult, setLocalResult] = useState<any>(result);
@@ -700,4 +700,4 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
     );
 };
 
-export default CandidateResultDetail;
+export default bk1014_CandidateResultDetail;

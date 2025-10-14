@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import './ResumeScoring.css';
-import CandidateScoreMatrix from './CandidateScoreMatrix.tsx';
+import CandidateScoreMatrix from './CandidateScoreMatrix/CandidateScoreMatrix.tsx';
 import HRFinalReview from './HRFinalReview.tsx';
 import appConfig from '../config.ts';
 
