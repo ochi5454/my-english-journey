@@ -6,10 +6,10 @@ from typing import Optional
 # ============================================
 
 class HRReview(BaseModel):
-    decision: Optional[str]
-    division: Optional[str]
-    title: Optional[str]
-    annual_income: Optional[int]
+    decision: Optional[str] = None
+    division: Optional[str] = None
+    title: Optional[str] = None
+    annual_income: Optional[int] = None
 
 class HRReviewUpdate(BaseModel):
     candidate_id: str

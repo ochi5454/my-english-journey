@@ -64,6 +64,8 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         const mustCheck = localResult.must_check || {};
         return Object.values(mustCheck).some((item: any) => item.result === false);
     };
+    const [hrDecisionDraft, setHrDecisionDraft] = useState(localResult.hr_decision || '');
+    const [isEditingHrDecision, setIsEditingHrDecision] = useState(false);
     
     useEffect(() => {
         setLocalResult(result);
@@ -93,6 +95,60 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         `【${s.division}】現在スコア: ${s.score}点, 理由: ${s.reason}`
         ).join('\n');
         return `${scoreLines}\n【ユーザーコメント】: ${comment}`;
+    };
+
+    const handleSaveHrDecision = async () => {
+        try {
+            const res = await fetch(`${appConfig.API_BASE_URL}/hr-review`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-user-id': interviewerId,  // 認証や更新者記録用
+            },
+            body: JSON.stringify({
+                candidate_id: localResult.user_id,
+                review: {
+                    decision: hrDecisionDraft,
+                    division: localResult.hr_division,
+                    title: localResult.hr_title,
+                    annual_income: localResult.hr_income,
+                }
+            }),
+            });
+
+            if (!res.ok) throw new Error('保存に失敗しました');
+
+            // 保存後にローカルstateに反映
+            setLocalResult((prev: any) => ({
+                ...prev,
+                hr_decision: hrDecisionDraft,
+                hr_division: localResult.hr_division,
+                hr_title: localResult.hr_title,
+                hr_income: localResult.hr_income,
+                hr_review: {
+                    ...(prev.hr_review || {}),
+                    decision: hrDecisionDraft,
+                    division: localResult.hr_division,
+                    title: localResult.hr_title,
+                    annual_income: localResult.hr_income,
+                    updated_by: interviewerId,
+                    updated_at: new Date().toISOString(),
+                },
+            }));
+
+            onResultUpdate?.({
+                ...(localResult || {}),
+                hr_decision: hrDecisionDraft,
+                hr_division: localResult.hr_division,
+                hr_title: localResult.hr_title,
+                hr_income: localResult.hr_income,
+            });
+
+            alert('HR決定を保存しました');
+        } catch (err) {
+            console.error(err);
+            alert('保存エラーが発生しました');
+        }
     };
 
     const handleSend = async () => {
@@ -220,128 +276,180 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         <div className="result-d-modal">
 
             <div className="result-d-fixed-header">
-            <div className="result-d-header-info-inline">
-                <div className="icon">
-                    👤 <span className="label">候補者:</span> {localResult.user_id}
-                </div>
-                <div className="icon">
-                    📌 <span className="label">推奨部門:</span> {localResult.recommended_division}
-                </div>
-            </div>
-                <button onClick={onClose} className="result-d-close-button-absolute">✖ 閉じる</button>
-            <div className="result-d-header">
-            </div>
-
-            <div className="result-d-status-header">
-            <h3>選考ステータス</h3>
-            <div className="status-bar-horizontal-with-info">
-            {statusSteps.map((step, idx) => {
-                const isActive = localResult.status === step;
-                // 完全にステップ完了している状態（＝緑にしたい条件）
-                const isStepDone = (
-                    (step === 'アップロード' && !!localResult.timestamp) ||
-                    (step === '書類選考' && !!localResult.updated_at) || 
-                    (reviewStages.includes(step) && !!localResult[`chat_review_${step}_at`]) ||
-                    (step === '待遇検討' && !!localResult.hr_review?.updated_at)
-                );
-                // 日程調整だけ済んでいる状態, 最終面談まで完了し待遇検討待ちの状態（＝青にしたい条件）
-                const isScheduled = 
-                    (interviewStages.includes(step) && 
-                    isInterviewScheduled(step) &&
-                    !localResult[`chat_review_${step}_at`]) ||
-
-                    (step === '待遇検討' &&
-                        !!localResult.chat_review_最終面談_at &&
-                        !localResult.hr_review?.updated_at);
-
-                const handleClick = () => {
-                    if (interviewStages.includes(step)) {
-                        openInterviewFlow(step);
-                    } else if (step === "待遇検討" && !!localResult.chat_review_最終面談_at) {
-                        // HRダッシュボードに遷移（候補者IDをクエリで渡す）
-                        window.open(`/hr-final-review?filter=${localResult.user_id}`, '_blank');
-                    }
-                };
-
-                // 🔧 各ステップに対応する reviewer / date 情報をここで取得
-                const reviewerKey = `chat_reviewer_${step}`;
-                const reviewDateKey = `chat_review_${step}_at`;
-                const reviewDate = localResult[reviewDateKey];
-                const reviewer = localResult[reviewerKey];
-
-                return (
-                    <div key={idx} className="status-step-container">
-                        <div
-                            className={`status-step-horizontal 
-                                ${isActive ? 'active' : ''} 
-                                ${isStepDone ? 'status-done' : ''} 
-                                ${isScheduled ? 'interview-scheduled' : ''}`}
-                            onClick={handleClick}
-                            style={{ position: 'relative' }}
-                        >
-                            {step}
-
-                        {/* ✅ 面談日程が設定されていれば常に表示 */}
-                        {interviewStages.includes(step) && isInterviewScheduled(step) && (
-                        <button
-                        className="interview-prep-check-button"
-                        title="面談シート"
-                            onClick={(e) => {
-                            e.stopPropagation();
-                            const stage = step;
-                            setInterviewStage(stage);
-
-                            // 1) 先に開く＆スピナーON（まず描画を優先）
-                            setShowInterviewPrepModal(true);
-                            setIsPrepLoading(true);
-
-                            // 2) 取得は親だけが行う（子の自動フェッチはさせない）
-                            //    ペイントを先に発生させるために次フレームで実行
-                            setTimeout(() => {
-                                refreshChecksheet(stage)
-                                .catch(err => console.warn('checksheet fetch error', err))
-                                .finally(() => setIsPrepLoading(false));
-                            }, 0);
-                            }}
-                        >
-                        ✅
-                        </button>
-                        )}
-
+                <div className="result-d-header-row">
+                    <div className="result-d-header-info-inline">
+                        <div className="icon">
+                            👤 <span className="label">候補者:</span> {localResult.user_id}
+                        </div>
+                        <div className="icon">
+                            📌 <span className="label">推奨部門:</span> {localResult.recommended_division}
                         </div>
 
-                        {/* 🧩 レビュー情報がなくても空白ボックスで整列 */}
-                        <div className="status-extra-info-item-inline">
-                            {reviewStages.includes(step) && (
-                                <>
-                                    <div className="line">
-                                        <span className="label">🗓️</span>
-                                        <span className="value">{reviewDate ? formatDate(reviewDate) : '-'}</span>
-                                    </div>
-                                    <div className="line">
-                                        <span className="label">🧑</span>
-                                        <span className="value">{reviewer || '-'}</span>
-                                    </div>
-                                </>
-                            )}
-                            {step === "待遇検討" && localResult.hr_review && (
-                            <>
-                                <div className="line">
-                                <span className="label">🗓️</span>
-                                <span className="value">{formatDate(localResult.hr_review.updated_at)}</span>
-                                </div>
-                                <div className="line">
-                                <span className="label">🧑</span>
-                                <span className="value">{localResult.hr_review.updated_by}</span>
-                                </div>
-                            </>
+                        <div className="candidate-hr_decision-chip">
+                            {!isEditingHrDecision ? (
+                                <span
+                                className={`co-chip ${
+                                    localResult.hr_decision === 'hire_ok'
+                                    ? 'co-chip-success'
+                                    : localResult.hr_decision === 'hire_ng'
+                                    ? 'co-chip-failure'
+                                    : 'co-chip-pending'
+                                }`}
+                                onClick={() => setIsEditingHrDecision(true)}
+                                style={{ cursor: 'pointer' }}
+                                title="クリックして変更"
+                                >
+                                {localResult.hr_decision === 'hire_ok' && '採用'}
+                                {localResult.hr_decision === 'hire_ng' && '不採用'}
+                                {!localResult.hr_decision && '選考中'}
+                                </span>
+                            ) : (
+                            <div className="hr-decision-edit-row">
+                                <select
+                                    className="hr-decision-select"
+                                    value={hrDecisionDraft}
+                                    onChange={(e) => setHrDecisionDraft(e.target.value)}
+                                >
+                                    <option value="">選考中</option>
+                                    <option value="hire_ok">採用</option>
+                                    <option value="hire_ng">不採用</option>
+                                </select>
+                                <button
+                                    className="hr-decision-button"
+                                    onClick={async () => {
+                                    await handleSaveHrDecision();
+                                    setIsEditingHrDecision(false);
+                                    }}
+                                    disabled={hrDecisionDraft === localResult.hr_decision}
+                                >
+                                    保存
+                                </button>
+                                <button
+                                    className="hr-decision-button cancel"
+                                    onClick={() => {
+                                    setIsEditingHrDecision(false);
+                                    setHrDecisionDraft(localResult.hr_decision || '');
+                                    }}
+                                >
+                                    キャンセル
+                                </button>
+                            </div>
                             )}
                         </div>
                     </div>
-                );
-            })}
-            </div>
-            </div>
+                    <button onClick={onClose} className="result-d-close-button-absolute">✖ 閉じる</button>
+                </div>
+
+                <div className="result-d-status-header">
+                <h3>選考ステータス</h3>
+                    <div className="status-bar-horizontal-with-info">
+                    {statusSteps.map((step, idx) => {
+                        const isActive = localResult.status === step;
+                        // 完全にステップ完了している状態（＝緑にしたい条件）
+                        const isStepDone = (
+                            (step === 'アップロード' && !!localResult.timestamp) ||
+                            (step === '書類選考' && !!localResult.updated_at) || 
+                            (reviewStages.includes(step) && !!localResult[`chat_review_${step}_at`]) ||
+                            (step === '待遇検討' && !!localResult.hr_review?.updated_at)
+                        );
+                        // 日程調整だけ済んでいる状態, 最終面談まで完了し待遇検討待ちの状態（＝青にしたい条件）
+                        const isScheduled = 
+                            (interviewStages.includes(step) && 
+                            isInterviewScheduled(step) &&
+                            !localResult[`chat_review_${step}_at`]) ||
+
+                            (step === '待遇検討' &&
+                                !!localResult.chat_review_最終面談_at &&
+                                !localResult.hr_review?.updated_at);
+
+                        const handleClick = () => {
+                            if (interviewStages.includes(step)) {
+                                openInterviewFlow(step);
+                            } else if (step === "待遇検討" && !!localResult.chat_review_最終面談_at) {
+                                // HRダッシュボードに遷移（候補者IDをクエリで渡す）
+                                window.open(`/hr-final-review?filter=${localResult.user_id}`, '_blank');
+                            }
+                        };
+
+                        // 🔧 各ステップに対応する reviewer / date 情報をここで取得
+                        const reviewerKey = `chat_reviewer_${step}`;
+                        const reviewDateKey = `chat_review_${step}_at`;
+                        const reviewDate = localResult[reviewDateKey];
+                        const reviewer = localResult[reviewerKey];
+
+                        return (
+                            <div key={idx} className="status-step-container">
+                                <div
+                                    className={`status-step-horizontal 
+                                        ${isActive ? 'active' : ''} 
+                                        ${isStepDone ? 'status-done' : ''} 
+                                        ${isScheduled ? 'interview-scheduled' : ''}`}
+                                    onClick={handleClick}
+                                    style={{ position: 'relative' }}
+                                >
+                                    {step}
+
+                                {/* ✅ 面談日程が設定されていれば常に表示 */}
+                                {interviewStages.includes(step) && isInterviewScheduled(step) && (
+                                <button
+                                className="interview-prep-check-button"
+                                title="面談シート"
+                                    onClick={(e) => {
+                                    e.stopPropagation();
+                                    const stage = step;
+                                    setInterviewStage(stage);
+
+                                    // 1) 先に開く＆スピナーON（まず描画を優先）
+                                    setShowInterviewPrepModal(true);
+                                    setIsPrepLoading(true);
+
+                                    // 2) 取得は親だけが行う（子の自動フェッチはさせない）
+                                    //    ペイントを先に発生させるために次フレームで実行
+                                    setTimeout(() => {
+                                        refreshChecksheet(stage)
+                                        .catch(err => console.warn('checksheet fetch error', err))
+                                        .finally(() => setIsPrepLoading(false));
+                                    }, 0);
+                                    }}
+                                >
+                                ✅
+                                </button>
+                                )}
+
+                                </div>
+
+                                {/* 🧩 レビュー情報がなくても空白ボックスで整列 */}
+                                <div className="status-extra-info-item-inline">
+                                    {reviewStages.includes(step) && (
+                                        <>
+                                            <div className="line">
+                                                <span className="label">🗓️</span>
+                                                <span className="value">{reviewDate ? formatDate(reviewDate) : '-'}</span>
+                                            </div>
+                                            <div className="line">
+                                                <span className="label">🧑</span>
+                                                <span className="value">{reviewer || '-'}</span>
+                                            </div>
+                                        </>
+                                    )}
+                                    {step === "待遇検討" && localResult.hr_review && (
+                                    <>
+                                        <div className="line">
+                                        <span className="label">🗓️</span>
+                                        <span className="value">{formatDate(localResult.hr_review.updated_at)}</span>
+                                        </div>
+                                        <div className="line">
+                                        <span className="label">🧑</span>
+                                        <span className="value">{localResult.hr_review.updated_by}</span>
+                                        </div>
+                                    </>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                    </div>
+                </div>
             </div>
 
             <div className="result-d-detail-split">

@@ -19,7 +19,7 @@
   background-color: #fff;
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-  padding: 16px;
+  padding: 8px 16px;
   z-index: 1000;
 }
 
@@ -36,22 +36,29 @@
 .result-d-fixed-header {
   position: sticky;
   top: 0;
-  background-color: #fff;
+  background-color: #f5f5f5;
   z-index: 1001;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.06);
 }
 
+.result-d-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .result-d-header-info-inline {
-  background: #f5f5f5;
   padding: 6px 12px;
-  border-radius: 6px;
   font-size: 0.9rem;
   color: #333;
   display: flex;
   gap: 12px;
   align-items: center;
+  margin-bottom: 4px;
 }
 .result-d-header-info-inline .icon {
   display: flex;
@@ -80,34 +87,86 @@
   color: #444;
 }
 
-.result-d-header {
+.result-d-header-info-inline {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-
-.result-d-header-info {
-  gap: 8px;
-  flex-wrap: nowrap;
   align-items: center;
-  font-size: 0.9rem;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 10px;
 }
 
-.result-d-header-info h3 {
-  font-size: 1rem;
-  margin-bottom: 0;
+.candidate-hr_decision-chip {
+  margin-left: auto;
 }
 
-.result-d-header-info p {
-  margin: 0;
-  font-size: 0.95rem;
-  color: #555;
+.co-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: bold;
+  display: inline-block;
+}
+
+.co-chip-success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.co-chip-failure {
+  background-color: #e2e3e5;  /* グレー */
+  color: #6c757d;
+}
+
+.co-chip-pending {
+  background-color: #ffeeba;
+  color: #856404;
+}
+
+.hr-decision-edit-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.hr-decision-select {
+  appearance: none;
+  background: white;
+  border: 1px solid #ccc;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 110px;
+  cursor: pointer;
+}
+
+.hr-decision-button {
+  background-color: #28a745;
+  color: white;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.hr-decision-button.cancel {
+  background-color: #bbb;
+}
+
+.hr-decision-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
 }
 
 .result-d-status-header {
-  padding: 0px 16px 0px;
+  padding: 4px 16px 0px;
   margin-bottom: 0px;
+  background-color: #fff;
 }
 
 .result-d-detail-left h3,

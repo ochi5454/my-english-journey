@@ -262,6 +262,7 @@ async def get_resume_results():
                 "user_name": c.name,
                 "gender": c.gender,
                 "status": status_value,
+                "hr_decision": c.hr_decision,
                 "notes": c.notes,
                 "score_notes":c.score_notes,
                 "experience": c.experience,
@@ -321,7 +322,8 @@ async def get_result_by_candidate_id(candidate_id: str):
             "experience": c.experience,
             "recommended_division": c.recommended_div,
             "uploader_id": c.uploader_id,
-            "timestamp": latest_reviewed_at.isoformat() if latest_reviewed_at else None,  # ← ここを修正
+            "timestamp": latest_reviewed_at.isoformat() if latest_reviewed_at else None,
+            "hr_decision": c.hr_decision,
             "must_check": {
                 m.item_name: {"result": m.result, "reason": m.reason}
                 for m in must_checks

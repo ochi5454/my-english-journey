@@ -33,6 +33,10 @@ interface Result {
     updated_at?: string;  // 2次評価日時
     updated_by?: string;  // 2次評価者
     recommended_division: string;
+    hr_decision?: string;
+    hr_division: string;
+    hr_title: string;
+    hr_income: number;
     must_check: Record<string, MustCheckItem>;
     scores: Score[];
     ai_score?: number;
@@ -57,6 +61,16 @@ const renderStatusChip = (status?: string) => {
         return <span className="matrix-status-chip matrix-status-upload">アップロード</span>;
     }
     return <span className="matrix-status-chip matrix-status-active">{status}</span>;
+};
+
+const renderHrDecisionChip = (decision?: string) => {
+    if (decision === 'hire_ok') {
+        return <span className="hr-chip hr-hire-ok">採用</span>;
+    } else if (decision === 'hire_ng') {
+        return <span className="hr-chip hr-hire-ng">不採用</span>;
+    } else {
+        return <span className="hr-chip hr-pending">選考中</span>;
+    }
 };
 
 const renderMustCheckChip = (result: boolean | undefined, reason?: string) => {
@@ -104,6 +118,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         mustCheckAllPassed: false,
         aiScoreMinPercentile: '',
         aiScoreMaxPercentile: '',
+        onlyPending: true,
     });
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
     const [showAIPanel, setShowAIPanel] = useState(false);
@@ -171,7 +186,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
     const filteredResults = results.filter((r) => {
         const {
             userId, userName, gender, status, division,
-            mustCheckAllPassed, aiScoreMinPercentile, aiScoreMaxPercentile
+            mustCheckAllPassed, aiScoreMinPercentile, aiScoreMaxPercentile, onlyPending
         } = filters;
 
         const idMatch = r.user_id.toLowerCase().includes(userId.toLowerCase());
@@ -186,7 +201,9 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
         const max = Number(aiScoreMaxPercentile) || 100;
         const aiScoreMatch = p >= min && p < max;
 
-        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed && aiScoreMatch;
+        const hrPendingMatch = !onlyPending || !r.hr_decision;
+
+        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed && aiScoreMatch && hrPendingMatch;
     });
 
     const aiScoreCounts = useMemo(() => {
@@ -287,6 +304,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                         mustCheckAllPassed: false,
                         aiScoreMinPercentile: '',
                         aiScoreMaxPercentile: '',
+                        onlyPending: false,
                     })
                     }
                     aria-label="フィルタをすべてクリア"
@@ -353,6 +371,16 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                     <input type="checkbox" checked={filters.mustCheckAllPassed} onChange={(e) => setFilters({...filters, mustCheckAllPassed: e.target.checked})} />
                     必須全合格のみ
                 </label>
+                <label>
+                    <input
+                        type="checkbox"
+                        checked={filters.onlyPending}
+                        onChange={(e) =>
+                            setFilters({ ...filters, onlyPending: e.target.checked })
+                        }
+                    />
+                    選考中のみ
+                </label>
             </div>
 
             <div className="matrix-summary-row">
@@ -377,6 +405,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                             <th rowSpan={2}>性別</th>
                             <th rowSpan={2}>就業年数</th> 
                             <th rowSpan={2}>ステータス</th>
+                            <th rowSpan={2}>合否</th>
                             <th rowSpan={2} onClick={() => setShowAIPanel(true)} style={{ cursor: 'pointer' }}>
                                 AI推薦度 🔽
                             </th>
@@ -408,6 +437,7 @@ const CandidateScoreMatrix: React.FC<Props> = ({ interviewerId }) => {
                                 <td>{renderGenderChip(r.gender)}</td>
                                 <td>{typeof r.experience === 'number' ? `${r.experience.toFixed(1)} ` : '-'}</td>
                                 <td>{renderStatusChip(r.status)}</td>
+                                <td>{renderHrDecisionChip(r.hr_decision)}</td>
                                 <td>{renderAIRecommendationChip(r.ai_score_percentile)}</td>
                                 <td>{r.ai_score?.toFixed(2) ?? '-'}</td>
                                 <td>{r.score_notes || '-'}</td>

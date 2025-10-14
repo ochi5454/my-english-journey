@@ -191,6 +191,31 @@
     color: #155724;
 }
 
+.hr-chip {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.hr-hire-ok {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.hr-hire-ng {
+    background-color: #e2e3e5;  /* グレー */
+    color: #6c757d;
+}
+
+.hr-pending {
+    background-color: #fff3cd;
+    color: #b26a00;
+}
+
 .mustcheck-chip {
     display: inline-block;
     padding: 2px 6px;
