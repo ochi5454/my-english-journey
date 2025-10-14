@@ -211,34 +211,44 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
 
                 {qualItems.map((item) => (
                     <tr key={`qual-${item.key}`}>
-                    <td>{item.label}</td>
-                    {evals.map((r) => (
-                        <td key={`${r.interviewer_id}-${item.key}`}>
-                        {r.qualitative?.[item.key] ?? '-'}
-                        </td>
-                    ))}
+                        <td>{item.label}</td>
+                        {evals.map((r) => {
+                        const q = r.qualitative ?? {};
+                        const camelKey =
+                            item.key.replace(/_([a-z])/g, (_, c) => c.toUpperCase()); // career_goals → careerGoals
+                        const value = q[item.key] ?? q[camelKey] ?? '-';
+                        return <td key={`${r.interviewer_id}-${item.key}`}>{value}</td>;
+                        })}
                     </tr>
                 ))}
 
                 {quantItems.map((item) => (
                     <tr key={`quant-${item.key}`}>
-                    <td>{item.label}</td>
-                    {evals.map((r) => {
-                        const quantMap = r.quantitative ?? {};
-                        const level = quantMap[item.key]?.level;
+                        <td>{item.label}</td>
+                        {evals.map((r) => {
+                        interface QuantRecord {
+                            item_key: string;
+                            level: number;
+                            comment?: string;
+                        }
+
+                        const quantArray = (r.quantitative ?? []) as QuantRecord[];
+                        const quantRecord = quantArray.find(
+                            (q) => q.item_key === item.key
+                        );
+                        const level = quantRecord?.level;
+
                         const className =
-                        level === 4 || level === 5
+                            level === 4 || level === 5
                             ? 'quant-cell quant-high'
                             : 'quant-cell';
+
                         return (
-                        <td
-                            key={`${r.interviewer_id}-${item.key}`}
-                            className={className}
-                        >
+                            <td key={`${r.interviewer_id}-${item.key}`} className={className}>
                             {level ?? '-'}
-                        </td>
+                            </td>
                         );
-                    })}
+                        })}
                     </tr>
                 ))}
 
