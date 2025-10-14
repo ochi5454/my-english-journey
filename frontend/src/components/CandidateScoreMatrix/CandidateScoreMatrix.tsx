@@ -138,7 +138,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         />
 
         {/* 検索結果サマリ */}
-            <CandidateMatrixSummary
+        <CandidateMatrixSummary
             interviewerId={interviewerId}
             results={results}
             filteredResults={filteredResults}
@@ -148,7 +148,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
             setResults={setResults}
             setFilters={setFilters}
             filters={filters}
-            />
+        />
 
         {/* テーブル */}
         <CandidateMatrixTable
@@ -158,15 +158,16 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
             selectedIds={selectedIds}
             setSelectedIds={setSelectedIds}
             handleRowClick={handleRowClick}
+            setShowAIPanel={setShowAIPanel}
         />
 
         {/* 詳細モーダル */}
         {selectedResult && (
             <CandidateResultDetail
-            result={selectedResult}
-            onClose={() => setSelectedResult(null)}
-            onResultUpdate={handleResultUpdate}
-            interviewerId={interviewerId}
+                result={selectedResult}
+                onClose={() => setSelectedResult(null)}
+                onResultUpdate={handleResultUpdate}
+                interviewerId={interviewerId}
             />
         )}
 

@@ -3,15 +3,16 @@ import { renderGenderChip, renderStatusChip, renderHrDecisionChip, renderMustChe
 import type { Result } from './types';
 
 export default function CandidateMatrixTable({
-    filteredResults, allMustKeys, allDivisions,
-    selectedIds, setSelectedIds, handleRowClick
+        filteredResults, allMustKeys, allDivisions,
+        selectedIds, setSelectedIds, handleRowClick, setShowAIPanel
     }: {
-    filteredResults: Result[];
-    allMustKeys: string[];
-    allDivisions: string[];
-    selectedIds: Set<string>;
-    setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
-    handleRowClick: (id: string) => void;
+        filteredResults: Result[];
+        allMustKeys: string[];
+        allDivisions: string[];
+        selectedIds: Set<string>;
+        setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+        handleRowClick: (id: string) => void;
+        setShowAIPanel: React.Dispatch<React.SetStateAction<boolean>>;
     }) {
     return (
         <div className="resume-matrix-wrapper">
@@ -33,7 +34,9 @@ export default function CandidateMatrixTable({
                 <th rowSpan={2}>就業年数</th>
                 <th rowSpan={2}>ステータス</th>
                 <th rowSpan={2}>合否</th>
-                <th rowSpan={2}>AI推薦度</th>
+                <th rowSpan={2} onClick={() => setShowAIPanel(true)} style={{ cursor: 'pointer' }}>
+                    AI推薦度 🔽
+                </th>
                 <th rowSpan={2}>AIスコア</th>
                 <th rowSpan={2}>志望動機</th>
                 <th rowSpan={2}>推薦部門</th>
