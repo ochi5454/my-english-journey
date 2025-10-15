@@ -1,5 +1,6 @@
 import React from 'react';
 import './AIRecommendationPanel.css';
+import { fieldOptions } from '../Utils/fieldOptions';
 
 export type AIWeights = Record<string, number>;
 
@@ -12,6 +13,17 @@ interface AIRecommendationPanelProps {
     onClose: () => void;
     formula: string;
 }
+
+const getFieldLabel = (value: string) => {
+    return fieldOptions.find(opt => opt.value === value)?.label || value;
+};
+
+const convertFormulaToLabel = (formula: string): string => {
+    return fieldOptions.reduce((acc, { value, label }) => {
+        const regex = new RegExp(`\\b${value}\\b`, 'g'); // 単語単位でマッチ
+        return acc.replace(regex, label);
+    }, formula);
+};
 
 const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
     weights,
@@ -40,7 +52,7 @@ const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
             <h3>AI推薦度の重み設定</h3>
 
             <p className="ai-panel-description">
-                <code>AIスコア={formula}</code>
+                <code>(例)AIスコア= {convertFormulaToLabel(formula)}</code>
                 <br />
                 <small className="ai-panel-note">
                     ※ 上記AIスコアより、AI推薦度（%）を統計的パーセンタイルで算出。<br />
@@ -51,7 +63,7 @@ const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
             <div className="ai-panel-grid">
                 {enabledFields.map((field) => (
                     <div className="ai-panel-row" key={field}>
-                        <label className="ai-panel-label">{field} の重み</label>
+                        <label className="ai-panel-label">{getFieldLabel(field)}の重み</label>
                         <input
                             type="number"
                             step="0.01"

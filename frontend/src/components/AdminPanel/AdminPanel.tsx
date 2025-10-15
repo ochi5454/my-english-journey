@@ -13,13 +13,13 @@ const AdminPanel: React.FC = () => {
                     className={`admin-tab ${view === 'skill' ? 'active' : ''}`}
                     onClick={() => setView('skill')}
                 >
-                    スキルマスタ
+                    スキル
                 </div>
                 <div
                     className={`admin-tab ${view === 'ai_formula' ? 'active' : ''}`}
                     onClick={() => setView('ai_formula')}
                 >
-                    AIスコア設定
+                    AIスコア
                 </div>
             </div>
 
