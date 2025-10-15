@@ -16,31 +16,30 @@
   display: flex;
   border-bottom: 2px solid #ccc;
   margin-bottom: 1rem;
-  gap: 0px;
 }
 
 .iq-tab-switch-btn {
-  padding: 10px 16px;
-  font-size: 0.95rem;
-  background-color: transparent;
-  border: none;
-  border-bottom: 3px solid transparent;
-  color: #666;
+  padding: 10px 20px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background-color: #f9f9f9;
   font-weight: 500;
+  color: #666;
+  transition: all 0.2s ease-in-out;
+  font-size: inherit
 }
 
 .iq-tab-switch-btn:hover {
-  background-color: #f8f8f8;
-  color: #333;
+  background-color: #f0f0f0;
 }
 
 .iq-tab-switch-btn.active {
-  border-bottom: 3px solid #28a745;
-  color: #111;
-  font-weight: 700;
-  background-color: white;
+  background-color: #ffffff;
+  border: 1px solid #ccc;
+  border-bottom: 2px solid white;
+  color: #333;
+  font-weight: bold;
 }
 
 .low-reliability {
