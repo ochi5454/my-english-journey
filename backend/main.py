@@ -8,6 +8,7 @@ from backend.routers import (
     score_byinterview,
     score_ofinterviewer,
     hr,
+    admin,
 )
 
 app = FastAPI()
@@ -35,3 +36,4 @@ app.include_router(checksheet.router)
 app.include_router(score_byinterview.router)
 app.include_router(score_ofinterviewer.router)
 app.include_router(hr.router)
+app.include_router(admin.router)
