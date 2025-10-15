@@ -211,7 +211,7 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                     >
                     <option value="">選択してください</option>
                     {config.divisions
-                        .filter(d => d !== 'Common') // Common を除外
+                        .filter(d => d !== '共通') // 共通 を除外
                         .map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                 </div>

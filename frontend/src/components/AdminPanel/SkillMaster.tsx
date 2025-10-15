@@ -108,7 +108,7 @@ const SkillMaster: React.FC = () => {
             <div className="skill-form">
                 <input
                     type="text"
-                    placeholder="部門 (任意)"
+                    placeholder="部門"
                     value={newDivision}
                     onChange={(e) => setNewDivision(e.target.value)}
                 />

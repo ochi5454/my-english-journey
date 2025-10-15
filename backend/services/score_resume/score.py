@@ -145,7 +145,7 @@ def check_must_requirements_llm(content: str) -> dict:
     """
     with SessionLocal() as db:
         rows = db.query(CandidateExpectations)\
-                    .filter(CandidateExpectations.division == "Common")\
+                    .filter(CandidateExpectations.division == "共通")\
                     .filter(CandidateExpectations.trait_type == "must_requirement")\
                     .all()
         must_keywords = [r.trait_label.strip() for r in rows if r.trait_label.strip()]

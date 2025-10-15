@@ -44,7 +44,7 @@ const InterviewerRoleFocusOverview: React.FC = () => {
     const matrix: Record<string, Record<string, { tags: FocusTag[]; used: Record<string, number> }>> = {};
     for (const roleKey in data) {
         const [dept, role] = roleKey.split(':');
-        if (!dept || !role || dept === 'common') continue;
+        if (!dept || !role || dept === '共通') continue;
 
         const deptLower = dept.toLowerCase();
         const roleLower = role.toLowerCase();
