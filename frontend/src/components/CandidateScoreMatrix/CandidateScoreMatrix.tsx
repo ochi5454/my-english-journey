@@ -5,7 +5,7 @@ import CandidateMatrixTable from './CandidateMatrixTable';
 import CandidateResultDetail from '../CandidateResultDetail/CandidateResultDetail';
 import AIRecommendationPanel from '../AIRecommendationPanel/AIRecommendationPanel';
 import type { AIWeights } from '../AIRecommendationPanel/AIRecommendationPanel';
-import { calculateAIScore, calculateTruePercentiles } from './useAIRecommendation';
+import { calculateAIScoreFromFormula, calculateTruePercentiles } from './useAIRecommendation';
 import CandidateMatrixSummary from './CandidateMatrixSummary';
 import type { Result } from './types';
 import appConfig from '../../config';
@@ -24,11 +24,13 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         onlyPending: true,
     });
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
+
     const [showAIPanel, setShowAIPanel] = useState(false);
-    const [aiWeights, setAiWeights] = useState<AIWeights>({
-        motivation_score: 1.0,
-        experience: 0.05,
-    });
+    const [aiWeights, setAiWeights] = useState<AIWeights>({});
+    const [initialWeights, setInitialWeights] = useState<AIWeights>({});
+    const [enabledFields, setEnabledFields] = useState<string[]>([]);
+    const [aiFormula, setAiFormula] = useState<string>('');
+
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     const allStatuses = [
@@ -38,24 +40,50 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
 
   // 初回ロード（AIスコア計算込み）
     useEffect(() => {
-        fetch(`${appConfig.API_BASE_URL}/resume-results`, { cache: 'no-store' })
-        .then((res) => res.json())
-        .then((data: Result[]) => {
+        const fetchConfigAndResults = async () => {
+            try {
+            // 数式の取得
+            const formulaRes = await fetch(`${appConfig.API_BASE_URL}/admin/ai-formula?key=default`);
+            if (!formulaRes.ok) throw new Error("式の取得に失敗");
+            const formulaData = await formulaRes.json();
+            setAiFormula(formulaData.formula);
+            setEnabledFields(formulaData.enabled_fields);
+
+            const fallbackWeights = formulaData.enabled_fields.reduce((acc: Record<string, number>, field: string) => {
+                acc[field] = 1.0;
+                return acc;
+            }, {});
+
+            const effectiveWeights = formulaData.weights ?? fallbackWeights;
+
+            setAiWeights(effectiveWeights);
+            setInitialWeights(effectiveWeights);
+
+            // 結果の取得
+            const res = await fetch(`${appConfig.API_BASE_URL}/resume-results`, { cache: 'no-store' });
+            const data: Result[] = await res.json();
+
             const latestMap = new Map<string, Result>();
             data.forEach((item) => {
-            const existing = latestMap.get(item.user_id);
-            if (!existing || new Date(item.timestamp) > new Date(existing.timestamp)) {
+                const existing = latestMap.get(item.user_id);
+                if (!existing || new Date(item.timestamp) > new Date(existing.timestamp)) {
                 latestMap.set(item.user_id, item);
-            }
+                }
             });
+
+            // スコアの計算
             const withScore = Array.from(latestMap.values()).map((r) => ({
-            ...r,
-            ai_score: calculateAIScore(r, aiWeights),
+                ...r,
+                ai_score: calculateAIScoreFromFormula(r, formulaData.formula, formulaData.enabled_fields, aiWeights),
             }));
             const withPercentiles = calculateTruePercentiles(withScore);
             setResults(withPercentiles);
-        })
-        .catch((err) => console.error('読み込みエラー:', err));
+            } catch (err) {
+            console.error('AIスコア読込エラー:', err);
+            }
+        };
+
+        fetchConfigAndResults();
     }, []);
 
     // フィルタリング処理
@@ -115,7 +143,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         const latest = await res.json();
         const latestWithScore = {
             ...latest,
-            ai_score: calculateAIScore(latest, aiWeights),
+            ai_score: calculateAIScoreFromFormula(latest, aiFormula, enabledFields, aiWeights),
         };
         const updatedList = results.map((r) => r.user_id === latest.user_id ? latestWithScore : r);
         const withPercentiles = calculateTruePercentiles(updatedList);
@@ -175,16 +203,23 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         {showAIPanel && (
             <>
             <div className="ai-panel-overlay" onClick={() => setShowAIPanel(false)} />
-            <AIRecommendationPanel
-                weights={aiWeights}
-                onChange={(key, value) => setAiWeights(prev => ({ ...prev, [key]: value }))}
-                onRecalculate={() => {
-                const updated = results.map(r => ({ ...r, ai_score: calculateAIScore(r, aiWeights) }));
-                const withPercentiles = calculateTruePercentiles(updated);
-                setResults(withPercentiles);
-                }}
-                onClose={() => setShowAIPanel(false)}
-            />
+                <AIRecommendationPanel
+                    weights={aiWeights}
+                    initialValues={initialWeights}
+                    enabledFields={enabledFields}
+                    onChange={(key, value) => setAiWeights((prev) => ({ ...prev, [key]: value }))}
+                    onRecalculate={() => {
+                        const currentWeights = aiWeights;
+                        const updated = results.map(r => ({
+                            ...r,
+                            ai_score: calculateAIScoreFromFormula(r, aiFormula, enabledFields, currentWeights),
+                        }));
+                        const withPercentiles = calculateTruePercentiles(updated);
+                        setResults(withPercentiles);
+                    }}
+                    onClose={() => setShowAIPanel(false)}
+                    formula={aiFormula}
+                />
             </>
         )}
         </div>

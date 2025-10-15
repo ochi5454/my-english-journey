@@ -1,0 +1,23 @@
+from pydantic import BaseModel
+from typing import List, Optional, Dict
+from datetime import datetime
+
+# ============================================
+# 📊 AI推薦度の数式の操作
+# ============================================
+
+class AIFormulaConfigBase(BaseModel):
+    formula: str
+    enabled_fields: List[str]
+    weights: Optional[Dict[str, float]] = {}
+    updated_by: Optional[str] = None
+
+class AIFormulaConfigCreate(AIFormulaConfigBase):
+    pass
+
+class AIFormulaConfigResponse(AIFormulaConfigBase):
+    key: str
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True

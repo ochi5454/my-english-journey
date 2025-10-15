@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 # ============================================
-# 📊 AIによるスコアリング
+# 📊 AIによるスコアリングチャット
 # ============================================
 
 class ChatTurn(BaseModel):

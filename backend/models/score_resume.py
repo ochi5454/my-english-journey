@@ -1,8 +1,12 @@
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import JSON
+from datetime import datetime
+from typing import Dict
 from backend.core.database import Base
 
 # ============================================
-# ✅ 評価の元となる定義
+# ✅ 部門・マストスキル・歓迎スキル
 # ============================================
 
 class CandidateExpectations(Base):
@@ -14,7 +18,7 @@ class CandidateExpectations(Base):
     trait_label = Column(String, nullable=False)
 
 # ============================================
-# ✅ 評価
+# ✅ 候補者の評価結果
 # ============================================
 
 class Candidate(Base):
@@ -79,3 +83,17 @@ class CandidateStatus(Base):
     chat_reviewer = Column(String)
     reviewed_at = Column(DateTime)
     reviewed_resume = Column(Boolean)
+
+# ============================================
+# ✅ AI推薦度の数式
+# ============================================
+
+class AIFormulaConfig(Base):
+    __tablename__ = "ai_formula_config"
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, nullable=False)
+    formula = Column(Text, nullable=False)
+    enabled_fields = Column(JSON, nullable=False)
+    weights: Mapped[Dict[str, float]] = mapped_column(JSON)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String, nullable=True)

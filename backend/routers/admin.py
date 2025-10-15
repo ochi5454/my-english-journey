@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from typing import List
 from sqlalchemy.orm import Session
 from backend.core.database import get_db
-from backend.models.score_resume import CandidateExpectations, CandidateMustCheckItem, CandidateDivisionMustCheckItem
+from backend.models.score_resume import CandidateExpectations, CandidateMustCheckItem, CandidateDivisionMustCheckItem, AIFormulaConfig
 from backend.schemas.expectation import CandidateExpectationCreate, CandidateExpectationOut, SkillUpdateSchema
+from backend.schemas.ai_formula import AIFormulaConfigResponse, AIFormulaConfigCreate
 from backend.services.admin.expectation import get_all_expectations, create_expectation, delete_expectation
-from typing import List
 
 router = APIRouter(prefix="/admin")
 
@@ -55,3 +57,45 @@ def update_skill(skill_id: int, update: SkillUpdateSchema, db: Session = Depends
     db.commit()
 
     return {"message": "Skill and related data updated"}
+
+#  ============================================
+#  📮 AI推薦度の数式の管理
+#  ============================================
+
+@router.get("/ai-formula", response_model=AIFormulaConfigResponse)
+def get_formula_config(key: str = "default", db: Session = Depends(get_db)):
+    config = db.query(AIFormulaConfig).filter_by(key=key).first()
+    if not config:
+        raise HTTPException(status_code=404, detail="Formula config not found")
+
+    # null回避（weightsがNoneの場合は空辞書に）
+    if config.weights is None:
+        config.weights = {}
+    return config
+
+@router.put("/ai-formula", response_model=AIFormulaConfigResponse)
+def update_formula_config(
+    key: str,
+    data: AIFormulaConfigCreate,
+    db: Session = Depends(get_db)
+):
+    config = db.query(AIFormulaConfig).filter_by(key=key).first()
+    if config:
+        config.formula = data.formula
+        config.enabled_fields = data.enabled_fields
+        config.weights = data.weights
+        config.updated_by = data.updated_by
+        config.updated_at = datetime.utcnow()
+    else:
+        config = AIFormulaConfig(
+            key=key,
+            formula=data.formula,
+            enabled_fields=data.enabled_fields,
+            weights=data.weights,
+            updated_by=data.updated_by,
+            updated_at=datetime.utcnow()
+        )
+        db.add(config)
+    db.commit()
+    db.refresh(config)
+    return config
