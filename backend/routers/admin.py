@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.core.database import get_db
-from backend.models.score_resume import CandidateExpectations, CandidateMustCheckItem
+from backend.models.score_resume import CandidateExpectations, CandidateMustCheckItem, CandidateDivisionMustCheckItem
 from backend.schemas.expectation import CandidateExpectationCreate, CandidateExpectationOut, SkillUpdateSchema
 from backend.services.admin.expectation import get_all_expectations, create_expectation, delete_expectation
 from typing import List
@@ -40,10 +40,18 @@ def update_skill(skill_id: int, update: SkillUpdateSchema, db: Session = Depends
     skill.trait_label = new_label
     db.commit()
 
-    # トランザクションデータ（must_check）の更新
+    # 共通 must_check の item_name を更新
     db.query(CandidateMustCheckItem).filter(
         CandidateMustCheckItem.item_name == old_label
     ).update({CandidateMustCheckItem.item_name: new_label})
+
+    # 部門ごとの must_check も同様に更新
+    division = skill.division
+    db.query(CandidateDivisionMustCheckItem).filter(
+        CandidateDivisionMustCheckItem.division == division,
+        CandidateDivisionMustCheckItem.item_name == old_label
+    ).update({CandidateDivisionMustCheckItem.item_name: new_label})
+
     db.commit()
 
     return {"message": "Skill and related data updated"}

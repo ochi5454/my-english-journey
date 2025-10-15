@@ -16,15 +16,17 @@ from backend.services.score_adjustment.save import save_score_to_history
 client = get_openai_client()
 
 # ============================================
-# 🧠 スコアリングを実施
+# 🧠 部門ごとのスコアリング（中でマストチェックを呼ぶ）
 # ============================================
 
 def score_resume_from_text(text: str, candidate_id: str) -> dict:
     print("📥 score_resume_from_text() called: candidate_id=%s", candidate_id)
 
     must_results = check_must_requirements_llm(text)
+    must_results_by_division = check_must_requirements_by_division_llm(text)
 
     print("✅ must_check 結果: %s", must_results)
+    print("✅ must_results_by_division 結果: %s", must_results_by_division)
 
     # マスト条件NGなら即保存・返却
     if not all(bool(item.get("result")) for item in must_results.values()):
@@ -124,6 +126,7 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
         "user_id": candidate_id,
         "timestamp": datetime.now().isoformat(),
         "must_check": must_results,
+        "must_check_by_division": must_results_by_division,
         "scores": scores,
         "recommended_division": recommended.get("division"),
     }
@@ -138,6 +141,10 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
     print("📊 正常に取得したスコア: %s", scores)
     print("🏆 recommended_division: %s", recommended.get("division"))
     return result
+
+# ============================================
+# 🧠 共通マストスキルの判定
+# ============================================
 
 def check_must_requirements_llm(content: str) -> dict:
     """
@@ -182,6 +189,81 @@ JSON形式で次のように返してください：
     except Exception as e:
         # JSONパース失敗時は全て False 扱い
         return {k: {"result": False, "reason": "判定失敗"} for k in must_keywords}
+
+# ============================================
+# 🧠 部門単位マストスキルの判定
+# ============================================
+
+def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    from collections import OrderedDict
+
+    with SessionLocal() as db:
+        rows = db.query(CandidateExpectations)\
+            .filter(CandidateExpectations.trait_type == "must_requirement")\
+            .filter(CandidateExpectations.division != "共通")\
+            .all()
+
+    # divisionごとに分類（順番保持のためOrderedDict推奨）
+    division_map: Dict[str, List[str]] = OrderedDict()
+    for r in rows:
+        division = r.division.strip()
+        label = r.trait_label.strip()
+        if not label:
+            continue
+        division_map.setdefault(division, []).append(label)
+
+    results = {}
+    for division, traits in division_map.items():
+        joined_traits = ', '.join(f'"{t}"' for t in traits)
+
+        prompt = f"""
+あなたは採用担当者です。
+以下の候補者の履歴書情報をもとに、「{division}」部門に必要な**特定のマスト条件のみ**について、各条件が満たされているかを判定してください。
+
+条件リスト（これ以外は絶対に判定しないこと）:
+{joined_traits}
+
+---
+
+履歴書内容（マスク済み）:
+{content}
+
+---
+
+出力形式は必ず以下のJSON形式で、**条件ラベル名をキーとした辞書形式**で返してください（それ以外の項目を追加しないこと）：
+{{
+  "ビル設備管理技能士": {{"result": true, "reason": "資格欄に明記されているため"}},
+  "危険物取扱者": {{"result": false, "reason": "記載なし"}},
+  ...
+}}
+"""
+
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+            )
+            raw = response.choices[0].message.content or ""
+            parsed = json.loads(raw)
+
+            # ❗念のため trait_label 以外を除外（保険）
+            filtered = {
+                k: v for k, v in parsed.items()
+                if k in traits
+            }
+            results[division] = filtered
+
+        except Exception:
+            results[division] = {
+                label: {"result": False, "reason": "パース失敗"} for label in traits
+            }
+
+    return results
+
+# ============================================
+# 🧠 志望動機のスコアリング
+# ============================================
 
 def score_motivation_statement(text: str) -> int:
     """

@@ -43,6 +43,15 @@ class CandidateMustCheckItem(Base):
     result = Column(Boolean, nullable=False)
     reason = Column(Text)
 
+class CandidateDivisionMustCheckItem(Base):
+    __tablename__ = "candidates_division_must_check_items"
+    id = Column(String, primary_key=True)
+    user_id = Column(String, nullable=False)
+    division = Column(String, nullable=False)  # 新たに division を追加
+    item_name = Column(String, nullable=False)
+    result = Column(Boolean, nullable=False)
+    reason = Column(Text)
+
 class CandidateDivisionScore(Base):
     __tablename__ = "candidates_division_scores"
     id = Column(String, primary_key=True)

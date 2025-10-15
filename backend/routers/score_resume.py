@@ -9,7 +9,7 @@ from pathlib import Path
 from backend.core.database import SessionLocal
 from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.resume import Resume, ResumeWorkHistory
-from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateStatus
+from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
 from backend.services.score_resume.score import score_resume_from_text, score_motivation_statement
 from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, calculate_total_experience
@@ -169,6 +169,18 @@ async def resume_score_save(
                     reason=info.get("reason", "")
                 ))
 
+            # 🎯 divisionごとのmust_check保存
+            for division, checks in scoring_result.get("must_check_by_division", {}).items():
+                for name, info in checks.items():
+                    db.add(CandidateDivisionMustCheckItem(
+                        id=str(uuid4()),
+                        user_id=candidate_id,
+                        division=division,
+                        item_name=name,
+                        result=info.get("result", False),
+                        reason=info.get("reason", "")
+                    ))
+
             # 🎯 divisionスコア 保存
             db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).delete()
             for s in scoring_result.get("scores", []):
@@ -254,8 +266,22 @@ async def get_resume_results():
 
             must_checks = db.query(CandidateMustCheckItem)\
                 .filter_by(user_id=user_id).all()
+
+            division_must_checks = db.query(CandidateDivisionMustCheckItem)\
+                .filter_by(user_id=user_id).all()
+
             scores = db.query(CandidateDivisionScore)\
                 .filter_by(user_id=user_id).all()
+            
+            division_must_check_dict = {}
+            for d in division_must_checks:
+                division = d.division
+                if division not in division_must_check_dict:
+                    division_must_check_dict[division] = {}
+                division_must_check_dict[division][d.item_name] = {
+                    "result": d.result,
+                    "reason": d.reason
+                }
 
             result = {
                 "user_id": user_id,
@@ -273,6 +299,7 @@ async def get_resume_results():
                     m.item_name: {"result": m.result, "reason": m.reason}
                     for m in must_checks
                 },
+                "division_must_check": division_must_check_dict,
                 "scores": [
                     {"division": s.division, "score": s.score, "reason": s.reason}
                     for s in scores

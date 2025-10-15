@@ -40,13 +40,37 @@ export default function CandidateMatrixTable({
                 <th rowSpan={2}>AIスコア</th>
                 <th rowSpan={2}>志望動機</th>
                 <th rowSpan={2}>推薦部門</th>
+                {/* 共通must */}
                 <th colSpan={allMustKeys.length}>必須</th>
+
+                {/* division別 must */}
+                {allDivisions.map(division => {
+                    const items = Object.keys(
+                        filteredResults.find(r => r.division_must_check?.[division])?.division_must_check?.[division] ?? {}
+                    );
+                    if (items.length === 0) return null;
+                    return <th key={`head-div-${division}`} colSpan={items.length}>{division}</th>;
+                })}
+
                 <th colSpan={allDivisions.length}>部門スコア</th>
                 <th rowSpan={2}>サマリ</th>
                 <th rowSpan={2}>評価日</th>
             </tr>
             <tr>
+                {/* 共通must trait labels */}
                 {allMustKeys.map(k => <th key={`must-${k}`}>{k}</th>)}
+
+                {/* division must trait labels */}
+                {allDivisions.flatMap(division => {
+                    const keys = Object.keys(
+                        filteredResults.find(r => r.division_must_check?.[division])?.division_must_check?.[division] ?? {}
+                    );
+                    return keys.map(item => (
+                        <th key={`divmust-${division}-${item}`}>{item}</th>
+                    ));
+                })}
+
+                {/* 部門スコア division headers */}
                 {allDivisions.map(d => <th key={`div-${d}`}>{d}</th>)}
             </tr>
             </thead>
@@ -79,6 +103,20 @@ export default function CandidateMatrixTable({
                 {allMustKeys.map(k =>
                     <td key={k}>{renderMustCheckChip(r.must_check[k]?.result, r.must_check[k]?.reason)}</td>
                 )}
+                {allDivisions.flatMap(division => {
+                    const keys = Object.keys(
+                        filteredResults.find(r => r.division_must_check?.[division])?.division_must_check?.[division] ?? {}
+                    );
+
+                    return keys.map(item => {
+                        const info = r.division_must_check?.[division]?.[item];
+                        return (
+                        <td key={`divmust-${division}-${item}`}>
+                            {renderMustCheckChip(info?.result, info?.reason)}
+                        </td>
+                        );
+                    });
+                })}
                 {allDivisions.map(d => {
                     const s = r.scores.find(sc => sc.division === d);
                     return <td key={d}>{s?.score ?? '-'}</td>;

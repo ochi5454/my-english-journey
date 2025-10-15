@@ -9,6 +9,15 @@ export interface MustCheckItem {
     reason: string;
 }
 
+export type DivisionMustCheck = {
+    [division: string]: {
+        [item_name: string]: {
+        result: boolean;
+        reason: string;
+        };
+    };
+};
+
 export interface Result {
     user_id: string;
     user_name?: string;
@@ -27,6 +36,7 @@ export interface Result {
     hr_title: string;
     hr_income: number;
     must_check: Record<string, MustCheckItem>;
+    division_must_check?: DivisionMustCheck;
     scores: Score[];
     ai_score?: number;
     ai_score_percentile?: number;
