@@ -41,7 +41,9 @@
 }
 
 .resume-upload {
-  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .resume-upload input[type="text"],

@@ -2,6 +2,7 @@ import os
 import io
 from uuid import uuid4
 from datetime import datetime
+from typing import List
 from fastapi import HTTPException, APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import HTTPException
@@ -25,46 +26,55 @@ router = APIRouter()
 
 @router.post("/resume-score-save")
 async def resume_score_save(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...), 
     candidate_id: str = Form(...),
     uploader_id: str = Form(...)
 ):
     try:
-        # === ① 拡張子チェックと読み込み ===
-        raw_filename = (file.filename or "").strip()
-        ext = Path(raw_filename).suffix.lower()
+        merged_texts = []
 
-        if not ext and file.content_type in MIME_TO_EXT:
-            ext = MIME_TO_EXT[file.content_type]
+        # === 各ファイルを順に処理 ===
+        for file in files:        
+            # === ① 拡張子チェックと読み込み ===
+            raw_filename = (file.filename or "").strip()
+            ext = Path(raw_filename).suffix.lower()
 
-        if not ext:
-            return JSONResponse(content={"error": "拡張子不明"}, status_code=400)
+            if not ext and file.content_type in MIME_TO_EXT:
+                ext = MIME_TO_EXT[file.content_type]
 
-        content = await file.read()
-        file_stream = io.BytesIO(content)
+            if not ext:
+                return JSONResponse(content={"error": "拡張子不明"}, status_code=400)
 
-        # === ② ファイル形式に応じたテキスト抽出 ===
-        if ext == ".pdf":
-            extracted_text = extract_resume_text_from_pdf(file_stream)
-        elif ext in (".doc", ".docx"):
-            extracted_text = extract_resume_text_from_docx(file_stream)
-        elif ext in (".xls", ".xlsx"):
-            extracted_text = extract_resume_text_from_xlsx(file_stream)
-        else:
-            return JSONResponse(content={"error": f"未対応形式: {ext}"}, status_code=400)
+            content = await file.read()
+            file_stream = io.BytesIO(content)
 
-        if not extracted_text.strip():
-            return JSONResponse(content={"error": "テキスト抽出失敗"}, status_code=400)
+            # === ② ファイル形式に応じたテキスト抽出 ===
+            if ext == ".pdf":
+                extracted_text = extract_resume_text_from_pdf(file_stream)
+            elif ext in (".doc", ".docx"):
+                extracted_text = extract_resume_text_from_docx(file_stream)
+            elif ext in (".xls", ".xlsx"):
+                extracted_text = extract_resume_text_from_xlsx(file_stream)
+            else:
+                return JSONResponse(content={"error": f"未対応形式: {ext}"}, status_code=400)
 
-        # 正規化（追加）
-        extracted_text = normalize_pdf_text(extracted_text)
+            if not extracted_text.strip():
+                return JSONResponse(content={"error": "テキスト抽出失敗"}, status_code=400)
+
+            # 正規化（追加）
+            extracted_text = normalize_pdf_text(extracted_text)
+
+            merged_texts.append(f"## {raw_filename}\n{extracted_text}")
+
+        # === ③ 全ファイルを1つのテキストに結合 ===
+        merged_text = "\n\n".join(merged_texts)
 
         print("=== 抽出テキスト ===")
-        print(extracted_text)
+        print(merged_text[:1500])
 
         # === ③ マスキング処理 ＆ 氏名性別抽出 ===
-        masked_text, extracted_name = mask_personal_info(extracted_text)
-        extracted_gender = extract_gender_from_text(extracted_text)
+        masked_text, extracted_name = mask_personal_info(merged_text)
+        extracted_gender = extract_gender_from_text(merged_text)
 
         # === ④ ベクトルDB保存 ===
         save_masked_resume_embedding_local(candidate_id, masked_text)

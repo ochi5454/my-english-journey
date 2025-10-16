@@ -7,8 +7,7 @@ import appConfig from '../../config.ts';
 type ViewMode = 'form' | 'matrix' | 'hr';
 
 const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
-    console.log('ResumeScoring is rendered')
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [candidateId, setCandidateId] = useState<string>('');
@@ -16,7 +15,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-        setFile(e.target.files[0]);
+            setFiles(Array.from(e.target.files));
         }
     };
 
@@ -26,10 +25,10 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     };
 
     const handleSubmit = async () => {
-        if (!file || !candidateId) return;
+        if (files.length === 0 || !candidateId) return;
         setLoading(true);
         const formData = new FormData();
-        formData.append('file', file);
+        files.forEach((file) => formData.append('files', file)); // ← 複数append
         formData.append('candidate_id', candidateId);
         formData.append('uploader_id', userId);
 
@@ -80,59 +79,84 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
 
         {viewMode === 'form' ? (
             <>
-            <h2 className="resume-title">履歴書AI判定</h2>
+                <h2 className="resume-title">履歴書AI判定</h2>
 
-            <div className="resume-upload">
-                <label htmlFor="candidateIdInput">候補者ID:</label>
-                <input
-                id="candidateIdInput"
-                type="text"
-                value={candidateId}
-                onChange={(e) => setCandidateId(e.target.value)}
-                placeholder="候補者IDを入力または生成"
-                />
-                <button onClick={generateCandidateId} className="resume-generate-id">IDを自動生成</button>
-            </div>
-
-            <div className="resume-upload">
-                <label htmlFor="resumeFile">履歴書ファイルを選択 (PDF/DOCX/XLSX)</label><br />
-                <input id="resumeFile" type="file" accept=".pdf,.doc,.docx,.xlsx,.xls" onChange={handleFileChange} />
-            </div>
-
-            <button onClick={handleSubmit} disabled={!file || loading || !candidateId} className="resume-submit">
-                {loading ? 'スコアリング中...' : '送信'}
-            </button>
-
-        {result && (
-            <div className="resume-result">
-            <h3 className="resume-recommendation">
-                推奨部門: {result.llm_scoring?.recommended_division || '―'}
-            </h3>
-
-            <div className="resume-must-check">
-                <h4>マスト要件チェック:</h4>
-                <ul>
-                {Object.entries(result.llm_scoring?.must_check || {}).map(([item, value]: any) => (
-                    <li key={item} style={{ color: value.result ? 'green' : 'red' }}>
-                    {item}: {value.result ? '✅' : '❌'} - {value.reason}
-                    </li>
-                ))}
-                </ul>
-            </div>
-
-            {result.llm_scoring?.scores?.length > 0 && (
-                <div>
-                <h4>部門別スコア:</h4>
-                {result.llm_scoring.scores.map((s: any) => (
-                    <div key={s.division}>
-                    <p><strong>{s.division}</strong>: {s.score}点</p>
-                    <p className="resume-score-reason">{s.reason}</p>
-                    </div>
-                ))}
+                <div className="resume-upload">
+                    <label htmlFor="candidateIdInput">候補者ID:</label>
+                    <input
+                    id="candidateIdInput"
+                    type="text"
+                    value={candidateId}
+                    onChange={(e) => setCandidateId(e.target.value)}
+                    placeholder="候補者IDを入力または生成"
+                    />
+                    <button onClick={generateCandidateId} className="resume-generate-id">IDを自動生成</button>
                 </div>
-            )}
-            </div>
-        )}
+
+                {/* ✅ 複数ファイル選択可能に変更 */}
+                <div className="resume-upload">
+                    <label htmlFor="resumeFile">
+                        応募書類を選択（PDF / DOCX / XLSX）※複数選択可
+                    </label><br />
+                    <input
+                        id="resumeFile"
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xlsx,.xls"
+                        multiple // ← ここを追加
+                        onChange={handleFileChange}
+                    />
+                </div>
+
+                {/* ✅ ファイルプレビュー表示 */}
+                {files.length > 0 && (
+                    <div className="resume-file-list">
+                        <h4>選択中のファイル:</h4>
+                        <ul>
+                            {files.map((f) => (
+                                <li key={f.name}>{f.name}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                <button
+                    onClick={handleSubmit}
+                    disabled={files.length === 0 || loading || !candidateId}
+                    className="resume-submit"
+                >
+                    {loading ? 'スコアリング中...' : '送信'}
+                </button>
+
+                {result && (
+                    <div className="resume-result">
+                        <h3 className="resume-recommendation">
+                            推奨部門: {result.llm_scoring?.recommended_division || '―'}
+                        </h3>
+
+                        <div className="resume-must-check">
+                            <h4>マスト要件チェック:</h4>
+                            <ul>
+                            {Object.entries(result.llm_scoring?.must_check || {}).map(([item, value]: any) => (
+                                <li key={item} style={{ color: value.result ? 'green' : 'red' }}>
+                                {item}: {value.result ? '✅' : '❌'} - {value.reason}
+                                </li>
+                            ))}
+                            </ul>
+                        </div>
+
+                        {result.llm_scoring?.scores?.length > 0 && (
+                            <div>
+                            <h4>部門別スコア:</h4>
+                            {result.llm_scoring.scores.map((s: any) => (
+                                <div key={s.division}>
+                                <p><strong>{s.division}</strong>: {s.score}点</p>
+                                <p className="resume-score-reason">{s.reason}</p>
+                                </div>
+                            ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </>
         ) : viewMode === 'matrix' ? (
             <div>
