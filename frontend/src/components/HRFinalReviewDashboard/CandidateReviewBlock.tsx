@@ -3,6 +3,7 @@ import type { AIRawResult, InterviewEval, LabeledOption } from './hrReviewTypes'
 import { RenderMustCheckChip } from './RenderMustCheckChip';
 import HREvaluationModal from './HREvaluationModal';
 import './HRFinalReviewDashboard.css';
+import appConfig from '../../config.ts';
 
 interface CandidateReviewBlockProps {
     candidateId: string;
@@ -47,7 +48,7 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
     onSaveHR,
 }) => {
     const normalizedCandidateId = candidateId.replace(/^cand_/, '');
-    const resumeURL = `http://localhost:8000/resumes/by-candidate/${normalizedCandidateId}`;
+    const resumeURL = `${appConfig.API_BASE_URL}/resumes/by-candidate/${normalizedCandidateId}`;
 
     return (
         <div key={candidateId} className="candidate-block">

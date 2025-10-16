@@ -7,24 +7,32 @@ type Skill = {
     division?: string;
     trait_type: string;
     trait_label: string;
+    division_prefix?: string;
 };
 
 const SkillMaster: React.FC = () => {
     const [skills, setSkills] = useState<Skill[]>([]);
     const [newDivision, setNewDivision] = useState('');
+    const [newDivisionPrefix, setNewDivisionPrefix] = useState('');
     const [newTraitType, setNewTraitType] = useState<'must_requirement' | 'desired_trait'>('desired_trait');
     const [newTraitLabel, setNewTraitLabel] = useState('');
     const [loading, setLoading] = useState(false);
     const [editingSkillId, setEditingSkillId] = useState<number | null>(null);
     const [editedLabel, setEditedLabel] = useState<string>('');
+    const [filterDivision, setFilterDivision] = useState('');
 
     useEffect(() => {
         fetchSkills();
-    }, []);
+    }, [filterDivision]);
 
     const fetchSkills = async () => {
         try {
-            const res = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
+            let url = `${appConfig.API_BASE_URL}/admin/skills`;
+            if (filterDivision) {
+                url += `?division=${encodeURIComponent(filterDivision)}`;
+            }
+
+            const res = await fetch(url);
             const data = await res.json();
             setSkills(data);
         } catch (err) {
@@ -33,12 +41,17 @@ const SkillMaster: React.FC = () => {
         }
     };
 
+    const divisionList = Array.from(
+        new Set(skills.map((s) => s.division || '共通'))
+    );
+
     const addSkill = async () => {
         if (!newTraitLabel.trim()) return;
         setLoading(true);
         try {
             const body = {
                 division: newDivision || null,
+                division_prefix: newDivisionPrefix || null,
                 trait_type: newTraitType,
                 trait_label: newTraitLabel,
             };
@@ -103,14 +116,21 @@ const SkillMaster: React.FC = () => {
 
     return (
         <div className="skill-master">
-            <h2>スキルマスタ管理</h2>
+            <h2>部門・スキル管理</h2>
 
+            {/* 追加フォーム */}
             <div className="skill-form">
                 <input
                     type="text"
                     placeholder="部門"
                     value={newDivision}
                     onChange={(e) => setNewDivision(e.target.value)}
+                />
+                <input
+                    type="text"
+                    placeholder="部門プレフィックス"
+                    value={newDivisionPrefix}
+                    onChange={(e) => setNewDivisionPrefix(e.target.value)}
                 />
                 <select
                     value={newTraitType}
@@ -130,6 +150,28 @@ const SkillMaster: React.FC = () => {
                 </button>
             </div>
 
+            {/* フィルタ */}
+            <div className="skill-filter">
+                <select
+                    value={filterDivision}
+                    onChange={(e) => setFilterDivision(e.target.value)}
+                >
+                    <option value="">全ての部門（共通含む）</option>
+                    {divisionList.map((d) => (
+                        <option key={d} value={d}>
+                            {d}
+                        </option>
+                    ))}
+                </select>
+
+                <button
+                    onClick={() => setFilterDivision('')}
+                    className="skil-clear-button"
+                >
+                    クリア
+                </button>
+            </div>
+
             <p className="skill-warning">
                 ※スキル名の変更は、全く意味の異なるものへに編集しないようご注意ください。異なる場合は <strong>新規スキルを追加</strong> してください。
             </p>
@@ -139,6 +181,7 @@ const SkillMaster: React.FC = () => {
                     <tr>
                         <th>ID</th>
                         <th>部門</th>
+                        <th>プレフィックス</th>
                         <th>種別</th>
                         <th>スキル名</th>
                         <th>操作</th>
@@ -151,6 +194,7 @@ const SkillMaster: React.FC = () => {
                             <td>
                                 {skill.division ? <span className="division">{skill.division}</span> : '―'}
                             </td>
+                            <td>{skill.division_prefix || '―'}</td>
                             <td>
                                 <span className={`badge ${skill.trait_type === 'must_requirement' ? 'must' : 'desired'}`}>
                                     {skill.trait_type === 'must_requirement' ? 'マスト' : '歓迎'}
@@ -160,34 +204,34 @@ const SkillMaster: React.FC = () => {
                                 {editingSkillId === skill.id ? (
                                     <>
                                         <input
-                                        value={editedLabel}
-                                        onChange={(e) => setEditedLabel(e.target.value)}
-                                        style={{ width: '140px', marginRight: '8px' }}
+                                            value={editedLabel}
+                                            onChange={(e) => setEditedLabel(e.target.value)}
+                                            style={{ width: '140px', marginRight: '8px' }}
                                         />
                                         <button
-                                        onClick={() => updateSkillLabel(skill.id)}
-                                        className="small-button"
+                                            onClick={() => updateSkillLabel(skill.id)}
+                                            className="small-button"
                                         >
-                                        保存
+                                            保存
                                         </button>
                                         <button
-                                        onClick={() => setEditingSkillId(null)}
-                                        className="small-button"
+                                            onClick={() => setEditingSkillId(null)}
+                                            className="small-button"
                                         >
-                                        ×
+                                            ×
                                         </button>
                                     </>
                                     ) : (
                                     <>
                                         {skill.trait_label}
                                         <button
-                                        onClick={() => {
-                                            setEditingSkillId(skill.id);
-                                            setEditedLabel(skill.trait_label);
-                                        }}
-                                        className="icon-button"
+                                            onClick={() => {
+                                                setEditingSkillId(skill.id);
+                                                setEditedLabel(skill.trait_label);
+                                            }}
+                                            className="icon-button"
                                         >
-                                        🖌️
+                                            🖌️
                                         </button>
                                     </>
                                 )}

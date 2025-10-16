@@ -16,6 +16,7 @@ class CandidateExpectations(Base):
     division = Column(String, nullable=True)
     trait_type = Column(String, nullable=False)  # 例: "must_requirement" or "desired_trait"
     trait_label = Column(String, nullable=False)
+    division_prefix = Column(String, nullable=True)
 
 # ============================================
 # ✅ 候補者の評価結果

@@ -7,6 +7,7 @@ from typing import Optional
 
 class CandidateExpectationBase(BaseModel):
     division: Optional[str]
+    division_prefix: Optional[str]
     trait_type: str  # "must_requirement" or "desired_trait"
     trait_label: str
 

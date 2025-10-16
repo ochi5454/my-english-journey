@@ -209,10 +209,10 @@ const AIFormulaConfig: React.FC = () => {
 
         <div className="aifc-actions">
             <button onClick={handleSave} className="aifc-btn aifc-btn-save" disabled={status === 'saving'}>
-            保存
+                保存
             </button>
             <button onClick={handleClear} className="aifc-btn aifc-btn-cancle" disabled={status === 'saving'}>
-            キャンセル
+                キャンセル
             </button>
         </div>
 

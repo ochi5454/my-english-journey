@@ -1,22 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.models.score_resume import CandidateExpectations, CandidateMustCheckItem, CandidateDivisionMustCheckItem, AIFormulaConfig
+from backend.models.checksheet import ChecksheetRoleTitle
+from backend.models.score_ofinterviewer import InterviewerRoleFocusItem
 from backend.schemas.expectation import CandidateExpectationCreate, CandidateExpectationOut, SkillUpdateSchema
 from backend.schemas.ai_formula import AIFormulaConfigResponse, AIFormulaConfigCreate
+from backend.schemas.tag import InterviewerRoleFocusUpdate, InterviewerRoleFocusOut, InterviewerRoleFocusCreate
+from backend.schemas.role import RoleTitleOut
 from backend.services.admin.expectation import get_all_expectations, create_expectation, delete_expectation
 
 router = APIRouter(prefix="/admin")
 
 #  ============================================
-#  📮 候補者に求めるスキルの管理
+#  📮 部門・スキルの管理
 #  ============================================
 
 @router.get("/skills", response_model=List[CandidateExpectationOut])
-def fetch_skills(db: Session = Depends(get_db)):
-    return get_all_expectations(db)
+def fetch_skills(division: Optional[str] = None, db: Session = Depends(get_db)):
+    return get_all_expectations(db, division)
 
 @router.post("/skills", response_model=CandidateExpectationOut)
 def add_skill(data: CandidateExpectationCreate, db: Session = Depends(get_db)):
@@ -59,7 +63,69 @@ def update_skill(skill_id: int, update: SkillUpdateSchema, db: Session = Depends
     return {"message": "Skill and related data updated"}
 
 #  ============================================
-#  📮 AI推薦度の数式の管理
+#  📮 QAタグの管理
+#  ============================================
+
+@router.get("/tag", response_model=List[InterviewerRoleFocusOut])
+def list_focus_items(
+    division: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    query = db.query(InterviewerRoleFocusItem)
+    if division:
+        query = query.filter(InterviewerRoleFocusItem.division == division)
+    if role:
+        query = query.filter(InterviewerRoleFocusItem.role == role)
+    return query.order_by(InterviewerRoleFocusItem.id).all()
+
+
+@router.post("/tag", response_model=InterviewerRoleFocusOut)
+def create_focus_item(item: InterviewerRoleFocusCreate, db: Session = Depends(get_db)):
+    exists = db.query(InterviewerRoleFocusItem).filter_by(focus_id=item.focus_id).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="Focus ID already exists")
+    new_item = InterviewerRoleFocusItem(**item.dict())
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+    return new_item
+
+
+@router.put("/tag/{item_id}", response_model=InterviewerRoleFocusOut)
+def update_focus_item(item_id: int, update: InterviewerRoleFocusUpdate, db: Session = Depends(get_db)):
+    item = db.query(InterviewerRoleFocusItem).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    for k, v in update.dict(exclude_unset=True).items():
+        setattr(item, k, v)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/tag/{item_id}")
+def delete_focus_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(InterviewerRoleFocusItem).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    db.delete(item)
+    db.commit()
+    return {"message": "deleted"}
+
+#  ============================================
+#  📮 ロール
+#  ============================================
+
+@router.get("/roles", response_model=List[RoleTitleOut])
+def get_roles(db: Session = Depends(get_db)):
+    roles = db.query(ChecksheetRoleTitle).order_by(ChecksheetRoleTitle.order).all()
+    if not roles:
+        raise HTTPException(status_code=404, detail="ロールデータが見つかりません")
+    return roles
+
+#  ============================================
+#  📮 AI推薦度の数式
 #  ============================================
 
 @router.get("/ai-formula", response_model=AIFormulaConfigResponse)
