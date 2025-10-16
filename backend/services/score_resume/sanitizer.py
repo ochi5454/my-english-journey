@@ -30,16 +30,21 @@ def mask_names_by_label(text: str) -> Tuple[str, Optional[str]]:
     extracted_name = None
 
     for label in name_labels:
-        pattern = rf"({label}\s*[:：]?\s*)([^\s\n（(]+)[\s　]+([^\s\n（(]+)"
+        # 改行や「性別」「住所」などで止める安全なパターン
+        stop_words = ["性別", "生年月日", "住所", "電話", "メール", "連絡先"]
+        pattern = rf"{label}\s*[:：]?\s*([^\s\n（(]+)[\s　]+([^\s\n（(：:\n]+)(?=(?:{'|'.join(stop_words)}|$))"
+
         match = re.search(pattern, text)
         if match:
-            name_part = f"{match.group(2)} {match.group(3)}".strip()
+            # グループ1, 2のみ（旧group(2),(3)→新group(1),(2)）
+            name_part = f"{match.group(1)} {match.group(2)}".strip()
             name_part = re.sub(r"[（(].*", "", name_part).strip()
             extracted_name = name_part
-            text = re.sub(pattern, rf"\1＜人名削除＞", text)
+            # 氏名ラベル部分を安全にマスク
+            text = re.sub(pattern, f"{label} ＜人名削除＞", text)
             break
 
-    # 表形式対応の fallback
+    # 表形式fallback
     if not extracted_name:
         extracted_name = extract_name_from_table(text)
         if extracted_name:
