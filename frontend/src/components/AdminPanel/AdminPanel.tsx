@@ -3,9 +3,10 @@ import './AdminPanel.css';
 import SkillMaster from './SkillMaster.tsx';
 import AIFormulaConfig from './AIFormulaConfig.tsx';
 import QATagMaster from './QATagMaster.tsx';
+import RoleMaster from './RoleMaster.tsx';
 
 const AdminPanel: React.FC = () => {
-    const [view, setView] = useState<'skill' | 'ai_formula' | 'qa_tag'>('skill');
+    const [view, setView] = useState<'skill' | 'roles' | 'qa_tag' | 'ai_formula' >('skill');
 
     return (
         <div className="admin-container">
@@ -15,6 +16,12 @@ const AdminPanel: React.FC = () => {
                     onClick={() => setView('skill')}
                 >
                     部門・スキル
+                </div>
+                <div
+                    className={`admin-tab ${view === 'roles' ? 'active' : ''}`}
+                    onClick={() => setView('roles')}
+                >
+                    ロール
                 </div>
                 <div
                     className={`admin-tab ${view === 'qa_tag' ? 'active' : ''}`}
@@ -32,6 +39,7 @@ const AdminPanel: React.FC = () => {
 
             <div className="admin-content">
                 {view === 'skill' && <SkillMaster />}
+                {view === 'roles' && <RoleMaster />}
                 {view === 'qa_tag' && <QATagMaster />}
                 {view === 'ai_formula' && <AIFormulaConfig />}
             </div>

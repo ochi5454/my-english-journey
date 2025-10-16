@@ -221,7 +221,7 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                 <RatingBar
                     items={config.titleOptions.map(opt => ({
                     ...opt,
-                    label: opt.label.split('（')[0], // または .replace(/（.*$/, '')
+                    label: opt.label,
                     }))}
                     value={qualitative['recommendedTitle'] || null}
                     onChange={v => setQualitative(s => ({ ...s, recommendedTitle: v }))}

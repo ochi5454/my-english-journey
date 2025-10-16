@@ -202,7 +202,7 @@ const QATagMaster: React.FC = () => {
                 <option value="">ロールを選択</option>
                 {roles.map((r) => (
                     <option key={r.id} value={r.value}>
-                        {r.label}
+                        {r.label} {r.value ? `(${r.value})` : ''}
                     </option>
                 ))}
             </select>
@@ -238,7 +238,7 @@ const QATagMaster: React.FC = () => {
                 <option value="">全てのロール</option>
                 {roles.map((r) => (
                     <option key={r.id} value={r.value}>
-                        {r.label}
+                        {r.label} {r.value ? `(${r.value})` : ''}
                     </option>
                 ))}
             </select>
@@ -275,7 +275,7 @@ const QATagMaster: React.FC = () => {
                 <tr key={item.id}>
                 <td>{item.id}</td>
                 <td> <span className="division">{item.division}</span></td>
-                <td>{item.role}</td>
+                <td>{roles.find((r) => r.value === item.role)?.label || item.role}</td>
                 <td><code>{item.focus_id}</code></td>
                 <td>
                     {editingId === item.id ? (

@@ -5,31 +5,42 @@ import appConfig from '../../config.ts';
 
 // ======================== 型定義 ========================
 type FocusTag = {
-    id: string;
-    label: string;
+  id: string;
+  label: string;
 };
 
 type RoleFocusSummary = {
-    [roleKey: string]: {
-        expected_tags: FocusTag[];
-        used_tags: Record<string, number>;
-        missing_tags: FocusTag[];
-    };
+  [roleKey: string]: {
+    expected_tags: FocusTag[];
+    used_tags: Record<string, number>;
+    missing_tags: FocusTag[];
+  };
 };
 
-const ROLE_ORDER = ['c', 'sc', 'm', 'sm', 'd+']; // 小文字に統一
+type Role = {
+  id: number;
+  value: string;
+  label: string;
+  order?: number;
+};
 
 const InterviewerRoleFocusOverview: React.FC = () => {
   const [data, setData] = useState<RoleFocusSummary>({});
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // --- データ取得 ---
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const res = await axios.get<RoleFocusSummary>(`${appConfig.API_BASE_URL}/checksheet/role-focus-summary`);
-        setData(res.data);
+        const [summaryRes, roleRes] = await Promise.all([
+          axios.get<RoleFocusSummary>(`${appConfig.API_BASE_URL}/checksheet/role-focus-summary`),
+          axios.get<Role[]>(`${appConfig.API_BASE_URL}/admin/roles`)
+        ]);
+        setData(summaryRes.data);
+        setRoles(roleRes.data);
       } catch (err: any) {
         setError('読み込みに失敗しました');
       } finally {
@@ -39,28 +50,32 @@ const InterviewerRoleFocusOverview: React.FC = () => {
     fetchData();
   }, []);
 
-  // マトリクス形式に整形
-    const matrixData = useMemo(() => {
+  // --- 部門×ロールのマトリクス整形 ---
+  const matrixData = useMemo(() => {
     const matrix: Record<string, Record<string, { tags: FocusTag[]; used: Record<string, number> }>> = {};
     for (const roleKey in data) {
-        const [dept, role] = roleKey.split(':');
-        if (!dept || !role || dept === '共通') continue;
+      const [dept, role] = roleKey.split(':');
+      if (!dept || !role || dept === '共通') continue;
 
-        const deptLower = dept.toLowerCase();
-        const roleLower = role.toLowerCase();
+      const deptLower = dept.toLowerCase();
+      const roleLower = role.toLowerCase();
 
-        if (!matrix[deptLower]) matrix[deptLower] = {};
-        matrix[deptLower][roleLower] = {
+      if (!matrix[deptLower]) matrix[deptLower] = {};
+      matrix[deptLower][roleLower] = {
         tags: data[roleKey].expected_tags || [],
         used: data[roleKey].used_tags || {},
-        };
+      };
     }
     return matrix;
-    }, [data]);
+  }, [data]);
 
-  const departments = useMemo(() =>
-    Object.keys(matrixData).sort(),
-    [matrixData]
+  // --- 部門一覧 ---
+  const departments = useMemo(() => Object.keys(matrixData).sort(), [matrixData]);
+
+  // --- ロール一覧（order順） ---
+  const sortedRoles = useMemo(
+    () => [...roles].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [roles]
   );
 
   return (
@@ -74,43 +89,52 @@ const InterviewerRoleFocusOverview: React.FC = () => {
             <thead>
               <tr>
                 <th>部門＼ロール</th>
-                {ROLE_ORDER.map(role => (
-                  <th key={role}>
-                    <span className={`role-chip role-${role}`}>{role.toUpperCase()}</span>
+                {sortedRoles.map((role) => (
+                  <th key={role.value}>
+                    <span className={`role-chip role-${role.value}`}>
+                      {role.label}
+                    </span>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {departments.map(dept => (
+              {departments.map((dept) => (
                 <tr key={dept}>
                   <td>{dept}</td>
-                  {ROLE_ORDER.map(role => {
-                    const cell = matrixData[dept]?.[role];
+                  {sortedRoles.map((role) => {
+                    const cell = matrixData[dept]?.[role.value.toLowerCase()];
                     const tags = cell?.tags ?? [];
                     const usedMap = cell?.used ?? {};
                     return (
-                      <td key={`${dept}:${role}`}>
+                      <td key={`${dept}:${role.value}`}>
                         <div className="tag-chip-container">
-                            {tags.map((tag, idx) => {
+                          {tags.map((tag, idx) => {
                             const tagId = tag?.id;
-                            const tagLabel = (tag?.label && tag.label !== "expected_focus")
-                            ? tag.label
-                            : "（ラベル不明）";
-                            if (!tagId) return null; // 無効なタグはスキップ
+                            const tagLabel =
+                              tag?.label && tag.label !== 'expected_focus'
+                                ? tag.label
+                                : '（ラベル不明）';
+                            if (!tagId) return null;
 
                             const count = usedMap[tagId] ?? 0;
                             const className =
-                                count >= 3 ? 'tag-chip high' :
-                                count >= 1 ? 'tag-chip medium' :
-                                'tag-chip low';
+                              count >= 3
+                                ? 'tag-chip high'
+                                : count >= 1
+                                ? 'tag-chip medium'
+                                : 'tag-chip low';
 
                             return (
-                                <span key={`${tagId}-${idx}`} className={className} title={`出現: ${count}回`}>
+                              <span
+                                key={`${tagId}-${idx}`}
+                                className={className}
+                                title={`出現: ${count}回`}
+                              >
                                 {tagLabel}
-                                </span>
+                              </span>
                             );
-                            })}
+                          })}
                         </div>
                       </td>
                     );

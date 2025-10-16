@@ -9,7 +9,7 @@ from backend.models.score_ofinterviewer import InterviewerRoleFocusItem
 from backend.schemas.expectation import CandidateExpectationCreate, CandidateExpectationOut, SkillUpdateSchema
 from backend.schemas.ai_formula import AIFormulaConfigResponse, AIFormulaConfigCreate
 from backend.schemas.tag import InterviewerRoleFocusUpdate, InterviewerRoleFocusOut, InterviewerRoleFocusCreate
-from backend.schemas.role import RoleTitleOut
+from backend.schemas.role import RoleTitleOut, RoleTitleCreate, RoleTitleUpdate
 from backend.services.admin.expectation import get_all_expectations, create_expectation, delete_expectation
 
 router = APIRouter(prefix="/admin")
@@ -123,6 +123,51 @@ def get_roles(db: Session = Depends(get_db)):
     if not roles:
         raise HTTPException(status_code=404, detail="ロールデータが見つかりません")
     return roles
+
+@router.post("/roles", response_model=RoleTitleOut)
+def create_role(role: RoleTitleCreate, db: Session = Depends(get_db)):
+    # 重複チェック
+    existing = db.query(ChecksheetRoleTitle).filter(ChecksheetRoleTitle.value == role.value).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="同じ value のロールが既に存在します")
+
+    new_role = ChecksheetRoleTitle(
+        value=role.value,
+        label=role.label,
+        order=role.order or 0
+    )
+    db.add(new_role)
+    db.commit()
+    db.refresh(new_role)
+    return new_role
+
+@router.put("/roles/{role_id}", response_model=RoleTitleOut)
+def update_role(role_id: int, role: RoleTitleUpdate, db: Session = Depends(get_db)):
+    db_role = db.query(ChecksheetRoleTitle).filter(ChecksheetRoleTitle.id == role_id).first()
+    if not db_role:
+        raise HTTPException(status_code=404, detail="指定されたロールが見つかりません")
+
+    # --- 更新可能フィールド ---
+    if role.label is not None:
+        db_role.label = role.label
+    if role.value is not None:
+        db_role.value = role.value
+    if role.order is not None:
+        db_role.order = role.order 
+
+    db.commit()
+    db.refresh(db_role)
+    return db_role
+
+@router.delete("/roles/{role_id}")
+def delete_role(role_id: int, db: Session = Depends(get_db)):
+    db_role = db.query(ChecksheetRoleTitle).filter(ChecksheetRoleTitle.id == role_id).first()
+    if not db_role:
+        raise HTTPException(status_code=404, detail="指定されたロールが見つかりません")
+
+    db.delete(db_role)
+    db.commit()
+    return {"message": "ロールを削除しました"}
 
 #  ============================================
 #  📮 AI推薦度の数式
