@@ -34,6 +34,7 @@ class Candidate(Base):
     score_work = Column(Integer, nullable=True)
     experience = Column(Integer)
     recommended_div = Column(String)
+    preferred_div = Column(String, nullable=True)
     uploader_id = Column(String)
     updated_by = Column(String)
     updated_at = Column(DateTime)

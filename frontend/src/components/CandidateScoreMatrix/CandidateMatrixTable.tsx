@@ -1,19 +1,26 @@
 import React from 'react';
-import { renderGenderChip, renderStatusChip, renderHrDecisionChip, renderMustCheckChip, renderAIRecommendationChip } from './RenderChips';
+import { useDivisionColorMap } from './useDivisionColorMap';
+import { renderGenderChip, renderStatusChip, renderHrDecisionChip, renderMustCheckChip, renderAIRecommendationChip, renderDivisionChip } from './RenderChips';
 import type { Result } from './types';
 
 export default function CandidateMatrixTable({
-        filteredResults, allMustKeys, allDivisions,
+        filteredResults, allMustKeys, 
+        // allDivisions,
         selectedIds, setSelectedIds, handleRowClick, setShowAIPanel
     }: {
         filteredResults: Result[];
         allMustKeys: string[];
-        allDivisions: string[];
+        // allDivisions: string[];
         selectedIds: Set<string>;
         setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
         handleRowClick: (id: string) => void;
         setShowAIPanel: React.Dispatch<React.SetStateAction<boolean>>;
     }) {
+
+    const { divisionColorMap, loading } = useDivisionColorMap();
+
+    if (loading) return <p>読み込み中...</p>;
+
     return (
         <div className="resume-matrix-wrapper">
         <table className="resume-matrix-table">
@@ -38,22 +45,25 @@ export default function CandidateMatrixTable({
                     AI推薦度 🔽
                 </th>
                 <th rowSpan={2}>AIスコア</th>
-                <th rowSpan={2}>志望動機</th>
-                <th rowSpan={2}>職務経歴</th>
+                <th rowSpan={2}>希望部門</th>
+                <th rowSpan={2}>希望部門スコア</th>
                 <th rowSpan={2}>推薦部門</th>
+                <th rowSpan={2}>推薦部門スコア</th>
                 {/* 共通must */}
                 <th colSpan={allMustKeys.length}>必須</th>
 
-                {/* division別 must */}
-                {allDivisions.map(division => {
+                {/* 全部門別 must */}
+                {/* {allDivisions.map(division => {
                     const items = Object.keys(
                         filteredResults.find(r => r.division_must_check?.[division])?.division_must_check?.[division] ?? {}
                     );
                     if (items.length === 0) return null;
                     return <th key={`head-div-${division}`} colSpan={items.length}>{division}</th>;
-                })}
+                })} */}
 
-                <th colSpan={allDivisions.length}>部門スコア</th>
+                {/* <th colSpan={allDivisions.length}>部門スコア</th> */}
+                <th rowSpan={2}>志望動機スコア</th>
+                <th rowSpan={2}>職務経歴スコア</th>
                 <th rowSpan={2}>志望動機サマリ</th>
                 <th rowSpan={2}>職務経歴サマリ</th>
                 <th rowSpan={2}>評価日</th>
@@ -62,18 +72,18 @@ export default function CandidateMatrixTable({
                 {/* 共通must trait labels */}
                 {allMustKeys.map(k => <th key={`must-${k}`}>{k}</th>)}
 
-                {/* division must trait labels */}
-                {allDivisions.flatMap(division => {
+                {/* 全部門別 must trait labels */}
+                {/* {allDivisions.flatMap(division => {
                     const keys = Object.keys(
                         filteredResults.find(r => r.division_must_check?.[division])?.division_must_check?.[division] ?? {}
                     );
                     return keys.map(item => (
                         <th key={`divmust-${division}-${item}`}>{item}</th>
                     ));
-                })}
+                })} */}
 
-                {/* 部門スコア division headers */}
-                {allDivisions.map(d => <th key={`div-${d}`}>{d}</th>)}
+                {/* 全部門スコア division headers */}
+                {/* {allDivisions.map(d => <th key={`div-${d}`}>{d}</th>)} */}
             </tr>
             </thead>
 
@@ -100,13 +110,14 @@ export default function CandidateMatrixTable({
                 <td>{renderHrDecisionChip(r.hr_decision)}</td>
                 <td>{renderAIRecommendationChip(r.ai_score_percentile)}</td>
                 <td>{r.ai_score?.toFixed(2) ?? '-'}</td>
-                <td>{r.score_notes || '-'}</td>
-                <td>{r.score_work || '-'}</td>
-                <td>{r.recommended_division}</td>
+                <td>{renderDivisionChip(r.preferred_div, divisionColorMap)}</td>
+                <td>{r.preferred_div_score ?? '-'}</td>
+                <td>{renderDivisionChip(r.recommended_div, divisionColorMap)}</td>
+                <td>{r.recommended_div_score ?? '-'}</td>
                 {allMustKeys.map(k =>
                     <td key={k}>{renderMustCheckChip(r.must_check[k]?.result, r.must_check[k]?.reason)}</td>
                 )}
-                {allDivisions.flatMap(division => {
+                {/* {allDivisions.flatMap(division => {
                     const keys = Object.keys(
                         filteredResults.find(r => r.division_must_check?.[division])?.division_must_check?.[division] ?? {}
                     );
@@ -123,7 +134,9 @@ export default function CandidateMatrixTable({
                 {allDivisions.map(d => {
                     const s = r.scores.find(sc => sc.division === d);
                     return <td key={d}>{s?.score ?? '-'}</td>;
-                })}
+                })} */}
+                <td>{r.score_notes || '-'}</td>
+                <td>{r.score_work || '-'}</td>
                 <td>{r.notes || '-'}</td>
                 <td>{r.work_summary || '-'}</td>
                 <td>{r.timestamp?.slice(0, 19).replace('T', ' ')}</td>

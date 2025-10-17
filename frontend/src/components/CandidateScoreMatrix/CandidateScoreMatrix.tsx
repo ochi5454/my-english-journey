@@ -97,7 +97,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         const nameMatch = (r.user_name || '').toLowerCase().includes(userName.toLowerCase());
         const genderMatch = gender === '' || r.gender === gender;
         const statusMatch = status === '' || (r.status || '').includes(status);
-        const divisionMatch = division === '' || (r.recommended_division || '').includes(division);
+        const divisionMatch = division === '' || (r.recommended_div || '').includes(division);
         const mustPassed = !mustCheckAllPassed || Object.values(r.must_check || {}).every(m => m.result === true);
 
         const p = r.ai_score_percentile ?? 0;
@@ -182,7 +182,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         <CandidateMatrixTable
             filteredResults={filteredResults}
             allMustKeys={allMustKeys}
-            allDivisions={allDivisions}
+            // allDivisions={allDivisions}
             selectedIds={selectedIds}
             setSelectedIds={setSelectedIds}
             handleRowClick={handleRowClick}

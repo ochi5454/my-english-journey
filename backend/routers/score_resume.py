@@ -1,8 +1,9 @@
 import os
 import io
+import re
 from uuid import uuid4
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from fastapi import HTTPException, APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import HTTPException
@@ -28,7 +29,8 @@ router = APIRouter()
 async def resume_score_save(
     files: List[UploadFile] = File(...), 
     candidate_id: str = Form(...),
-    uploader_id: str = Form(...)
+    uploader_id: str = Form(...),
+    desired_division: Optional[str] = Form(None)
 ):
     try:
         merged_texts = []
@@ -100,6 +102,7 @@ async def resume_score_save(
                     gender=extracted_gender,
                     experience=experience_years,
                     uploader_id=uploader_id,
+                    preferred_div=desired_division,
                     updated_by="system",
                     updated_at=now
                 )
@@ -108,6 +111,7 @@ async def resume_score_save(
                 candidate.updated_by = "system"
                 candidate.updated_at = now
                 candidate.experience = experience_years
+                candidate.preferred_div = desired_division
             db.commit()
 
             new_status = CandidateStatus(
@@ -122,7 +126,14 @@ async def resume_score_save(
             db.commit()
 
         # === ⑦ LLMスコアリング実行 ===
-        scoring_result = score_resume_from_text(masked_text, candidate_id)
+        filtered_text = re.sub(
+            r"志望動機[:：]?\s*.*?(?=(?:\n\S{2,3}|##|職務経歴|$))",
+            "",
+            masked_text,
+            flags=re.DOTALL
+        )
+        print("🧠 LLMスコアリングに渡す前に１次精査。なるべく職務経歴重視: %s", filtered_text)
+        scoring_result = score_resume_from_text(filtered_text, candidate_id)
 
         # === ⑧ スコア・must_checkをDBに保存 ===
         now = datetime.utcnow()
@@ -235,15 +246,47 @@ async def resume_score_save(
 
             db.commit()
 
+            preferred_div_score = None
+            recommended_div_score = None
+            preferred_div_reason = None
+            recommended_div_reason = None
+
+            # 🙋希望部門スコアを抽出
+            if desired_division:
+                preferred_score_row = db.query(CandidateDivisionScore).filter_by(
+                    user_id=candidate_id, division=desired_division
+                ).first()
+                if preferred_score_row:
+                    preferred_div_score = preferred_score_row.score
+                    preferred_div_reason = preferred_score_row.reason
+
+            # 🙋‍♀️推薦部門スコアを抽出
+            recommended_div = scoring_result.get("recommended_division")
+            if recommended_div:
+                recommended_score_row = db.query(CandidateDivisionScore).filter_by(
+                    user_id=candidate_id, division=recommended_div
+                ).first()
+                if recommended_score_row:
+                    recommended_div_score = recommended_score_row.score
+                    recommended_div_reason = recommended_score_row.reason
+
         # === ⑨ 応答 ===
         return JSONResponse(content={
             "candidate_id": candidate_id,
             "uploader_id": uploader_id,
+            "desired_division": desired_division,
             "timestamp": now.isoformat(),
             "generated_sql": generated_sql,
 
+            # 希望部門・推薦部門情報を追加
+            "preferred_div": desired_division,
+            "preferred_div_score": preferred_div_score,
+            "preferred_div_reason": preferred_div_reason,
+            "recommended_div": recommended_div,
+            "recommended_div_score": recommended_div_score,
+            "recommended_div_reason": recommended_div_reason,
+
             # 推薦部門・must_check・スコア
-            "recommended_division": scoring_result.get("recommended_division"),
             "must_check": scoring_result.get("must_check"),
             "scores": scoring_result.get("scores"),
 
@@ -274,7 +317,7 @@ async def get_resume_results():
         for c in candidates:
             user_id = c.user_id
 
-            # status取得（存在しない場合は"アップロード"）
+            # === ステータス取得 ===
             latest_status = (
                 db.query(CandidateStatus)
                 .filter_by(user_id=user_id)
@@ -283,6 +326,7 @@ async def get_resume_results():
             )
             status_value = latest_status.stage if latest_status else "アップロード"
 
+            # === 各種関連データ ===
             must_checks = db.query(CandidateMustCheckItem)\
                 .filter_by(user_id=user_id).all()
 
@@ -292,6 +336,7 @@ async def get_resume_results():
             scores = db.query(CandidateDivisionScore)\
                 .filter_by(user_id=user_id).all()
             
+            # === division_must_check 整形 ===
             division_must_check_dict = {}
             for d in division_must_checks:
                 division = d.division
@@ -301,6 +346,37 @@ async def get_resume_results():
                     "result": d.result,
                     "reason": d.reason
                 }
+
+            # === 希望部門・推薦部門のスコア取得 ===
+            preferred_div = c.preferred_div
+            recommended_div = c.recommended_div
+
+            preferred_div_score = None
+            recommended_div_score = None
+            preferred_div_reason = None
+            recommended_div_reason = None
+
+            # 希望部門スコア
+            if preferred_div:
+                pref_score = (
+                    db.query(CandidateDivisionScore)
+                    .filter_by(user_id=user_id, division=preferred_div)
+                    .one_or_none()  # ← first()でもOK。整合性重視ならこちら。
+                )
+                if pref_score:
+                    preferred_div_score = pref_score.score
+                    preferred_div_reason = pref_score.reason
+
+            # 推薦部門スコア
+            if recommended_div:
+                rec_score = (
+                    db.query(CandidateDivisionScore)
+                    .filter_by(user_id=user_id, division=recommended_div)
+                    .one_or_none()
+                )
+                if rec_score:
+                    recommended_div_score = rec_score.score
+                    recommended_div_reason = rec_score.reason
 
             result = {
                 "user_id": user_id,
@@ -313,7 +389,12 @@ async def get_resume_results():
                 "work_summary": c.work_summary,
                 "score_work": c.score_work,
                 "experience": c.experience,
-                "recommended_division": c.recommended_div,
+                "preferred_div": preferred_div,
+                "preferred_div_score": preferred_div_score,
+                "preferred_div_reason": preferred_div_reason,
+                "recommended_div": recommended_div,
+                "recommended_div_score": recommended_div_score,
+                "recommended_div_reason": recommended_div_reason,
                 "uploader_id": c.uploader_id,
                 "timestamp": c.updated_at.isoformat() if c.updated_at else None,
                 "must_check": {

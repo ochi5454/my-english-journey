@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import './ResumeScoring.css';
 import CandidateScoreMatrix from '../CandidateScoreMatrix/CandidateScoreMatrix.tsx';
 import HRFinalReviewDashboard from '../HRFinalReviewDashboard/HRFinalReviewDashboard.tsx';
@@ -12,6 +12,31 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     const [result, setResult] = useState<any>(null);
     const [candidateId, setCandidateId] = useState<string>('');
     const [viewMode, setViewMode] = useState<ViewMode>('form');
+    const [divisions, setDivisions] = useState<string[]>([]);
+    const [selectedDivision, setSelectedDivision] = useState<string>('');
+
+    // 部門一覧を取得（division_prefix ≠ "common" のみ）
+    useEffect(() => {
+        const fetchDivisions = async () => {
+            try {
+            const response = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
+            const data: any[] = await response.json();
+
+            const uniqueDivisions: string[] = Array.from(
+                new Set(
+                data
+                    .filter((item) => item.division_prefix !== 'common')
+                    .map((item) => item.division)
+                )
+            );
+
+            setDivisions(uniqueDivisions);
+            } catch (err) {
+            console.error('部門一覧の取得に失敗しました', err);
+            }
+        };
+        fetchDivisions();
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -31,6 +56,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
         files.forEach((file) => formData.append('files', file)); // ← 複数append
         formData.append('candidate_id', candidateId);
         formData.append('uploader_id', userId);
+        formData.append('desired_division', selectedDivision);
 
         try {
             const response = await fetch(`${appConfig.API_BASE_URL}/resume-score-save`, {
@@ -93,6 +119,25 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                     <button onClick={generateCandidateId} className="resume-generate-id">IDを自動生成</button>
                 </div>
 
+                {/* 希望部門プルダウン */}
+                <div className="resume-upload">
+                    <label htmlFor="divisionSelect">希望部門:</label>
+                    <select
+                        id="divisionSelect"
+                        value={selectedDivision}
+                        onChange={(e) => setSelectedDivision(e.target.value)}
+                        className="resume-select"
+                    >
+                        <option value="">選択してください</option>
+                        {divisions.map((div) => (
+                            <option key={div} value={div}>
+                                {div}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+
                 {/* ✅ 複数ファイル選択可能に変更 */}
                 <div className="resume-upload">
                     <label htmlFor="resumeFile">
@@ -129,56 +174,94 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
 
                 {result && (
                     <div className="resume-result">
-                        <h3 className="resume-recommendation">
-                            推奨部門: {result.llm_scoring?.recommended_division || '―'}
-                        </h3>
 
-                        <div className="resume-section">
-                            <h4>マスト要件チェック:</h4>
-                            <ul>
-                            {Object.entries(result.llm_scoring?.must_check || {}).map(([item, value]: any) => (
-                                <li key={item} style={{ color: value.result ? 'green' : 'red' }}>
-                                {item}: {value.result ? '✅' : '❌'} - {value.reason}
-                                </li>
-                            ))}
-                            </ul>
+                        {/* ✅ 希望部門と推薦部門の比較カード */}
+                        <div className="resume-compare-section">
+                        <div className="resume-compare-card">
+                            <h4>希望部門</h4>
+                            <p className="resume-compare-division">
+                            {result.preferred_div || result.desired_division || '―'}
+                            </p>
+                            <p className="resume-compare-score">
+                            {result.preferred_div_score !== null && result.preferred_div_score !== undefined
+                                ? `${result.preferred_div_score}点`
+                                : '―'}
+                            </p>
+                            {result.preferred_div_reason && (
+                            <p className="resume-score-reason">理由: {result.preferred_div_reason}</p>
+                            )}
                         </div>
+
+                        <div className="resume-compare-card">
+                            <h4>推薦部門（AI）</h4>
+                            <p className="resume-compare-division">
+                            {result.recommended_div || result.llm_scoring?.recommended_division || '―'}
+                            </p>
+                            <p className="resume-compare-score">
+                            {result.recommended_div_score !== null && result.recommended_div_score !== undefined
+                                ? `${result.recommended_div_score}点`
+                                : '―'}
+                            </p>
+                            {result.recommended_div_reason && (
+                            <p className="resume-score-reason">理由: {result.recommended_div_reason}</p>
+                            )}
+                        </div>
+                        </div>
+
+                        {/* === 部門別スコア === */}
+                        {result.llm_scoring?.scores?.length > 0 && (
+                        <div className="resume-section">
+                            <h4>部門別スコア:</h4>
+                            {result.llm_scoring.scores.map((s: any) => (
+                            <div key={s.division}>
+                                <p><strong>{s.division}</strong>: {s.score}点</p>
+                                <p className="resume-score-reason">{s.reason}</p>
+                            </div>
+                            ))}
+                        </div>
+                        )}
 
                         {/* === 志望動機 === */}
                         {(result.summarized_motivation || result.score_motivation) && (
-                            <div className="resume-section">
-                                <h4>志望動機</h4>
-                                {result.summarized_motivation && (
-                                <p><strong>要約：</strong>{result.summarized_motivation}</p>
-                                )}
-                                {result.score_motivation !== undefined && (
-                                <p><strong>スコア：</strong>{result.score_motivation}点</p>
-                                )}
-                            </div>
+                        <div className="resume-section">
+                            <h4>志望動機</h4>
+                            {result.summarized_motivation && (
+                            <p><strong>要約：</strong>{result.summarized_motivation}</p>
+                            )}
+                            {result.score_motivation !== undefined && (
+                            <p><strong>スコア：</strong>{result.score_motivation}点</p>
+                            )}
+                        </div>
                         )}
 
                         {/* === 職務経歴 === */}
                         {(result.summarized_work || result.score_work) && (
-                            <div className="resume-section">
-                                <h4>職務経歴</h4>
-                                {result.summarized_work && (
-                                <p><strong>要約：</strong>{result.summarized_work}</p>
-                                )}
-                                {result.score_work !== undefined && (
-                                <p><strong>スコア：</strong>{result.score_work}点</p>
-                                )}
-                            </div>
+                        <div className="resume-section">
+                            <h4>職務経歴</h4>
+                            {result.summarized_work && (
+                            <p><strong>要約：</strong>{result.summarized_work}</p>
+                            )}
+                            {result.score_work !== undefined && (
+                            <p><strong>スコア：</strong>{result.score_work}点</p>
+                            )}
+                        </div>
                         )}
 
-                        {result.llm_scoring?.scores?.length > 0 && (
+                        {/* === マストチェック === */}
+                        {result.must_check && Object.keys(result.must_check).length > 0 && (
                             <div className="resume-section">
-                                <h4>部門別スコア:</h4>
-                                {result.llm_scoring.scores.map((s: any) => (
-                                    <div key={s.division}>
-                                    <p><strong>{s.division}</strong>: {s.score}点</p>
-                                    <p className="resume-score-reason">{s.reason}</p>
-                                    </div>
+                                <h4>マストチェック項目</h4>
+                                <ul className="resume-mustcheck-list">
+                                {Object.entries(result.must_check).map(([label, val]: any, idx) => (
+                                    <li key={idx}>
+                                    <strong>{label}：</strong>
+                                    {val.result
+                                        ? <span className="mustcheck-pass">✔ 合格</span>
+                                        : <span className="mustcheck-fail">✖ 未達</span>}
+                                    <p className="resume-score-reason">理由: {val.reason}</p>
+                                    </li>
                                 ))}
+                                </ul>
                             </div>
                         )}
                     </div>

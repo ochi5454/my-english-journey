@@ -31,3 +31,26 @@ export const renderAIRecommendationChip = (percentile?: number) => {
     else if (percentile >= 50) className = 'ai-chip ai-mid';
     return <span className={className}>{percentile}%</span>;
 };
+
+export const renderDivisionChip = (
+    division?: string,
+    colorMap?: Record<string, string>
+) => {
+    if (!division) return <span className="chip chip-gray">-</span>;
+    const bgColor = colorMap?.[division] || '#9ca3af';
+    return (
+        <span
+        className="chip"
+        style={{
+            backgroundColor: bgColor,
+            color: '#626161ff',
+            borderRadius: '12px',
+            padding: '4px 8px',
+            fontSize: '12px',
+            fontWeight: 600,
+        }}
+        >
+        {division}
+        </span>
+    );
+};

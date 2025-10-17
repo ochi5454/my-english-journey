@@ -84,7 +84,7 @@ const CandidateMatrixFilters: React.FC<Props> = ({
             value={filters.division}
             onChange={(e) => setFilters({ ...filters, division: e.target.value })}
         >
-            <option value="">部門</option>
+            <option value="">推薦部門</option>
             {allDivisions.map((division) => (
             <option key={division}>{division}</option>
             ))}

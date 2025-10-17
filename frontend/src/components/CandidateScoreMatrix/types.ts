@@ -32,7 +32,10 @@ export interface Result {
     uploader_id?: string;
     updated_at?: string;
     updated_by?: string;
-    recommended_division: string;
+    preferred_div?: string;
+    preferred_div_score?: number;
+    recommended_div?: string;
+    recommended_div_score?: number;
     hr_decision?: string;
     hr_division: string;
     hr_title: string;

@@ -40,13 +40,34 @@
   margin-bottom: 1rem;
 }
 
+.resume-select {
+  padding: 0.5rem;
+  font-size: 1rem;
+  width: 100%;
+  max-width: 250px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+  cursor: pointer;
+}
+
 .resume-upload {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.resume-upload input[type="text"],
+.resume-upload input[type="text"] {
+  padding: 0.5rem;
+  font-size: 1rem;
+  margin-top: 0.25rem;
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+}
+
 .resume-upload input[type="file"] {
     padding: 0.5rem;
     font-size: 1rem;
@@ -83,6 +104,56 @@
   font-size: 0.95rem;
 }
 
+.resume-result {
+  margin-top: 2rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  background-color: #f9f9f9;
+}
+
+.resume-compare-section {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.resume-compare-card {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  text-align: center;
+}
+
+.resume-compare-card h4 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.resume-compare-division {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #007bff;
+  margin-bottom: 0.3rem;
+}
+
+.resume-compare-score {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #444;
+}
+
+.resume-score-reason {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 0.25rem;
+}
+
 .resume-section {
   margin-top: 1rem;
   padding: 1rem;
@@ -104,22 +175,27 @@
   line-height: 1.5;
 }
 
-.resume-result {
-  margin-top: 2rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 1rem;
-  background-color: #f9f9f9;
+.resume-mustcheck-list {
+  list-style-type: none;
+  padding-left: 0;
 }
 
-.resume-recommendation {
-  font-size: 1.2rem;
+.resume-mustcheck-list li {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-left: 4px solid #ccc;
+  background: #fafafa;
+  border-radius: 6px;
+}
+
+.mustcheck-pass {
+  color: #2e8b57;
   font-weight: bold;
-  margin-bottom: 1rem;
+  margin-left: 4px;
 }
 
-.resume-score-reason {
-  font-size: 0.85rem;
-  color: #666;
-  margin-left: 1rem;
+.mustcheck-fail {
+  color: #d9534f;
+  font-weight: bold;
+  margin-left: 4px;
 }
