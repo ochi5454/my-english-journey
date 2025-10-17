@@ -12,8 +12,8 @@ from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.resume import Resume, ResumeWorkHistory
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
-from backend.services.score_resume.score import score_resume_from_text, score_motivation_statement
-from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, calculate_total_experience
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience
+from backend.services.score_resume.score import score_resume_from_text, score_motivation_statement, score_work_experience
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
@@ -128,24 +128,23 @@ async def resume_score_save(
         now = datetime.utcnow()
 
         with SessionLocal() as db:
-            # 🎯 Resumeからnotes（志望動機）を取得
-            resume = db.query(Resume).filter_by(id=candidate_id).first()
-            motivation_text = resume.notes if resume else None
+            # === 志望動機・職務経歴の抽出 ===
+            print("🎯 志望動機と職務経歴の抽出を開始します")
 
-            # motivation_text が空なら masked_text から再抽出し、Resume に保存
-            if not motivation_text:
-                print("⚠️ Resume.notes が空。extract_motivation を使用して再抽出します。")
-                motivation_text = extract_motivation(masked_text)
-                if motivation_text and resume:
-                    resume.notes = motivation_text
-                    db.commit()
-                    print("✅ Resume.notes を再抽出結果で更新しました。")
+            motivation_text = extract_motivation(masked_text)
+            work_experience_text = extract_work_experience(masked_text)
 
-            # 要約とスコアは、motivation_text があれば実行
+            # === 要約とスコアリング ===
             summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
             score_motivation = score_motivation_statement(motivation_text) if motivation_text else None
+
+            summarized_work = summarize_work_experience(work_experience_text) if work_experience_text else None
+            score_work = score_work_experience(work_experience_text) if work_experience_text else None
+
             print(f"志望動機サマリ: {summarized_motivation}")
             print(f"志望動機スコア: {score_motivation}")
+            print(f"職務経歴サマリ: {summarized_work}")
+            print(f"職務経歴スコア: {score_work}")
 
             # 🎯 candidates テーブル更新 or INSERT
             candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
@@ -153,8 +152,10 @@ async def resume_score_save(
                 candidate = Candidate(
                     id=str(uuid4()),
                     user_id=candidate_id,
-                    notes=summarized_motivation,
-                    score_notes=score_motivation,
+                    notes=summarized_motivation,        # 志望動機サマリ
+                    score_notes=score_motivation,       # 志望動機スコア
+                    work_summary=summarized_work,       # 職務経歴サマリ（新規）
+                    score_work=score_work,              # 職務経歴スコア（新規）
                     recommended_div=scoring_result.get("recommended_division"),
                     uploader_id=uploader_id,
                     updated_by="system",
@@ -164,6 +165,8 @@ async def resume_score_save(
             else:
                 candidate.notes = summarized_motivation
                 candidate.score_notes = score_motivation
+                candidate.work_summary = summarized_work
+                candidate.score_work = score_work
                 candidate.recommended_div = scoring_result.get("recommended_division")
                 candidate.updated_by = "system"
                 candidate.updated_at = now
@@ -239,13 +242,19 @@ async def resume_score_save(
             "timestamp": now.isoformat(),
             "generated_sql": generated_sql,
 
-            # 直接参照できるようトップレベルにも展開
+            # 推薦部門・must_check・スコア
             "recommended_division": scoring_result.get("recommended_division"),
             "must_check": scoring_result.get("must_check"),
             "scores": scoring_result.get("scores"),
 
             # 既存のネストも残す（将来用）
             "llm_scoring": scoring_result,
+
+            # 志望動機・職務経歴のサマリとスコア
+            "summarized_motivation": summarized_motivation,
+            "score_motivation": score_motivation,
+            "summarized_work": summarized_work,
+            "score_work": score_work,
 
             "message": "✅ 全データ保存完了"
         })
@@ -301,6 +310,8 @@ async def get_resume_results():
                 "hr_decision": c.hr_decision,
                 "notes": c.notes,
                 "score_notes":c.score_notes,
+                "work_summary": c.work_summary,
+                "score_work": c.score_work,
                 "experience": c.experience,
                 "recommended_division": c.recommended_div,
                 "uploader_id": c.uploader_id,

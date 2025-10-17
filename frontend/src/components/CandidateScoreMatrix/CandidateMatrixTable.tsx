@@ -39,6 +39,7 @@ export default function CandidateMatrixTable({
                 </th>
                 <th rowSpan={2}>AIスコア</th>
                 <th rowSpan={2}>志望動機</th>
+                <th rowSpan={2}>職務経歴</th>
                 <th rowSpan={2}>推薦部門</th>
                 {/* 共通must */}
                 <th colSpan={allMustKeys.length}>必須</th>
@@ -53,7 +54,8 @@ export default function CandidateMatrixTable({
                 })}
 
                 <th colSpan={allDivisions.length}>部門スコア</th>
-                <th rowSpan={2}>サマリ</th>
+                <th rowSpan={2}>志望動機サマリ</th>
+                <th rowSpan={2}>職務経歴サマリ</th>
                 <th rowSpan={2}>評価日</th>
             </tr>
             <tr>
@@ -99,6 +101,7 @@ export default function CandidateMatrixTable({
                 <td>{renderAIRecommendationChip(r.ai_score_percentile)}</td>
                 <td>{r.ai_score?.toFixed(2) ?? '-'}</td>
                 <td>{r.score_notes || '-'}</td>
+                <td>{r.score_work || '-'}</td>
                 <td>{r.recommended_division}</td>
                 {allMustKeys.map(k =>
                     <td key={k}>{renderMustCheckChip(r.must_check[k]?.result, r.must_check[k]?.reason)}</td>
@@ -122,6 +125,7 @@ export default function CandidateMatrixTable({
                     return <td key={d}>{s?.score ?? '-'}</td>;
                 })}
                 <td>{r.notes || '-'}</td>
+                <td>{r.work_summary || '-'}</td>
                 <td>{r.timestamp?.slice(0, 19).replace('T', ' ')}</td>
                 </tr>
             ))}

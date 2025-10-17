@@ -133,7 +133,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                             推奨部門: {result.llm_scoring?.recommended_division || '―'}
                         </h3>
 
-                        <div className="resume-must-check">
+                        <div className="resume-section">
                             <h4>マスト要件チェック:</h4>
                             <ul>
                             {Object.entries(result.llm_scoring?.must_check || {}).map(([item, value]: any) => (
@@ -144,15 +144,41 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                             </ul>
                         </div>
 
+                        {/* === 志望動機 === */}
+                        {(result.summarized_motivation || result.score_motivation) && (
+                            <div className="resume-section">
+                                <h4>志望動機</h4>
+                                {result.summarized_motivation && (
+                                <p><strong>要約：</strong>{result.summarized_motivation}</p>
+                                )}
+                                {result.score_motivation !== undefined && (
+                                <p><strong>スコア：</strong>{result.score_motivation}点</p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* === 職務経歴 === */}
+                        {(result.summarized_work || result.score_work) && (
+                            <div className="resume-section">
+                                <h4>職務経歴</h4>
+                                {result.summarized_work && (
+                                <p><strong>要約：</strong>{result.summarized_work}</p>
+                                )}
+                                {result.score_work !== undefined && (
+                                <p><strong>スコア：</strong>{result.score_work}点</p>
+                                )}
+                            </div>
+                        )}
+
                         {result.llm_scoring?.scores?.length > 0 && (
-                            <div>
-                            <h4>部門別スコア:</h4>
-                            {result.llm_scoring.scores.map((s: any) => (
-                                <div key={s.division}>
-                                <p><strong>{s.division}</strong>: {s.score}点</p>
-                                <p className="resume-score-reason">{s.reason}</p>
-                                </div>
-                            ))}
+                            <div className="resume-section">
+                                <h4>部門別スコア:</h4>
+                                {result.llm_scoring.scores.map((s: any) => (
+                                    <div key={s.division}>
+                                    <p><strong>{s.division}</strong>: {s.score}点</p>
+                                    <p className="resume-score-reason">{s.reason}</p>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

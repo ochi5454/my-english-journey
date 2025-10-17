@@ -83,6 +83,27 @@
   font-size: 0.95rem;
 }
 
+.resume-section {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.resume-section h4 {
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.resume-section p {
+  margin: 0.25rem 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 .resume-result {
   margin-top: 2rem;
   border: 1px solid #ddd;

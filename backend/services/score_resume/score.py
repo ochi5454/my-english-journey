@@ -309,3 +309,51 @@ IT業界に興味があります。御社でスキルを高めて成長したい
     # 数字だけを抽出
     match = re.search(r"\d{1,3}", content)
     return min(int(match.group()), 100) if match else 0
+
+# ============================================
+# 🧠 職務経歴のスコアリング
+# ============================================
+
+def score_work_experience(text: str) -> int:
+    """
+    職務経歴書テキストから経験・実績スコア（0〜100）を算出する関数。
+    GPT-3.5-turbo用。スコア基準付き。
+    """
+    prompt = f"""
+あなたは採用担当者です。
+以下の職務経歴を読み、候補者の「経験の深さ・スキルの幅・実績の具体性・一貫性」を
+総合的に判断して 0〜100 点で評価してください。
+
+【スコア基準の例】
+
+◉ スコア100点（理想）：
+- 5年以上の一貫したキャリア
+- 職務内容が具体的で成果も明確
+- 担当業務の範囲や責任が明瞭
+- 定量的な実績（例：売上○％増加など）
+
+◉ スコア40点（不十分）：
+- 期間や業務内容が曖昧
+- 成果やスキルが抽象的
+- 複数職務の整合性が取れていない
+
+---
+
+【評価対象の職務経歴】
+{text}
+
+---
+
+この職務経歴のスコアを 0〜100 の数値で出力してください（数字のみ）:
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+    content = response.choices[0].message.content
+    print("🧾 GPT応答（職務経歴スコア）:", content)
+
+    match = re.search(r"\d{1,3}", content)
+    return min(int(match.group()), 100) if match else 0

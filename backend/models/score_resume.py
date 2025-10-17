@@ -30,6 +30,8 @@ class Candidate(Base):
     gender = Column(String)
     notes = Column(String)
     score_notes = Column(Integer)
+    work_summary = Column(Text, nullable=True)
+    score_work = Column(Integer, nullable=True)
     experience = Column(Integer)
     recommended_div = Column(String)
     uploader_id = Column(String)

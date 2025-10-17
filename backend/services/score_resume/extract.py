@@ -148,6 +148,59 @@ def summarize_motivation(text: str, max_length: int = 100) -> str:
     return response.choices[0].message.content.strip()
 
 # ============================================
+# 🧠 履歴書から職務経歴の抽出
+# ============================================
+
+def extract_work_experience(text: str) -> str:
+    """
+    履歴書本文から職務経歴書（経歴・実績・スキルなど）部分を抽出する。
+    """
+    if not text or not text.strip():
+        return ""
+
+    prompt = f"""
+以下の履歴書本文から、「職務経歴書」「職務経歴」「業務内容」「経歴」などに該当する部分のみを抽出してください。
+見つからない場合は空文字で構いません。
+
+履歴書内容:
+{text}
+
+抽出結果:
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"❌ 職務経歴抽出に失敗: {e}")
+        return ""
+    
+def summarize_work_experience(text: str, max_length: int = 150) -> str:
+    """
+    職務経歴書テキストを要約（例: 150文字以内）
+    """
+    prompt = f"""
+以下の職務経歴書を{max_length}文字以内で要約してください。
+候補者の経験分野・実績・スキルが簡潔に伝わるようにしてください。
+
+職務経歴書:
+{text}
+
+要約（{max_length}文字以内）:
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+    return response.choices[0].message.content.strip()
+
+# ============================================
 # 🧠 履歴書から社会人歴の抽出
 # ============================================
 

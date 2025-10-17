@@ -25,6 +25,8 @@ export interface Result {
     status?: string;
     notes?: string;
     score_notes?: string;
+    score_work?: string;
+    work_summary?: string;
     experience?: number;
     timestamp: string;
     uploader_id?: string;
