@@ -153,7 +153,15 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         if (!res.ok) throw new Error(`HTTPエラー: ${res.status}`);
         const data = await res.json();
         const aiReply = data.reply || 'AI応答なし';
-        const scoreChanges = data.adjusted_score;
+        const scoreChangesRaw = data.adjusted_score;
+
+        const scoreChangesArray = Array.isArray(scoreChangesRaw)
+            ? scoreChangesRaw
+            : Object.entries(scoreChangesRaw || {}).map(([division, score]) => ({
+                division,
+                score,
+                reason: "AIスコア調整",
+                }));
 
         setChatLog(prev => [...prev, { role: 'assistant', content: aiReply }]);
 
@@ -175,25 +183,36 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         });
 
 
-        if (Array.isArray(scoreChanges) && scoreChanges.length > 0) {
+        if (scoreChangesArray.length > 0) {
             const updateRes = await fetch(`${appConfig.API_BASE_URL}/update-score`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    candidate_id: localResult.user_id,
-                    reviewer_id: interviewerId,
-                    stage: chatStage,
-                    adjustments: scoreChanges
+                candidate_id: localResult.user_id,
+                reviewer_id: interviewerId,
+                stage: chatStage,
+                adjustments: scoreChangesArray,
                 }),
             });
 
             if (updateRes.ok) {
-                const updatedResult = await updateRes.json();
-                // 既存の localResult に差分を上書き（面談日程など既存フィールドを保護）
-                setLocalResult((prev: any) => ({ ...prev, ...updatedResult }));
-                onResultUpdate?.({ ...(localResult || {}), ...updatedResult });
+                // ✅ DB更新後に最新データを再取得
+                const refreshed = await fetch(`${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`, {
+                cache: 'no-store',
+                });
+                if (refreshed.ok) {
+                const updatedResult = await refreshed.json();
+
+                // ローカルstateを更新
+                setLocalResult(updatedResult);
+
+                // 親（一覧）にも伝播
+                onResultUpdate?.(updatedResult);
+                } else {
+                console.warn("再取得に失敗しました");
+                }
             } else {
-                console.error("複数スコア更新に失敗");
+                console.error("スコア更新に失敗しました");
             }
         }
 

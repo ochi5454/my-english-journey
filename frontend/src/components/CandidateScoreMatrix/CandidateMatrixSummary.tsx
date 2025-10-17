@@ -16,7 +16,7 @@ interface Props {
 
 /**
  * CandidateMatrixSummary
- * - AI推薦度の分布（高・中・低）
+ * - 推薦度の分布（高・中・低）
  * - 一括不採用 / ステータス進行ボタン
  */
 const CandidateMatrixSummary: React.FC<Props> = ({
@@ -123,7 +123,7 @@ const CandidateMatrixSummary: React.FC<Props> = ({
         </div>
 
         <div className="ai-percentile-summary">
-            <span className="summary-label">AI推薦度</span>
+            <span className="summary-label">推薦度</span>
             <span className="ai-chip ai-high" onClick={() => handleAIScoreFilter('high')}>
             高 {aiScoreCounts.high} 件
             </span>

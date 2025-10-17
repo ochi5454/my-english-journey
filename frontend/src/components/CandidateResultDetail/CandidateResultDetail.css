@@ -436,3 +436,80 @@
 .result-d-modal-actions button:first-child:hover {
     background-color: #218838;
 }
+
+/* --- Candidate Info Sections --- */
+.detail-section-box {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+}
+
+.detail-section-box h4 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+  border-left: 4px solid #007bff;
+  padding-left: 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.summary-text {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #333;
+  white-space: pre-wrap;
+}
+
+/* --- Must Check Section --- */
+.must-check-list {
+  background: #fdfdfd;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+}
+
+.must-check-list li {
+  margin: 6px 0;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.must-check-list li.green {
+  color: #1e7e34;
+}
+
+.must-check-list li.red {
+  color: #dc3545;
+}
+
+/* --- Department Scores --- */
+.result-d-score-item {
+  border: 1px solid #eee;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.result-d-score-item strong {
+  color: #333;
+}
+
+.result-d-score-item h5 {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.result-d-score-item span {
+  line-height: 1.5;
+}

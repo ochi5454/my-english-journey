@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import JSON
 from datetime import datetime
@@ -89,7 +89,7 @@ class CandidateStatus(Base):
     reviewed_resume = Column(Boolean)
 
 # ============================================
-# ✅ AI推薦度の数式
+# ✅ 推薦度の数式
 # ============================================
 
 class AIFormulaConfig(Base):
@@ -99,5 +99,10 @@ class AIFormulaConfig(Base):
     formula = Column(Text, nullable=False)
     enabled_fields = Column(JSON, nullable=False)
     weights: Mapped[Dict[str, float]] = mapped_column(JSON)
+    division = Column(String, nullable=True) 
     updated_at = Column(DateTime, default=datetime.utcnow)
     updated_by = Column(String, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("key", "division", name="uq_ai_formula_key_division"),
+    )

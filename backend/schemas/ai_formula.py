@@ -3,7 +3,7 @@ from typing import List, Optional, Dict
 from datetime import datetime
 
 # ============================================
-# 📊 AI推薦度の数式の操作
+# 📊 推薦度の数式の操作
 # ============================================
 
 class AIFormulaConfigBase(BaseModel):
@@ -17,6 +17,7 @@ class AIFormulaConfigCreate(AIFormulaConfigBase):
 
 class AIFormulaConfigResponse(AIFormulaConfigBase):
     key: str
+    division: Optional[str] = None
     updated_at: datetime
 
     class Config:

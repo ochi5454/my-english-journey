@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -170,27 +170,53 @@ def delete_role(role_id: int, db: Session = Depends(get_db)):
     return {"message": "ロールを削除しました"}
 
 #  ============================================
-#  📮 AI推薦度の数式
+#  📮 推薦度の数式
 #  ============================================
 
 @router.get("/ai-formula", response_model=AIFormulaConfigResponse)
-def get_formula_config(key: str = "default", db: Session = Depends(get_db)):
-    config = db.query(AIFormulaConfig).filter_by(key=key).first()
+def get_formula_config(
+    key: str = "default",
+    division: str | None = None,
+    db: Session = Depends(get_db)
+):
+    """
+    AIスコア設定を取得。
+    division が指定されていれば部門別設定を返し、
+    存在しなければ division=None（共通設定）をフォールバック。
+    """
+    query = db.query(AIFormulaConfig).filter_by(key=key)
+
+    if division:
+        query = query.filter_by(division=division)
+
+    config = query.first()
+
+    # fallback: 部門設定が存在しない場合は共通設定を返す
+    if not config:
+        config = db.query(AIFormulaConfig).filter_by(key=key, division=None).first()
+
     if not config:
         raise HTTPException(status_code=404, detail="Formula config not found")
 
-    # null回避（weightsがNoneの場合は空辞書に）
     if config.weights is None:
         config.weights = {}
+
     return config
 
 @router.put("/ai-formula", response_model=AIFormulaConfigResponse)
 def update_formula_config(
     key: str,
-    data: AIFormulaConfigCreate,
+    division: str | None = None,
+    data: AIFormulaConfigCreate = Body(...),
     db: Session = Depends(get_db)
 ):
-    config = db.query(AIFormulaConfig).filter_by(key=key).first()
+    query = db.query(AIFormulaConfig).filter_by(key=key)
+
+    if division:
+        query = query.filter_by(division=division)
+
+    config = query.first()
+
     if config:
         config.formula = data.formula
         config.enabled_fields = data.enabled_fields
@@ -200,6 +226,7 @@ def update_formula_config(
     else:
         config = AIFormulaConfig(
             key=key,
+            division=division,  # ← 新規登録時に反映
             formula=data.formula,
             enabled_fields=data.enabled_fields,
             weights=data.weights,
@@ -210,3 +237,15 @@ def update_formula_config(
     db.commit()
     db.refresh(config)
     return config
+
+@router.get("/ai-formula/all", response_model=list[AIFormulaConfigResponse])
+def get_all_formula_configs(db: Session = Depends(get_db)):
+    """
+    全ての部門のAIスコア設定を取得。
+    部門ごとの数式・有効フィールド・重みなどをまとめて返す。
+    """
+    configs = db.query(AIFormulaConfig).order_by(AIFormulaConfig.division.asc()).all()
+    if not configs:
+        raise HTTPException(status_code=404, detail="No AI formula configs found")
+    # None（共通設定）も含めてそのまま返す
+    return configs

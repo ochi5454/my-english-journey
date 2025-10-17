@@ -4,6 +4,8 @@ import './AIFormulaConfig.css';
 import { fieldOptions } from '../Utils/fieldOptions';
 
 const AIFormulaConfig: React.FC = () => {
+    const [divisions, setDivisions] = useState<string[]>([]);
+    const [division, setDivision] = useState<string>('');
     const [formula, setFormula] = useState('');
     const [enabledFields, setEnabledFields] = useState<string[]>([]);
     const [weights, setWeights] = useState<Record<string, number>>({});
@@ -25,24 +27,62 @@ const AIFormulaConfig: React.FC = () => {
     };
 
     useEffect(() => {
-        fetch(`${appConfig.API_BASE_URL}/admin/ai-formula?key=default`)
-        .then(res => res.json())
-        .then(data => {
-            setFormula(data.formula);
-            setEnabledFields(data.enabled_fields);
-            setWeights(data.weights ?? {});
-            setInitialData({
-            formula: data.formula,
-            enabled_fields: data.enabled_fields,
-            weights: data.weights ?? {}
-            });
-            setLoading(false);
-        })
-        .catch(() => {
-            setStatus('error');
-            setLoading(false);
-        });
+        const fetchDivisions = async () => {
+            try {
+                const response = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
+                const data: any[] = await response.json();
+
+                const uniqueDivisions: string[] = Array.from(
+                    new Set(
+                        data
+                            .filter((item) => item.division_prefix !== 'common')
+                            .map((item) => item.division)
+                    )
+                );
+
+                setDivisions(uniqueDivisions);
+                // 最初の部門を自動選択
+                if (uniqueDivisions.length > 0) {
+                    setDivision(uniqueDivisions[0]);
+                }
+            } catch (err) {
+                console.error('部門一覧の取得に失敗しました', err);
+            }
+        };
+        fetchDivisions();
     }, []);
+
+    useEffect(() => {
+        if (!division) return;
+        setLoading(true);
+
+        fetch(`${appConfig.API_BASE_URL}/admin/ai-formula?key=default&division=${division}`)
+            .then(res => {
+                if (!res.ok) throw new Error();
+                return res.json();
+            })
+            .then(data => {
+                setFormula(data.formula);
+                setEnabledFields(data.enabled_fields);
+                setWeights(data.weights ?? {});
+                setInitialData({
+                    formula: data.formula,
+                    enabled_fields: data.enabled_fields,
+                    weights: data.weights ?? {},
+                });
+                setLoading(false);
+                setStatus('idle');
+            })
+            .catch(() => {
+                // 新規部門の場合は空で初期化
+                setFormula('');
+                setEnabledFields([]);
+                setWeights({});
+                setInitialData({ formula: '', enabled_fields: [], weights: {} });
+                setLoading(false);
+                setStatus('idle');
+            });
+    }, [division]);
 
     useEffect(() => {
         if (!isManualEdit) {
@@ -53,7 +93,7 @@ const AIFormulaConfig: React.FC = () => {
     const handleSave = async () => {
         setStatus('saving');
         try {
-        await fetch(`${appConfig.API_BASE_URL}/admin/ai-formula?key=default`, {
+        await fetch(`${appConfig.API_BASE_URL}/admin/ai-formula?key=default&division=${division}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -98,6 +138,19 @@ const AIFormulaConfig: React.FC = () => {
     return (
         <div className="aifc-container">
         <h2 className="aifc-title">AIスコア計算式</h2>
+
+        <div className="aifc-division-select">
+            <label className="aifc-label">対象部門：</label>
+            <select
+                value={division}
+                onChange={(e) => setDivision(e.target.value)}
+                className="aifc-select"
+            >
+                {divisions.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                ))}
+            </select>
+        </div>        
 
         <div className="aifc-toggle">
             <label>

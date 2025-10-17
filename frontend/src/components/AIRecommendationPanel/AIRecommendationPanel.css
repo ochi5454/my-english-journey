@@ -1,26 +1,30 @@
 .ai-panel {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    position: relative; /* ← fixedやtransformは不要 */
     background-color: white;
     padding: 24px 32px;
     border-radius: 12px;
+    width: 100%;
     max-width: 800px;
-    width: 90vw;
-    max-height: 90vh;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
+    margin: 0 auto;
+    box-shadow: none;
+    max-height: none;
+    z-index: auto;
 }
 
-.ai-panel-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
-    z-index: 999;
+.ai-panel-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    color: #555;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.ai-panel-close:hover {
+    color: #000;
 }
 
 .ai-panel-description {
@@ -87,4 +91,15 @@
 .ai-panel-button.recalc {
     background-color: #4caf50;
     color: white;
+}
+
+.ai-panel-button.loading {
+    opacity: 0.7;
+    pointer-events: none;
+    position: relative;
+}
+.ai-panel-button.loading::after {
+    content: '...';
+    position: absolute;
+    right: 10px;
 }

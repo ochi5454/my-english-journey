@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import './CandidateScoreMatrix.css';
 import CandidateMatrixFilters from './CandidateMatrixFilters';
 import CandidateMatrixTable from './CandidateMatrixTable';
 import CandidateResultDetail from '../CandidateResultDetail/CandidateResultDetail';
-import AIRecommendationPanel from '../AIRecommendationPanel/AIRecommendationPanel';
+import AIRecommendationPanelContainer from '../AIRecommendationPanel/AIRecommendationPanelContainer';
 import type { AIWeights } from '../AIRecommendationPanel/AIRecommendationPanel';
-import { calculateAIScoreFromFormula, calculateTruePercentiles } from './useAIRecommendation';
+import { calculateAIScoreFromFormula, calculateTruePercentilesByPreferredDiv } from './useAIRecommendation';
 import CandidateMatrixSummary from './CandidateMatrixSummary';
 import type { Result } from './types';
 import appConfig from '../../config';
@@ -17,7 +17,8 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         userName: '',
         gender: '',
         status: '',
-        division: '',
+        preferredDivision: '',
+        recommendedDivision: '',
         mustCheckAllPassed: false,
         aiScoreMinPercentile: '',
         aiScoreMaxPercentile: '',
@@ -26,40 +27,46 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
     const [selectedResult, setSelectedResult] = useState<Result | null>(null);
 
     const [showAIPanel, setShowAIPanel] = useState(false);
-    const [aiWeights, setAiWeights] = useState<AIWeights>({});
-    const [initialWeights, setInitialWeights] = useState<AIWeights>({});
-    const [enabledFields, setEnabledFields] = useState<string[]>([]);
-    const [aiFormula, setAiFormula] = useState<string>('');
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+    const [divisionConfigs, setDivisionConfigs] = useState<Record<string, {
+        formula: string;
+        enabledFields: string[];
+        weights: AIWeights;
+        initialValues: AIWeights;
+    }>>({});
 
     const allStatuses = [
         "アップロード", "書類選考", "面談・1次", "面談・2次",
         "最終面談", "待遇検討", "内定通知", "内定受諾", "内定辞退"
     ];
 
-  // 初回ロード（AIスコア計算込み）
-    useEffect(() => {
-        const fetchConfigAndResults = async () => {
-            try {
-            // 数式の取得
-            const formulaRes = await fetch(`${appConfig.API_BASE_URL}/admin/ai-formula?key=default`);
-            if (!formulaRes.ok) throw new Error("式の取得に失敗");
-            const formulaData = await formulaRes.json();
-            setAiFormula(formulaData.formula);
-            setEnabledFields(formulaData.enabled_fields);
+    // useEffect の外に移動（useCallbackで囲む）
+    const fetchConfigAndResults = useCallback(async () => {
+        try {
+            // ✅ ① 部門ごとのAI設定をまとめて取得
+            const formulaRes = await fetch(`${appConfig.API_BASE_URL}/admin/ai-formula/all`);
+            const formulas = await formulaRes.json();
 
-            const fallbackWeights = formulaData.enabled_fields.reduce((acc: Record<string, number>, field: string) => {
-                acc[field] = 1.0;
-                return acc;
-            }, {});
+            const configMap: Record<string, any> = {};
+            formulas.forEach((f: any) => {
+                const fallbackWeights = f.enabled_fields.reduce((acc: Record<string, number>, field: string) => {
+                    acc[field] = 1.0;
+                    return acc;
+                }, {});
+                const mergedWeights = { ...fallbackWeights, ...(f.weights || {}) };
+                const divisionName = f.division || "共通";
+                configMap[divisionName] = {
+                    formula: f.formula,
+                    enabledFields: f.enabled_fields,
+                    weights: mergedWeights,
+                    initialValues: { ...mergedWeights },
+                };
+            });
+            setDivisionConfigs(configMap);
 
-            const effectiveWeights = formulaData.weights ?? fallbackWeights;
-
-            setAiWeights(effectiveWeights);
-            setInitialWeights(effectiveWeights);
-
-            // 結果の取得
+            // ✅ ② 候補者データを取得
             const res = await fetch(`${appConfig.API_BASE_URL}/resume-results`, { cache: 'no-store' });
             const data: Result[] = await res.json();
 
@@ -67,29 +74,44 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
             data.forEach((item) => {
                 const existing = latestMap.get(item.user_id);
                 if (!existing || new Date(item.timestamp) > new Date(existing.timestamp)) {
-                latestMap.set(item.user_id, item);
+                    latestMap.set(item.user_id, item);
                 }
             });
 
-            // スコアの計算
-            const withScore = Array.from(latestMap.values()).map((r) => ({
-                ...r,
-                ai_score: calculateAIScoreFromFormula(r, formulaData.formula, formulaData.enabled_fields, aiWeights),
-            }));
-            const withPercentiles = calculateTruePercentiles(withScore);
-            setResults(withPercentiles);
-            } catch (err) {
-            console.error('AIスコア読込エラー:', err);
-            }
-        };
+            // ✅ ③ AIスコア自動計算
+            const computedResults = Array.from(latestMap.values()).map((r) => {
+                const division = r.preferred_div || "共通";
+                const cfg = configMap[division];
+                if (!cfg) return r;
+                const aiScore = calculateAIScoreFromFormula(
+                    r,
+                    cfg.formula,
+                    cfg.enabledFields,
+                    cfg.weights
+                );
+                return { ...r, ai_score: aiScore };
+            });
 
+            // ✅ ④ パーセンタイル計算
+            const withPercentiles = calculateTruePercentilesByPreferredDiv(computedResults);
+
+            // ✅ ⑤ state に保存
+            setResults(withPercentiles);
+
+        } catch (err) {
+            console.error("AIスコア読込エラー:", err);
+        }
+    }, []); // useCallbackでメモ化
+
+    // 初回ロードのみ呼ぶ
+    useEffect(() => {
         fetchConfigAndResults();
-    }, []);
+    }, [fetchConfigAndResults]);
 
     // フィルタリング処理
     const filteredResults = results.filter((r) => {
         const {
-        userId, userName, gender, status, division,
+        userId, userName, gender, status, preferredDivision, recommendedDivision,
         mustCheckAllPassed, aiScoreMinPercentile, aiScoreMaxPercentile, onlyPending
         } = filters;
 
@@ -97,7 +119,8 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         const nameMatch = (r.user_name || '').toLowerCase().includes(userName.toLowerCase());
         const genderMatch = gender === '' || r.gender === gender;
         const statusMatch = status === '' || (r.status || '').includes(status);
-        const divisionMatch = division === '' || (r.recommended_div || '').includes(division);
+        const preferredDivisionMatch = preferredDivision === '' || (r.preferred_div || '').includes(preferredDivision);
+        const recommendedDivisionMatch = recommendedDivision === '' || (r.recommended_div || '').includes(recommendedDivision);
         const mustPassed = !mustCheckAllPassed || Object.values(r.must_check || {}).every(m => m.result === true);
 
         const p = r.ai_score_percentile ?? 0;
@@ -106,7 +129,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         const aiScoreMatch = p >= min && p < max;
         const hrPendingMatch = !onlyPending || !r.hr_decision;
 
-        return idMatch && nameMatch && genderMatch && statusMatch && divisionMatch && mustPassed && aiScoreMatch && hrPendingMatch;
+        return idMatch && nameMatch && genderMatch && statusMatch && preferredDivisionMatch && recommendedDivisionMatch && mustPassed && aiScoreMatch && hrPendingMatch;
     });
 
     // 部門・必須項目抽出
@@ -139,19 +162,46 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
     // 結果更新（詳細ビューから呼ばれる）
     const handleResultUpdate = async (updated: Result) => {
         try {
-        const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/${updated.user_id}`, { cache: 'no-store' });
-        const latest = await res.json();
-        const latestWithScore = {
+            const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/${updated.user_id}`, { cache: 'no-store' });
+            const latest = await res.json();
+
+            // 🧠 部門をキーに設定を取得（例: 人事 / 法務 など）
+            const division = latest.preferred_div || "人事"; // fallback
+            const cfg = divisionConfigs[division];
+
+        // ⚙️ 設定が存在しない場合はスキップ
+        if (!cfg) {
+            console.warn(`No AI config found for division: ${division}`);
+            setSelectedResult(latest);
+            return;
+            }
+
+            // ✅ 部門の設定に基づいてAIスコア再計算
+            const latestWithScore = {
             ...latest,
-            ai_score: calculateAIScoreFromFormula(latest, aiFormula, enabledFields, aiWeights),
-        };
-        const updatedList = results.map((r) => r.user_id === latest.user_id ? latestWithScore : r);
-        const withPercentiles = calculateTruePercentiles(updatedList);
-        setResults(withPercentiles);
-        const refreshed = withPercentiles.find(r => r.user_id === latest.user_id) || latestWithScore;
-        setSelectedResult(refreshed);
+            ai_score: calculateAIScoreFromFormula(
+                latest,
+                cfg.formula,
+                cfg.enabledFields,
+                cfg.weights
+            ),
+            };
+
+            // ✅ 結果一覧を更新
+            const updatedList = results.map((r) =>
+            r.user_id === latest.user_id ? latestWithScore : r
+            );
+            const withPercentiles = calculateTruePercentilesByPreferredDiv(updatedList);
+
+            setResults(withPercentiles);
+
+            // ✅ 選択中の候補者も更新
+            const refreshed =
+            withPercentiles.find((r) => r.user_id === latest.user_id) ||
+            latestWithScore;
+            setSelectedResult(refreshed);
         } catch (e) {
-        console.error("更新後データ取得エラー:", e);
+            console.error("更新後データ取得エラー:", e);
         }
     };
 
@@ -182,7 +232,6 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         <CandidateMatrixTable
             filteredResults={filteredResults}
             allMustKeys={allMustKeys}
-            // allDivisions={allDivisions}
             selectedIds={selectedIds}
             setSelectedIds={setSelectedIds}
             handleRowClick={handleRowClick}
@@ -193,35 +242,65 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         {selectedResult && (
             <CandidateResultDetail
                 result={selectedResult}
-                onClose={() => setSelectedResult(null)}
+                onClose={() => {
+                    setSelectedResult(null);
+                    // ✅ Detailを閉じたときに一覧再フェッチ
+                    fetchConfigAndResults();
+                }}
                 onResultUpdate={handleResultUpdate}
                 interviewerId={interviewerId}
             />
         )}
 
         {/* AI推薦設定パネル */}
-        {showAIPanel && (
-            <>
-            <div className="ai-panel-overlay" onClick={() => setShowAIPanel(false)} />
-                <AIRecommendationPanel
-                    weights={aiWeights}
-                    initialValues={initialWeights}
-                    enabledFields={enabledFields}
-                    onChange={(key, value) => setAiWeights((prev) => ({ ...prev, [key]: value }))}
-                    onRecalculate={() => {
-                        const currentWeights = aiWeights;
-                        const updated = results.map(r => ({
-                            ...r,
-                            ai_score: calculateAIScoreFromFormula(r, aiFormula, enabledFields, currentWeights),
-                        }));
-                        const withPercentiles = calculateTruePercentiles(updated);
+            {showAIPanel && (
+                <div
+                    className="ai-modal-overlay"
+                    onClick={() => setShowAIPanel(false)} // 背景クリックで閉じる
+                >
+                    <div
+                    className="ai-modal-content"
+                    onClick={(e) => e.stopPropagation()} // 中身クリックでは閉じない
+                    >
+                    <AIRecommendationPanelContainer
+                        divisions={divisionConfigs}
+                        onSave={(division, updatedWeights) => {
+                        const cfg = divisionConfigs[division];
+                        if (!cfg) return;
+
+                        // 部門一致する候補者だけ再計算
+                        const updatedResults = results.map((r) => {
+                            if (r.preferred_div === division) {
+                            return {
+                                ...r,
+                                ai_score: calculateAIScoreFromFormula(
+                                r,
+                                cfg.formula,
+                                cfg.enabledFields,
+                                updatedWeights
+                                ),
+                            };
+                            }
+                            return r;
+                        });
+
+                        const withPercentiles = calculateTruePercentilesByPreferredDiv(updatedResults);
                         setResults(withPercentiles);
-                    }}
-                    onClose={() => setShowAIPanel(false)}
-                    formula={aiFormula}
-                />
-            </>
-        )}
+
+                        // 重みもstate更新
+                        setDivisionConfigs({
+                            ...divisionConfigs,
+                            [division]: {
+                            ...cfg,
+                            weights: updatedWeights,
+                            },
+                        });
+                        }}
+                        onClose={() => setShowAIPanel(false)}
+                    />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

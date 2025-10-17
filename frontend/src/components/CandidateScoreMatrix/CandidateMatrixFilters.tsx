@@ -5,7 +5,8 @@ interface Filters {
     userName: string;
     gender: string;
     status: string;
-    division: string;
+    preferredDivision: string;
+    recommendedDivision: string;
     mustCheckAllPassed: boolean;
     aiScoreMinPercentile: string;
     aiScoreMaxPercentile: string;
@@ -35,7 +36,8 @@ const CandidateMatrixFilters: React.FC<Props> = ({
                 userName: '',
                 gender: '',
                 status: '',
-                division: '',
+                preferredDivision: '',
+                recommendedDivision: '',
                 mustCheckAllPassed: false,
                 aiScoreMinPercentile: '',
                 aiScoreMaxPercentile: '',
@@ -81,8 +83,18 @@ const CandidateMatrixFilters: React.FC<Props> = ({
         </select>
 
         <select
-            value={filters.division}
-            onChange={(e) => setFilters({ ...filters, division: e.target.value })}
+            value={filters.preferredDivision}
+            onChange={(e) => setFilters({ ...filters, preferredDivision: e.target.value })}
+        >
+            <option value="">希望部門</option>
+            {allDivisions.map((division) => (
+                <option key={division}>{division}</option>
+            ))}
+        </select>
+
+        <select
+            value={filters.recommendedDivision}
+            onChange={(e) => setFilters({ ...filters, recommendedDivision: e.target.value })}
         >
             <option value="">推薦部門</option>
             {allDivisions.map((division) => (
@@ -90,9 +102,9 @@ const CandidateMatrixFilters: React.FC<Props> = ({
             ))}
         </select>
 
-        <input
+        {/* <input
             type="number"
-            placeholder="AI推薦度(%)以上"
+            placeholder="推薦度(%)以上"
             value={filters.aiScoreMinPercentile}
             onChange={(e) =>
             setFilters({ ...filters, aiScoreMinPercentile: e.target.value })
@@ -103,7 +115,7 @@ const CandidateMatrixFilters: React.FC<Props> = ({
         />
         <input
             type="number"
-            placeholder="AI推薦度(%)未満"
+            placeholder="推薦度(%)未満"
             value={filters.aiScoreMaxPercentile}
             onChange={(e) =>
             setFilters({ ...filters, aiScoreMaxPercentile: e.target.value })
@@ -111,7 +123,7 @@ const CandidateMatrixFilters: React.FC<Props> = ({
             min={0}
             max={100}
             style={{ width: '140px', marginLeft: '8px' }}
-        />
+        /> */}
 
         <label>
             <input
