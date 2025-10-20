@@ -3,14 +3,11 @@ from sqlalchemy.orm import Session
 from backend.models.score_resume import CandidateExpectations
 from backend.schemas.expectation import CandidateExpectationCreate
 
-def get_all_expectations(db: Session, division: Optional[str] = None):
+def get_all_expectations(db: Session, division_prefix: Optional[str] = None):
     query = db.query(CandidateExpectations)
 
-    if division:
-        if division == "共通":
-            query = query.filter(CandidateExpectations.division.is_(None))
-        else:
-            query = query.filter(CandidateExpectations.division == division)
+    if division_prefix:
+        query = query.filter(CandidateExpectations.division_prefix == division_prefix)
 
     return query.all()
 

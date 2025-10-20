@@ -18,9 +18,10 @@ interface Props {
     onClose: () => void;
     onResultUpdate?: (updatedResult: any) => void;
     interviewerId: string; 
+    prefixToName: Record<string, string>;
 }
 
-const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId }) => {
+const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId, prefixToName }) => {
     const [chatInput, setChatInput] = useState('');
     const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
     const [localResult, setLocalResult] = useState<any>(result);
@@ -271,7 +272,8 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                             👤 <span className="label">候補者:</span> {localResult.user_id}
                         </div>
                         <div className="icon">
-                            📌 <span className="label">推奨部門:</span> {localResult.recommended_division}
+                            📌 <span className="label">推奨部門:</span> 
+                            {prefixToName[localResult.recommended_division] || localResult.recommended_division}
                         </div>
 
                         <div className="candidate-hr_decision-chip">
@@ -312,7 +314,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             </div>
 
             <div className="result-d-detail-split">
-                <ScoreDetail localResult={localResult} />
+                <ScoreDetail localResult={localResult} prefixToName={prefixToName} />
 
                 <ScoreReviewChat
                     chatLog={chatLog}
@@ -446,6 +448,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
             });
             }}
+            prefixToName={prefixToName}
         />
         )}
 

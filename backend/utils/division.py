@@ -49,13 +49,24 @@ def load_division_names() -> list[str]:
 # 🧠 部門ごとのタグ読込
 # ============================================
 
-def get_expected_focus_items(department: str, role: str, db: Session) -> list[dict]:
+def get_expected_focus_items(department_prefix: str, role: str, db: Session) -> list[dict]:
     rows = db.query(InterviewerRoleFocusItem).filter_by(
-        division=department.lower().strip(),  # ← division列を使う
+        division_prefix=department_prefix.lower().strip(),  # ✅ prefix に変更
         role=role.strip()
     ).all()
 
     return [
-        {"id": row.focus_id, "label": row.focus_label}  # ← カラム名に合わせて修正
+        {"id": row.focus_id, "label": row.focus_label}
         for row in rows
     ]
+
+# ============================================
+# 🧠 部門の和名→プレフィックスへ変換
+# ============================================
+
+def convert_division_to_prefix(division_name: str) -> str:
+    with SessionLocal() as db:
+        row = db.query(InterviewerRoleFocusItem)\
+                .filter(InterviewerRoleFocusItem.division == division_name)\
+                .first()
+        return row.division_prefix if row else division_name  # fallback

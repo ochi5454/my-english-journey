@@ -17,6 +17,34 @@ type FocusItem = {
     focus_label: string;
 };
 
+// role文字列を ID 用に正規化 (D+ → dplus など)
+const normalizeRoleForId = (role: string) =>
+    role.toLowerCase().replace(/\+/g, 'plus').replace(/[^a-z0-9]+/g, '_');
+
+// 既存ID群(existing) を基に次IDを生成
+const nextFocusId = (prefix: string, role: string, existing: { focus_id: string }[]) => {
+    const normRole = normalizeRoleForId(role);
+    const base = `${prefix}_${normRole}_`;
+
+    const numbers = existing
+        .map((i) => {
+        const m = i.focus_id?.startsWith(base) ? i.focus_id.match(/(\d+)$/) : null;
+        return m ? parseInt(m[1], 10) : 0;
+        })
+        .filter((n) => !Number.isNaN(n));
+
+    const next = (Math.max(0, ...numbers) + 1).toString().padStart(2, '0');
+    return `${base}${next}`;
+};
+
+// DBから最新だけ取得 → 安全採番のために使う
+const fetchExistingForIdGen = async (apiBase: string, divisionPrefix: string, role: string) => {
+    const qs = new URLSearchParams({ division_prefix: divisionPrefix, role }).toString();
+    const res = await fetch(`${apiBase}/admin/tag?${qs}`);
+    if (!res.ok) throw new Error('id採番用の取得に失敗しました');
+    return (await res.json()) as { focus_id: string }[];
+};
+
 const QATagMaster: React.FC = () => {
     const [divisions, setDivisions] = useState<{ name: string; prefix: string | null }[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
@@ -47,27 +75,26 @@ const QATagMaster: React.FC = () => {
     }, [filterDivision, filterRole]);
 
     const fetchDivisions = async () => {
-        try {
-            const res = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
-            if (!res.ok) throw new Error('部門取得失敗');
-            const data = await res.json();
+        const res = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
+        const data = await res.json();
 
-            // 部門ごとにユニーク化（division="共通" を除外）
-            const uniqueDivs: { name: string; prefix: string | null }[] = Array.from(
-                new Map<string, string | null>(
-                    data
-                        .filter((item: any) => item.division && item.division !== '共通')
-                        .map((item: any) => [item.division as string, item.division_prefix || null])
-                ).entries()
-            ).map(([name, prefix]) => ({
-                name: name as string,
-                prefix: prefix as string | null,
-            }));
+        // ✅ SkillMaster と完全に同じ設計にする
+        const uniqueDivs: { name: string; prefix: string | null }[] =
+            Array.from(
+                new Set<string>(  // ← Set に string を明示！！
+                    data.map((s: any) =>
+                        typeof s.division_prefix === "string" ? s.division_prefix : "common"
+                    )
+                )
+            ).map((prefix) => {
+                const matched = data.find((s: any) => s.division_prefix === prefix);
+                return {
+                    name: typeof matched?.division === "string" ? matched.division : prefix,
+                    prefix: prefix, // prefix は string と TypeScript が確信する
+                };
+            });
 
-            setDivisions(uniqueDivs);
-        } catch (err) {
-            console.error('部門リスト取得エラー:', err);
-        }
+        setDivisions(uniqueDivs);
     };
 
     const fetchRoles = async () => {
@@ -85,7 +112,7 @@ const QATagMaster: React.FC = () => {
         try {
         let url = `${appConfig.API_BASE_URL}/admin/tag`;
         const params = new URLSearchParams();
-        if (filterDivision) params.append('division', filterDivision);
+        if (filterDivision) params.append('division_prefix', filterDivision);
         if (filterRole) params.append('role', filterRole);
         if (params.toString()) url += `?${params.toString()}`;
 
@@ -99,15 +126,21 @@ const QATagMaster: React.FC = () => {
         }
     };
 
-        const addFocusItem = async () => {
+    const addFocusItem = async () => {
         if (!newDivision.trim() || !newRole.trim() || !newFocusLabel.trim()) return;
         setLoading(true);
         try {
-            // focus_idを自動生成
-            const newId = generateFocusId(newDivision, newRole);
+            // newDivision は prefix (例: "fac") 選択済み
+            const divisionPrefix = newDivision;
+            const divisionName = divisions.find(d => d.prefix === divisionPrefix)?.name || divisionPrefix;
+
+            // ✅ 最新のDB状態を見てから採番（←ココが超重要）
+            const existing = await fetchExistingForIdGen(appConfig.API_BASE_URL, divisionPrefix, newRole);
+            const newId = nextFocusId(divisionPrefix, newRole, existing);
 
             const body = {
-            division: newDivision,
+            division: divisionName,          // 和名
+            division_prefix: divisionPrefix, // prefix
             role: newRole,
             focus_id: newId,
             focus_label: newFocusLabel,
@@ -119,17 +152,19 @@ const QATagMaster: React.FC = () => {
             body: JSON.stringify(body),
             });
             if (!res.ok) throw new Error('登録失敗');
+
             setNewDivision('');
             setNewRole('');
             setNewFocusLabel('');
             await fetchFocusItems();
+
         } catch (err) {
             console.error('追加失敗:', err);
             alert('観点の追加に失敗しました');
         } finally {
             setLoading(false);
         }
-        };
+    };
 
     const updateFocusLabel = async (id: number) => {
         try {
@@ -160,24 +195,6 @@ const QATagMaster: React.FC = () => {
         }
     };
 
-    const generateFocusId = (division: string, role: string) => {
-        const found = divisions.find((d) => d.name === division);
-        const prefix = found?.prefix || division.toLowerCase();
-        const normalizedRole = role.toLowerCase().replace('+', 'plus');
-
-        const filtered = focusItems.filter(
-            (item) => item.division === division && item.role === role
-        );
-
-        const numbers = filtered.map((i) => {
-            const match = i.focus_id.match(/(\d+)$/);
-            return match ? parseInt(match[1], 10) : 0;
-        });
-
-        const nextNum = (Math.max(...numbers, 0) + 1).toString().padStart(2, '0');
-        return `${prefix}_${normalizedRole}_${nextNum}`;
-    };
-
     return (
         <div className="focus-master">
         <h2>QAタグ管理</h2>
@@ -190,7 +207,7 @@ const QATagMaster: React.FC = () => {
             >
                 <option value="">部門を選択</option>
                 {divisions.map((d) => (
-                    <option key={d.name} value={d.name}>
+                    <option key={d.prefix || d.name} value={d.prefix || ''}>
                         {d.name} {d.prefix ? `(${d.prefix})` : ''}
                     </option>
                 ))}
@@ -221,11 +238,14 @@ const QATagMaster: React.FC = () => {
         <div className="focus-filter">
             <select
                 value={filterDivision}
-                onChange={(e) => setFilterDivision(e.target.value)}
+                onChange={(e) => setFilterDivision(e.target.value)} 
             >
                 <option value="">全ての部門</option>
                 {divisions.map((d) => (
-                    <option key={d.name} value={d.name}>
+                    <option 
+                        key={d.prefix || d.name} 
+                        value={d.prefix || ''}
+                    >
                         {d.name} {d.prefix ? `(${d.prefix})` : ''}
                     </option>
                 ))}

@@ -29,7 +29,7 @@ const SkillMaster: React.FC = () => {
         try {
             let url = `${appConfig.API_BASE_URL}/admin/skills`;
             if (filterDivision) {
-                url += `?division=${encodeURIComponent(filterDivision)}`;
+                url += `?division_prefix=${encodeURIComponent(filterDivision)}`;
             }
 
             const res = await fetch(url);
@@ -42,7 +42,7 @@ const SkillMaster: React.FC = () => {
     };
 
     const divisionList = Array.from(
-        new Set(skills.map((s) => s.division || '共通'))
+        new Set(skills.map((s) => s.division_prefix || 'common'))
     );
 
     const addSkill = async () => {
@@ -50,7 +50,6 @@ const SkillMaster: React.FC = () => {
         setLoading(true);
         try {
             const body = {
-                division: newDivision || null,
                 division_prefix: newDivisionPrefix || null,
                 trait_type: newTraitType,
                 trait_label: newTraitLabel,
@@ -157,9 +156,13 @@ const SkillMaster: React.FC = () => {
                     onChange={(e) => setFilterDivision(e.target.value)}
                 >
                     <option value="">全ての部門（共通含む）</option>
-                    {divisionList.map((d) => (
-                        <option key={d} value={d}>
-                            {d}
+                    {divisionList.map((prefix) => (
+                        <option
+                            key={prefix}
+                            value={prefix} // ← 内部値 = prefix をそのまま渡してOK
+                        >
+                            {/* ✅ 表示名だけ和名 (division) に変換 */}
+                            {skills.find(s => s.division_prefix === prefix)?.division || prefix}
                         </option>
                     ))}
                 </select>

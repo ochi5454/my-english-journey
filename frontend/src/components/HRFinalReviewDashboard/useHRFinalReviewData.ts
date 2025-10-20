@@ -9,12 +9,10 @@ export const useHRFinalReviewData = (interviewerId: string) => {
         qualitativeItems: ConfigResponse["qualitativeItems"];
         quantitativeItems: ConfigResponse["quantitativeItems"];
         titleOptions: LabeledOption[];
-        divisionOptions: LabeledOption[];
     }>({
         qualitativeItems: [],
         quantitativeItems: [],
         titleOptions: [],
-        divisionOptions: [],
     });
     const [hrEvaluations, setHrEvaluations] = useState<
         Record<
@@ -29,6 +27,7 @@ export const useHRFinalReviewData = (interviewerId: string) => {
         }
         >
     >({});
+    const [prefixToName, setPrefixToName] = useState<Record<string, string>>({});
 
     useEffect(() => {
         // --- ① AIスコア一覧取得 ---
@@ -82,24 +81,30 @@ export const useHRFinalReviewData = (interviewerId: string) => {
                 divisions: (string | LabeledOption)[];
             }
             ) => {
-            setConfigData({
-                qualitativeItems: config.qualitativeItems,
-                quantitativeItems: config.quantitativeItems,
-                titleOptions: config.titleOptions.map((opt) => ({
-                value: opt.value,
-                label: opt.label,
-                })),
-                divisionOptions: Array.isArray(config.divisions)
-                ? config.divisions.map((value) =>
-                    typeof value === "string"
-                        ? { value, label: value }
-                        : { value: value.value, label: value.label }
-                    )
-                : [],
-            });
+                setConfigData({
+                    qualitativeItems: config.qualitativeItems,
+                    quantitativeItems: config.quantitativeItems,
+                    titleOptions: config.titleOptions.map(opt => ({
+                        value: opt.value,
+                        label: opt.label,
+                    })),
+                });
             }
         )
         .catch((err) => console.error("定性/定量・選択肢の取得に失敗:", err));
+
+    // --- ④ skills（部門マスター）取得 ---
+    fetch(`${appConfig.API_BASE_URL}/admin/skills`)
+        .then(res => res.json())
+        .then((list: { division_prefix: string; division: string }[]) => {
+            const map: Record<string, string> = {};
+            list.forEach((item: { division_prefix: string; division: string }) => {
+                map[item.division_prefix] = item.division;
+            });
+            setPrefixToName(map);
+        })
+        .catch(err => console.error("skills取得失敗:", err));
+            
     }, [interviewerId]);
 
     return {
@@ -107,6 +112,7 @@ export const useHRFinalReviewData = (interviewerId: string) => {
         interviewEvals,
         configData,
         hrEvaluations,
-        setHrEvaluations, // 外部で更新するためにエクスポート
+        setHrEvaluations,
+        prefixToName,
     };
 };

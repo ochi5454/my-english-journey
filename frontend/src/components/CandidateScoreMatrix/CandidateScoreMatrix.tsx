@@ -12,6 +12,7 @@ import appConfig from '../../config';
 
 const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
+    const [prefixToName, setPrefixToName] = useState<Record<string, string>>({});
     const [filters, setFilters] = useState({
         userId: '',
         userName: '',
@@ -56,7 +57,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
                     return acc;
                 }, {});
                 const mergedWeights = { ...fallbackWeights, ...(f.weights || {}) };
-                const divisionName = f.division || "共通";
+                const divisionName = f.division || "commmon";
                 configMap[divisionName] = {
                     formula: f.formula,
                     enabledFields: f.enabled_fields,
@@ -80,7 +81,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
 
             // ✅ ③ AIスコア自動計算
             const computedResults = Array.from(latestMap.values()).map((r) => {
-                const division = r.preferred_div || "共通";
+                const division = r.preferred_div || "common";
                 const cfg = configMap[division];
                 if (!cfg) return r;
                 const aiScore = calculateAIScoreFromFormula(
@@ -108,6 +109,20 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         fetchConfigAndResults();
     }, [fetchConfigAndResults]);
 
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/skills`)
+            .then(res => res.json())
+            .then((data: any[]) => {
+                const map: Record<string, string> = {};
+                data.forEach(item => {
+                    if (item.division_prefix && item.division) {
+                        map[item.division_prefix] = item.division;
+                    }
+                });
+                setPrefixToName(map);
+            });
+    }, []);
+
     // フィルタリング処理
     const filteredResults = results.filter((r) => {
         const {
@@ -132,8 +147,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         return idMatch && nameMatch && genderMatch && statusMatch && preferredDivisionMatch && recommendedDivisionMatch && mustPassed && aiScoreMatch && hrPendingMatch;
     });
 
-    // 部門・必須項目抽出
-    const allDivisions = Array.from(new Set(results.flatMap((r) => r.scores.map((s) => s.division))));
+    // 必須項目抽出
     const allMustKeys = Object.keys(results[0]?.must_check || {});
 
     // AIスコア分布サマリ
@@ -212,7 +226,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
             filters={filters}
             setFilters={setFilters}
             allStatuses={allStatuses}
-            allDivisions={allDivisions}
+            prefixToName={prefixToName}
         />
 
         {/* 検索結果サマリ */}
@@ -249,6 +263,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
                 }}
                 onResultUpdate={handleResultUpdate}
                 interviewerId={interviewerId}
+                prefixToName={prefixToName}
             />
         )}
 
@@ -297,6 +312,7 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
                         });
                         }}
                         onClose={() => setShowAIPanel(false)}
+                        prefixToName={prefixToName}
                     />
                     </div>
                 </div>

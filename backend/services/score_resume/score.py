@@ -155,7 +155,7 @@ def check_must_requirements_llm(content: str) -> dict:
     """
     with SessionLocal() as db:
         rows = db.query(CandidateExpectations)\
-                    .filter(CandidateExpectations.division == "共通")\
+                    .filter(CandidateExpectations.division_prefix == "common")\
                     .filter(CandidateExpectations.trait_type == "must_requirement")\
                     .all()
         must_keywords = [r.trait_label.strip() for r in rows if r.trait_label.strip()]
@@ -203,7 +203,7 @@ def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str,
     with SessionLocal() as db:
         rows = db.query(CandidateExpectations)\
             .filter(CandidateExpectations.trait_type == "must_requirement")\
-            .filter(CandidateExpectations.division != "共通")\
+            .filter(CandidateExpectations.division_prefix != "common")\
             .all()
 
     # divisionごとに分類（順番保持のためOrderedDict推奨）

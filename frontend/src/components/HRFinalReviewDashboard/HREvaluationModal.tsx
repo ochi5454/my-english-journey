@@ -12,7 +12,7 @@ interface HREvaluationModalProps {
         annualIncome?: string;
     };
     titleOptions: LabeledOption[];
-    divisionOptions: LabeledOption[];
+    prefixToName: Record<string, string>;
     onChange: (updated: Partial<HREvaluationModalProps['hrEvaluation']>) => void;
     onSave: (candidateId: string) => void;
     onCancel: () => void;
@@ -22,7 +22,7 @@ const HREvaluationModal: React.FC<HREvaluationModalProps> = ({
     candidateId,
     hrEvaluation,
     titleOptions,
-    divisionOptions,
+    prefixToName,
     onChange,
     onSave,
     onCancel
@@ -45,18 +45,20 @@ const HREvaluationModal: React.FC<HREvaluationModalProps> = ({
             </label>
 
             <label>
-            部門:
-            <select
-                value={hrEvaluation.division || ''}
-                onChange={(e) => onChange({ division: e.target.value })}
-            >
-                <option value="">選択してください</option>
-                {divisionOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                </option>
-                ))}
-            </select>
+                部門:
+                <select
+                    value={hrEvaluation.division || ''}
+                    onChange={(e) => onChange({ division: e.target.value })}
+                >
+                    <option value="">選択してください</option>
+                    {Object.entries(prefixToName)
+                    .filter(([prefix]) => prefix !== 'common')
+                    .map(([prefix, label]) => (
+                        <option key={prefix} value={prefix}>
+                        {label} {/* ✅ prefixではなく和名を表示 */}
+                        </option>
+                    ))}
+                </select>
             </label>
 
             <label>

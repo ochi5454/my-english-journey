@@ -19,7 +19,8 @@ class InterviewerRoleFocusItem(Base):
     __tablename__ = "interviewer_role_focus_items"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    division = Column(String, nullable=False)  # 例: "hr"
+    division = Column(String, nullable=False)  # 例: "人事"
+    division_prefix = Column(String, nullable=False)  # 例: "hr"
     role = Column(String, nullable=False)      # 例: "C"
     focus_id = Column(String, nullable=False)  # 例: "hr_c_01"
     focus_label = Column(String, nullable=False)  # 例: "論理思考"

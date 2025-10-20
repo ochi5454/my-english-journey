@@ -19,8 +19,8 @@ router = APIRouter(prefix="/admin")
 #  ============================================
 
 @router.get("/skills", response_model=List[CandidateExpectationOut])
-def fetch_skills(division: Optional[str] = None, db: Session = Depends(get_db)):
-    return get_all_expectations(db, division)
+def fetch_skills(division_prefix: Optional[str] = None, db: Session = Depends(get_db)):
+    return get_all_expectations(db, division_prefix)
 
 @router.post("/skills", response_model=CandidateExpectationOut)
 def add_skill(data: CandidateExpectationCreate, db: Session = Depends(get_db)):
@@ -68,29 +68,37 @@ def update_skill(skill_id: int, update: SkillUpdateSchema, db: Session = Depends
 
 @router.get("/tag", response_model=List[InterviewerRoleFocusOut])
 def list_focus_items(
-    division: Optional[str] = Query(None),
+    division_prefix: Optional[str] = Query(None),  # ← フロントと一致させる
     role: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     query = db.query(InterviewerRoleFocusItem)
-    if division:
-        query = query.filter(InterviewerRoleFocusItem.division == division)
+    if division_prefix:  # ← ここ重要
+        query = query.filter(InterviewerRoleFocusItem.division_prefix == division_prefix)
     if role:
         query = query.filter(InterviewerRoleFocusItem.role == role)
     return query.order_by(InterviewerRoleFocusItem.id).all()
 
-
 @router.post("/tag", response_model=InterviewerRoleFocusOut)
 def create_focus_item(item: InterviewerRoleFocusCreate, db: Session = Depends(get_db)):
+    print("🔍 受け取った item:", item.dict())  # ← これだけで超有益
+
     exists = db.query(InterviewerRoleFocusItem).filter_by(focus_id=item.focus_id).first()
     if exists:
+        print("⚠️ 同一 focus_id が既に存在しています →", item.focus_id)
         raise HTTPException(status_code=400, detail="Focus ID already exists")
-    new_item = InterviewerRoleFocusItem(**item.dict())
-    db.add(new_item)
-    db.commit()
-    db.refresh(new_item)
-    return new_item
 
+    try:
+        new_item = InterviewerRoleFocusItem(**item.dict())
+        print("✅ new_item インスタンス:", new_item)
+        db.add(new_item)
+        db.commit()
+        db.refresh(new_item)
+        print("✅ 登録成功 →", new_item.id)
+        return new_item
+    except Exception as e:
+        print("🔥 DB登録中に例外発生:", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/tag/{item_id}", response_model=InterviewerRoleFocusOut)
 def update_focus_item(item_id: int, update: InterviewerRoleFocusUpdate, db: Session = Depends(get_db)):

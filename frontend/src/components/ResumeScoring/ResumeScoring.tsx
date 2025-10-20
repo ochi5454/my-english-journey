@@ -5,6 +5,7 @@ import HRFinalReviewDashboard from '../HRFinalReviewDashboard/HRFinalReviewDashb
 import appConfig from '../../config.ts';
 
 type ViewMode = 'form' | 'matrix' | 'hr';
+type DivisionOption = { name: string; prefix: string };
 
 const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     const [files, setFiles] = useState<File[]>([]);
@@ -12,29 +13,39 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     const [result, setResult] = useState<any>(null);
     const [candidateId, setCandidateId] = useState<string>('');
     const [viewMode, setViewMode] = useState<ViewMode>('form');
-    const [divisions, setDivisions] = useState<string[]>([]);
+    const [divisions, setDivisions] = useState<DivisionOption[]>([]);
     const [selectedDivision, setSelectedDivision] = useState<string>('');
+
+    // prefix → 和名に変換する lookup 関数をつくっておく
+    const getDivisionName = (prefix: string) => {
+        const div = divisions.find(d => d.prefix === prefix);
+        return div ? div.name : prefix;  // ← fallbackで prefix をそのまま出すようにする
+    };
 
     // 部門一覧を取得（division_prefix ≠ "common" のみ）
     useEffect(() => {
         const fetchDivisions = async () => {
             try {
-            const response = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
-            const data: any[] = await response.json();
+                const response = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
+                const data: any[] = await response.json();
 
-            const uniqueDivisions: string[] = Array.from(
-                new Set(
-                data
-                    .filter((item) => item.division_prefix !== 'common')
-                    .map((item) => item.division)
-                )
-            );
+                const uniqueDivisions: DivisionOption[] = Array.from(
+                    new Set(data.filter((item) => item.division_prefix !== 'common')
+                                .map((item) => item.division_prefix))
+                ).map(prefix => {
+                    const matched = data.find((item) => item.division_prefix === prefix);
+                    return {
+                        name: matched?.division || prefix, // ← 表示する和名
+                        prefix                       // ← 保存・API送信用の値
+                    };
+                });
 
-            setDivisions(uniqueDivisions);
+                setDivisions(uniqueDivisions);
             } catch (err) {
-            console.error('部門一覧の取得に失敗しました', err);
+                console.error('部門一覧の取得に失敗しました', err);
             }
         };
+
         fetchDivisions();
     }, []);
 
@@ -124,14 +135,14 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                     <label htmlFor="divisionSelect">希望部門:</label>
                     <select
                         id="divisionSelect"
+                        className="resume-select" 
                         value={selectedDivision}
                         onChange={(e) => setSelectedDivision(e.target.value)}
-                        className="resume-select"
-                    >
+                        >
                         <option value="">選択してください</option>
-                        {divisions.map((div) => (
-                            <option key={div} value={div}>
-                                {div}
+                        {divisions.map((d) => (
+                            <option key={d.prefix} value={d.prefix}>
+                            {d.name} {/* ← 和名表示 */}
                             </option>
                         ))}
                     </select>
@@ -180,7 +191,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                         <div className="resume-compare-card">
                             <h4>希望部門</h4>
                             <p className="resume-compare-division">
-                            {result.preferred_div || result.desired_division || '―'}
+                            {getDivisionName(result.preferred_div) || '―' }
                             </p>
                             <p className="resume-compare-score">
                             {result.preferred_div_score !== null && result.preferred_div_score !== undefined
@@ -195,7 +206,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                         <div className="resume-compare-card">
                             <h4>推薦部門（AI）</h4>
                             <p className="resume-compare-division">
-                            {result.recommended_div || result.llm_scoring?.recommended_division || '―'}
+                            {getDivisionName(result.recommended_div) || result.llm_scoring?.recommended_division || '―'}
                             </p>
                             <p className="resume-compare-score">
                             {result.recommended_div_score !== null && result.recommended_div_score !== undefined

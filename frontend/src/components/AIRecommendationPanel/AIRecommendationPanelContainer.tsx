@@ -14,9 +14,10 @@ interface Props {
   divisions: Record<string, DivisionConfig>;
   onSave: (division: string, weights: AIWeights) => void;
   onClose: () => void;
+  prefixToName: Record<string, string>;
 }
 
-const AIRecommendationPanelContainer: React.FC<Props> = ({ divisions: initialDivisions, onSave, onClose }) => {
+const AIRecommendationPanelContainer: React.FC<Props> = ({ divisions: initialDivisions, onSave, onClose, prefixToName }) => {
   // ✅ divisionsをローカルstate化
   const [divisions, setDivisions] = useState<Record<string, DivisionConfig>>(initialDivisions);
   const divisionKeys = Object.keys(divisions);
@@ -72,7 +73,7 @@ const handleApply = (newWeights?: AIWeights) => {
             className={`ai-tab-button ${div === selectedDivision ? 'active' : ''}`}
             onClick={() => setSelectedDivision(div)}
           >
-            {div}
+            {prefixToName[div] || div}
           </button>
         ))}
       </div>
@@ -89,6 +90,7 @@ const handleApply = (newWeights?: AIWeights) => {
             onChange={handleChange}
             onApply={handleApply}
             onClose={onClose}
+            prefixToName={prefixToName} 
           />
         </div>
       )}

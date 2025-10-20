@@ -17,14 +17,14 @@ interface Props {
     filters: Filters;
     setFilters: React.Dispatch<React.SetStateAction<Filters>>;
     allStatuses: string[];
-    allDivisions: string[];
+    prefixToName: Record<string, string>;
 }
 
 const CandidateMatrixFilters: React.FC<Props> = ({
     filters,
     setFilters,
     allStatuses,
-    allDivisions,
+    prefixToName,
 }) => {
     return (
         <div className="matrix-filters">
@@ -85,10 +85,14 @@ const CandidateMatrixFilters: React.FC<Props> = ({
         <select
             value={filters.preferredDivision}
             onChange={(e) => setFilters({ ...filters, preferredDivision: e.target.value })}
-        >
+            >
             <option value="">希望部門</option>
-            {allDivisions.map((division) => (
-                <option key={division}>{division}</option>
+            {Object.entries(prefixToName)
+                .filter(([prefix]) => prefix !== 'common')
+                .map(([prefix, name]) => (
+                    <option key={prefix} value={prefix}>
+                    {name}
+                    </option>
             ))}
         </select>
 
@@ -97,8 +101,12 @@ const CandidateMatrixFilters: React.FC<Props> = ({
             onChange={(e) => setFilters({ ...filters, recommendedDivision: e.target.value })}
         >
             <option value="">推薦部門</option>
-            {allDivisions.map((division) => (
-            <option key={division}>{division}</option>
+            {Object.entries(prefixToName)
+                .filter(([prefix]) => prefix !== 'common')
+                .map(([prefix, name]) => (
+                    <option key={prefix} value={prefix}>
+                    {name}
+                    </option>
             ))}
         </select>
 

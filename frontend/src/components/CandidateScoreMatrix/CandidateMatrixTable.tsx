@@ -15,7 +15,7 @@ export default function CandidateMatrixTable({
         setShowAIPanel: React.Dispatch<React.SetStateAction<boolean>>;
     }) {
 
-    const { divisionColorMap, loading } = useDivisionColorMap();
+    const { divisionColorMap, prefixToName, loading } = useDivisionColorMap(); 
 
     if (loading) return <p>読み込み中...</p>;
 
@@ -96,7 +96,7 @@ export default function CandidateMatrixTable({
                             <td>{renderHrDecisionChip(r.hr_decision)}</td>
 
                             {/* 希望部門 */}
-                            <td>{renderDivisionChip(r.preferred_div, divisionColorMap)}</td>
+                            <td>{renderDivisionChip(r.preferred_div, prefixToName, divisionColorMap)}</td>
                             <td>{r.preferred_div_score ?? '-'}</td>
                             <td>
                                 <div className="ai-score-combined">
@@ -110,7 +110,7 @@ export default function CandidateMatrixTable({
                             </td>
 
                             {/* 推薦部門 */}
-                            <td>{renderDivisionChip(r.recommended_div, divisionColorMap)}</td>
+                            <td>{renderDivisionChip(r.recommended_div, prefixToName, divisionColorMap)}</td>
                             <td>{r.recommended_div_score ?? '-'}</td>
 
                             {/* 共通must */}

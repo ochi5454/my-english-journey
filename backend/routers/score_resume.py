@@ -18,6 +18,7 @@ from backend.services.score_resume.score import score_resume_from_text, score_mo
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
+from backend.utils.division import convert_division_to_prefix
 
 router = APIRouter()
 
@@ -94,6 +95,9 @@ async def resume_score_save(
             experience_years = calculate_total_experience(work_histories)
             candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
 
+            # 🔁 和名 → prefix に変換
+            prefix = convert_division_to_prefix(desired_division) if desired_division else None
+
             if not candidate:
                 candidate = Candidate(
                     id=str(uuid4()),
@@ -102,7 +106,7 @@ async def resume_score_save(
                     gender=extracted_gender,
                     experience=experience_years,
                     uploader_id=uploader_id,
-                    preferred_div=desired_division,
+                    preferred_div=prefix,
                     updated_by="system",
                     updated_at=now
                 )
@@ -111,7 +115,7 @@ async def resume_score_save(
                 candidate.updated_by = "system"
                 candidate.updated_at = now
                 candidate.experience = experience_years
-                candidate.preferred_div = desired_division
+                candidate.preferred_div = prefix
             db.commit()
 
             new_status = CandidateStatus(
@@ -134,6 +138,13 @@ async def resume_score_save(
         )
         print("🧠 LLMスコアリングに渡す前に１次精査。なるべく職務経歴重視: %s", filtered_text)
         scoring_result = score_resume_from_text(filtered_text, candidate_id)
+
+        # 🔽 和名 → prefix 変換をここで実施
+        raw_recommended = scoring_result.get("recommended_division")
+        recommended_div_prefix = (
+            convert_division_to_prefix(raw_recommended) if raw_recommended else None
+        )
+        scoring_result["recommended_division"] = recommended_div_prefix
 
         # === ⑧ スコア・must_checkをDBに保存 ===
         now = datetime.utcnow()
@@ -195,11 +206,12 @@ async def resume_score_save(
 
             # 🎯 divisionごとのmust_check保存
             for division, checks in scoring_result.get("must_check_by_division", {}).items():
+                division_prefix = convert_division_to_prefix(division)
                 for name, info in checks.items():
                     db.add(CandidateDivisionMustCheckItem(
                         id=str(uuid4()),
                         user_id=candidate_id,
-                        division=division,
+                        division=division_prefix,
                         item_name=name,
                         result=info.get("result", False),
                         reason=info.get("reason", "")
@@ -208,10 +220,11 @@ async def resume_score_save(
             # 🎯 divisionスコア 保存
             db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).delete()
             for s in scoring_result.get("scores", []):
+                division_prefix = convert_division_to_prefix(s["division"])
                 db.add(CandidateDivisionScore(
                     id=str(uuid4()),
                     user_id=candidate_id,
-                    division=s["division"],
+                    division=division_prefix,
                     score=s["score"],
                     reason=s["reason"]
                 ))
@@ -219,9 +232,10 @@ async def resume_score_save(
             # 🎯 スコア履歴 保存（重複チェックあり）
             for s in scoring_result.get("scores", []):
                 # --- 重複チェック ---
+                division_prefix = convert_division_to_prefix(s["division"])
                 existing = db.query(CandidateScoreHistory).filter(
                     CandidateScoreHistory.user_id == candidate_id,
-                    CandidateScoreHistory.division == s["division"],
+                    CandidateScoreHistory.division == division_prefix,
                     CandidateScoreHistory.score == s["score"],
                     CandidateScoreHistory.reason == s["reason"],
                     CandidateScoreHistory.source.in_(["resume_upload", "resume_score_save"])
@@ -236,7 +250,7 @@ async def resume_score_save(
                 db.add(CandidateScoreHistory(
                     id=str(uuid4()),
                     user_id=candidate_id,
-                    division=s["division"],
+                    division=division_prefix,
                     score=s["score"],
                     reason=s["reason"],
                     reviewer="system",
@@ -274,15 +288,15 @@ async def resume_score_save(
         return JSONResponse(content={
             "candidate_id": candidate_id,
             "uploader_id": uploader_id,
-            "desired_division": desired_division,
+            "desired_division": prefix,
             "timestamp": now.isoformat(),
             "generated_sql": generated_sql,
 
             # 希望部門・推薦部門情報を追加
-            "preferred_div": desired_division,
+            "preferred_div": prefix,
             "preferred_div_score": preferred_div_score,
             "preferred_div_reason": preferred_div_reason,
-            "recommended_div": recommended_div,
+            "recommended_div": recommended_div_prefix,
             "recommended_div_score": recommended_div_score,
             "recommended_div_reason": recommended_div_reason,
 

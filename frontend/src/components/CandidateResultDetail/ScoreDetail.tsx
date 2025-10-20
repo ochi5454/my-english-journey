@@ -3,9 +3,11 @@ import { formatDate } from "../Utils/format";
 
 interface Props {
     localResult: any;
+    prefixToName: Record<string, string>;
 }
 
-const ScoreDetail: React.FC<Props> = ({ localResult }) => {
+const ScoreDetail: React.FC<Props> = ({ localResult, prefixToName }) => {
+    console.log("🟡 ScoreDetail localResult:", localResult);
     return (
         <div className="result-d-detail-left">
 
@@ -48,12 +50,15 @@ const ScoreDetail: React.FC<Props> = ({ localResult }) => {
             <div className="detail-section-box">
                 <h4>🎯 部門別スコア</h4>
                     {localResult.scores?.map((s: any) => {
+                        console.log("🟡 ScoreDetail localResult:", localResult);
+                        const divisionName = prefixToName[s.division] || s.division;
+
                         // 履歴が配列でない場合
                         if (!Array.isArray(s.score_history))
                         return (
                             <div key={s.division} className="result-d-score-item">
                             <p>
-                                <strong>{s.division}</strong>: {s.score}点
+                                <strong>{divisionName}</strong>: {s.score}点
                             </p>
                             <p style={{ fontSize: "0.9em", color: "#666" }}>{s.reason}</p>
                             </div>
@@ -68,7 +73,7 @@ const ScoreDetail: React.FC<Props> = ({ localResult }) => {
                         return (
                         <div key={s.division} className="result-d-score-item">
                             <p>
-                            <strong>{s.division}</strong>:</p>
+                            <strong>{divisionName}</strong>:</p>
 
                             {/* 最新スコア */}
                             <div style={{ marginBottom: "10px" }}>

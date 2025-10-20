@@ -25,7 +25,6 @@ def load_role_focus_dict(db: Session) -> dict:
 def load_all_prepitem_tags_by_role(meta: dict, db: Session) -> dict:
     usage_counter: defaultdict[str, Counter[str]] = defaultdict(Counter)
 
-    # すべてのQATag取得（ResultByInterviewとJOIN）
     query = (
         db.query(ResultByInterview, ResultByInterviewQATag)
         .join(ResultByInterviewQATag, ResultByInterview.id == ResultByInterviewQATag.evaluation_id)
@@ -38,13 +37,14 @@ def load_all_prepitem_tags_by_role(meta: dict, db: Session) -> dict:
             continue
 
         dept = str(user_meta.get("department", "") or "").lower()
-        role = str(user_meta.get("role", "") or "").lower()
-        role_key = f"{dept}:{role}"
+        role = str(user_meta.get("role", "") or "").lower().replace("+", "plus")  # ✅ ← ココだけ
+        role_key = f"{dept}:{role}"  # hr:dplus / acc:sc / fac:m などに統一
 
         tag_str = qa.tags or ""
         tag_list = [t.strip() for t in tag_str.split(",") if t.strip()]
 
         for tag_id in tag_list:
+            # ✅ tag_id は "hr_dplus_03" のままで OK
             usage_counter[role_key][tag_id] += 1
 
     return {rk: dict(cnt) for rk, cnt in usage_counter.items()}

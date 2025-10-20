@@ -26,6 +26,7 @@ type Role = {
 
 const InterviewerRoleFocusOverview: React.FC = () => {
   const [data, setData] = useState<RoleFocusSummary>({});
+  const [prefixToName, setPrefixToName] = useState<Record<string, string>>({});
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,24 +51,33 @@ const InterviewerRoleFocusOverview: React.FC = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    axios.get(`${appConfig.API_BASE_URL}/admin/skills`).then(res => {
+      const map: Record<string, string> = {};
+      res.data.forEach((item: { division_prefix: string; division: string }) => {
+        map[item.division_prefix] = item.division;
+      });
+      setPrefixToName(map);
+    });
+  }, []);
+
   // --- 部門×ロールのマトリクス整形 ---
   const matrixData = useMemo(() => {
     const matrix: Record<string, Record<string, { tags: FocusTag[]; used: Record<string, number> }>> = {};
+
     for (const roleKey in data) {
-      const [dept, role] = roleKey.split(':');
-      if (!dept || !role || dept === '共通') continue;
+      const [prefix, role] = roleKey.split(':');
+      if (prefix === 'common') continue;
+      if (!matrix[prefix]) matrix[prefix] = {};
 
-      const deptLower = dept.toLowerCase();
-      const roleLower = role.toLowerCase();
-
-      if (!matrix[deptLower]) matrix[deptLower] = {};
-      matrix[deptLower][roleLower] = {
+      matrix[prefix][role.toLowerCase()] = {
         tags: data[roleKey].expected_tags || [],
         used: data[roleKey].used_tags || {},
       };
     }
+
     return matrix;
-  }, [data]);
+  }, [data, prefixToName]);
 
   // --- 部門一覧 ---
   const departments = useMemo(() => Object.keys(matrixData).sort(), [matrixData]);
@@ -91,7 +101,7 @@ const InterviewerRoleFocusOverview: React.FC = () => {
                 <th>部門＼ロール</th>
                 {sortedRoles.map((role) => (
                   <th key={role.value}>
-                    <span className={`role-chip role-${role.value}`}>
+                    <span className={`role-chip role-${role.value.toLowerCase().replace('+', 'dplus')}`}>
                       {role.label}
                     </span>
                   </th>
@@ -101,9 +111,11 @@ const InterviewerRoleFocusOverview: React.FC = () => {
             <tbody>
               {departments.map((dept) => (
                 <tr key={dept}>
-                  <td>{dept}</td>
+                  <td>{prefixToName[dept] || dept}</td>
                   {sortedRoles.map((role) => {
+                    console.log("🎯 role.value =", role.value, " → lower =", role.value.toLowerCase());
                     const cell = matrixData[dept]?.[role.value.toLowerCase()];
+                    console.log("🔥 CHECK", dept, role.value, cell);
                     const tags = cell?.tags ?? [];
                     const usedMap = cell?.used ?? {};
                     return (
@@ -118,6 +130,7 @@ const InterviewerRoleFocusOverview: React.FC = () => {
                             if (!tagId) return null;
 
                             const count = usedMap[tagId] ?? 0;
+                            console.log("🐣 tag =", tagId, "count =", count, "usedMap =", usedMap);
                             const className =
                               count >= 3
                                 ? 'tag-chip high'

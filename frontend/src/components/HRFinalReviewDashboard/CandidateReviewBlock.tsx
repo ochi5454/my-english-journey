@@ -13,7 +13,6 @@ interface CandidateReviewBlockProps {
     qualItems: { key: string; label: string }[];
     quantItems: { key: string; label: string }[];
     titleOptions: LabeledOption[];
-    divisionOptions: LabeledOption[];
     hrEvaluation: {
         decision?: string;
         division?: string;
@@ -28,7 +27,8 @@ interface CandidateReviewBlockProps {
     activeCandidateId: string | null;
     onChangeHR: (updated: Partial<CandidateReviewBlockProps['hrEvaluation']>) => void;
     onSaveHR: (candidateId: string) => void;
-    }
+    prefixToName: Record<string, string>;
+}
 
 const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
     candidateId,
@@ -38,7 +38,6 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
     qualItems,
     quantItems,
     titleOptions,
-    divisionOptions,
     hrEvaluation,
     interviewerId,
     onOpenModal,
@@ -46,6 +45,7 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
     activeCandidateId,
     onChangeHR,
     onSaveHR,
+    prefixToName,
 }) => {
     const normalizedCandidateId = candidateId.replace(/^cand_/, '');
     const resumeURL = `${appConfig.API_BASE_URL}/resumes/by-candidate/${normalizedCandidateId}`;
@@ -129,7 +129,7 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
                     <th key={key}>{key}</th>
                     ))}
                     {ai.scores.map((s) => (
-                    <th key={s.division}>{s.division}</th>
+                    <th key={s.division}>{prefixToName[s.division] || s.division}</th>
                     ))}
                 </tr>
                 </thead>
@@ -197,7 +197,9 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
                     <td>部門</td>
                     {evals.map((r) => (
                     <td key={`division-${r.interviewer_id}`}>
-                        {r.qualitative?.recommendedDivision ?? '-'}
+                        {r.qualitative?.recommendedDivision
+                            ? prefixToName[r.qualitative.recommendedDivision] || r.qualitative.recommendedDivision
+                            : '-'}
                     </td>
                     ))}
                 </tr>
@@ -290,7 +292,7 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
             interviewerId={interviewerId}
             hrEvaluation={hrEvaluation}
             titleOptions={titleOptions}
-            divisionOptions={divisionOptions}
+            prefixToName={prefixToName}
             onChange={onChangeHR}
             onSave={onSaveHR}
             onCancel={onCloseModal}

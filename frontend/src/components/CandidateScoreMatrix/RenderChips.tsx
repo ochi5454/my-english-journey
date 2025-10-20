@@ -32,25 +32,32 @@ export const renderAIRecommendationChip = (percentile?: number) => {
     return <span className={className}>{percentile}%</span>;
 };
 
-export const renderDivisionChip = (
-    division?: string,
-    colorMap?: Record<string, string>
-) => {
-    if (!division) return <span className="chip chip-gray">-</span>;
-    const bgColor = colorMap?.[division] || '#9ca3af';
+export function renderDivisionChip(
+    prefix?: string,
+    prefixToName?: Record<string, string>,      // ← ✅ 和名辞書
+    divisionColorMap?: Record<string, string>   // ← ✅ prefix → 色
+) {
+
+    if (!prefix) return <span>-</span>;
+
+    // ✅ prefix → 和名に変換（例: "fac" → "ファシリティ"）
+    const divisionName = prefixToName?.[prefix] || prefix;
+
+    // ✅ 背景色は prefix をキーに取得（useDivisionColorMap が返してくれてる）
+    const bgColor = divisionColorMap?.[prefix] || '#f0f0f0';
+
     return (
         <span
-        className="chip"
-        style={{
-            backgroundColor: bgColor,
-            color: '#626161ff',
-            borderRadius: '12px',
-            padding: '4px 8px',
-            fontSize: '12px',
-            fontWeight: 600,
-        }}
+            style={{
+                backgroundColor: bgColor,
+                color: '#333',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                display: 'inline-block',
+                fontSize: '0.85rem',
+            }}
         >
-        {division}
+            {divisionName}
         </span>
     );
-};
+}

@@ -44,6 +44,7 @@ export interface Props {
     };
     loadingInitial?: boolean;
     onAiReviewed?: (updatedResult: any) => void;
+    prefixToName: Record<string, string>; 
 }
 
 const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
@@ -55,6 +56,7 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
     onSubmit,
     initialData,
     onAiReviewed,
+    prefixToName,
 }) => {
     const [prepItems, setPrepItems] = useState<PrepItem[]>([]);
     const [newQuestion, setNewQuestion] = useState('');
@@ -211,8 +213,18 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                     >
                     <option value="">選択してください</option>
                     {config.divisions
-                        .filter(d => d !== '共通') // 共通 を除外
-                        .map(d => <option key={d} value={d}>{d}</option>)}
+                    .filter(d => d !== prefixToName['common'])
+                        .map(d => 
+                            // このオプションの value だけ prefix（英語のコード）にする！
+                            <option
+                            key={d}
+                            value={
+                                Object.keys(prefixToName).find(prefix => prefixToName[prefix] === d) || d
+                            }
+                            >
+                            {d} {/* 表示は和名 */}
+                            </option>
+                        )}
                     </select>
                 </div>
 

@@ -4,7 +4,7 @@ import './AIFormulaConfig.css';
 import { fieldOptions } from '../Utils/fieldOptions';
 
 const AIFormulaConfig: React.FC = () => {
-    const [divisions, setDivisions] = useState<string[]>([]);
+    const [divisions, setDivisions] = useState<{ name: string; prefix: string }[]>([]);
     const [division, setDivision] = useState<string>('');
     const [formula, setFormula] = useState('');
     const [enabledFields, setEnabledFields] = useState<string[]>([]);
@@ -29,26 +29,29 @@ const AIFormulaConfig: React.FC = () => {
     useEffect(() => {
         const fetchDivisions = async () => {
             try {
-                const response = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
-                const data: any[] = await response.json();
+                const res = await fetch(`${appConfig.API_BASE_URL}/admin/skills`);
+                const data = await res.json();
 
-                const uniqueDivisions: string[] = Array.from(
-                    new Set(
-                        data
-                            .filter((item) => item.division_prefix !== 'common')
-                            .map((item) => item.division)
-                    )
-                );
+                const uniqueDivs = Array.from(
+                    new Set<string>(data.map((s: any) => s.division_prefix))
+                ).map((prefix): { name: string; prefix: string } => {
+                    const matched = data.find((s: any) => s.division_prefix === prefix);
+                    return {
+                        name: typeof matched?.division === "string" ? matched.division : prefix,
+                        prefix: prefix,
+                    };
+                });
 
-                setDivisions(uniqueDivisions);
-                // 最初の部門を自動選択
-                if (uniqueDivisions.length > 0) {
-                    setDivision(uniqueDivisions[0]);
+                setDivisions(uniqueDivs);
+
+                if (uniqueDivs.length > 0) {
+                    setDivision(uniqueDivs[0].prefix); // prefix を初期選択にする
                 }
             } catch (err) {
                 console.error('部門一覧の取得に失敗しました', err);
             }
         };
+
         fetchDivisions();
     }, []);
 
@@ -146,11 +149,19 @@ const AIFormulaConfig: React.FC = () => {
                 onChange={(e) => setDivision(e.target.value)}
                 className="aifc-select"
             >
-                {divisions.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                ))}
+                {divisions
+                    .filter((d) => d.prefix !== 'common')
+                    .map((d) => (
+                        <option 
+                            key={d.prefix} 
+                            value={d.prefix}
+                        >
+                            {d.name}
+                        </option>
+                    ))
+                }
             </select>
-        </div>        
+        </div>
 
         <div className="aifc-toggle">
             <label>

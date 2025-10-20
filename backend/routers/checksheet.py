@@ -7,7 +7,7 @@ from backend.core.config import INTERVIEWER_META_PATH
 from backend.core.database import SessionLocal
 from backend.utils.checksheet import load_hiring_decisions, load_role_titles, load_qualitative_items, load_quantitative_items
 from backend.utils.load_json import _load_json, _safe_load_json
-from backend.utils.division import load_division_names, get_expected_focus_items
+from backend.utils.division import load_division_names, get_expected_focus_items, convert_division_to_prefix
 from backend.services.checksheet.upsert import get_checksheet_one, upsert_checksheet
 from backend.services.checksheet.read_all import _as_non_empty_str, list_checksheet_by_interviewer, list_all_checksheet_blocks
 from backend.services.score_byinterview.merge import merge_block
@@ -28,7 +28,7 @@ def get_all_interview_settings(request: Request):
         meta = _safe_load_json(INTERVIEWER_META_PATH)
         user_meta = meta.get(user_id)
         if isinstance(user_meta, Mapping):
-            dept = str(user_meta.get("department") or "").strip().lower()
+            dept = str(user_meta.get("department_prefix") or "").strip().lower()
             role = str(user_meta.get("role") or "").strip()
             if user_id:
                 meta = _safe_load_json(INTERVIEWER_META_PATH)
@@ -108,19 +108,37 @@ def get_role_focus_summary():
     role_summary = {}
     for role_key, role_data in role_focus_dict.items():
         expected_focus = role_data.get("expected_focus", [])
+
+        # ① 和名とrole_suffixを分離
+        dept_name, role_suffix = role_key.split(":", 1)
+
+        # ② prefixに変換する
+        dept_prefix = convert_division_to_prefix(dept_name)
+
+        normalized_suffix = role_suffix.lower()
+        prefix_key = f"{dept_prefix}:{normalized_suffix}"
+
         expected_ids, id_to_label = extract_ids_and_labels(expected_focus)
 
-        used_tags = usage_counter.get(role_key, {})
+        # ✅ used_tags は "和名:role_suffix" で集計されてるので role_key (原型) で取る
+        normalized_key = f"{convert_division_to_prefix(dept_name)}:{role_suffix.lower().replace('+', 'plus')}"
+        used_tags = usage_counter.get(normalized_key, {})
+
+        normalized_used_tags = {}
+        for tag_id, count in used_tags.items():
+            normalized_used_tags[tag_id] = count  # ここはそのままでOK（tag_idはprefix形式でDBに入ってる前提）
+            
         missing_ids = [tag_id for tag_id in expected_ids if tag_id not in used_tags]
 
-        role_summary[role_key] = {
+        # ✅ prefix_key を keyとして返す（DB・保存基準）
+        role_summary[prefix_key] = {
             "expected_count": len(expected_ids),
             "missing_tags": [
                 { "id": tag_id, "label": id_to_label.get(tag_id, tag_id) }
                 for tag_id in missing_ids
             ],
             "used_count": sum(used_tags.values()),
-            "used_tags": dict(used_tags),
+            "used_tags": normalized_used_tags,
             "expected_tags": [
                 { "id": tag_id, "label": id_to_label.get(tag_id, tag_id) }
                 for tag_id in expected_ids

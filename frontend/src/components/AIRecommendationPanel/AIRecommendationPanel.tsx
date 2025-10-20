@@ -13,6 +13,7 @@ interface AIRecommendationPanelProps {
     onChange: (key: string, value: number) => void;
     onApply: (newWeights?: AIWeights) => void;
     onClose: () => void;
+    prefixToName: Record<string, string>;
 }
 
 const getFieldLabel = (value: string) => {
@@ -35,6 +36,7 @@ const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
     onChange,
     onApply,
     onClose,
+    prefixToName,
 }) => {
     // 🧠 ローカル状態で即時反映
     const [localWeights, setLocalWeights] = useState<AIWeights>({ ...weights });
@@ -77,7 +79,7 @@ const AIRecommendationPanel: React.FC<AIRecommendationPanelProps> = ({
                 ×
             </button>
 
-            <h3>{division}部門の重み付スコア算出</h3>
+            <h3>{prefixToName[division] || division} の重み付スコア算出</h3>
 
             <p className="ai-panel-description">
                 <code>(例) 重み付スコア = {convertFormulaToLabel(formula)}</code>
