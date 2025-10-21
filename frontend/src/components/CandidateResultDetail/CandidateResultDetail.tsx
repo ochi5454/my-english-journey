@@ -19,9 +19,12 @@ interface Props {
     onResultUpdate?: (updatedResult: any) => void;
     interviewerId: string; 
     prefixToName: Record<string, string>;
+    configData: { 
+        hiringDecisions: { id: string; value: string }[];
+    };
 }
 
-const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId, prefixToName }) => {
+const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdate, interviewerId, prefixToName, configData }) => {
     const [chatInput, setChatInput] = useState('');
     const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
     const [localResult, setLocalResult] = useState<any>(result);
@@ -82,9 +85,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 candidate_id: localResult.user_id,
                 review: {
                     decision: hrDecisionDraft,
-                    division: localResult.hr_division,
-                    title: localResult.hr_title,
-                    annual_income: localResult.hr_income,
                 }
             }),
             });
@@ -290,6 +290,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                                     setIsEditingHrDecision(false);
                                     setHrDecisionDraft(localResult.hr_decision || '');
                                 }}
+                                hiringDecisions={configData.hiringDecisions}
                             />
                         </div>
                     </div>

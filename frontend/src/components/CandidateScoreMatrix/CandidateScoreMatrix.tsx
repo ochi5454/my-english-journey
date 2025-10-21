@@ -9,10 +9,12 @@ import { calculateAIScoreFromFormula, calculateTruePercentilesByPreferredDiv } f
 import CandidateMatrixSummary from './CandidateMatrixSummary';
 import type { Result } from './types';
 import appConfig from '../../config';
+import { useHRFinalReviewData } from "../HRFinalReviewDashboard/useHRFinalReviewData";
 
 const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
     const [prefixToName, setPrefixToName] = useState<Record<string, string>>({});
+    const { configData, prefixToName: hrPrefixToName } = useHRFinalReviewData(interviewerId);
     const [filters, setFilters] = useState({
         userId: '',
         userName: '',
@@ -219,6 +221,11 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         }
     };
 
+    const mergedPrefixToName = {
+        ...prefixToName,
+        ...hrPrefixToName, // ← HR管理画面の prefix も統合
+    };
+
     return (
         <div className="matrix-container">
         {/* フィルタUI */}
@@ -263,7 +270,8 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
                 }}
                 onResultUpdate={handleResultUpdate}
                 interviewerId={interviewerId}
-                prefixToName={prefixToName}
+                prefixToName={mergedPrefixToName}
+                configData={configData}
             />
         )}
 
