@@ -42,6 +42,8 @@ class Candidate(Base):
     hr_division = Column(String)
     hr_title = Column(String)
     hr_income = Column(Integer)
+    hr_saved_at = Column(DateTime, nullable=True)
+    hr_saved_by = Column(String, nullable=True)
 
 class CandidateMustCheckItem(Base):
     __tablename__ = "candidates_must_check_items"

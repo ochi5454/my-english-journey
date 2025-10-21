@@ -45,6 +45,8 @@ async def update_hr_review(
     candidate.hr_income = data.review.annual_income
     candidate.updated_by = user_id
     candidate.updated_at = now
+    candidate.hr_saved_at = now
+    candidate.hr_saved_by = user_id
 
     db.commit()
 

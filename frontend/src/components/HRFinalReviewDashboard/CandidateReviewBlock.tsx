@@ -13,6 +13,7 @@ interface CandidateReviewBlockProps {
     qualItems: { key: string; label: string }[];
     quantItems: { key: string; label: string }[];
     titleOptions: LabeledOption[];
+    hiringDecisions: { id: string; value: string }[];
     hrEvaluation: {
         decision?: string;
         division?: string;
@@ -38,6 +39,7 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
     qualItems,
     quantItems,
     titleOptions,
+    hiringDecisions,
     hrEvaluation,
     interviewerId,
     onOpenModal,
@@ -97,7 +99,16 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
             <div className="hr-button-and-note">
             <div>
                 <button
-                onClick={() => onOpenModal(candidateId)}
+                onClick={() => {
+                    // ✅ hrEvaluation に問題がないかを「再同期」してからモーダルを開く
+                    onChangeHR({
+                        decision: hrEvaluation.decision || '',
+                        division: hrEvaluation.division || '',
+                        title: hrEvaluation.title || '',
+                        annualIncome: hrEvaluation.annualIncome || '',
+                    });
+                    onOpenModal(candidateId);
+                }}
                 className={`hr-review-btn ${
                     hrEvaluation?.savedAt ? 'saved' : ''
                 }`}
@@ -292,6 +303,7 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
             interviewerId={interviewerId}
             hrEvaluation={hrEvaluation}
             titleOptions={titleOptions}
+            decisionOptions={hiringDecisions}
             prefixToName={prefixToName}
             onChange={onChangeHR}
             onSave={onSaveHR}

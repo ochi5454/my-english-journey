@@ -12,6 +12,7 @@ interface HREvaluationModalProps {
         annualIncome?: string;
     };
     titleOptions: LabeledOption[];
+    decisionOptions: { id: string; value: string }[];
     prefixToName: Record<string, string>;
     onChange: (updated: Partial<HREvaluationModalProps['hrEvaluation']>) => void;
     onSave: (candidateId: string) => void;
@@ -22,26 +23,31 @@ const HREvaluationModal: React.FC<HREvaluationModalProps> = ({
     candidateId,
     hrEvaluation,
     titleOptions,
+    decisionOptions,
     prefixToName,
     onChange,
     onSave,
     onCancel
     }) => {
+
     return (
         <div className="hr-modal-overlay">
         <div className="hr-modal">
             <h4>HR最終評価（{candidateId}）</h4>
 
             <label>
-            採用可否:
-            <select
-                value={hrEvaluation.decision || ''}
-                onChange={(e) => onChange({ decision: e.target.value })}
-            >
-                <option value="">選択してください</option>
-                <option value="hire_ok">✅ 採用</option>
-                <option value="hire_ng">🙅‍♂️ 不採用</option>
-            </select>
+                採用可否:
+                <select
+                    value={hrEvaluation.decision || ''}
+                    onChange={(e) => onChange({ decision: e.target.value })}
+                >
+                    <option value="">選択してください</option>
+                    {decisionOptions?.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                        {opt.value} {/* ← UI表示は value（例: 🌟 積極的に採用） */}
+                    </option>
+                    ))}
+                </select>
             </label>
 
             <label>

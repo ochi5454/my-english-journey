@@ -38,6 +38,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
     const qualItems = configData.qualitativeItems;
     const quantItems = configData.quantitativeItems;
     const titleOptions = configData.titleOptions;
+    const hiringDecisions = configData.hiringDecisions; 
     const { prefixToName } = useHRFinalReviewData(interviewerId);
 
     const groupedAI = aiRawResults.reduce<Record<string, AIRawResult>>((acc, curr) => {
@@ -130,7 +131,6 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                     const order = ["面談・1次", "面談・2次", "最終面談"];
                     return order.indexOf(a.stage) - order.indexOf(b.stage);
                 });
-                console.log("✅ prefixToName in HRFinalReviewDashboard:", prefixToName);
 
                 return (
                     <CandidateReviewBlock
@@ -142,6 +142,7 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                     qualItems={qualItems}
                     quantItems={quantItems}
                     titleOptions={titleOptions}
+                    hiringDecisions={hiringDecisions}
                     hrEvaluation={hrEvaluations[candidateId] || {}}
                     interviewerId={interviewerId}
                     activeCandidateId={activeCandidateId}

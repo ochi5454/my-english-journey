@@ -9,10 +9,12 @@ export const useHRFinalReviewData = (interviewerId: string) => {
         qualitativeItems: ConfigResponse["qualitativeItems"];
         quantitativeItems: ConfigResponse["quantitativeItems"];
         titleOptions: LabeledOption[];
+        hiringDecisions: { id: string; value: string }[];
     }>({
         qualitativeItems: [],
         quantitativeItems: [],
         titleOptions: [],
+        hiringDecisions: [],
     });
     const [hrEvaluations, setHrEvaluations] = useState<
         Record<
@@ -38,22 +40,23 @@ export const useHRFinalReviewData = (interviewerId: string) => {
             const hrMap: typeof hrEvaluations = {};
 
             data.forEach((item) => {
-            const existing = latestMap.get(item.user_id);
-            if (!existing || new Date(item.timestamp) > new Date(existing.timestamp)) {
-                latestMap.set(item.user_id, item);
-            }
+                const key = (item as any).candidate_id || item.user_id;
+                const existing = latestMap.get(key);
+                if (!existing || new Date(item.timestamp) > new Date(existing.timestamp)) {
+                    latestMap.set(key, item);
+                }
 
-            if ((item as any).hr_review) {
-                const hr = (item as any).hr_review;
-                hrMap[item.user_id] = {
-                decision: hr.decision,
-                division: hr.division,
-                title: hr.title,
-                annualIncome: hr.annual_income,
-                savedAt: hr.updated_at,
-                savedBy: hr.updated_by,
-                };
-            }
+                if ((item as any).hr_decision || (item as any).hr_division || 
+                    (item as any).hr_title || (item as any).hr_income) {
+                    hrMap[key] = {
+                        decision: (item as any).hr_decision,
+                        division: (item as any).hr_division || null,
+                        title: (item as any).hr_title || null,
+                        annualIncome: (item as any).hr_income != null ? (item as any).hr_income.toString() : '',
+                        savedAt: (item as any).hr_saved_at || null,
+                        savedBy: (item as any).hr_saved_by || null,
+                    };
+                }
             });
 
             setAiRawResults(Array.from(latestMap.values()));
@@ -65,7 +68,6 @@ export const useHRFinalReviewData = (interviewerId: string) => {
         fetch(`${appConfig.API_BASE_URL}/checksheet/all`)
         .then((res) => res.json())
         .then((data: InterviewEval[]) => {
-            console.log("チェックシートAPI結果:", data);
             setInterviewEvals(data);
         })
         .catch((err) => console.error("面接官評価の取得に失敗:", err));
@@ -76,7 +78,7 @@ export const useHRFinalReviewData = (interviewerId: string) => {
         .then(
             (
             config: ConfigResponse & {
-                hiringDecisions: LabeledOption[];
+                hiringDecisions: { id: string; value: string; label?: string }[];
                 titleOptions: LabeledOption[];
                 divisions: (string | LabeledOption)[];
             }
@@ -87,6 +89,10 @@ export const useHRFinalReviewData = (interviewerId: string) => {
                     titleOptions: config.titleOptions.map(opt => ({
                         value: opt.value,
                         label: opt.label,
+                    })),
+                    hiringDecisions: config.hiringDecisions.map(opt => ({
+                        id: opt.id,
+                        value: opt.value,
                     })),
                 });
             }
