@@ -1,9 +1,7 @@
 from backend.models.results_byinterview import ResultByInterview
 from sqlalchemy.orm import Session
-from backend.models.results_byinterview import (
-    ResultByInterview, ResultByInterviewQualitative,
-    ResultByInterviewQuantitative, ResultByInterviewQATag
-)
+from backend.models.results_byinterview import ResultByInterview, ResultByInterviewQualitativeValue, ResultByInterviewQuantitative, ResultByInterviewQATag
+from backend.models.checksheet import ChecksheetQualitativeItem
 from datetime import datetime
 
 # ============================================
@@ -22,9 +20,9 @@ def get_checksheet_one(db: Session, interviewer_id: str, candidate_id: str, stag
     )
 
     if not result:
-        return {}  # ← 存在しない場合は空オブジェクト返す（これ重要）
+        return {}  # ← 存在しない場合は空オブジェクト返す（現行仕様を維持）
 
-    # prepItems（タグ付きQA）
+    # prepItems（タグ付きQA） ← 従来どおり
     prep_items = [
         {
             "question_id": qa.question_id,
@@ -35,17 +33,27 @@ def get_checksheet_one(db: Session, interviewer_id: str, candidate_id: str, stag
         for qa in result.prep_items
     ]
 
-    # qualitative
-    qualitative = {}
-    if result.qualitative:
-        qualitative = {
-            "career_goals": result.qualitative.career_goals or "",
-            "other_apps": result.qualitative.other_apps or "",
-            "overall": result.qualitative.overall or "",
-            "assignment_plan": result.qualitative.assignment_plan or "",
-        }
+    # ✅ qualitative（新構造・CamelCaseで返す）
+    # ResultByInterviewQualitativeValue + ChecksheetQualitativeItem のマッピング
+    qualitative_map = {}
+    qv_list = (
+        db.query(ResultByInterviewQualitativeValue)
+          .filter_by(evaluation_id=result.id)
+          .all()
+    )
+    if qv_list:
+        # キー変換用マスタ（key: "careerGoals", id: "1" など）
+        master_items = db.query(ChecksheetQualitativeItem).all()
+        id_to_key_map = {m.id: m.key for m in master_items}  # "1" → "careerGoals"
 
-    # quantitative
+        for qv in qv_list:
+            key = id_to_key_map.get(qv.qualitative_item_id)
+            if key:
+                qualitative_map[key] = qv.value or ""
+    else:
+        qualitative_map = {}
+
+    # quantitative ← 従来どおり
     quantitative = {}
     for q in result.quantitative:
         if q.item_key:
@@ -54,10 +62,11 @@ def get_checksheet_one(db: Session, interviewer_id: str, candidate_id: str, stag
                 "comment": q.comment or ""
             }
 
+    # ✅ CamelCase 形式で返す（POST の payload と一致させる）
     return {
         "reviewedResume": result.reviewed_resume or False,
         "prepItems": prep_items,
-        "qualitative": qualitative,
+        "qualitative": qualitative_map,   # ← CamelCase key のマップ
         "quantitative": quantitative,
         "hiringDecision": result.hiring_decision,
         "recommendedDivision": result.recommended_division,
@@ -76,10 +85,9 @@ def upsert_checksheet(
     stage: str,
     payload: dict
 ) -> None:
-    print("📥 payload values inside upsert_checksheet")
-    print("ai_score_reviewed:", payload.get("ai_score_reviewed"))
-    print("eval_required:", payload.get("eval_required"))
-    # 既存または新規取得
+    print("📥 payload inside upsert_checksheet:", payload)
+
+    # 1. 既存の ResultByInterview を取得 or 新規作成
     result = (
         db.query(ResultByInterview)
         .filter_by(interviewer_id=interviewer_id, candidate_id=candidate_id, stage_name=stage)
@@ -92,41 +100,20 @@ def upsert_checksheet(
             stage_name=stage
         )
         db.add(result)
-        db.flush()  # result.id を確定させる
+        db.flush()
 
-    # ステータス更新
-    result.reviewed_resume = payload.get("reviewedResume", False)
-    result.hiring_decision = payload.get("hiringDecision")
-    result.recommended_division = payload.get("recommendedDivision")
-    result.recommended_title = payload.get("recommendedTitle")
-    result.pay_type = payload.get("payType")  
-    result.employment_type = payload.get("employmentType") 
-    result.updated_at = datetime.now()
-
-    result.ai_score_reviewed = payload.get("ai_score_reviewed", False)
-    result.eval_required = payload.get("eval_required", False)
-
-    print("📝 result に代入された値")
-    print("ai_score_reviewed:", result.ai_score_reviewed)
-    print("eval_required:", result.eval_required)
-
-    # --- prepItems 保存 ---
+    # 2. prepItems 保存（従来どおり維持）
     existing_tags = {
         t.question_id: t
         for t in db.query(ResultByInterviewQATag)
-                .filter_by(evaluation_id=result.id)
-                .all()
+                  .filter_by(evaluation_id=result.id)
+                  .all()
     }
-
     incoming_items = payload.get("prepItems", [])
-    incoming_ids = {p.get("question_id") for p in incoming_items if p.get("question_id")}
-
-    # 上書き or 新規追加
     for p in incoming_items:
         qid = p.get("question_id")
         if not qid:
-            continue  # 無効なものはスキップ
-
+            continue
         if qid in existing_tags:
             tag = existing_tags[qid]
             tag.question = p.get("question", "")
@@ -142,15 +129,26 @@ def upsert_checksheet(
             )
             db.add(tag)
 
-    # --- qualitative 保存 ---
-    qual = result.qualitative or ResultByInterviewQualitative(evaluation_id=result.id)
-    qual.career_goals = payload["qualitative"].get("careerGoals", "")
-    qual.other_apps = payload["qualitative"].get("otherApps", "")
-    qual.overall = payload["qualitative"].get("overall", "")
-    qual.assignment_plan = payload["qualitative"].get("assignmentPlan", "")
-    result.qualitative = qual
+    # 3. qualitative 保存（新構造・マスタDB key→id マッピング）
+    incoming_qual = payload.get("qualitative") or {}
+    items = db.query(ChecksheetQualitativeItem).all()  # id, key
+    key_to_id_map = {item.key: item.id for item in items}
 
-    # --- quantitative 保存 ---
+    db.query(ResultByInterviewQualitativeValue).filter_by(
+        evaluation_id=result.id
+    ).delete()
+
+    for key, value in incoming_qual.items():
+        item_id = key_to_id_map.get(key)
+        if not item_id:
+            continue  # 4項目以外（hiringDecision など）は無視
+        db.add(ResultByInterviewQualitativeValue(
+            evaluation_id=result.id,
+            qualitative_item_id=item_id,
+            value=value or ""
+        ))
+
+    # 4. quantitative 保存（従来どおり）
     db.query(ResultByInterviewQuantitative).filter_by(evaluation_id=result.id).delete()
     for k, v in (payload.get("quantitative") or {}).items():
         q = ResultByInterviewQuantitative(
@@ -161,4 +159,16 @@ def upsert_checksheet(
         )
         db.add(q)
 
+    # 5. その他の main result 情報（従来どおり）
+    result.reviewed_resume = payload.get("reviewedResume", False)
+    result.hiring_decision = payload.get("hiringDecision")
+    result.recommended_division = payload.get("recommendedDivision")
+    result.recommended_title = payload.get("recommendedTitle")
+    result.pay_type = payload.get("payType")
+    result.employment_type = payload.get("employmentType")
+    result.updated_at = datetime.now()
+    result.ai_score_reviewed = payload.get("ai_score_reviewed", False)
+    result.eval_required = payload.get("eval_required", False)
+
     db.commit()
+    print("✅ upsert_checksheet completed successfully.")

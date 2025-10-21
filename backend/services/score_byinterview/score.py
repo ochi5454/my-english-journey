@@ -6,10 +6,11 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Sequence, Mapping
 from backend.core.database import SessionLocal
 from backend.models.score_resume import Candidate, CandidateStatus
+from backend.models.checksheet import ChecksheetQualitativeItem
 from backend.schemas.checksheet import PrepItemDict
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
-from backend.services.checksheet.upsert import get_checksheet_one, upsert_checksheet
-from backend.services.score_byinterview.merge import merge_block
+from backend.utils.checksheet import load_qualitative_items
+from backend.services.checksheet.upsert import upsert_checksheet, get_checksheet_one
 from backend.services.score_adjustment.save import load_single_result, save_score_to_history
 from backend.services.score_adjustment.score import call_openai_chat, parse_score_adjustments
 
@@ -29,14 +30,14 @@ def review_with_interview_checksheet(
     recommended_division: Optional[str] = None,
     recommended_title: Optional[str] = None,
     pay_type: Optional[str] = None,
-    employment_type: Optional[str] = None,    
+    employment_type: Optional[str] = None,
 ) -> dict:
     now_str = datetime.now().isoformat()
     result = load_single_result(candidate_id)
     if result is None:
         raise HTTPException(status_code=404, detail="候補者データが見つかりません")
 
-    # ▼ AIプロンプト生成とOpenAI応答
+    # ▼ AI スコア調整処理（従来通り）
     division_profiles = load_division_profiles()
     valid_divisions = [p["division"] for p in division_profiles]
     current_map = {s["division"]: s.get("score", 0) for s in result.get("scores", [])}
@@ -51,18 +52,15 @@ def review_with_interview_checksheet(
     reply = call_openai_chat(prompt)
     adjustments = parse_score_adjustments(reply, current_map, allow_nochange=True)
 
-    # ▼ スコア保存・履歴登録・推薦部門更新（save_score_to_history に一任）
     if adjustments:
-
-        # ✅ AI調整スコアの division を “英語prefix” に正規化してから保存
-        normalized_scores = []
-        for adj in adjustments:
-            normalized_scores.append({
-                "division": convert_division_to_prefix(adj["division"]),  # ← 和名→prefix
+        normalized_scores = [
+            {
+                "division": convert_division_to_prefix(adj["division"]),
                 "score": adj["score"],
                 "reason": adj["reason"]
-            })
-
+            }
+            for adj in adjustments
+        ]
         save_score_to_history(
             candidate_id=candidate_id,
             new_scores=normalized_scores,
@@ -70,61 +68,71 @@ def review_with_interview_checksheet(
             source="interview_review"
         )
 
-    # ▼ AIレビュー内容（チェックシート）をマージ保存
-    try:
-        existing_block = get_checksheet_one(reviewer_id, candidate_id, stage) or {}
-    except Exception:
-        existing_block = {}
-
-    incoming_block = {
-        "prepItems": to_serializable(prep_items),
-        "reviewedResume": reviewed_resume,
-        "qualitative": {
-            "careerGoals": qualitative.get("careerGoals", ""),
-            "otherApps": qualitative.get("otherApps", ""),
-            "overall": qualitative.get("overall", ""),
-            "assignmentPlan": qualitative.get("assignmentPlan", "")
-        },
-        "quantitative": quantitative or {},
-        # ✅ null を防ぐために `or qualitative.get(...)` を追加
-        "hiringDecision": (
-            hiring_decision or qualitative.get("hiringDecision")
-        ),
-        "recommendedDivision": (
-            recommended_division or qualitative.get("recommendedDivision")
-        ),
-        "recommendedTitle": (
-            recommended_title or qualitative.get("recommendedTitle")
-        ),
-        "payType": (
-            pay_type or qualitative.get("payType")
-        ),
-        "employmentType": (
-            employment_type or qualitative.get("employmentType")
-        ),
-        "ai_score_reviewed": True,
-        "eval_required": True,
-        "updated_at": now_str
-    }
-
-    print("🟦 incoming_block", json.dumps(incoming_block, indent=2, ensure_ascii=False))
-
-    merged_block = merge_block(existing_block, incoming_block)
-
-    print("🟩 merged_block", json.dumps(merged_block, indent=2, ensure_ascii=False))
-
+    # ▼ qualitative（マスタ key 完全準拠 & ハードコーディングなし）
     with SessionLocal() as db:
-        print("📨 payload to upsert_checksheet")
-        print(json.dumps(merged_block, indent=2, ensure_ascii=False))
+
+        # ① 既存のチェックシート状態を取得（None の場合は {}）
+        existing_block = get_checksheet_one(db, reviewer_id, candidate_id, stage) or {}
+
+        items = db.query(ChecksheetQualitativeItem).all()  # id, key, ...
+        valid_keys = [item.key for item in items]          # ["careerGoals", ...]
+
+        incoming_qual = {}
+        if qualitative:
+            for key in valid_keys:
+                incoming_qual[key] = qualitative.get(key, "")
+        else:
+            for key in valid_keys:
+                incoming_qual[key] = ""
+
+        incoming_block = {
+            "prepItems": to_serializable(prep_items),
+            "reviewedResume": reviewed_resume,
+            "qualitative": incoming_qual,    # ← マスタ依存で完了
+            "quantitative": quantitative or {},
+
+            # ✅ None（＝今回指定なし）の場合は existing_block から保持
+            "hiringDecision": (
+                hiring_decision
+                if hiring_decision is not None
+                else existing_block.get("hiringDecision")
+            ),
+            "recommendedDivision": (
+                recommended_division
+                if recommended_division is not None
+                else existing_block.get("recommendedDivision")
+            ),
+            "recommendedTitle": (
+                recommended_title
+                if recommended_title is not None
+                else existing_block.get("recommendedTitle")
+            ),
+            "payType": (
+                pay_type
+                if pay_type is not None
+                else existing_block.get("payType")
+            ),
+            "employmentType": (
+                employment_type
+                if employment_type is not None
+                else existing_block.get("employmentType")
+            ),
+            "ai_score_reviewed": True,
+            "eval_required": True,
+            "updated_at": now_str
+        }
+
+        print("🟦 incoming_block (final, upsert as-is):", json.dumps(incoming_block, indent=2, ensure_ascii=False))
+
         upsert_checksheet(
             db=db,
             interviewer_id=reviewer_id,
             candidate_id=candidate_id,
             stage=stage,
-            payload=merged_block,
+            payload=incoming_block
         )
 
-        # CandidateStatus にステージ記録（resume_reviewedフラグ含む）
+        # CandidateStatus にステージ記録
         db.add(CandidateStatus(
             id=str(uuid.uuid4()),
             user_id=candidate_id,
@@ -134,7 +142,7 @@ def review_with_interview_checksheet(
             reviewed_resume=reviewed_resume
         ))
 
-        # Candidate に更新情報（updated_by, updated_at）を反映
+        # Candidate の更新情報も更新
         candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
         if candidate:
             candidate.updated_by = reviewer_id
@@ -223,15 +231,16 @@ def generate_interview_review_prompt(
     qa_block = "\n\n".join(qa_lines) if qa_lines else "（メモなし）"
 
     # --- Qualitative（定性） ---
-    qual_keys = [
-        "hiringDecision", "recommendedTitle", "recommendedDivision",
-        "careerGoals", "otherApps", "overall", "assignmentPlan",
-    ]
-    qual_lines: List[str] = []
-    for k in qual_keys:
-        v = qualitative.get(k)
+    # DBの key, label ベースの柔軟対応
+    qual_items = load_qualitative_items()  # [{ key: "careerGoals", label: "本人希望..." }, ...]
+
+    qual_lines = []
+    for item in qual_items:
+        key = item["key"]
+        v = qualitative.get(key)
         if v is not None and str(v).strip():
-            qual_lines.append(f"- {k}: {v}")
+            # LLM精度向上のため、keyよりも label の方が人間が理解しやすく正確
+            qual_lines.append(f"- {item['label']}: {v}")
     qual_block = "\n".join(qual_lines) if qual_lines else "（記載なし）"
 
     # --- Quantitative（定量 1-5 + コメント） ---
@@ -259,4 +268,12 @@ def generate_interview_review_prompt(
             "■定量メモ(1-5 + コメント):\n" + quant_block
         )
     }
+
+    print("\n🟦 [DEBUG] Interivew Review Prompt (for LLM)")
+    print("------ system ------")
+    print(system["content"])
+    print("------ user ------")
+    print(user["content"])
+    print("--------------------\n")
+
     return [system, user]

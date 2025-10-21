@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from typing import List
 from backend.services.score_adjustment.score import call_openai_chat
+from backend.utils.checksheet import load_qualitative_items
 
 # ============================================
 # 🧠 面接官のスコアリング
@@ -82,11 +83,17 @@ def build_interviewer_eval_prompt(
 
     # 定性メモ
     qual = qa_block.get("qualitative") or {}
+    qual_items = load_qualitative_items()  # ← [ { key, label, placeholder } ... ]
+
     qual_lines = []
-    for k in ("careerGoals", "otherApps", "overall", "assignmentPlan"):
-        v = (qual.get(k) or "").strip()
+    print("\n🟦 [DEBUG] qualitative mapping for LLM prompt")
+    for item in qual_items:
+        key = item["key"]  # careerGoals / otherApps / ...
+        v = (qual.get(key) or "").strip()
         if v:
-            qual_lines.append(f"- {k}: {v}")
+            # LLMに理解しやすいよう label を使うのがベスト
+            qual_lines.append(f"- {item['label']}: {v}")
+
     qual_text = "\n".join(qual_lines) if qual_lines else "（定性メモなし）"
 
     # 定量メモ

@@ -8,9 +8,8 @@ from backend.core.database import SessionLocal
 from backend.utils.checksheet import load_hiring_decisions, load_employment_types, load_role_titles, load_qualitative_items, load_quantitative_items
 from backend.utils.load_json import _load_json, _safe_load_json
 from backend.utils.division import load_division_names, get_expected_focus_items, convert_division_to_prefix
-from backend.services.checksheet.upsert import get_checksheet_one, upsert_checksheet
-from backend.services.checksheet.read_all import _as_non_empty_str, list_checksheet_by_interviewer, list_all_checksheet_blocks
-from backend.services.score_byinterview.merge import merge_block
+from backend.services.checksheet.upsert import upsert_checksheet, get_checksheet_one
+from backend.services.checksheet.read_all import _as_non_empty_str, list_all_checksheet_blocks
 from backend.services.score_ofinterviewer.tag import load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels
 
 router = APIRouter()
@@ -75,7 +74,7 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
     if not (iid and cid and stage):
         raise HTTPException(status_code=400, detail="interviewer_id, candidate_id, stage は必須です")
 
-    incoming = {
+    block = {
         "prepItems": payload.get("prepItems") or [],
         "reviewedResume": payload.get("reviewedResume") or False,
         "qualitative": payload.get("qualitative") or {},
@@ -85,21 +84,14 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
         "recommendedTitle": payload.get("recommendedTitle"),
         "payType": payload.get("payType"),
         "employmentType": payload.get("employmentType"),
+        "ai_score_reviewed": False,
+        "eval_required": False
     }
-
-    block = merge_block({}, incoming)
-    block["ai_score_reviewed"] = False
-    block["eval_required"] = False
 
     with SessionLocal() as db:
         upsert_checksheet(db, iid, cid, stage, block)
 
     return {"ok": True}
-
-@router.get("/checksheet/interviewer/{interviewer_id}")
-def api_list_checksheet_by_interviewer(interviewer_id: str):
-    with SessionLocal() as db:
-        return list_checksheet_by_interviewer(interviewer_id, db)
 
 @router.get("/checksheet/role-focus-summary")
 def get_role_focus_summary():

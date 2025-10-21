@@ -137,6 +137,8 @@ def refresh_targets_and_upsert(
             blocks = (prep_map.get(cid, {}).get(stg, []) or [])
             qa_block = next((b for b in blocks if b.get("interviewer_id") == iid),
                             (blocks[0] if blocks else {}))
+            print("🟩 [DEBUG] qa_block for refresh target:")
+            print(json.dumps(qa_block, ensure_ascii=False, indent=2))
             
             # 🔍 DBから直接 eval_required を確認
             row_obj = db.query(ResultByInterview).filter_by(
@@ -156,6 +158,7 @@ def refresh_targets_and_upsert(
                 print(f"    ✅ Proceeding with evaluation")
 
             result = evaluate_interviewer_single(
+                db=db,
                 candidate_id=cid,
                 interviewer_id=iid,
                 stage=stg,
@@ -194,6 +197,7 @@ def refresh_targets_and_upsert(
     return updated_rows
 
 def evaluate_interviewer_single(
+    db: Session,
     candidate_id: str,
     interviewer_id: str,
     stage: str,
@@ -210,8 +214,10 @@ def evaluate_interviewer_single(
     print(f"✅モデル/理由スキップ/基礎スコアスキップ： {model}/ {include_reasons}/ {skip_eval}")
     resume = resume_result or get_resume_or_empty(candidate_id)
     if qa_block is None:
-        prep_map = load_prep_map_with_owner()
+        prep_map = load_prep_map_with_owner(db)
         qa_block = pick_qa_block_for(prep_map, candidate_id, stage, interviewer_id)
+        print("🟧 [DEBUG] qa_block just before AI evaluation:")
+        print(json.dumps(qa_block, ensure_ascii=False, indent=2))
 
     rubric = load_interviewer_skills()
     if not skip_eval:

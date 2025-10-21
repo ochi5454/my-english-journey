@@ -1,76 +1,76 @@
 from typing import Dict, Optional, Any
 from sqlalchemy.orm import Session, joinedload
-from backend.models.results_byinterview import ResultByInterview
+from backend.models.results_byinterview import ResultByInterview, ResultByInterviewQualitativeValue
+from backend.models.checksheet import ChecksheetQualitativeItem
 
 # ============================================
 # 🧠 面接シートの読み取り・一覧取得
 # ============================================
 
-def list_checksheet_by_interviewer(interviewer_id: str, db: Session) -> Dict[str, dict]:
-    """
-    DBから面接官の全チェックシートを {candidate_id: block} の形式で取得する。
-    """
-    rows = db.query(ResultByInterview).filter(ResultByInterview.interviewer_id == interviewer_id).all()
-    result = {}
-    for row in rows:
-        block = {
-            "reviewedResume": row.reviewed_resume,
-            "ai_score_reviewed": row.ai_score_reviewed,
-            "eval_required": row.eval_required,
-            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-            "prepItems": [dict(question=x.question, answer=x.answer, tags=x.tags)
-                        for x in row.prep_items],
-            "qualitative": {
-                "career_goals": row.qualitative.career_goals if row.qualitative else "",
-                "other_apps": row.qualitative.other_apps if row.qualitative else "",
-                "overall": row.qualitative.overall if row.qualitative else "",
-                "assignment_plan": row.qualitative.assignment_plan if row.qualitative else "",
-            },
-            "quantitative": [
-                dict(item_key=x.item_key, level=x.level, comment=x.comment)
-                for x in row.quantitative
-            ]
-        }
-        result[row.candidate_id] = block
-    return result
-
 def list_all_checksheet_blocks(db: Session) -> list[dict]:
-    rows = db.query(ResultByInterview)\
+    rows = (
+        db.query(ResultByInterview)
         .options(
             joinedload(ResultByInterview.quantitative),
             joinedload(ResultByInterview.prep_items),
-            joinedload(ResultByInterview.qualitative)
-        )\
+            # ⚠️ ResultByInterview.qualitative は旧テーブルなので無視してOK
+        )
         .all()
+    )
+
     result = []
+
     for row in rows:
+        # ✅ prepItems（従来通り）
+        prep_items = [
+            dict(
+                question=x.question,
+                answer=x.answer,
+                tags=x.tags.split(",") if x.tags else []
+            )
+            for x in row.prep_items
+        ]
+
+        # ✅ qualitative を新テーブルから取る
+        qv_list = db.query(ResultByInterviewQualitativeValue)\
+            .filter_by(evaluation_id=row.id)\
+            .all()
+
+        qualitative_map = {}
+        if qv_list:
+            master_items = db.query(ChecksheetQualitativeItem).all()
+            id_to_key_map = {m.id: m.key for m in master_items}
+            for qv in qv_list:
+                key = id_to_key_map.get(qv.qualitative_item_id)
+                if key:
+                    qualitative_map[key] = qv.value or ""
+
+        # ✅ quantitative（従来通り）
+        quantitative = [
+            dict(item_key=x.item_key, level=x.level, comment=x.comment)
+            for x in row.quantitative
+        ]
+
+        # ✅ hiringDecision / recommended系 は qualitative に含めず top-level に出す
         result.append({
             "candidate_id": row.candidate_id,
             "interviewer_id": row.interviewer_id,
             "stage": row.stage_name,
-            "reviewedResume": row.reviewed_resume,
-            "ai_score_reviewed": row.ai_score_reviewed,
-            "eval_required": row.eval_required,
+            "reviewedResume": row.reviewed_resume or False,
+            "ai_score_reviewed": row.ai_score_reviewed or False,
+            "eval_required": row.eval_required or False,
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-            "prepItems": [
-                dict(question=x.question, answer=x.answer, tags=x.tags.split(",") if x.tags else [])
-                for x in row.prep_items
-            ],
-            "qualitative": {
-                "careerGoals": row.qualitative.career_goals if row.qualitative else "",
-                "otherApps": row.qualitative.other_apps if row.qualitative else "",
-                "overall": row.qualitative.overall if row.qualitative else "",
-                "assignmentPlan": row.qualitative.assignment_plan if row.qualitative else "",
-                # 👇 recommended系・decision系もここで返す
-                "hiringDecision": row.hiring_decision,
-                "recommendedDivision": row.recommended_division,
-                "recommendedTitle": row.recommended_title,
-            },
-            "quantitative": [
-                dict(item_key=x.item_key, level=x.level, comment=x.comment)
-                for x in row.quantitative
-            ]
+
+            "prepItems": prep_items,
+            "qualitative": qualitative_map,  # ✅ POST と同じ CamelCase
+
+            "quantitative": quantitative,
+
+            "hiringDecision": row.hiring_decision,
+            "recommendedDivision": row.recommended_division,
+            "recommendedTitle": row.recommended_title,
         })
+
     return result
 
 def _as_non_empty_str(x: Any) -> Optional[str]:

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
@@ -24,7 +24,7 @@ class ResultByInterview(Base):
     eval_required = Column(Boolean, nullable=False, default=False)
 
     prep_items = relationship("ResultByInterviewQATag", cascade="all, delete-orphan")
-    qualitative = relationship("ResultByInterviewQualitative", uselist=False, cascade="all, delete-orphan")
+    qualitative_values = relationship( "ResultByInterviewQualitativeValue", cascade="all, delete-orphan")
     quantitative = relationship("ResultByInterviewQuantitative", cascade="all, delete-orphan")
 
 class ResultByInterviewQATag(Base):
@@ -37,15 +37,13 @@ class ResultByInterviewQATag(Base):
     answer = Column(String)
     tags = Column(String)  # カンマ区切り保存
 
-class ResultByInterviewQualitative(Base):
-    __tablename__ = "results_byinterview_qualitative"
+class ResultByInterviewQualitativeValue(Base):
+    __tablename__ = "results_byinterview_qualitative_values"
 
     id = Column(Integer, primary_key=True)
     evaluation_id = Column(Integer, ForeignKey("results_byinterview.id", ondelete="CASCADE"))
-    career_goals = Column(String)
-    other_apps = Column(String)
-    overall = Column(String)
-    assignment_plan = Column(String)
+    qualitative_item_id = Column(String, ForeignKey("checksheet_qualitativeitems.id"))
+    value = Column(Text, nullable=True)
 
 class ResultByInterviewQuantitative(Base):
     __tablename__ = "results_byinterview_quantitative"
