@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './InterviewCheckSheetSlidePanel.css';
 import { RatingBar } from './RatingBar.tsx';
 import { RubricHint } from './RubricHint.tsx';
@@ -67,6 +67,14 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
     const [newQuestionTags, setNewQuestionTags] = useState<string[]>([]);
     const [editTagIndex, setEditTagIndex] = useState<number | null>(null);
     const { isReviewing, aiScoreReviewed, handleAiReview } = useAiReview(onAiReviewed);
+    const divisionItems = useMemo(
+        () =>
+            Object.entries(prefixToName)
+            // 「common」を除外（表示名で除外）
+            .filter(([code, name]) => name !== prefixToName['common'])
+            .map(([code, name]) => ({ value: code, label: name })),
+        [prefixToName]
+    );
 
     const applyToState = useCallback((src: any = {}, cfg: ConfigResponse) => {
         setPrepItems(src.prepItems || []);
@@ -207,25 +215,12 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
 
                 <div className="resume-interview-field">
                     <label>部門</label>
-                    <select
-                    value={qualitative['recommendedDivision'] || ''}
-                    onChange={e => setQualitative(s => ({ ...s, recommendedDivision: e.target.value }))}
-                    >
-                    <option value="">選択してください</option>
-                    {config.divisions
-                    .filter(d => d !== prefixToName['common'])
-                        .map(d => 
-                            // このオプションの value だけ prefix（英語のコード）にする！
-                            <option
-                            key={d}
-                            value={
-                                Object.keys(prefixToName).find(prefix => prefixToName[prefix] === d) || d
-                            }
-                            >
-                            {d} {/* 表示は和名 */}
-                            </option>
-                        )}
-                    </select>
+                    <RatingBar
+                        items={divisionItems}
+                        value={qualitative['recommendedDivision'] || null}
+                        onChange={v => setQualitative(s => ({ ...s, recommendedDivision: v }))}
+                        variant="single"
+                    />
                 </div>
 
                 <div className="resume-interview-field field--full">
