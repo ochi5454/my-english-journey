@@ -6,7 +6,7 @@ from fastapi.exceptions import HTTPException
 from backend.core.database import SessionLocal
 from backend.models.score_resume import Candidate, CandidateStatus
 from backend.schemas.ai_score import ScoreChatRequest, ScoreUpdateRequest
-from backend.utils.division import load_division_profiles
+from backend.utils.division import load_division_profiles, convert_division_to_prefix
 from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments
 from backend.services.score_adjustment.save import save_score_to_history
 
@@ -50,7 +50,7 @@ async def update_score(payload: ScoreUpdateRequest):
     # JSON形式に変換（save_score_to_history の仕様に合わせる）
     new_scores = [
         {
-            "division": adj.division,
+            "division": convert_division_to_prefix(adj.division),
             "score": adj.score,
             "reason": adj.reason
         }

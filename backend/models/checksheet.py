@@ -15,6 +15,14 @@ class ChecksheetHiringDecision(Base):
     order = Column(Integer, nullable=False)  # 並び順
     description = Column(String, nullable=True)  # 説明文
 
+class EmploymentType(Base):
+    __tablename__ = "checksheet_employment_types"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    value = Column(String, unique=True, index=True, nullable=False)  # 例: "fulltime"
+    label = Column(String, nullable=False)                           # 例: "正社員"
+    pay_type = Column(String, nullable=False)                        # "daily_monthly" or "hourly"
+    pay_type_label = Column(String, nullable=False)                       # ★ "日給月給者" / "時給者"
+
 class ChecksheetRoleTitle(Base):
     __tablename__ = "checksheet_roletitle"
 

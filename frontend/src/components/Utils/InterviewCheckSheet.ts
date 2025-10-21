@@ -36,4 +36,5 @@ export interface ConfigResponse {
   qualitativeItems: QualitativeItem[];
   quantitativeItems: QuantitativeItem[];
   focusTags: FocusTag[];
+  employmentTypes: { value: string; label: string; pay_type: 'daily_monthly' | 'hourly'; pay_type_label: string }[];
 }

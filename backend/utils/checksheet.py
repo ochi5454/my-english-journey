@@ -1,4 +1,4 @@
-from backend.models.checksheet import ChecksheetHiringDecision, ChecksheetRoleTitle, ChecksheetQualitativeItem, ChecksheetQuantitativeItem
+from backend.models.checksheet import ChecksheetHiringDecision, EmploymentType, ChecksheetRoleTitle, ChecksheetQualitativeItem, ChecksheetQuantitativeItem
 from backend.core.database import SessionLocal
 
 # ============================================
@@ -15,6 +15,20 @@ def load_hiring_decisions() -> list[dict]:
                 "label": row.label,
                 "order": row.order,
                 "description": row.description
+            }
+            for row in rows
+        ]
+    
+def load_employment_types() -> list[dict]:
+    with SessionLocal() as db:
+        rows = db.query(EmploymentType).order_by(EmploymentType.id).all()
+        return [
+            {
+                "id": row.id,
+                "value": row.value,             # 英語コード
+                "label": row.label,             # 日本語表示
+                "pay_type": row.pay_type,       # 例: "daily_monthly"
+                "pay_type_label": row.pay_type_label,  # 例: "日給月給者"
             }
             for row in rows
         ]

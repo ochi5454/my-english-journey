@@ -17,6 +17,8 @@ class ResultByInterview(Base):
     hiring_decision = Column(String)
     recommended_division = Column(String)
     recommended_title = Column(String)
+    pay_type = Column(String, nullable=True)          # "daily_monthly" or "hourly"
+    employment_type = Column(String, nullable=True)   # "fulltime", "contract", ...
     updated_at = Column(DateTime)
     ai_score_reviewed = Column(Boolean, nullable=False, default=False)
     eval_required = Column(Boolean, nullable=False, default=False)

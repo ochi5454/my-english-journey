@@ -8,6 +8,12 @@ import { fetchConfig, defaultQual, defaultQuant } from './interviewCheckSheetUti
 import { TagSelector } from './TagSelector';
 import { useAiReview } from './useAiReview';
 
+type QualitativeMap = {
+    [key: string]: string | undefined;
+    payType?: string;
+    employmentType?: string;
+};
+
 export interface PrepItem {
     question_id: string;
     question: string;
@@ -29,11 +35,13 @@ export interface Props {
     onSubmit: (data: {
         prepItems: PrepItem[];
         reviewedResume: boolean;
-        qualitative?: Record<string, string>;
+        qualitative?: QualitativeMap;
         quantitative?: Record<string, QuantitativeRow>;
         hiringDecision?: string;
         recommendedDivision?: string;
         recommendedTitle?: string;
+        payType?: string;
+        employmentType?: string;
     }) => void;
     initialData?: {
         prepItems?: PrepItem[];
@@ -61,12 +69,13 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
     const [prepItems, setPrepItems] = useState<PrepItem[]>([]);
     const [newQuestion, setNewQuestion] = useState('');
     const [reviewedResume, setReviewedResume] = useState(false);
-    const [qualitative, setQualitative] = useState<Record<string, string>>({});
+    const [qualitative, setQualitative] = useState<QualitativeMap>({});
     const [quantitative, setQuantitative] = useState<Record<string, QuantitativeRow>>({});
     const [config, setConfig] = useState<ConfigResponse | null>(null);
     const [newQuestionTags, setNewQuestionTags] = useState<string[]>([]);
     const [editTagIndex, setEditTagIndex] = useState<number | null>(null);
     const { isReviewing, aiScoreReviewed, handleAiReview } = useAiReview(onAiReviewed);
+    
     const divisionItems = useMemo(
         () =>
             Object.entries(prefixToName)
@@ -75,6 +84,27 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
             .map(([code, name]) => ({ value: code, label: name })),
         [prefixToName]
     );
+
+    // 給与体系（pay_type）をユニーク化して RatingBar 用 items を生成
+    const payTypeItems = useMemo(() => {
+        if (!config?.employmentTypes) return [];
+        // {pay_type, pay_type_label} でユニーク化
+        const map = new Map<string, string>();
+        for (const et of config.employmentTypes) {
+            if (!map.has(et.pay_type)) map.set(et.pay_type, et.pay_type_label);
+        }
+        return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+    }, [config]);
+
+    // 選択された payType に応じて従業員区分をフィルタ
+    const filteredEmploymentTypeItems = useMemo(() => {
+        const selectedPay = qualitative?.payType;
+        if (!config?.employmentTypes) return [];
+        if (!selectedPay) return config.employmentTypes.map(et => ({ value: et.value, label: et.label }));
+        return config.employmentTypes
+            .filter(et => et.pay_type === selectedPay)
+            .map(et => ({ value: et.value, label: et.label }));
+    }, [config, qualitative?.payType]);
 
     const applyToState = useCallback((src: any = {}, cfg: ConfigResponse) => {
         setPrepItems(src.prepItems || []);
@@ -99,7 +129,7 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
             ql[key] = src.qualitative?.[srcKey ?? key] || '';
         });
 
-        ['hiringDecision', 'recommendedDivision', 'recommendedTitle'].forEach((key) => {
+        ['hiringDecision', 'recommendedDivision', 'recommendedTitle', 'payType', 'employmentType'].forEach((key) => {
             if (src[key] !== undefined && src[key] !== null) {
                 ql[key] = src[key];
             }
@@ -141,6 +171,8 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
             hiringDecision: qualitative.hiringDecision,
             recommendedDivision: qualitative.recommendedDivision,
             recommendedTitle: qualitative.recommendedTitle,
+            payType: qualitative.payType,
+            employmentType: qualitative.employmentType,
         });
         onClose();
     };
@@ -173,6 +205,8 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                         hiringDecision: qualitative.hiringDecision,
                         recommendedDivision: qualitative.recommendedDivision,
                         recommendedTitle: qualitative.recommendedTitle,
+                        payType: qualitative.payType,
+                        employmentType: qualitative.employmentType,
                     },
                     onClose
                     )
@@ -221,6 +255,54 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                         onChange={v => setQualitative(s => ({ ...s, recommendedDivision: v }))}
                         variant="single"
                     />
+                </div>
+
+                {/* ✅ NEW: 給与体系（pay_type） */}
+                <div className="resume-interview-field">
+                    <label>給与体系</label>
+                    <RatingBar
+                        items={payTypeItems}
+                        value={qualitative['payType'] || null}
+                        onChange={v => {
+                        setQualitative(s => {
+                            // payType 変更時、現在の employmentType が不整合ならクリア
+                            const next = { ...s, payType: v };
+                            const validValues = new Set(
+                            (config?.employmentTypes || [])
+                                .filter(et => et.pay_type === v)
+                                .map(et => et.value)
+                            );
+                            if (next.employmentType && !validValues.has(next.employmentType)) {
+                            next.employmentType = ''; // クリア
+                            }
+                            return next;
+                        });
+                        }}
+                        variant="single"
+                    />
+                </div>
+
+                {/* ✅ NEW: 従業員区分（pay_typeに応じてフィルタ、未選択時は disabled） */}
+                <div className="resume-interview-field">
+                    <label>従業員区分</label>
+                    <RatingBar
+                        items={filteredEmploymentTypeItems}
+                        value={qualitative['employmentType'] || null}
+                        onChange={v => setQualitative(s => ({ ...s, employmentType: v }))}
+                        variant="single"
+                        disabled={!qualitative?.payType}  // ← 未選択なら無効
+                    />
+                    {!qualitative?.payType && (
+                        <div style={{ 
+                            marginTop: '4px', 
+                            fontSize: '12px', 
+                            color: '#888',
+                            fontStyle: 'italic',
+                            paddingLeft: '4px',
+                        }}>
+                            ← 給与体系を先に選択してください
+                        </div>
+                    )}
                 </div>
 
                 <div className="resume-interview-field field--full">

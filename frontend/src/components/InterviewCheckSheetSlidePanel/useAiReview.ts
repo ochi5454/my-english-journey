@@ -7,7 +7,8 @@ export const useAiReview = (onAiReviewed?: (updatedResult: any) => void) => {
 
     const handleAiReview = async (payload: any, onClose: () => void) => {
         try {
-        setIsReviewing(true);
+            console.log("AIスコア精査 payload", payload);
+            setIsReviewing(true);
 
         await fetch(`${appConfig.API_BASE_URL}/checksheet`, {
             method: 'POST',

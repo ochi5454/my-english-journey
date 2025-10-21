@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional, Sequence, Mapping
 from backend.core.database import SessionLocal
 from backend.models.score_resume import Candidate, CandidateStatus
 from backend.schemas.checksheet import PrepItemDict
-from backend.utils.division import load_division_profiles
+from backend.utils.division import load_division_profiles, convert_division_to_prefix
 from backend.services.checksheet.upsert import get_checksheet_one, upsert_checksheet
 from backend.services.score_byinterview.merge import merge_block
 from backend.services.score_adjustment.save import load_single_result, save_score_to_history
@@ -28,6 +28,8 @@ def review_with_interview_checksheet(
     hiring_decision: Optional[str] = None,
     recommended_division: Optional[str] = None,
     recommended_title: Optional[str] = None,
+    pay_type: Optional[str] = None,
+    employment_type: Optional[str] = None,    
 ) -> dict:
     now_str = datetime.now().isoformat()
     result = load_single_result(candidate_id)
@@ -51,9 +53,19 @@ def review_with_interview_checksheet(
 
     # ▼ スコア保存・履歴登録・推薦部門更新（save_score_to_history に一任）
     if adjustments:
+
+        # ✅ AI調整スコアの division を “英語prefix” に正規化してから保存
+        normalized_scores = []
+        for adj in adjustments:
+            normalized_scores.append({
+                "division": convert_division_to_prefix(adj["division"]),  # ← 和名→prefix
+                "score": adj["score"],
+                "reason": adj["reason"]
+            })
+
         save_score_to_history(
             candidate_id=candidate_id,
-            new_scores=adjustments,
+            new_scores=normalized_scores,
             updated_by=reviewer_id,
             source="interview_review"
         )
@@ -67,11 +79,29 @@ def review_with_interview_checksheet(
     incoming_block = {
         "prepItems": to_serializable(prep_items),
         "reviewedResume": reviewed_resume,
-        "qualitative": qualitative or {},
+        "qualitative": {
+            "careerGoals": qualitative.get("careerGoals", ""),
+            "otherApps": qualitative.get("otherApps", ""),
+            "overall": qualitative.get("overall", ""),
+            "assignmentPlan": qualitative.get("assignmentPlan", "")
+        },
         "quantitative": quantitative or {},
-        "hiringDecision": hiring_decision,
-        "recommendedDivision": recommended_division,
-        "recommendedTitle": recommended_title,
+        # ✅ null を防ぐために `or qualitative.get(...)` を追加
+        "hiringDecision": (
+            hiring_decision or qualitative.get("hiringDecision")
+        ),
+        "recommendedDivision": (
+            recommended_division or qualitative.get("recommendedDivision")
+        ),
+        "recommendedTitle": (
+            recommended_title or qualitative.get("recommendedTitle")
+        ),
+        "payType": (
+            pay_type or qualitative.get("payType")
+        ),
+        "employmentType": (
+            employment_type or qualitative.get("employmentType")
+        ),
         "ai_score_reviewed": True,
         "eval_required": True,
         "updated_at": now_str

@@ -62,6 +62,8 @@ def get_checksheet_one(db: Session, interviewer_id: str, candidate_id: str, stag
         "hiringDecision": result.hiring_decision,
         "recommendedDivision": result.recommended_division,
         "recommendedTitle": result.recommended_title,
+        "payType": result.pay_type,
+        "employmentType": result.employment_type,
         "updatedAt": result.updated_at.isoformat() if result.updated_at else None,
         "aiScoreReviewed": result.ai_score_reviewed or False,
         "evalRequired": result.eval_required or False,
@@ -97,6 +99,8 @@ def upsert_checksheet(
     result.hiring_decision = payload.get("hiringDecision")
     result.recommended_division = payload.get("recommendedDivision")
     result.recommended_title = payload.get("recommendedTitle")
+    result.pay_type = payload.get("payType")  
+    result.employment_type = payload.get("employmentType") 
     result.updated_at = datetime.now()
 
     result.ai_score_reviewed = payload.get("ai_score_reviewed", False)

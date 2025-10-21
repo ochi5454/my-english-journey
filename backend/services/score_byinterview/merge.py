@@ -63,6 +63,8 @@ def merge_block(existing: dict, incoming: dict) -> dict:
         "hiringDecision": hiringDecision,
         "recommendedDivision": recommendedDivision,
         "recommendedTitle": recommendedTitle,
+        "payType": incoming.get("payType") or existing.get("payType"),
+        "employmentType": incoming.get("employmentType") or existing.get("employmentType"),
         "ai_score_reviewed": incoming.get("ai_score_reviewed", existing.get("ai_score_reviewed")),
         "eval_required": incoming.get("eval_required", existing.get("eval_required")),
     }

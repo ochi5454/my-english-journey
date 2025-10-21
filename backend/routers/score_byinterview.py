@@ -31,5 +31,7 @@ async def interview_review_score(payload: InterviewPrepByInterviewerRequest):
         hiring_decision=getattr(payload, "hiringDecision", None),
         recommended_division=getattr(payload, "recommendedDivision", None),
         recommended_title=getattr(payload, "recommendedTitle", None),
+        pay_type=getattr(payload, "payType", None),
+        employment_type=getattr(payload, "employmentType", None),
     )
     return JSONResponse(content=updated)

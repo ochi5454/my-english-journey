@@ -66,7 +66,7 @@ def get_expected_focus_items(department_prefix: str, role: str, db: Session) -> 
 
 def convert_division_to_prefix(division_name: str) -> str:
     with SessionLocal() as db:
-        row = db.query(InterviewerRoleFocusItem)\
-                .filter(InterviewerRoleFocusItem.division == division_name)\
+        row = db.query(CandidateExpectations)\
+                .filter(CandidateExpectations.division == division_name)\
                 .first()
-        return row.division_prefix if row else division_name  # fallback
+        return row.division_prefix if row else division_name

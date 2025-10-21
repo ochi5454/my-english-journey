@@ -5,7 +5,7 @@ from fastapi.exceptions import HTTPException
 from typing import Dict, Any, Mapping
 from backend.core.config import INTERVIEWER_META_PATH
 from backend.core.database import SessionLocal
-from backend.utils.checksheet import load_hiring_decisions, load_role_titles, load_qualitative_items, load_quantitative_items
+from backend.utils.checksheet import load_hiring_decisions, load_employment_types, load_role_titles, load_qualitative_items, load_quantitative_items
 from backend.utils.load_json import _load_json, _safe_load_json
 from backend.utils.division import load_division_names, get_expected_focus_items, convert_division_to_prefix
 from backend.services.checksheet.upsert import get_checksheet_one, upsert_checksheet
@@ -45,6 +45,7 @@ def get_all_interview_settings(request: Request):
         "quantitativeItems": load_quantitative_items(),
         "qualitativeItems": load_qualitative_items(),
         "hiringDecisions": load_hiring_decisions(),
+        "employmentTypes": load_employment_types(),
         "titleOptions": load_role_titles(),
         "focusTags": tags,
     }
@@ -82,6 +83,8 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
         "hiringDecision": payload.get("hiringDecision"),
         "recommendedDivision": payload.get("recommendedDivision"),
         "recommendedTitle": payload.get("recommendedTitle"),
+        "payType": payload.get("payType"),
+        "employmentType": payload.get("employmentType"),
     }
 
     block = merge_block({}, incoming)
