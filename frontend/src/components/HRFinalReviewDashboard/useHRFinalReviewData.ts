@@ -28,6 +28,8 @@ export const useHRFinalReviewData = (interviewerId: string) => {
             division?: string;
             title?: string;
             annualIncome?: string;
+            payType?: string;
+            employmentType?: string; 
             savedAt?: string;
             savedBy?: string;
         }
@@ -36,7 +38,7 @@ export const useHRFinalReviewData = (interviewerId: string) => {
     const [prefixToName, setPrefixToName] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        // --- ① AIスコア一覧取得 ---
+        // --- ① 候補者情報の取得 ---
         fetch(`${appConfig.API_BASE_URL}/resume-results`)
         .then((res) => res.json())
         .then((data: AIRawResult[]) => {
@@ -50,13 +52,24 @@ export const useHRFinalReviewData = (interviewerId: string) => {
                     latestMap.set(key, item);
                 }
 
-                if ((item as any).hr_decision || (item as any).hr_division || 
-                    (item as any).hr_title || (item as any).hr_income) {
+                if (
+                    (item as any).hr_decision || 
+                    (item as any).hr_division || 
+                    (item as any).hr_title || 
+                    (item as any).hr_income || 
+                    (item as any).hr_pay_type ||
+                    (item as any).hr_employment_type 
+                ) {
                     hrMap[key] = {
                         decision: (item as any).hr_decision,
                         division: (item as any).hr_division || null,
                         title: (item as any).hr_title || null,
-                        annualIncome: (item as any).hr_income != null ? (item as any).hr_income.toString() : '',
+                        annualIncome:
+                        (item as any).hr_income != null
+                            ? String((item as any).hr_income)
+                            : '',
+                        payType: (item as any).hr_pay_type || "",
+                        employmentType: (item as any).hr_employment_type || "",
                         savedAt: (item as any).hr_saved_at || null,
                         savedBy: (item as any).hr_saved_by || null,
                     };
@@ -66,7 +79,7 @@ export const useHRFinalReviewData = (interviewerId: string) => {
             setAiRawResults(Array.from(latestMap.values()));
             setHrEvaluations(hrMap);
         })
-        .catch((err) => console.error("AIスコアの取得に失敗:", err));
+        .catch((err) => console.error("候補者情報の取得に失敗:", err));
 
         // --- ② 面接評価チェックシート取得 ---
         fetch(`${appConfig.API_BASE_URL}/checksheet/all`)

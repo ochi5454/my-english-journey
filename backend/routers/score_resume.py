@@ -401,6 +401,8 @@ async def get_resume_results():
                 "hr_division": c.hr_division,
                 "hr_title": c.hr_title,
                 "hr_income": c.hr_income,
+                "hr_pay_type": c.hr_pay_type,
+                "hr_employment_type": c.hr_employment_type, 
                 "hr_saved_at": c.hr_saved_at.isoformat() if c.hr_saved_at else None,
                 "hr_saved_by": c.hr_saved_by,
                 "notes": c.notes,

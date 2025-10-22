@@ -10,6 +10,9 @@ class HRReview(BaseModel):
     division: Optional[str] = None
     title: Optional[str] = None
     annual_income: Optional[int] = None
+    pay_type: Optional[str] = None
+    employment_type: Optional[str] = None
+
 
 class HRReviewUpdate(BaseModel):
     candidate_id: str

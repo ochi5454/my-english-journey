@@ -43,10 +43,15 @@ async def update_hr_review(
     # ✅ None（つまり送られてきていない or 空）なら「現状維持」
     if data.review.division is not None:
         candidate.hr_division = data.review.division
+    if data.review.pay_type is not None:
+        candidate.hr_pay_type = data.review.pay_type
+    if data.review.employment_type is not None:
+        candidate.hr_employment_type = data.review.employment_type
     if data.review.title is not None:
         candidate.hr_title = data.review.title
     if data.review.annual_income is not None:
         candidate.hr_income = data.review.annual_income
+
     candidate.updated_by = user_id
     candidate.updated_at = now
     candidate.hr_saved_at = now

@@ -80,6 +80,8 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                 division: hrEvaluations[candidateId]?.division,
                 title: hrEvaluations[candidateId]?.title,
                 annual_income: isNaN(parsedIncome) ? 0 : parsedIncome,
+                pay_type: hrEvaluations[candidateId]?.payType || null,
+                employment_type: hrEvaluations[candidateId]?.employmentType || null,
             },
         };
 
