@@ -149,6 +149,7 @@ const AIFormulaConfig: React.FC = () => {
                 onChange={(e) => setDivision(e.target.value)}
                 className="aifc-select"
             >
+                <option value="">--- 部門を選択してください ---</option>
                 {divisions
                     .filter((d) => d.prefix !== 'common')
                     .map((d) => (
