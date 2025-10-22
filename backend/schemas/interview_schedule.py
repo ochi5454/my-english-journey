@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from backend.schemas.checksheet import PrepItem
+from backend.schemas.custom_qa import PrepItem
 
 # ============================================
 # 📊 面接日程調整

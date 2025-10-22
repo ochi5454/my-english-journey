@@ -94,7 +94,8 @@ const QATagMaster: React.FC = () => {
                 };
             });
 
-        setDivisions(uniqueDivs);
+        // ✅ "common" 以外のみ選択肢に含める
+        setDivisions(uniqueDivs.filter((d) => d.prefix && d.prefix !== 'common'));
     };
 
     const fetchRoles = async () => {

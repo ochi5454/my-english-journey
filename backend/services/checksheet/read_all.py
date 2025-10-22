@@ -31,7 +31,7 @@ def list_all_checksheet_blocks(db: Session) -> list[dict]:
             for x in row.prep_items
         ]
 
-        # ✅ qualitative を新テーブルから取る
+        # ✅ qualitative
         qv_list = db.query(ResultByInterviewQualitativeValue)\
             .filter_by(evaluation_id=row.id)\
             .all()
@@ -45,7 +45,7 @@ def list_all_checksheet_blocks(db: Session) -> list[dict]:
                 if key:
                     qualitative_map[key] = qv.value or ""
 
-        # ✅ quantitative（従来通り）
+        # ✅ quantitative
         quantitative = [
             dict(item_key=x.item_key, level=x.level, comment=x.comment)
             for x in row.quantitative
@@ -62,13 +62,15 @@ def list_all_checksheet_blocks(db: Session) -> list[dict]:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
 
             "prepItems": prep_items,
-            "qualitative": qualitative_map,  # ✅ POST と同じ CamelCase
+            "qualitative": qualitative_map,
 
             "quantitative": quantitative,
 
             "hiringDecision": row.hiring_decision,
             "recommendedDivision": row.recommended_division,
             "recommendedTitle": row.recommended_title,
+            "payType": row.pay_type,
+            "employmentType": row.employment_type,
         })
 
     return result

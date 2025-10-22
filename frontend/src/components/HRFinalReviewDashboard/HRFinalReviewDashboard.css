@@ -222,12 +222,6 @@
     margin-left: 0.5em;
 }
 
-.hire-decision-cell {
-    font-weight: normal;
-    padding: 4px;
-}
-
-.hire-strong,
 .quant-high {
     background-color: #e6f4ea; 
     font-weight: bold;

@@ -10,11 +10,15 @@ export const useHRFinalReviewData = (interviewerId: string) => {
         quantitativeItems: ConfigResponse["quantitativeItems"];
         titleOptions: LabeledOption[];
         hiringDecisions: { id: string; value: string }[];
+        employmentTypes: { value: string; label: string; pay_type: string; pay_type_label: string }[];
+        payTypeItems: { value: string; label: string }[];
     }>({
         qualitativeItems: [],
         quantitativeItems: [],
         titleOptions: [],
         hiringDecisions: [],
+        employmentTypes: [],
+        payTypeItems: [], 
     });
     const [hrEvaluations, setHrEvaluations] = useState<
         Record<
@@ -68,6 +72,7 @@ export const useHRFinalReviewData = (interviewerId: string) => {
         fetch(`${appConfig.API_BASE_URL}/checksheet/all`)
         .then((res) => res.json())
         .then((data: InterviewEval[]) => {
+            console.log("🧩 /checksheet/all レスポンス確認:", data.slice(0, 3));
             setInterviewEvals(data);
         })
         .catch((err) => console.error("面接官評価の取得に失敗:", err));
@@ -94,6 +99,14 @@ export const useHRFinalReviewData = (interviewerId: string) => {
                         id: opt.id,
                         value: opt.value,
                     })),
+                    employmentTypes: config.employmentTypes || [],
+                    payTypeItems:
+                        config.employmentTypes
+                            ?.map(et => ({
+                                value: et.pay_type,
+                                label: et.pay_type_label,
+                            }))
+                            ?.filter((v, i, self) => self.findIndex(x => x.value === v.value) === i) || [],
                 });
             }
         )

@@ -18,6 +18,9 @@ export interface QualitativeItem {
   key: string;
   label: string;
   placeholder: string;
+  order?: number | null;
+  is_active?: boolean;
+  pay_type?: string;
 }
 
 export interface QuantitativeItem {

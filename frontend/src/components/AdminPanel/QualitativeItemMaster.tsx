@@ -64,14 +64,22 @@ const QualitativeItemMaster: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
-            if (!res.ok) throw new Error('登録失敗');
+
+            if (!res.ok) {
+                // ✅ サーバーからのエラーメッセージを取得
+                const errData = await res.json().catch(() => ({}));
+                const message = errData?.detail || '登録失敗';
+                throw new Error(message);
+            }
+
             setNewKey('');
             setNewLabel('');
             setNewPlaceholder('');
             await fetchItems();
-        } catch (err) {
+        } catch (err: any) {
             console.error('追加失敗:', err);
-            alert('項目の追加に失敗しました');
+            // ✅ detail内容をアラートに表示
+            alert(`項目の追加に失敗しました：${err.message}`);
         } finally {
             setLoading(false);
         }

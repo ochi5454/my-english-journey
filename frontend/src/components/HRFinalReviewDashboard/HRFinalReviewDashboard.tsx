@@ -156,6 +156,10 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
                     }
                     onSaveHR={handleSaveHRReview}
                     prefixToName={prefixToName}
+                    payTypeItems={configData.employmentTypes
+                        ?.map(et => ({ value: et.pay_type, label: et.pay_type_label }))
+                        ?.filter((v, i, self) => self.findIndex(x => x.value === v.value) === i) || []}
+                    employmentTypes={configData.employmentTypes || []}
                     />
                 );
             })}

@@ -1,7 +1,7 @@
 from typing import Optional
 from sqlalchemy.orm import Session
 from backend.models.score_resume import CandidateExpectations
-from backend.schemas.expectation import CandidateExpectationCreate
+from backend.schemas.division_skill import CandidateExpectationCreate
 
 def get_all_expectations(db: Session, division_prefix: Optional[str] = None):
     query = db.query(CandidateExpectations)

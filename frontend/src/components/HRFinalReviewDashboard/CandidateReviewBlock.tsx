@@ -10,7 +10,12 @@ interface CandidateReviewBlockProps {
     ai: AIRawResult | undefined;
     evals: InterviewEval[];
     allMustKeys: string[];
-    qualItems: { key: string; label: string }[];
+    qualItems: {
+        key: string;
+        label: string;
+        order?: number | null;
+        is_active?: boolean;
+    }[];
     quantItems: { key: string; label: string }[];
     titleOptions: LabeledOption[];
     hiringDecisions: { id: string; value: string }[];
@@ -29,6 +34,8 @@ interface CandidateReviewBlockProps {
     onChangeHR: (updated: Partial<CandidateReviewBlockProps['hrEvaluation']>) => void;
     onSaveHR: (candidateId: string) => void;
     prefixToName: Record<string, string>;
+    payTypeItems: { value: string; label: string }[];
+    employmentTypes: { value: string; label: string; pay_type: string }[];
 }
 
 const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
@@ -48,6 +55,8 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
     onChangeHR,
     onSaveHR,
     prefixToName,
+    payTypeItems,
+    employmentTypes,
 }) => {
     const normalizedCandidateId = candidateId.replace(/^cand_/, '');
     const resumeURL = `${appConfig.API_BASE_URL}/resumes/by-candidate/${normalizedCandidateId}`;
@@ -172,6 +181,12 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
 
         {evals.length > 0 && (
             <>
+
+            {console.log("🧩 evals データ確認:", evals.map(e => ({
+            interviewer_id: e.interviewer_id,
+            stage: e.stage,
+            qualitative: e.qualitative,
+            })))}
             <h4>面接官評価</h4>
             <table className="hr-result-check-table">
                 <thead>
@@ -192,48 +207,71 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
                 <tr>
                     <td>採用可否</td>
                     {evals.map((r, i) => {
-                    const decision = r.qualitative?.hiringDecision ?? '-';
-                    const className =
-                        decision === 'strong_hire'
-                        ? 'hire-decision-cell hire-strong'
-                        : 'hire-decision-cell';
-                    return (
-                        <td key={`hire-${i}`} className={className}>
-                        {decision}
+                        const decision = r.hiringDecision ?? '-';
+                        return (
+                        <td key={`hire-${i}`}>
+                            {decision}
                         </td>
-                    );
+                        );
                     })}
                 </tr>
+
                 <tr>
                     <td>部門</td>
-                    {evals.map((r) => (
-                    <td key={`division-${r.interviewer_id}`}>
-                        {r.qualitative?.recommendedDivision
-                            ? prefixToName[r.qualitative.recommendedDivision] || r.qualitative.recommendedDivision
-                            : '-'}
-                    </td>
-                    ))}
-                </tr>
-                <tr>
-                    <td>タイトル</td>
-                    {evals.map((r) => (
-                    <td key={`title-${r.interviewer_id}`}>
-                        {r.qualitative?.recommendedTitle ?? '-'}
-                    </td>
-                    ))}
+                    {evals.map((r) => {
+                        const division = r.recommendedDivision ?? '-';
+                        return (
+                        <td key={`division-${r.interviewer_id}`}>
+                            {division !== '-' ? prefixToName[division] || division : '-'}
+                        </td>
+                        );
+                    })}
                 </tr>
 
-                {qualItems.map((item) => (
-                    <tr key={`qual-${item.key}`}>
+                <tr>
+                    <td>給与体系</td>
+                    {evals.map((r) => {
+                        const found = payTypeItems.find(p => p.value === r.payType);
+                        const payLabel = found ? found.label : r.payType ?? '-';
+                        return <td key={`payType-${r.interviewer_id}`}>{payLabel}</td>;
+                    })}
+                </tr>
+
+                <tr>
+                    <td>従業員区分</td>
+                    {evals.map((r) => {
+                        const found = employmentTypes.find(e => e.value === r.employmentType);
+                        const empLabel = found ? found.label : r.employmentType ?? '-';
+                        return <td key={`employmentType-${r.interviewer_id}`}>{empLabel}</td>;
+                    })}
+                </tr>
+
+                <tr>
+                    <td>タイトル</td>
+                    {evals.map((r) => {
+                        const title = r.recommendedTitle ?? '-';
+                        return <td key={`title-${r.interviewer_id}`}>{title}</td>;
+                    })}
+                </tr>
+
+                {qualItems
+                    .filter((item) => item.is_active !== false) // 無効を除外
+                    .sort((a, b) => {
+                        if (a.order == null && b.order == null) return 0;
+                        if (a.order == null) return 1;
+                        if (b.order == null) return -1;
+                        return a.order - b.order;
+                    })
+                    .map((item) => (
+                        <tr key={`qual-${item.key}`}>
                         <td>{item.label}</td>
                         {evals.map((r) => {
-                        const q = r.qualitative ?? {};
-                        const camelKey =
-                            item.key.replace(/_([a-z])/g, (_, c) => c.toUpperCase()); // career_goals → careerGoals
-                        const value = q[item.key] ?? q[camelKey] ?? '-';
-                        return <td key={`${r.interviewer_id}-${item.key}`}>{value}</td>;
+                            const q = r.qualitative ?? {};
+                            const camelKey = item.key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+                            const value = q[item.key] ?? q[camelKey] ?? '-';
+                            return <td key={`${r.interviewer_id}-${item.key}`}>{value}</td>;
                         })}
-                    </tr>
+                        </tr>
                 ))}
 
                 {quantItems.map((item) => (

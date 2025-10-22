@@ -30,11 +30,28 @@ export interface InterviewEval {
     reviewed_resume?: boolean;
     ai_score_reviewed?: boolean;
     timestamp?: string;
+
+    payType?: string;
+    employmentType?: string;
+
+    hiringDecision?: string;
+    recommendedDivision?: string;
+    recommendedTitle?: string;
 }
 
 export interface ConfigResponse {
     qualitativeItems: { key: string; label: string }[];
     quantitativeItems: { key: string; label: string }[];
+    titleOptions: { value: string; label: string }[];
+    hiringDecisions: { id: string; value: string; label?: string }[];
+    divisions?: (string | { value: string; label: string })[];
+
+    employmentTypes?: {
+        value: string;
+        label: string;
+        pay_type: string;
+        pay_type_label: string;
+    }[];
 }
 
 export interface LabeledOption {

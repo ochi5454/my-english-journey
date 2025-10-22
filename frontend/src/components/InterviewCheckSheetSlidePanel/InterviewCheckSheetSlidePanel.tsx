@@ -282,25 +282,30 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
                     />
                 </div>
 
-                {/* ✅ NEW: 従業員区分（pay_typeに応じてフィルタ、未選択時は disabled） */}
+                {/* 従業員区分（pay_typeに応じてフィルタ、未選択時は disabled） */}
                 <div className="resume-interview-field">
                     <label>従業員区分</label>
-                    <RatingBar
+
+                    {qualitative?.payType ? (
+                        // ✅ 給与体系が選択されている場合：RatingBarを表示
+                        <RatingBar
                         items={filteredEmploymentTypeItems}
                         value={qualitative['employmentType'] || null}
                         onChange={v => setQualitative(s => ({ ...s, employmentType: v }))}
                         variant="single"
-                        disabled={!qualitative?.payType}  // ← 未選択なら無効
-                    />
-                    {!qualitative?.payType && (
-                        <div style={{ 
-                            marginTop: '4px', 
-                            fontSize: '12px', 
+                        />
+                    ) : (
+                        // ⚪ 未選択時：ヒントメッセージのみ
+                        <div
+                        style={{
+                            marginTop: '4px',
+                            fontSize: '12px',
                             color: '#888',
                             fontStyle: 'italic',
                             paddingLeft: '4px',
-                        }}>
-                            ← 給与体系を先に選択してください
+                        }}
+                        >
+                        ← 給与体系を先に選択してください
                         </div>
                     )}
                 </div>
@@ -321,21 +326,47 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
             </Accordion>
 
             <Accordion title="定性評価" defaultOpen={false} span="half">
-                {config.qualitativeItems.map(({ key, label, placeholder }) => (
-                <div key={key} className="resume-interview-field">
-                    <label>{label}</label>
-                    <textarea
-                    className="resume-template-textarea"
-                    rows={3}
-                    placeholder={placeholder}
-                    value={qualitative[key]}
-                    onChange={e => {
-                        autoResize(e.currentTarget);
-                        setQualitative(s => ({ ...s, [key]: e.target.value }));
-                    }}
-                    />
-                </div>
-                ))}
+                {/* --- 定性評価セクション --- */}
+                {!qualitative?.payType ? (
+                    <div style={{ 
+                        marginTop: '4px', 
+                        fontSize: '13px', 
+                        color: '#888',
+                        fontStyle: 'italic',
+                        paddingLeft: '4px',
+                    }}>
+                        ← 給与体系を先に選択してください
+                    </div>
+                ) : (
+                    config.qualitativeItems
+                        .filter(item => item.is_active !== false)
+                        .filter(item => {
+                            // pay_type が設定されていないものは共通項目として表示
+                            if (!item.pay_type) return true;
+                            return item.pay_type === qualitative.payType;
+                        })
+                        .sort((a, b) => {
+                            if (a.order == null && b.order == null) return 0;
+                            if (a.order == null) return 1;
+                            if (b.order == null) return -1;
+                            return a.order - b.order;
+                        })
+                        .map(({ key, label, placeholder }) => (
+                            <div key={key} className="resume-interview-field">
+                                <label>{label}</label>
+                                <textarea
+                                    className="resume-template-textarea"
+                                    rows={3}
+                                    placeholder={placeholder}
+                                    value={qualitative[key]}
+                                    onChange={(e) => {
+                                        autoResize(e.currentTarget);
+                                        setQualitative((s) => ({ ...s, [key]: e.target.value }));
+                                    }}
+                                />
+                            </div>
+                        ))
+                )}
             </Accordion>
 
             <Accordion title="定量評価" defaultOpen={false} span="half">

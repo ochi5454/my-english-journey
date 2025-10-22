@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional, Sequence, Mapping
 from backend.core.database import SessionLocal
 from backend.models.score_resume import Candidate, CandidateStatus
 from backend.models.checksheet import ChecksheetQualitativeItem
-from backend.schemas.checksheet import PrepItemDict
+from backend.schemas.custom_qa import PrepItemDict
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
 from backend.utils.checksheet import load_qualitative_items
 from backend.services.checksheet.upsert import upsert_checksheet, get_checksheet_one

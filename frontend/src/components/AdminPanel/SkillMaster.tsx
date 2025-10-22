@@ -50,6 +50,7 @@ const SkillMaster: React.FC = () => {
         setLoading(true);
         try {
             const body = {
+                division: newDivision || null,
                 division_prefix: newDivisionPrefix || null,
                 trait_type: newTraitType,
                 trait_label: newTraitLabel,
