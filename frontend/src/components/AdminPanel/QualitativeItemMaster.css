@@ -1,0 +1,165 @@
+.qualitative-master {
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.05);
+    border: 1px solid #ddd;
+}
+
+.qualitative-master h2 {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 16px;
+    color: #333;
+}
+
+.qualitative-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.qualitative-form input,
+.qualitative-form select {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    background-color: #fff;
+    width: 200px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.qualitative-form input:focus,
+.qualitative-form select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+    outline: none;
+}
+
+.qualitative-form button {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.qualitative-form button:hover {
+    background-color: #218838;
+}
+
+/* --- 注意文 --- */
+.qualitative-warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+    padding: 8px 12px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    border-radius: 4px;
+}
+
+/* --- テーブル --- */
+.qualitative-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.qualitative-table th,
+.qualitative-table td {
+    border: 1px solid #e0e0e0;
+    padding: 10px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.qualitative-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+}
+
+.qualitative-table button {
+    color: #333;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.qualitative-table button:hover {
+    background-color: #f0f0f0;
+}
+
+.qualitative-small-button {
+    padding: 4px 6px;
+    font-size: 12px;
+    margin-left: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    cursor: pointer;
+}
+
+.qualitative-small-button:hover {
+    background-color: #e0e0e0;
+}
+
+.qualitative-icon-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    font-size: 14px;
+    color: #666;
+    transition: color 0.2s;
+}
+
+.qualitative-icon-button:hover {
+    color: #000;
+}
+
+.qualitative-table tr.inactive {
+    background-color: #f8f8f8;
+    color: #aaa;
+}
+
+.qualitative-table tr.inactive td {
+    text-decoration: line-through;
+}
+
+.qualitative-table select,
+.qualitative-table input[type="number"] {
+    padding: 2px 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.qualitative-table td input[type="checkbox"] {
+    display: inline-block;
+    vertical-align: middle;   /* ← 中央揃えに */
+    transform: scale(1.2);
+    cursor: pointer;
+    margin: 0;                /* ← 余白リセット */
+    padding: 0;
+}
+
+/* 有効列だけ列幅を固定しておくと整う */
+.qualitative-table td:nth-child(7),
+.qualitative-table th:nth-child(7) {
+    width: 70px;
+    text-align: center;
+}
+
+.qualitative-table input[type="checkbox"] {
+    accent-color:  #28a745;
+}

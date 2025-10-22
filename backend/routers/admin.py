@@ -4,12 +4,13 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.models.score_resume import CandidateExpectations, CandidateMustCheckItem, CandidateDivisionMustCheckItem, AIFormulaConfig
-from backend.models.checksheet import ChecksheetRoleTitle
+from backend.models.checksheet import ChecksheetRoleTitle, ChecksheetQualitativeItem
 from backend.models.score_ofinterviewer import InterviewerRoleFocusItem
 from backend.schemas.expectation import CandidateExpectationCreate, CandidateExpectationOut, SkillUpdateSchema
 from backend.schemas.ai_formula import AIFormulaConfigResponse, AIFormulaConfigCreate
 from backend.schemas.tag import InterviewerRoleFocusUpdate, InterviewerRoleFocusOut, InterviewerRoleFocusCreate
 from backend.schemas.role import RoleTitleOut, RoleTitleCreate, RoleTitleUpdate
+from backend.schemas.qualitative import ChecksheetQualitativeItemOut, ChecksheetQualitativeItemCreate, ChecksheetQualitativeItemUpdate
 from backend.services.admin.expectation import get_all_expectations, create_expectation, delete_expectation
 
 router = APIRouter(prefix="/admin")
@@ -176,6 +177,65 @@ def delete_role(role_id: int, db: Session = Depends(get_db)):
     db.delete(db_role)
     db.commit()
     return {"message": "ロールを削除しました"}
+
+#  ============================================
+#  📮 定性評価項目（ChecksheetQualitativeItem）の管理
+#  ============================================
+
+@router.get("/qualitative-items", response_model=List[ChecksheetQualitativeItemOut])
+def list_qualitative_items(db: Session = Depends(get_db)):
+    """定性評価項目一覧を取得"""
+    items = db.query(ChecksheetQualitativeItem).order_by(ChecksheetQualitativeItem.id.asc()).all()
+    return items
+
+
+@router.post("/qualitative-items", response_model=ChecksheetQualitativeItemOut)
+def create_qualitative_item(data: ChecksheetQualitativeItemCreate, db: Session = Depends(get_db)):
+    """定性評価項目を新規追加"""
+    # 重複 key チェック
+    exists = db.query(ChecksheetQualitativeItem).filter(ChecksheetQualitativeItem.key == data.key).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="同じ key の項目が既に存在します")
+
+    new_item = ChecksheetQualitativeItem(
+        key=data.key,
+        label=data.label,
+        placeholder=data.placeholder,
+        order=data.order,
+        pay_type=data.pay_type or "daily_monthly",
+        is_active=True,  # デフォルト有効
+    )
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+    return new_item
+
+
+@router.put("/qualitative-items/{item_id}", response_model=ChecksheetQualitativeItemOut)
+def update_qualitative_item(item_id: str, data: ChecksheetQualitativeItemUpdate, db: Session = Depends(get_db)):
+    """定性評価項目を更新"""
+    item = db.query(ChecksheetQualitativeItem).filter(ChecksheetQualitativeItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="定性評価項目が見つかりません")
+
+    update_data = data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(item, field, value)
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/qualitative-items/{item_id}")
+def delete_qualitative_item(item_id: str, db: Session = Depends(get_db)):
+    """定性評価項目を削除"""
+    item = db.query(ChecksheetQualitativeItem).filter(ChecksheetQualitativeItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="定性評価項目が見つかりません")
+    db.delete(item)
+    db.commit()
+    return {"message": "定性評価項目を削除しました"}
 
 #  ============================================
 #  📮 推薦度の数式

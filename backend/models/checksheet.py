@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
@@ -38,10 +38,13 @@ class ChecksheetRoleTitle(Base):
 class ChecksheetQualitativeItem(Base):
     __tablename__ = "checksheet_qualitativeitems"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     key = Column(String, nullable=False)
     label = Column(String, nullable=False)
     placeholder = Column(String)
+    order = Column(Integer, nullable=True)
+    pay_type = Column(String, nullable=False, default="daily_monthly")
+    is_active = Column(Boolean, nullable=False, default=True)
 
 # ============================================
 # ✅ 定量評価のラベル

@@ -42,7 +42,7 @@ class ResultByInterviewQualitativeValue(Base):
 
     id = Column(Integer, primary_key=True)
     evaluation_id = Column(Integer, ForeignKey("results_byinterview.id", ondelete="CASCADE"))
-    qualitative_item_id = Column(String, ForeignKey("checksheet_qualitativeitems.id"))
+    qualitative_item_id = Column(Integer, ForeignKey("checksheet_qualitativeitems.id"))
     value = Column(Text, nullable=True)
 
 class ResultByInterviewQuantitative(Base):
