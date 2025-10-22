@@ -14,6 +14,7 @@ interface CandidateReviewBlockProps {
         key: string;
         label: string;
         order?: number | null;
+        pay_type?: 'daily_monthly' | 'hourly';
         is_active?: boolean;
     }[];
     quantItems: { key: string; label: string }[];
@@ -254,25 +255,35 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
                     })}
                 </tr>
 
-                {qualItems
-                    .filter((item) => item.is_active !== false) // 無効を除外
-                    .sort((a, b) => {
-                        if (a.order == null && b.order == null) return 0;
-                        if (a.order == null) return 1;
-                        if (b.order == null) return -1;
-                        return a.order - b.order;
-                    })
-                    .map((item) => (
-                        <tr key={`qual-${item.key}`}>
-                        <td>{item.label}</td>
-                        {evals.map((r) => {
-                            const q = r.qualitative ?? {};
-                            const camelKey = item.key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-                            const value = q[item.key] ?? q[camelKey] ?? '-';
-                            return <td key={`${r.interviewer_id}-${item.key}`}>{value}</td>;
-                        })}
-                        </tr>
-                ))}
+                {['daily_monthly', 'hourly'].map((type) => {
+                    const group = qualItems
+                        .filter((item) => item.is_active !== false && item.pay_type === type)
+                        .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+
+                    if (group.length === 0) return null;
+
+                    return (
+                        <React.Fragment key={type}>
+                            <tr className={`qualitative-section-header ${type}`}>
+                                <td colSpan={evals.length + 1}>
+                                    {type === 'daily_monthly' ? '日給・月給者向け評価項目' : '時給者向け評価項目'}
+                                </td>
+                            </tr>
+
+                            {group.map((item) => (
+                                <tr key={`qual-${type}-${item.key}`} className={`qualitative-row ${type}`}>
+                                    <td>{item.label}</td>
+                                    {evals.map((r) => {
+                                        const q = r.qualitative ?? {};
+                                        const camelKey = item.key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+                                        const value = q[item.key] ?? q[camelKey] ?? '-';
+                                        return <td key={`${r.interviewer_id}-${item.key}`}>{value}</td>;
+                                    })}
+                                </tr>
+                            ))}
+                        </React.Fragment>
+                    );
+                })}
 
                 {quantItems.map((item) => (
                     <tr key={`quant-${item.key}`}>

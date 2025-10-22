@@ -31,6 +31,11 @@ const QualitativeItemMaster: React.FC = () => {
     const [editingPayTypeId, setEditingPayTypeId] = useState<string | null>(null);
     const [editedPayType, setEditedPayType] = useState<'daily_monthly' | 'hourly'>('daily_monthly');
 
+    // --- モーダル編集用 ---
+    const [modalItem, setModalItem] = useState<QualitativeItem | null>(null);
+    const [modalField, setModalField] = useState<'label' | 'placeholder' | null>(null);
+    const [modalValue, setModalValue] = useState('');
+
     useEffect(() => {
         fetchItems();
     }, []);
@@ -181,7 +186,24 @@ const QualitativeItemMaster: React.FC = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {items.map((item) => (
+                    {items
+                        .slice() // 元配列を破壊しない
+                        .sort((a, b) => {
+                            // ① is_active: false を下へ
+                            if (a.is_active && !b.is_active) return -1;
+                            if (!a.is_active && b.is_active) return 1;
+
+                            // ② pay_type: 日給月給 → 時給
+                            if (a.pay_type !== b.pay_type) {
+                                return a.pay_type === 'daily_monthly' ? -1 : 1;
+                            }
+
+                            // ③ order: 昇順（nullは一番下に）
+                            const orderA = a.order ?? Infinity;
+                            const orderB = b.order ?? Infinity;
+                            return orderA - orderB;
+                        })
+                        .map((item) => (
                         <tr key={item.id} className={!item.is_active ? 'inactive' : ''}>
                             <td>{item.id}</td>
                             <td><code>{item.key}</code></td>
@@ -213,11 +235,12 @@ const QualitativeItemMaster: React.FC = () => {
                                         {item.label}
                                         <button
                                             onClick={() => {
-                                                setEditingLabelId(item.id);
-                                                setEditedLabel(item.label);
+                                                setModalItem(item);
+                                                setModalField('label');
+                                                setModalValue(item.label);
                                             }}
                                             className="qualitative-icon-button"
-                                        >
+                                            >
                                             🖋️
                                         </button>
                                     </>
@@ -251,11 +274,12 @@ const QualitativeItemMaster: React.FC = () => {
                                         {item.placeholder}
                                         <button
                                             onClick={() => {
-                                                setEditingPlaceholderId(item.id);
-                                                setEditedPlaceholder(item.placeholder);
+                                                setModalItem(item);
+                                                setModalField('placeholder');
+                                                setModalValue(item.placeholder);
                                             }}
                                             className="qualitative-icon-button"
-                                        >
+                                            >
                                             🖋️
                                         </button>
                                     </>
@@ -359,6 +383,37 @@ const QualitativeItemMaster: React.FC = () => {
                     ))}
                 </tbody>
             </table>
+
+            {modalItem && modalField && (
+                <div className="qualitative-modal-overlay" onClick={() => setModalItem(null)}>
+                    <div className="qualitative-modal-box" onClick={(e) => e.stopPropagation()}>
+                    <h3>
+                        「{modalItem.key}」の
+                        {modalField === 'label' ? 'ラベル' : 'プレースホルダー'}を編集
+                    </h3>
+                    <textarea
+                        value={modalValue}
+                        onChange={(e) => setModalValue(e.target.value)}
+                        className="qualitative-modal-textarea"
+                    />
+                    <div className="qualitative-modal-actions">
+                        <button
+                        onClick={() => {
+                            updateItemField(modalItem.id, modalField, modalValue);
+                            setModalItem(null);
+                        }}
+                        className="qualitative-modal-save"
+                        >
+                        保存
+                        </button>
+                        <button onClick={() => setModalItem(null)} className="qualitative-modal-cancel">
+                        閉じる
+                        </button>
+                    </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

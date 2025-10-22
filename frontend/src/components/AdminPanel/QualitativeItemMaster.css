@@ -163,3 +163,105 @@
 .qualitative-table input[type="checkbox"] {
     accent-color:  #28a745;
 }
+
+/* === QualitativeItemMaster モーダル専用 === */
+.qualitative-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35); /* すこし柔らかく */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    animation: qualitative-modal-fadeIn 0.2s ease-out;
+}
+
+.qualitative-modal-box {
+    background: #ffffff;
+    border-radius: 8px;
+    width: 520px;
+    max-width: 90%;
+    padding: 24px 28px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    font-family: "Segoe UI", "Helvetica Neue", "Hiragino Sans", sans-serif;
+    border: 1px solid #e0e0e0;
+}
+
+.qualitative-modal-box h3 {
+    margin-bottom: 16px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    border-left: 4px solid #28a745;
+    padding-left: 8px;
+}
+
+/* テキストエリア */
+.qualitative-modal-textarea {
+    width: 100%;
+    height: 150px;
+    font-size: 14px;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.5;
+    color: #333;
+    background-color: #fdfdfd;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.qualitative-modal-textarea:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+    outline: none;
+}
+
+/* ボタン配置 */
+.qualitative-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+    gap: 10px;
+}
+
+/* 保存ボタン */
+.qualitative-modal-save {
+    background: #28a745;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s ease;
+}
+
+.qualitative-modal-save:hover {
+    background: #218838;
+}
+
+/* 閉じるボタン */
+.qualitative-modal-cancel {
+    background: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 8px 18px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s ease;
+}
+
+.qualitative-modal-cancel:hover {
+    background: #e0e0e0;
+}
+
+/* アニメーション */
+@keyframes qualitative-modal-fadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}

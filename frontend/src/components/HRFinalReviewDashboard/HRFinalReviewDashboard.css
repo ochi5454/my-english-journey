@@ -342,3 +342,30 @@
     vertical-align: top;
     text-align: left;
 }
+
+/* --- 給与体系別セクションヘッダー --- */
+.qualitative-section-header {
+    background-color: #f0f4f8;
+    font-weight: 600;
+    text-align: left;
+    color: #333;
+    border-top: 2px solid #ccc;
+}
+
+.qualitative-section-header.daily_monthly {
+    background-color: #e8f5e9; /* 緑がかった背景 */
+    border-left: 4px solid #28a745;
+}
+
+.qualitative-section-header.hourly {
+    background-color: #e3f2fd; /* 青みがかった背景 */
+    border-left: 4px solid #007bff;
+}
+
+.qualitative-row.daily_monthly td:first-child {
+    background-color: #f8fff8;
+}
+
+.qualitative-row.hourly td:first-child {
+    background-color: #f8fbff;
+}
