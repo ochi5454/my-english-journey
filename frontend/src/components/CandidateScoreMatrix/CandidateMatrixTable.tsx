@@ -95,7 +95,7 @@ export default function CandidateMatrixTable({
                 <th rowSpan={2}>ステータス</th>
                 <th rowSpan={2}>合否</th>
                 <th colSpan={3}>希望</th>
-                <th colSpan={2}>推薦</th>
+                <th colSpan={3}>推薦</th>
                 <th colSpan={allMustKeys.length}>必須</th>
                 <th rowSpan={2}>就業年数</th>
                 <th rowSpan={2}>志望動機</th>
@@ -111,6 +111,7 @@ export default function CandidateMatrixTable({
                 </th>
                 <th>部門</th>
                 <th>スコア</th>
+                <th>推薦度%</th> 
                 {allMustKeys.map(k => <th key={`must-${k}`}>{k}</th>)}
             </tr>
             </thead>
@@ -188,7 +189,16 @@ export default function CandidateMatrixTable({
                 </td>
                 <td>{renderDivisionChip(r.recommended_div, prefixToName, divisionColorMap)}</td>
                 <td>{r.recommended_div_score ?? '-'}</td>
-
+                <td>
+                    <div className="ai-score-combined">
+                        {renderAIRecommendationChip(r.ai_score_recommended_percentile)}
+                        {r.ai_score_recommended && (
+                        <span className="ai-score-inline">
+                            （{r.ai_score_recommended.toFixed(2)}）
+                        </span>
+                        )}
+                    </div>
+                </td>
                 {allMustKeys.map(k =>
                     <td key={k}>{renderMustCheckChip(r.must_check[k]?.result, r.must_check[k]?.reason)}</td>
                 )}

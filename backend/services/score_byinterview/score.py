@@ -53,14 +53,21 @@ def review_with_interview_checksheet(
     adjustments = parse_score_adjustments(reply, current_map, allow_nochange=True)
 
     if adjustments:
-        normalized_scores = [
-            {
+        # ✅ ここでスコアを 0〜100 にクリップ
+        normalized_scores = []
+        for adj in adjustments:
+            try:
+                score_val = float(adj["score"])
+            except (TypeError, ValueError):
+                score_val = 0
+            safe_score = max(0, min(100, round(score_val)))
+            normalized_scores.append({
                 "division": convert_division_to_prefix(adj["division"]),
-                "score": adj["score"],
+                "score": safe_score,
                 "reason": adj["reason"]
-            }
-            for adj in adjustments
-        ]
+            })
+            print(f"🧩 正規化: {adj['division']} → {safe_score}")
+
         save_score_to_history(
             candidate_id=candidate_id,
             new_scores=normalized_scores,
@@ -217,6 +224,8 @@ def generate_interview_review_prompt(
             "[スコア調整]: 部門=◯◯, 変更後スコア=◯ または 変更なし, 理由=◯◯\n"
             "※ 全部門ぶんを必ず出力（変更なしの場合も1行）\n"
             "※ 改行で部門ごとに区切る\n"
+            "※ 🔢 スコアは0〜100点の範囲で整数値にしてください（例: 72, 85 など）\n"
+            "※ 10点満点や5段階評価ではなく、100点満点スケールで出力します。\n"
         )
     }
 
@@ -262,7 +271,7 @@ def generate_interview_review_prompt(
         "role": "user",
         "content": (
             "■評価対象部門（全て出力対象）: " + ", ".join(valid_divisions) + "\n"
-            "■現在スコア:\n" + current_scores_lines + "\n\n"
+            "■現在スコア (100点満点中):\n" + current_scores_lines + "\n\n"
             "■面談メモ(Q&A):\n" + qa_block + "\n\n"
             "■定性メモ:\n" + qual_block + "\n\n"
             "■定量メモ(1-5 + コメント):\n" + quant_block

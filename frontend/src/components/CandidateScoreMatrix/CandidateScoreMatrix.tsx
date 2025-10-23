@@ -5,7 +5,7 @@ import CandidateMatrixTable from './CandidateMatrixTable';
 import CandidateResultDetail from '../CandidateResultDetail/CandidateResultDetail';
 import AIRecommendationPanelContainer from '../AIRecommendationPanel/AIRecommendationPanelContainer';
 import type { AIWeights } from '../AIRecommendationPanel/AIRecommendationPanel';
-import { calculateAIScoreFromFormula, calculateTruePercentilesByPreferredDiv } from './useAIRecommendation';
+import { calculateAIScoreFromFormula, calculateTruePercentilesByPreferredDiv, calculateTruePercentilesByRecommendedDiv } from './useAIRecommendation';
 import CandidateMatrixSummary from './CandidateMatrixSummary';
 import type { Result } from './types';
 import appConfig from '../../config';
@@ -81,25 +81,52 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
                 }
             });
 
-            // ✅ ③ AIスコア自動計算
+            // ✅ ③ AIスコア自動計算（希望部門＋推薦部門）
             const computedResults = Array.from(latestMap.values()).map((r) => {
-                const division = r.preferred_div || "common";
-                const cfg = configMap[division];
-                if (!cfg) return r;
-                const aiScore = calculateAIScoreFromFormula(
-                    r,
-                    cfg.formula,
-                    cfg.enabledFields,
-                    cfg.weights
-                );
-                return { ...r, ai_score: aiScore };
+                const preferredDiv = r.preferred_div || "common";
+                const recommendedDiv = r.recommended_div || "common";
+
+                const cfgPreferred = configMap[preferredDiv];
+                const cfgRecommended = configMap[recommendedDiv];
+
+                let aiScorePreferred = 0;
+                let aiScoreRecommended = 0;
+
+                // 希望部門スコア
+                if (cfgPreferred) {
+                    aiScorePreferred = calculateAIScoreFromFormula(
+                        r,
+                        cfgPreferred.formula,
+                        cfgPreferred.enabledFields,
+                        cfgPreferred.weights,
+                        'preferred'
+                    );
+                }
+
+                // 推薦部門スコア
+                if (cfgRecommended) {
+                    aiScoreRecommended = calculateAIScoreFromFormula(
+                        r,
+                        cfgRecommended.formula,
+                        cfgRecommended.enabledFields,
+                        cfgRecommended.weights,
+                        'recommended'
+                    );
+                }
+
+                return {
+                    ...r,
+                    ai_score: aiScorePreferred,                  // 希望部門スコア
+                    ai_score_recommended: aiScoreRecommended,    // 推薦部門スコア（新規追加）
+                };
             });
 
-            // ✅ ④ パーセンタイル計算
-            const withPercentiles = calculateTruePercentilesByPreferredDiv(computedResults);
+            // ✅ ④ パーセンタイル計算（希望部門 + 推薦部門 両方）
+            const withPreferredPercentiles = calculateTruePercentilesByPreferredDiv(computedResults);
+            const withBothPercentiles = calculateTruePercentilesByRecommendedDiv(withPreferredPercentiles);
 
             // ✅ ⑤ state に保存
-            setResults(withPercentiles);
+            setResults(withBothPercentiles);
 
         } catch (err) {
             console.error("AIスコア読込エラー:", err);
@@ -181,41 +208,61 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
             const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/${updated.user_id}`, { cache: 'no-store' });
             const latest = await res.json();
 
-            // 🧠 部門をキーに設定を取得（例: 人事 / 法務 など）
-            const division = latest.preferred_div || "人事"; // fallback
-            const cfg = divisionConfigs[division];
+            const preferredDiv = latest.preferred_div || "common";
+            const recommendedDiv = latest.recommended_div || "common";
 
-        // ⚙️ 設定が存在しない場合はスキップ
-        if (!cfg) {
-            console.warn(`No AI config found for division: ${division}`);
-            setSelectedResult(latest);
-            return;
+            const cfgPreferred = divisionConfigs[preferredDiv];
+            const cfgRecommended = divisionConfigs[recommendedDiv];
+
+            let aiScorePreferred = 0;
+            let aiScoreRecommended = 0;
+
+            // ✅ 希望部門スコア再計算
+            if (cfgPreferred) {
+                aiScorePreferred = calculateAIScoreFromFormula(
+                    latest,
+                    cfgPreferred.formula,
+                    cfgPreferred.enabledFields,
+                    cfgPreferred.weights,
+                    'preferred'
+                );
             }
 
-            // ✅ 部門の設定に基づいてAIスコア再計算
+            // ✅ 推薦部門スコア再計算
+            if (cfgRecommended) {
+                aiScoreRecommended = calculateAIScoreFromFormula(
+                    latest,
+                    cfgRecommended.formula,
+                    cfgRecommended.enabledFields,
+                    cfgRecommended.weights,
+                    'recommended'
+                );
+            }
+
+            // ✅ 最新スコアを含めたオブジェクトを作成
             const latestWithScore = {
-            ...latest,
-            ai_score: calculateAIScoreFromFormula(
-                latest,
-                cfg.formula,
-                cfg.enabledFields,
-                cfg.weights
-            ),
+                ...latest,
+                ai_score: aiScorePreferred,
+                ai_score_recommended: aiScoreRecommended,
             };
 
-            // ✅ 結果一覧を更新
+            // ✅ 一覧を更新
             const updatedList = results.map((r) =>
-            r.user_id === latest.user_id ? latestWithScore : r
+                r.user_id === latest.user_id ? latestWithScore : r
             );
-            const withPercentiles = calculateTruePercentilesByPreferredDiv(updatedList);
 
-            setResults(withPercentiles);
+            // ✅ パーセンタイル再計算（希望＋推薦）
+            const withPreferredPercentiles = calculateTruePercentilesByPreferredDiv(updatedList);
+            const withBothPercentiles = calculateTruePercentilesByRecommendedDiv(withPreferredPercentiles);
 
-            // ✅ 選択中の候補者も更新
+            setResults(withBothPercentiles);
+
+            // ✅ モーダル表示中データも更新
             const refreshed =
-            withPercentiles.find((r) => r.user_id === latest.user_id) ||
-            latestWithScore;
+                withBothPercentiles.find((r) => r.user_id === latest.user_id) ||
+                latestWithScore;
             setSelectedResult(refreshed);
+
         } catch (e) {
             console.error("更新後データ取得エラー:", e);
         }
@@ -292,23 +339,38 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
                         if (!cfg) return;
 
                         // 部門一致する候補者だけ再計算
+                        // ✅ 希望・推薦の両方を対象に
                         const updatedResults = results.map((r) => {
+                            let updated = { ...r };
+
+                            // 希望部門が一致している場合
                             if (r.preferred_div === division) {
-                            return {
-                                ...r,
-                                ai_score: calculateAIScoreFromFormula(
+                                updated.ai_score = calculateAIScoreFromFormula(
                                 r,
                                 cfg.formula,
                                 cfg.enabledFields,
-                                updatedWeights
-                                ),
-                            };
+                                updatedWeights,
+                                'preferred'
+                                );
                             }
-                            return r;
+
+                            // 推薦部門が一致している場合
+                            if (r.recommended_div === division) {
+                                updated.ai_score_recommended = calculateAIScoreFromFormula(
+                                r,
+                                cfg.formula,
+                                cfg.enabledFields,
+                                updatedWeights,
+                                'recommended'
+                                );
+                            }
+
+                            return updated;
                         });
 
-                        const withPercentiles = calculateTruePercentilesByPreferredDiv(updatedResults);
-                        setResults(withPercentiles);
+                        const withPreferredPercentiles = calculateTruePercentilesByPreferredDiv(updatedResults);
+                        const withBothPercentiles = calculateTruePercentilesByRecommendedDiv(withPreferredPercentiles);
+                        setResults(withBothPercentiles);
 
                         // 重みもstate更新
                         setDivisionConfigs({

@@ -45,4 +45,7 @@ export interface Result {
     scores: Score[];
     ai_score?: number;
     ai_score_percentile?: number;
+    ai_score_recommended?: number;  
+    ai_score_recommended_percentile?: number;
+    division_scores?: Record<string, number>;
 }

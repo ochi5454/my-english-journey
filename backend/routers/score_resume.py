@@ -350,6 +350,9 @@ async def get_resume_results():
             scores = db.query(CandidateDivisionScore)\
                 .filter_by(user_id=user_id).all()
             
+            # --- 部門別スコア辞書を構築 ---
+            division_score_map = {s.division: s.score for s in scores}
+
             # === division_must_check 整形 ===
             division_must_check_dict = {}
             for d in division_must_checks:
@@ -426,7 +429,8 @@ async def get_resume_results():
                 "scores": [
                     {"division": s.division, "score": s.score, "reason": s.reason}
                     for s in scores
-                ]
+                ],
+                "division_scores": division_score_map,
             }
             results.append(result)
 

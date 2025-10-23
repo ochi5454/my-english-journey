@@ -100,11 +100,15 @@ def parse_score_adjustments(
         if allow_nochange and score_str.strip() == "変更なし":
             continue
 
+        # 数値以外はスキップ
         if not re.fullmatch(r"-?\d+", score_str.strip()):
             continue
 
         new_score = int(score_str)
         old_score = original_scores.get(division)
+
+        # ✅ 追加: スコアを 0〜100 に正規化
+        new_score = max(0, min(100, new_score))
 
         # 実質変更なしはスキップ
         if old_score is not None and new_score == old_score:

@@ -28,7 +28,7 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
     print("✅ must_check 結果: %s", must_results)
     print("✅ must_results_by_division 結果: %s", must_results_by_division)
 
-    # マスト条件NGなら即保存・返却
+    # === マスト条件NGなら即中断 ===
     if not all(bool(item.get("result")) for item in must_results.values()):
         print("❌ must_check NGのためスコアリング中断 → 候補者ID: %s", candidate_id)
         result = {
@@ -46,6 +46,7 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
         )
         return result
 
+    # === 部門プロフィールのロード ===
     division_profiles = load_division_profiles()
     print("🧠 division_profiles: %s", division_profiles)
 
@@ -54,46 +55,57 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
         for profile in division_profiles
     )
 
+    # === 🔧 プロンプト修正版（100点スケール対応） ===
     prompt = f"""
-あなたは人事担当者です。
-以下の応募書類一式（履歴書および職務経歴書）を読み、
-候補者の職務経歴・スキルセット・実績内容のみを踏まえ、
-志望動機や希望部門の記載には影響されないよう注意しながら、
-複数の部門ごとに適合度を10点満点で評価してください。
+あなたは企業の採用担当者です。
+以下の応募書類（履歴書および職務経歴書）を読み、
+候補者の職務経歴・スキルセット・実績内容のみをもとに、
+各部門に対する適合度を **100点満点** で評価してください。
 
-各部門の理想像は以下の通りです：
+- 志望動機や希望部門の記載には影響されないようにしてください。
+- 評価は「スキル内容・実績・経験の方向性」が、各部門の理想像にどの程度合致しているかで判断します。
 
+【評価基準の目安】
+- 90〜100点: 各部門の理想像に非常によく合致している
+- 70〜89点: 多くの要素で合致しており、実務上も即戦力の可能性が高い
+- 50〜69点: 一部合致しているが、経験やスキルにギャップあり
+- 30〜49点: 理想像とは離れている
+- 0〜29点: スキルや経歴がほぼ一致していない
+
+【部門ごとの理想像】
 {division_descriptions}
 
-候補者の履歴書（マスク済み）:
+【候補者の応募書類（マスク済み）】
 {text}
 
-【出力形式（JSON配列で）】
+---
+
+【出力形式（JSON配列）】
 [
-  {{"division": "部門A", "score": 数値, "reason": "理由"}},
-  ...
+  {{"division": "部門名", "score": 数値（0〜100）,"reason": "理由"}}, ...
 ]
 """
 
+    # === GPT呼び出し ===
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
     )
 
-    # ★ None セーフにしてからパース
     raw = (response.choices[0].message.content or "").strip()
-    print("🧠 GPT 応答 raw: %s", raw)
+    print("🧠 GPT応答 raw: %s", raw)
 
     try:
         parsed = json.loads(raw)
         print("✅ GPT応答 JSONパース成功。件数: %d", len(parsed) if isinstance(parsed, list) else 1)
+
         if isinstance(parsed, dict):
             parsed = [parsed]
         if not isinstance(parsed, list):
             raise ValueError("JSON is not a list")
 
-        # 要素の正規化
+        # === スコアの正規化 ===
         scores: List[Dict[str, Any]] = []
         for item in parsed:
             if not isinstance(item, dict):
@@ -109,6 +121,9 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
             except Exception:
                 continue
 
+            # ✅ 上限100点に正規化
+            score_val = min(score_val, 100)
+
             if division:
                 scores.append({"division": division, "score": score_val, "reason": reason})
 
@@ -122,7 +137,13 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
     except Exception as e:
         print("❌ GPT応答 JSONパース失敗: %s", e)
         print("🧠 GPT raw応答: %s", raw)
+        scores = [{
+            "division": "N/A",
+            "score": 0,
+            "reason": "JSON解析エラー",
+        }]
 
+    # === 推薦部門決定 ===
     recommended = max(scores, key=lambda x: x.get("score", -1), default={"division": None})
 
     result = {
@@ -275,28 +296,33 @@ def score_motivation_statement(text: str) -> int:
     """
     prompt = f"""
 あなたは新卒採用の人事担当者です。
-以下の志望動機テキストを読み、候補者の「やる気・熱意」を0〜100点で評価してください。
+以下の志望動機を読み、候補者の「やる気・熱意」を次の4つの観点から評価してください。
+各観点を25点満点とし、合計100点で総合評価を出してください。
 
-【スコア基準の例】
+【評価軸】
+1️⃣ 理念共感度（企業理念や事業への理解・共感の深さ）
+2️⃣ 経験接続度（自分の経験や学びと企業の方向性の結びつき）
+3️⃣ 具体性（抽象的表現ではなく、具体的な事例・行動・成果があるか）
+4️⃣ 成長・貢献意欲（入社後にどう貢献・成長したいかが明確か）
 
-◉ スコア100点（理想）：
-私は御社の「持続可能な社会の実現に貢献する」という理念に深く共感し、志望いたしました。大学では環境経済学を専攻し、ゼミでは再生可能エネルギーの普及に関する研究に取り組みました。その中で、環境課題と経済合理性の両立の難しさに直面し、社会全体の意識変容の必要性を痛感しました。御社は環境分野での先進的な取り組みだけでなく、それをテクノロジーとデザインの力で実装している点に強く惹かれました。特に貴社の○○プロジェクトにおける○○の事例は、私自身が理想とする「課題解決型の仕事」のモデルケースであり、ぜひその一翼を担いたいと考えております。自らの経験と学びを活かし、貴社のさらなる社会的価値創出に貢献していきたいです。
-
-→ 理念との接続、具体的経験、プロジェクト理解、貢献意欲が明確 → 100点
-
-◉ スコア40点（不十分）：
-IT業界に興味があります。御社でスキルを高めて成長したいです。
-
-→ 抽象的、どの会社にも使える内容、熱意や理解が不十分 → 40点
-
----
+【スコアリングガイドライン】
+- 内容が浅く、どの企業にも使えそうな志望動機 → 40点未満
+- ある程度具体的だが独自性が乏しい → 50〜70点
+- 理念・経験・貢献意欲の全てが明確で独自性がある → 80点以上
+- 特に熱意・具体性が突出している → 90点以上
+スコアにばらつきが出るよう、同質な内容には平均点を、突出して良い内容には高得点をつけてください。
 
 【評価対象の志望動機】
 {text}
 
 ---
 
-この志望動機のやる気スコアを 0〜100 の数値で出力してください（数字のみ）:
+出力フォーマット：
+理念共感度: xx点
+経験接続度: xx点
+具体性: xx点
+成長・貢献意欲: xx点
+合計スコア: xx
 """
 
     response = client.chat.completions.create(
@@ -322,30 +348,33 @@ def score_work_experience(text: str) -> int:
     """
     prompt = f"""
 あなたは採用担当者です。
-以下の職務経歴を読み、候補者の「経験の深さ・スキルの幅・実績の具体性・一貫性」を
-総合的に判断して 0〜100 点で評価してください。
+以下の職務経歴を読み、候補者の「経験の深さ・スキルの幅・成果の具体性・一貫性」を
+それぞれ25点満点で評価し、合計100点満点のスコアを算出してください。
 
-【スコア基準の例】
+【評価軸】
+1️⃣ 経験の深さ（経験年数・担当業務の難易度・責任範囲）
+2️⃣ スキルの幅（扱った技術・ツール・業務領域の多様さ）
+3️⃣ 成果の具体性（成果・実績が定量的か、具体的に示されているか）
+4️⃣ 一貫性・成長性（キャリアに筋が通っており、成長が見えるか）
 
-◉ スコア100点（理想）：
-- 5年以上の一貫したキャリア
-- 職務内容が具体的で成果も明確
-- 担当業務の範囲や責任が明瞭
-- 定量的な実績（例：売上○％増加など）
-
-◉ スコア40点（不十分）：
-- 期間や業務内容が曖昧
-- 成果やスキルが抽象的
-- 複数職務の整合性が取れていない
-
----
+【スコアリングガイドライン】
+- 期間・成果が曖昧で抽象的 → 40点未満
+- 一般的な内容で可もなく不可もない → 50〜70点
+- 成果や責任範囲が明確で、経験に厚みがある → 75〜85点
+- 業務内容・成果・成長がすべて明確で卓越している → 90点以上
+スコアが均一にならないよう、内容の充実度に応じて積極的に点差をつけてください。
 
 【評価対象の職務経歴】
 {text}
 
 ---
 
-この職務経歴のスコアを 0〜100 の数値で出力してください（数字のみ）:
+出力フォーマット：
+経験の深さ: xx点
+スキルの幅: xx点
+成果の具体性: xx点
+一貫性・成長性: xx点
+合計スコア: xx
 """
 
     response = client.chat.completions.create(
