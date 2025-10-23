@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 from backend.schemas.custom_qa import PrepItem
 
 # ============================================
-# 📊 面接日程調整
+# 📊 面接シート
 # ============================================
 
 class InterviewPrepByInterviewerRequest(BaseModel):
@@ -15,6 +15,15 @@ class InterviewPrepByInterviewerRequest(BaseModel):
     reviewedResume: bool = False
     qualitative: Optional[Dict[str, Any]] = None
     quantitative: Optional[Dict[str, Any]] = None
+    hiringDecision: Optional[str] = None
+    recommendedDivision: Optional[str] = None
+    recommendedTitle: Optional[str] = None
+    payType: Optional[str] = None
+    employmentType: Optional[str] = None
+
+# ============================================
+# 📊 面接日程調整
+# ============================================
 
 class InterviewSetupRequest(BaseModel):
     interviewDate: datetime

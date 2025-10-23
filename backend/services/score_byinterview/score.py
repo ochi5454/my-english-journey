@@ -4,15 +4,16 @@ from datetime import datetime
 from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Sequence, Mapping
-from backend.core.database import SessionLocal
-from backend.models.score_resume import Candidate, CandidateStatus
+from backend.core.database import SessionLocal, get_db
+from backend.models.score_resume import Candidate, CandidateStatus, CandidateScoreHistory
 from backend.models.checksheet import ChecksheetQualitativeItem
 from backend.schemas.custom_qa import PrepItemDict
-from backend.utils.division import load_division_profiles, convert_division_to_prefix
+from backend.utils.division import load_division_profiles, convert_division_to_prefix, convert_prefix_to_division
 from backend.utils.checksheet import load_qualitative_items
 from backend.services.checksheet.upsert import upsert_checksheet, get_checksheet_one
 from backend.services.score_adjustment.save import load_single_result, save_score_to_history
 from backend.services.score_adjustment.score import call_openai_chat, parse_score_adjustments
+from backend.services.score_adjustment.optimized import search_resume_snippets
 
 # ============================================
 # 🧠 面談シート評価・スコア補正ロジック
@@ -32,6 +33,7 @@ def review_with_interview_checksheet(
     pay_type: Optional[str] = None,
     employment_type: Optional[str] = None,
 ) -> dict:
+    print(f'✅✅✅✅✅✅✅：{recommended_division}')
     now_str = datetime.now().isoformat()
     result = load_single_result(candidate_id)
     if result is None:
@@ -42,15 +44,127 @@ def review_with_interview_checksheet(
     valid_divisions = [p["division"] for p in division_profiles]
     current_map = {s["division"]: s.get("score", 0) for s in result.get("scores", [])}
 
+    # --- 評価対象部門を制限 ---
+    target_division = None
+
+    if recommended_division:
+        # 🟢 プレフィックス（facなど）→ 和名（ファシリティなど）へ変換
+        target_division = convert_prefix_to_division(recommended_division)
+
+    if target_division and target_division not in valid_divisions:
+        print(f"⚠ recommended_division={target_division} は valid_divisions に含まれません。無視します。")
+        target_division = None
+
+    # === 履歴書ベクトル検索（関連チャンクだけ取得） ===
+    resume_context_text = ""
+    try:
+        query_for_resume = _build_resume_query_from_interview(
+            stage=stage,
+            recommended_division=recommended_division,
+            prep_items=prep_items,
+            qualitative=qualitative,
+        )
+        snippets = search_resume_snippets(
+            candidate_id=candidate_id,
+            query=query_for_resume,
+            top_k=5,
+            min_score=0.35,
+        )
+        if snippets:
+            resume_context_text = "\n---\n".join([f"🔸 {s['text']}" for s in snippets])
+            print(f"🔍 履歴書関連抜粋: {len(snippets)}件 / query='{query_for_resume}'")
+        else:
+            print(f"🔍 履歴書関連抜粋: 0件 / query='{query_for_resume}'")
+    except Exception as e:
+        print(f"⚠ 履歴書検索失敗: {e}")
+
+    # === 過去のスコア履歴を取得 ===
+    score_history_text = ""
+    try:
+        db = next(get_db())
+
+        # 🔸 まずクエリを作成
+        query = db.query(CandidateScoreHistory).filter(
+            CandidateScoreHistory.user_id == candidate_id
+        )
+
+        # 🔸 target_division（例: "法務"）がある場合は部門で絞り込む
+        if target_division:
+            query = query.filter(CandidateScoreHistory.division == target_division)
+
+        histories = (
+            query.order_by(CandidateScoreHistory.reviewed_at.desc())
+            .limit(3)
+            .all()
+        )
+
+        if histories:
+            score_history_text = "\n".join([
+                f"🕓 {h.reviewed_at.strftime('%Y-%m-%d') if h.reviewed_at else '不明日付'} | "
+                f"{h.division}: {h.score if h.score is not None else 'N/A'}点 "
+                f"({h.source or 'unknown'})"
+                for h in histories
+            ])
+            print(f"📊 過去スコア履歴 {len(histories)}件取得（部門: {target_division or '全体'}）")
+        else:
+            print(f"📊 {target_division or '全体'} のスコア履歴なし")
+
+    except Exception as e:
+        print(f"⚠ スコア履歴取得失敗: {e}")
+
+    # --- プロンプト生成直前 ---
+    if target_division:
+        # 既存スコアマップから対象部門だけ抽出
+        current_map = {
+            target_division: current_map.get(target_division, 0)
+        }
+
     prompt = generate_interview_review_prompt(
         prep_items=prep_items,
-        valid_divisions=valid_divisions,
+        valid_divisions=[target_division] if target_division else valid_divisions,
         current_scores=current_map,
         qualitative=qualitative or {},
         quantitative=quantitative or {},
+        score_history_text=score_history_text,
+        resume_snippets=snippets,
     )
+
+    if resume_context_text:
+        resume_context_msg = {
+            "role": "system",
+            "content": (
+                "以下は候補者の履歴書から、今回の面接評価に関連が高い抜粋です。"
+                "この文脈を参考に面接内容と突き合わせて、スコア調整の妥当性を判断してください。\n"
+                f"{resume_context_text}"
+            ),
+        }
+        # system の直後に差し込む（[system, resume_context, user] の順）
+        prompt.insert(1, resume_context_msg)
+
+    if score_history_text:
+        score_history_msg = {
+            "role": "system",
+            "content": (
+                "以下は候補者の過去スコア履歴です。"
+                "スコア推移の一貫性や変化の理由を参考にしつつ、"
+                "今回の面接評価の妥当性を判断してください。\n"
+                f"{score_history_text}"
+            ),
+        }
+        # 履歴書メッセージの直後に追加
+        insert_index = 2 if resume_context_text else 1
+        prompt.insert(insert_index, score_history_msg)
+
     reply = call_openai_chat(prompt)
     adjustments = parse_score_adjustments(reply, current_map, allow_nochange=True)
+
+    # === 推論結果を recommended_division のみに制限 ===
+    if target_division:
+        target_lower = target_division.lower()
+        adjustments = [
+            a for a in adjustments
+            if a.get("division", "").lower().startswith(target_lower)
+        ]
 
     if adjustments:
         # ✅ ここでスコアを 0〜100 にクリップ
@@ -202,57 +316,64 @@ def _to_prep_item_dict(pi: Any) -> PrepItemDict:
 
 def generate_interview_review_prompt(
     *,
-    prep_items: Sequence[Mapping[str, Any]],  # ★ ここを List[Dict...] → Sequence[Mapping...] に変更
+    prep_items: Sequence[Mapping[str, Any]],
     valid_divisions: List[str],
     current_scores: Dict[str, int],
     qualitative: Dict[str, Any] | None = None,
     quantitative: Dict[str, Any] | None = None,
+    score_history_text: str | None = None,
+    resume_snippets: list[dict] | None = None,
 ) -> List[dict]:
     """
-    面談Q&A（prep_items）に加えて、定性(qualitative)・定量(quantitative)も渡して
-    スコア再評価用の messages を作る。
+    面談Q&A・定性/定量メモに加え、
+    履歴書抜粋とスコア履歴を踏まえて再評価プロンプトを構築する。
     """
     qualitative = qualitative or {}
     quantitative = quantitative or {}
 
+    # --- 履歴書抜粋を整形 ---
+    def format_resume_snippets(snippets: list[dict] | None) -> str:
+        if not snippets:
+            return "（該当なし）"
+        lines = [f"- {s.get('text', '').strip()}" for s in snippets if s.get("text")]
+        return "\n".join(lines) if lines else "（該当なし）"
+
+    # === system セクション ===
     system = {
         "role": "system",
         "content": (
-            "あなたは人事のサポートAIです。以下の面談Q&Aと評価メモを踏まえて、"
-            "【列挙された全ての部門】について、再評価が必要かを必ず部門ごとに1行ずつ出力してください。\n"
-            "出力は次の形式のみ（他の文章・前置き・後置きは禁止）：\n"
+            "あなたは人事部のスコア精査アシスタントです。\n"
+            "今回の目的は、**指定された部門のみ**のスコア再評価です。他の部門は一切変更してはいけません。\n\n"
+            "【出力形式】\n"
             "[スコア調整]: 部門=◯◯, 変更後スコア=◯ または 変更なし, 理由=◯◯\n"
-            "※ 全部門ぶんを必ず出力（変更なしの場合も1行）\n"
-            "※ 改行で部門ごとに区切る\n"
-            "※ 🔢 スコアは0〜100点の範囲で整数値にしてください（例: 72, 85 など）\n"
-            "※ 10点満点や5段階評価ではなく、100点満点スケールで出力します。\n"
+            "※ 他の文章・説明文・前置き・後置きは禁止\n"
+            "※ 100点満点スケールで整数値（例: 75, 82）\n"
+            "※ 該当部門がない場合は「変更なし」と明記\n\n"
+            f"【履歴書抜粋】\n{format_resume_snippets(resume_snippets)}\n\n"
+            f"【過去スコア履歴】\n{score_history_text or '（履歴なし）'}\n"
         )
     }
 
-    # --- QA（prep_items） ---
+    # === 面談Q&A ===
     qa_lines: List[str] = []
     for i, it in enumerate(prep_items or [], 1):
         q = str(it.get("question", "")).strip()
         a = str(it.get("answer", "")).strip()
         if q or a:
             qa_lines.append(f"Q{i}: {q}\nA{i}: {a}")
-
     qa_block = "\n\n".join(qa_lines) if qa_lines else "（メモなし）"
 
-    # --- Qualitative（定性） ---
-    # DBの key, label ベースの柔軟対応
-    qual_items = load_qualitative_items()  # [{ key: "careerGoals", label: "本人希望..." }, ...]
-
+    # === 定性メモ ===
+    qual_items = load_qualitative_items()
     qual_lines = []
     for item in qual_items:
         key = item["key"]
         v = qualitative.get(key)
-        if v is not None and str(v).strip():
-            # LLM精度向上のため、keyよりも label の方が人間が理解しやすく正確
+        if v and str(v).strip():
             qual_lines.append(f"- {item['label']}: {v}")
     qual_block = "\n".join(qual_lines) if qual_lines else "（記載なし）"
 
-    # --- Quantitative（定量 1-5 + コメント） ---
+    # === 定量メモ ===
     quant_lines: List[str] = []
     for k, v in (quantitative or {}).items():
         if isinstance(v, dict):
@@ -262,15 +383,16 @@ def generate_interview_review_prompt(
                 quant_lines.append(f"- {k}: level={lv}, comment={cm}")
     quant_block = "\n".join(quant_lines) if quant_lines else "（記載なし）"
 
-    # --- 現在スコアを並べる ---
+    # === 現在スコア ===
     current_scores_lines = "\n".join(
         f"- {d}: {int(current_scores.get(d, 0))}点" for d in valid_divisions
     )
 
+    # === user セクション ===
     user = {
         "role": "user",
         "content": (
-            "■評価対象部門（全て出力対象）: " + ", ".join(valid_divisions) + "\n"
+            "■評価対象部門（今回のみ対象）: " + ", ".join(valid_divisions) + "\n"
             "■現在スコア (100点満点中):\n" + current_scores_lines + "\n\n"
             "■面談メモ(Q&A):\n" + qa_block + "\n\n"
             "■定性メモ:\n" + qual_block + "\n\n"
@@ -286,3 +408,42 @@ def generate_interview_review_prompt(
     print("--------------------\n")
 
     return [system, user]
+
+
+def _build_resume_query_from_interview(
+    stage: str,
+    recommended_division: Optional[str],
+    prep_items: List[PrepItemDict],
+    qualitative: Optional[dict],
+) -> str:
+    """
+    面接シートの内容から、履歴書検索用の簡易クエリ文字列を作る
+    """
+    div = recommended_division or ""
+    # 代表的なQ&A（先頭2つくらい）を軽く繋いでクエリに
+    qa_bits = []
+    for it in (prep_items or [])[:2]:
+        q = (it.get("question") or "").strip()
+        a = (it.get("answer") or "").strip()
+        if q:
+            qa_bits.append(q)
+        if a:
+            qa_bits.append(a)
+    qa_hint = " / ".join(qa_bits)[:180]
+
+    # 定性メモから2つほど拾う
+    qual_bits = []
+    if isinstance(qualitative, dict):
+        for k, v in list(qualitative.items())[:2]:
+            if isinstance(v, str) and v.strip():
+                qual_bits.append(v.strip())
+    qual_hint = " / ".join(qual_bits)[:180]
+
+    parts = [
+        f"{stage} 面接の評価観点に関係する職務経験・スキル・成果",
+        f"部門: {div}" if div else "",
+        qa_hint,
+        qual_hint,
+    ]
+    # 空要素を除外してスペースで結合
+    return " ".join([p for p in parts if p])

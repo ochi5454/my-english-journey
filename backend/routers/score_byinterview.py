@@ -1,7 +1,7 @@
 from typing import List, cast
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from backend.schemas.interview_schedule import InterviewPrepByInterviewerRequest
+from backend.schemas.interviewsheet import InterviewPrepByInterviewerRequest
 from backend.schemas.custom_qa import PrepItemDict
 from backend.services.score_byinterview.score import _to_prep_item_dict, review_with_interview_checksheet
 

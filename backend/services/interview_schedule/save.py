@@ -1,7 +1,7 @@
 from datetime import datetime
 from backend.core.database import SessionLocal
 from backend.models.interview_schedule import InterviewSchedule
-from backend.schemas.interview_schedule import InterviewSetupRequest
+from backend.schemas.interviewsheet import InterviewSetupRequest
 
 # ============================================
 # 🧠 面談日程の保存
