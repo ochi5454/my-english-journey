@@ -6,7 +6,7 @@ from backend.core.database import SessionLocal
 from math import isnan
 from typing import List, Dict, Any
 from backend.core.openai_config import get_openai_client
-from backend.utils.division import load_division_profiles
+from backend.utils.division import load_division_profiles, convert_division_to_prefix
 from backend.services.score_adjustment.save import save_score_to_history
 
 # ============================================
@@ -146,13 +146,23 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
     # === 推薦部門決定 ===
     recommended = max(scores, key=lambda x: x.get("score", -1), default={"division": None})
 
+    # ✅ division名をprefixへ統一
+    normalized_scores = []
+    for s in scores:
+        div_prefix = convert_division_to_prefix(s["division"])
+        normalized_scores.append({
+            "division": div_prefix,
+            "score": s["score"],
+            "reason": s["reason"]
+        })
+
     result = {
         "user_id": candidate_id,
         "timestamp": datetime.now().isoformat(),
         "must_check": must_results,
         "must_check_by_division": must_results_by_division,
-        "scores": scores,
-        "recommended_division": recommended.get("division"),
+        "scores": normalized_scores,
+        "recommended_division": convert_division_to_prefix(recommended.get("division")),
     }
 
     save_score_to_history(
