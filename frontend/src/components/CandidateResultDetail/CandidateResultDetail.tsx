@@ -141,50 +141,45 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         setIsSending(true);
 
         try {
-        const res = await fetch(`${appConfig.API_BASE_URL}/chat-score-review`, {
+            const res = await fetch(`${appConfig.API_BASE_URL}/chat-score-review`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-            candidate_id: localResult.user_id,
-            reviewer_id: interviewerId,
-            messages: apiMessages,
+                candidate_id: localResult.user_id,
+                reviewer_id: interviewerId,
+                messages: apiMessages,
             }),
-        });
+            });
 
-        if (!res.ok) throw new Error(`HTTPエラー: ${res.status}`);
-        const data = await res.json();
-        const aiReply = data.reply || 'AI応答なし';
-        const scoreChangesRaw = data.adjusted_score;
+            if (!res.ok) throw new Error(`HTTPエラー: ${res.status}`);
+            const data = await res.json();
 
-        const scoreChangesArray = Array.isArray(scoreChangesRaw)
-            ? scoreChangesRaw
-            : Object.entries(scoreChangesRaw || {}).map(([division, score]) => ({
-                division,
-                score,
-                reason: "AIスコア調整",
-                }));
+            const aiReply = data.reply || 'AI応答なし';
+            const shouldUpdate = data.shouldUpdateScore === true;
+            const scoreChangesArray = Array.isArray(data.adjusted_scores)
+            ? data.adjusted_scores
+            : [];
 
-        setChatLog(prev => [...prev, { role: 'assistant', content: aiReply }]);
+            // 🤖 チャットログにAI応答を1回だけ追加
+            setChatLog(prev => [...prev, { role: 'assistant', content: aiReply }]);
 
-        const now = new Date().toISOString();
+            // 🔸 ステータス更新（AIとのチャット記録）
+            const now = new Date().toISOString();
+            const newChatReviewKey = `chat_review_${chatStage}_at`;
+            const newChatReviewerKey = `chat_reviewer_${chatStage}`;
+            setLocalResult((prev: any) => ({
+            ...prev,
+            [newChatReviewKey]: now,
+            [newChatReviewerKey]: interviewerId,
+            }));
+            onResultUpdate?.({
+            ...(localResult || {}),
+            [newChatReviewKey]: now,
+            [newChatReviewerKey]: interviewerId,
+            });
 
-        const newChatReviewKey = `chat_review_${chatStage}_at`;
-        const newChatReviewerKey = `chat_reviewer_${chatStage}`;
-
-        setLocalResult((prev: any) => ({
-        ...prev,
-        [newChatReviewKey]: now,
-        [newChatReviewerKey]: interviewerId,
-        }));
-
-        onResultUpdate?.({
-        ...(localResult || {}),
-        [newChatReviewKey]: now,
-        [newChatReviewerKey]: interviewerId,
-        });
-
-
-        if (scoreChangesArray.length > 0) {
+            // ✅ 確定フェーズ（shouldUpdateScore=true）の場合のみ update-score を呼ぶ
+            if (shouldUpdate && scoreChangesArray.length > 0) {
             const updateRes = await fetch(`${appConfig.API_BASE_URL}/update-score`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -197,33 +192,29 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             });
 
             if (updateRes.ok) {
-                // ✅ DB更新後に最新データを再取得
-                const refreshed = await fetch(`${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`, {
-                cache: 'no-store',
-                });
+                const refreshed = await fetch(
+                `${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`,
+                { cache: 'no-store' }
+                );
                 if (refreshed.ok) {
                 const updatedResult = await refreshed.json();
-
-                // ローカルstateを更新
                 setLocalResult(updatedResult);
-
-                // 親（一覧）にも伝播
                 onResultUpdate?.(updatedResult);
                 } else {
-                console.warn("再取得に失敗しました");
+                console.warn('再取得に失敗しました');
                 }
             } else {
-                console.error("スコア更新に失敗しました");
+                console.error('スコア更新に失敗しました');
             }
-        }
+            }
 
         } catch (err: any) {
-        setChatLog(prev => [...prev, {
-            role: 'assistant',
-            content: `⚠ エラーが発生しました: ${err.message || err.toString()}`
-        }]);
+            setChatLog(prev => [
+            ...prev,
+            { role: 'assistant', content: `⚠ エラーが発生しました: ${err.message || err.toString()}` },
+            ]);
         } finally {
-        setIsSending(false);
+            setIsSending(false);
         }
     };
 

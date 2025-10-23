@@ -7,6 +7,7 @@ from backend.core.database import SessionLocal
 from backend.models.score_resume import Candidate, CandidateStatus
 from backend.schemas.ai_score_chat import ScoreChatRequest, ScoreUpdateRequest
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
+from backend.services.score_adjustment.optimized import search_resume_snippets
 from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments
 from backend.services.score_adjustment.save import save_score_to_history
 
@@ -22,18 +23,57 @@ async def chat_score_review(payload: ScoreChatRequest):
     division_profiles = load_division_profiles()
     valid_divisions = [p["division"] for p in division_profiles]
 
-    # 最新のuserメッセージから元スコアを抽出
+    # === 🔍 candidate_id とユーザーの発話を取得 ===
+    candidate_id = getattr(payload, "candidate_id", None)
     last_user_msg = next((m for m in reversed(messages) if m["role"] == "user"), None)
-    original_scores = extract_original_scores_from_message(last_user_msg["content"]) if last_user_msg else {}
+    last_content = last_user_msg["content"] if last_user_msg else ""
 
-    # プロンプト生成 → 応答 → スコア解析
-    prompt = generate_score_review_prompt(messages, valid_divisions)
-    reply = call_openai_chat(prompt)
+    # === 🧠 履歴書ベクトル検索（質問内容に関連する部分だけ抽出） ===
+    context_snippets = []
+    if candidate_id and last_content:
+        try:
+            context_snippets = search_resume_snippets(candidate_id, last_content, top_k=3, min_score=0.35)
+            print(f"🔍 履歴書関連抜粋: {len(context_snippets)}件")
+        except Exception as e:
+            print(f"⚠ 履歴書検索失敗: {e}")
+
+    # === 抜粋をテキスト化してAIに渡す準備 ===
+    context_text = "\n---\n".join([f"🔸 {s['text']}" for s in context_snippets]) if context_snippets else ""
+
+    # === 元スコア抽出 ===
+    original_scores = extract_original_scores_from_message(last_content) if last_content else {}
+
+    # === ベースプロンプト作成 ===
+    base_prompt = generate_score_review_prompt(messages, valid_divisions)
+
+    # === 履歴書抜粋をsystemメッセージとして追加 ===
+    if context_text:
+        resume_context_msg = {
+            "role": "system",
+            "content": f"以下は候補者の履歴書から関連がありそうな抜粋です。文脈を参考にスコアを再検討してください。\n{context_text}"
+        }
+        base_prompt.insert(1, resume_context_msg)
+
+    # === 🧠 AI呼び出し ===
+    reply = call_openai_chat(base_prompt)
+
+    # === フェーズ判定 ===
+    is_final_phase = "###FINAL" in reply
+
+    # === 通常会話 ===
+    if not is_final_phase:
+        return {
+            "reply": reply,
+            "shouldUpdateScore": False,
+            "adjusted_scores": None
+        }
+
+    # === 最終確定 ===
     adjusted_scores = parse_score_adjustments(reply, original_scores)
-
     return {
         "reply": reply,
-        "adjusted_score": adjusted_scores  # ← 複数
+        "shouldUpdateScore": True,
+        "adjusted_scores": adjusted_scores
     }
 
 @router.post("/update-score")
