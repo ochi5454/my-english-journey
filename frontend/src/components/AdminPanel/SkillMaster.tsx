@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './SkillMaster.css';
+import SkillAISuggestPanel from './SkillAISuggestPanel';
 import appConfig from '../../config.ts';
 
 type Skill = {
@@ -117,6 +118,13 @@ const SkillMaster: React.FC = () => {
     return (
         <div className="skill-master">
             <h2>部門・スキル管理</h2>
+
+        {/* 🔹 AIスキル提案セクション */}
+        <SkillAISuggestPanel
+            division={newDivision}
+            divisionPrefix={newDivisionPrefix}
+            onSkillsAdded={fetchSkills}
+        />
 
             {/* 追加フォーム */}
             <div className="skill-form">

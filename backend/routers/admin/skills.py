@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -7,6 +8,8 @@ from backend.schemas.division_skill import (
     CandidateExpectationCreate,
     CandidateExpectationOut,
     SkillUpdateSchema,
+    SuggestSkillsRequest,
+    SuggestSkillsResponse,
 )
 from backend.models.score_resume import (
     CandidateExpectations,
@@ -18,7 +21,9 @@ from backend.services.admin.skills import (
     create_expectation,
     delete_expectation,
 )
+from backend.services.admin.skills_suggest import suggest_skills_from_job
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/skills")
 
 # 一覧
@@ -70,3 +75,39 @@ def update_skill(skill_id: int, update: SkillUpdateSchema, db: Session = Depends
 
     db.commit()
     return {"message": "Skill and related data updated"}
+
+@router.post("/suggest", response_model=SuggestSkillsResponse)
+def suggest_skills(req: SuggestSkillsRequest, db: Session = Depends(get_db)):
+    """
+    求人票本文からAIがマスト／歓迎スキルを抽出して返す。
+    - 出力は SuggestedSkills(must_requirement[], desired_trait[]) 形式。
+    - 推定結果はフロントのプルダウン初期値として使用可能。
+    """
+    if not req.job_text or not req.job_text.strip():
+        raise HTTPException(status_code=400, detail="求人票本文を入力してください。")
+
+    try:
+        logger.info(
+            f"AIスキル抽出開始: division={req.division}, prefix={req.division_prefix}"
+        )
+
+        resp = suggest_skills_from_job(
+            db=db,
+            job_text=req.job_text,
+            division=req.division,
+            division_prefix=req.division_prefix,
+        )
+
+        logger.info(
+            f"AIスキル抽出完了: must={len(resp.suggested.must_requirement)}, "
+            f"desired={len(resp.suggested.desired_trait)}"
+        )
+        return resp
+
+    except ValueError as e:
+        logger.warning(f"入力エラー: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception as e:
+        logger.exception("スキル抽出失敗: %s", e)
+        raise HTTPException(status_code=500, detail="スキル抽出に失敗しました。")

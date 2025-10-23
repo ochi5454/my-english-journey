@@ -15,6 +15,7 @@ from backend.routers.admin import (
     qualitative,
     tag,
     ai_formula,
+    candidates,
 )
 
 app = FastAPI()
@@ -48,3 +49,4 @@ app.include_router(role.router)
 app.include_router(qualitative.router)
 app.include_router(tag.router)
 app.include_router(ai_formula.router)
+app.include_router(candidates.router)
