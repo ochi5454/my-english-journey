@@ -60,6 +60,9 @@ async def chat_score_review(payload: ScoreChatRequest):
     # === フェーズ判定 ===
     is_final_phase = "###FINAL" in reply
 
+    # ユーザーに返す文面からは削除
+    clean_reply = reply.replace("###FINAL", "").strip()
+
     # === 通常会話 ===
     if not is_final_phase:
         return {
@@ -71,7 +74,7 @@ async def chat_score_review(payload: ScoreChatRequest):
     # === 最終確定 ===
     adjusted_scores = parse_score_adjustments(reply, original_scores)
     return {
-        "reply": reply,
+        "reply": clean_reply,
         "shouldUpdateScore": True,
         "adjusted_scores": adjusted_scores
     }

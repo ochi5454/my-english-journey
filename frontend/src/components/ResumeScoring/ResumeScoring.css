@@ -199,3 +199,19 @@
   font-weight: bold;
   margin-left: 4px;
 }
+
+.resume-division-mustcheck {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px 15px;
+  margin-bottom: 12px;
+  background-color: #fafafa;
+}
+
+.resume-division-title {
+  font-weight: bold;
+  margin-bottom: 6px;
+  color: #333;
+  border-left: 4px solid #0077cc;
+  padding-left: 8px;
+}

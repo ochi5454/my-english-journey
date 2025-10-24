@@ -302,6 +302,7 @@ async def resume_score_save(
 
             # 推薦部門・must_check・スコア
             "must_check": scoring_result.get("must_check"),
+            "must_check_by_division": scoring_result.get("must_check_by_division"),
             "scores": scoring_result.get("scores"),
 
             # 既存のネストも残す（将来用）

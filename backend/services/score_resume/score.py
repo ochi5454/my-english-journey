@@ -143,18 +143,46 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
             "reason": "JSON解析エラー",
         }]
 
-    # === 推薦部門決定 ===
-    recommended = max(scores, key=lambda x: x.get("score", -1), default={"division": None})
+    # === 推薦部門決定（must_check NG部門を除外） ===
 
-    # ✅ division名をprefixへ統一
+    # must_check_by_division から NG部門を抽出
+    ng_divisions = {
+        convert_division_to_prefix(div)
+        for div, checks in must_results_by_division.items()
+        if any(not c.get("result") for c in checks.values())
+    }
+
+    # スコア上位から順に、有効な部門を選ぶ（NGは減点処理）
     normalized_scores = []
     for s in scores:
         div_prefix = convert_division_to_prefix(s["division"])
+        base_score = s["score"]
+
+        # 部門ごとのmust_check結果を取得
+        checks = must_results_by_division.get(s["division"]) or must_results_by_division.get(div_prefix)
+        if checks:
+            ng_count = sum(1 for c in checks.values() if not c.get("result"))
+            # 1項目NGごとに−10点、下限0点
+            PENALTY_PER_NG = 10
+            adjusted_score = max(base_score - (ng_count * PENALTY_PER_NG), 0)
+        else:
+            ng_count = 0
+            adjusted_score = base_score
+
         normalized_scores.append({
             "division": div_prefix,
-            "score": s["score"],
-            "reason": s["reason"]
+            "score": adjusted_score,
+            "reason": s["reason"],
+            "base_score": base_score,
+            "ng_count": ng_count,
         })
+
+    # must_check NG部門を除外して推薦候補を決定
+    valid_scores = [s for s in normalized_scores if s["division"] not in ng_divisions]
+    recommended = (
+        max(valid_scores, key=lambda x: x.get("score", -1))
+        if valid_scores else {"division": None}
+    )
 
     result = {
         "user_id": candidate_id,

@@ -13,7 +13,7 @@ from backend.utils.checksheet import load_qualitative_items
 from backend.services.checksheet.upsert import upsert_checksheet, get_checksheet_one
 from backend.services.score_adjustment.save import load_single_result, save_score_to_history
 from backend.services.score_adjustment.score import call_openai_chat, parse_score_adjustments
-from backend.services.score_adjustment.optimized import search_resume_snippets
+from backend.services.score_byinterview.vectorstore import load_resume_text_by_candidate
 
 # ============================================
 # 🧠 面談シート評価・スコア補正ロジック
@@ -55,28 +55,18 @@ def review_with_interview_checksheet(
         print(f"⚠ recommended_division={target_division} は valid_divisions に含まれません。無視します。")
         target_division = None
 
-    # === 履歴書ベクトル検索（関連チャンクだけ取得） ===
+    # === 履歴書全文をロード ===
     resume_context_text = ""
     try:
-        query_for_resume = _build_resume_query_from_interview(
-            stage=stage,
-            recommended_division=recommended_division,
-            prep_items=prep_items,
-            qualitative=qualitative,
-        )
-        snippets = search_resume_snippets(
-            candidate_id=candidate_id,
-            query=query_for_resume,
-            top_k=5,
-            min_score=0.35,
-        )
-        if snippets:
-            resume_context_text = "\n---\n".join([f"🔸 {s['text']}" for s in snippets])
-            print(f"🔍 履歴書関連抜粋: {len(snippets)}件 / query='{query_for_resume}'")
+        full_resume = load_resume_text_by_candidate(candidate_id)
+        if full_resume:
+            # トークン制限を考慮して前方のみ
+            resume_context_text = full_resume[:4000]
+            print(f"📄 履歴書全文を使用: {len(resume_context_text)}文字")
         else:
-            print(f"🔍 履歴書関連抜粋: 0件 / query='{query_for_resume}'")
+            print(f"⚠ 履歴書が見つかりません: candidate_id={candidate_id}")
     except Exception as e:
-        print(f"⚠ 履歴書検索失敗: {e}")
+        print(f"⚠ 履歴書読み込み失敗: {e}")
 
     # === 過去のスコア履歴を取得 ===
     score_history_text = ""
@@ -126,15 +116,15 @@ def review_with_interview_checksheet(
         qualitative=qualitative or {},
         quantitative=quantitative or {},
         score_history_text=score_history_text,
-        resume_snippets=snippets,
     )
 
     if resume_context_text:
         resume_context_msg = {
             "role": "system",
             "content": (
-                "以下は候補者の履歴書から、今回の面接評価に関連が高い抜粋です。"
-                "この文脈を参考に面接内容と突き合わせて、スコア調整の妥当性を判断してください。\n"
+                "以下は候補者の履歴書全文（または主要部分）です。"
+                "面接内容との整合性や一貫性を確認し、"
+                "成長・改善が見られる場合はスコアを上方修正してください。\n\n"
                 f"{resume_context_text}"
             ),
         }
@@ -322,7 +312,6 @@ def generate_interview_review_prompt(
     qualitative: Dict[str, Any] | None = None,
     quantitative: Dict[str, Any] | None = None,
     score_history_text: str | None = None,
-    resume_snippets: list[dict] | None = None,
 ) -> List[dict]:
     """
     面談Q&A・定性/定量メモに加え、
@@ -330,13 +319,6 @@ def generate_interview_review_prompt(
     """
     qualitative = qualitative or {}
     quantitative = quantitative or {}
-
-    # --- 履歴書抜粋を整形 ---
-    def format_resume_snippets(snippets: list[dict] | None) -> str:
-        if not snippets:
-            return "（該当なし）"
-        lines = [f"- {s.get('text', '').strip()}" for s in snippets if s.get("text")]
-        return "\n".join(lines) if lines else "（該当なし）"
 
     # === system セクション ===
     system = {
@@ -349,7 +331,6 @@ def generate_interview_review_prompt(
             "※ 他の文章・説明文・前置き・後置きは禁止\n"
             "※ 100点満点スケールで整数値（例: 75, 82）\n"
             "※ 該当部門がない場合は「変更なし」と明記\n\n"
-            f"【履歴書抜粋】\n{format_resume_snippets(resume_snippets)}\n\n"
             f"【過去スコア履歴】\n{score_history_text or '（履歴なし）'}\n"
         )
     }
@@ -400,50 +381,4 @@ def generate_interview_review_prompt(
         )
     }
 
-    print("\n🟦 [DEBUG] Interivew Review Prompt (for LLM)")
-    print("------ system ------")
-    print(system["content"])
-    print("------ user ------")
-    print(user["content"])
-    print("--------------------\n")
-
     return [system, user]
-
-
-def _build_resume_query_from_interview(
-    stage: str,
-    recommended_division: Optional[str],
-    prep_items: List[PrepItemDict],
-    qualitative: Optional[dict],
-) -> str:
-    """
-    面接シートの内容から、履歴書検索用の簡易クエリ文字列を作る
-    """
-    div = recommended_division or ""
-    # 代表的なQ&A（先頭2つくらい）を軽く繋いでクエリに
-    qa_bits = []
-    for it in (prep_items or [])[:2]:
-        q = (it.get("question") or "").strip()
-        a = (it.get("answer") or "").strip()
-        if q:
-            qa_bits.append(q)
-        if a:
-            qa_bits.append(a)
-    qa_hint = " / ".join(qa_bits)[:180]
-
-    # 定性メモから2つほど拾う
-    qual_bits = []
-    if isinstance(qualitative, dict):
-        for k, v in list(qualitative.items())[:2]:
-            if isinstance(v, str) and v.strip():
-                qual_bits.append(v.strip())
-    qual_hint = " / ".join(qual_bits)[:180]
-
-    parts = [
-        f"{stage} 面接の評価観点に関係する職務経験・スキル・成果",
-        f"部門: {div}" if div else "",
-        qa_hint,
-        qual_hint,
-    ]
-    # 空要素を除外してスペースで結合
-    return " ".join([p for p in parts if p])

@@ -225,7 +225,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                             <h4>部門別スコア:</h4>
                             {result.llm_scoring.scores.map((s: any) => (
                             <div key={s.division}>
-                                <p><strong>{s.division}</strong>: {s.score}点</p>
+                                <p><strong>{getDivisionName(s.division)}</strong>: {s.score}点</p>
                                 <p className="resume-score-reason">{s.reason}</p>
                             </div>
                             ))}
@@ -261,7 +261,7 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                         {/* === マストチェック === */}
                         {result.must_check && Object.keys(result.must_check).length > 0 && (
                             <div className="resume-section">
-                                <h4>マストチェック項目</h4>
+                                <h4>マストチェック項目（共通）</h4>
                                 <ul className="resume-mustcheck-list">
                                 {Object.entries(result.must_check).map(([label, val]: any, idx) => (
                                     <li key={idx}>
@@ -273,6 +273,28 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                                     </li>
                                 ))}
                                 </ul>
+                            </div>
+                        )}
+                        {/* === 部門別マストチェック === */}
+                        {result.must_check_by_division && Object.keys(result.must_check_by_division).length > 0 && (
+                            <div className="resume-section">
+                                <h4>部門別マストチェック</h4>
+                                {Object.entries(result.must_check_by_division).map(([division, checks]: any, idx) => (
+                                <div key={idx} className="resume-division-mustcheck">
+                                    <h5 className="resume-division-title">{getDivisionName(division)}</h5>
+                                    <ul className="resume-mustcheck-list">
+                                    {Object.entries(checks).map(([label, val]: any, i) => (
+                                        <li key={i}>
+                                        <strong>{label}：</strong>
+                                        {val.result
+                                            ? <span className="mustcheck-pass">✔ 合格</span>
+                                            : <span className="mustcheck-fail">✖ 未達</span>}
+                                        <p className="resume-score-reason">理由: {val.reason}</p>
+                                        </li>
+                                    ))}
+                                    </ul>
+                                </div>
+                                ))}
                             </div>
                         )}
                     </div>

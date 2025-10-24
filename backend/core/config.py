@@ -40,6 +40,11 @@ logger = logging.getLogger(__name__)
 # ✅ データディレクトリ定義
 # ============================================
 
+# --- 履歴書ベクトルDB（Chroma 永続化パス） ---
+CHROMA_PATH = DATA_DIR / "chroma_db"
+CHROMA_PATH.mkdir(parents=True, exist_ok=True) 
+
+# --- 各種DB ---
 DB_PATH = DATA_DIR / "resume_structured.db"
 
 # --- 履歴書ファイル（→外部dbとの接続により削除予定） ---
