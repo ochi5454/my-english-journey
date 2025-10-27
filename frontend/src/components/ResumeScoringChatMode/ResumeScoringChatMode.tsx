@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './ResumeScoringChatMode.css';
-import AIProcessingScreen from './AIProcessingScreenChatMode.tsx';
+import AIProcessingScreen from './AIProcessingScreen.tsx';
 import { progressSteps, masterMap, masterDefinitions, resolveStepId } from './progressSteps.ts'
 import appConfig from '../../config.ts';
 
