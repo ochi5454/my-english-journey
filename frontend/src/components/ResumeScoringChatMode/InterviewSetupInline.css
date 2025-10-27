@@ -1,0 +1,89 @@
+.inline-chatflow-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* === 共通入力フィールド === */
+.inline-chatflow-select,
+.inline-chatflow-input,
+.inline-chatflow-textarea {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  background-color: #fff;
+  box-sizing: border-box;
+}
+
+/* === 汎用ボタン === */
+.inline-chatflow-btn {
+  margin-top: 10px;
+  background-color: #1aa96a;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  align-self: flex-end;
+  transition: background-color 0.2s;
+}
+
+.inline-chatflow-btn:hover {
+  background-color: #128856;
+}
+
+/* === TODOリスト === */
+.inline-chatflow-todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.inline-chatflow-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+/* === メールプレビュー === */
+.inline-chatflow-preview {
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+.inline-chatflow-preview-box {
+  background: #f9f9f9;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  white-space: pre-line;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* === AI / User 吹き出し === */
+.chat-message.ai {
+  align-self: flex-start;
+  background-color: #eaf8f0;
+  border-radius: 12px 12px 12px 0;
+  padding: 10px 14px;
+  max-width: 80%;
+  font-size: 15px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  background-color: #e0f7fa;
+  border-radius: 12px 12px 0 12px;
+  padding: 10px 14px;
+  max-width: 80%;
+  font-size: 15px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}

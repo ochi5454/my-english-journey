@@ -1,88 +1,125 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import "./AIProcessingScreen.css";
-import { stepToMasterMap } from "./progressSteps";
+import { stepToMasterMap } from "./progressSteps"; 
+
+interface ProgressStep {
+    id: string;
+    label: string;
+}
+
+interface MasterDefinition {
+    icon: string;
+    label: string;
+    comment: string;
+}
 
 interface AIProcessingScreenProps {
     currentStatus: string;
-    logs: string[];
-    progressSteps: { id: string; label: string }[];
-    masterMap: Record<string, string>;
-    masterDefinitions: Record<string, { icon: string; label: string; comment: string }>;
+    progressSteps: ProgressStep[];
+    masterDefinitions: Record<string, MasterDefinition>;
 }
 
 const AIProcessingScreen: React.FC<AIProcessingScreenProps> = ({
     currentStatus,
-    logs,
     progressSteps,
     masterDefinitions,
 }) => {
-    const logEndRef = useRef<HTMLDivElement | null>(null);
-    const currentMaster = stepToMasterMap[currentStatus] || "resume";
-
-    // ログ末尾に自動スクロール
-    useEffect(() => {
-        if (logEndRef.current) {
-        logEndRef.current.scrollIntoView({ behavior: "smooth" });
-        }
-    }, [logs]);
-
-    // 位置計算をより正確に
+  // masterDefinitions のキー一覧
     const masterKeys = Object.keys(masterDefinitions);
-    const currentIndex = Math.max(0, masterKeys.indexOf(currentMaster));
-    const segmentWidth = 100 / masterKeys.length;
-    const leftPosition = `calc(${segmentWidth * currentIndex + segmentWidth / 2}% - 20px)`; // 中央に寄せる
+
+    // 現在ステータスがどのマスタに対応するか
+    const mappedKey = stepToMasterMap[currentStatus] || "resume"; // 👈 マッピングを使う
+    const activeIndex = masterKeys.findIndex((key) => key === mappedKey);
+    const stepWidth = 100 / (masterKeys.length + 1);
+    const agentPosition =
+    activeIndex >= 0 ? (activeIndex + 1) * stepWidth : stepWidth;
+
+    // === アイコン（考え中 or 通常） ===
+    const agentEmoji = currentStatus === "llm" ? "🤖💭" : "🤖";
+
+    // 稼働中・待機中の分類
+    const runningAgents = progressSteps.filter(
+        (step) => step.id === currentStatus
+    );
+    const idleAgents = progressSteps.filter(
+        (step) => step.id !== currentStatus
+    );
 
     return (
         <div className="ai-stage-container">
-        {/* === ステップバー === */}
-        <div className="ai-progress-bar">
-            {progressSteps.map((step, idx) => {
-            const isActive =
-                currentStatus === step.id || currentStatus.startsWith(`${step.id}_`);
-            const nextStep = progressSteps[idx + 1];
-            return (
-                <React.Fragment key={step.id}>
-                <div className={`ai-progress-step ${isActive ? "active" : ""}`}>
-                    <span className="ai-step-label">{step.label}</span>
-                </div>
-                {nextStep && <div className="ai-arrow" />}
-                </React.Fragment>
-            );
-            })}
-        </div>
+        {/* ===== 見出し ===== */}
+        <h2 className="ai-section-title">エージェントのワークフロー</h2>
 
-        {/* === マスタ一覧（AIの移動先） === */}
-        <div className="ai-masters">
-            {Object.entries(masterDefinitions).map(([key, meta]) => (
+        {/* ===== 上段：マスタゾーン（固定） ===== */}
+        <div className="ai-horizontal-masters">
+            {Object.entries(masterDefinitions).map(([id, def]) => (
             <div
-                key={key}
-                className={`ai-master ${currentMaster === key ? "focus" : ""}`}
+                key={id}
+                className={`ai-master-card ${
+                id === currentStatus ? "focus" : ""
+                }`}
             >
-                <span className="ai-icon">{meta.icon}</span>
-                <p>{meta.label}</p>
-                <small>{meta.comment}</small>
+                <div className="ai-master-icon">{def.icon}</div>
+                <div className="ai-master-label">{def.label}</div>
             </div>
             ))}
 
-            {/* === AIエージェント === */}
-            <div
-            className="ai-agent"
-            style={{ left: leftPosition }}
-            >
-            🤖
+
+            {/* 🤖 エージェント */}
+            <div className="ai-agent-mover" style={{ left: `${agentPosition}%` }}>
+            {agentEmoji}
             </div>
         </div>
 
-        {/* === ログ出力 === */}
-        <div className="ai-log-console">
-            <h4>📝 AI処理ログ</h4>
-            <div className="ai-log-box">
-            {logs.map((log, idx) => (
-                <div key={idx} className="ai-log-line">
-                {log}
+        {/* ===== 下段：スクロール対象 ===== */}
+        <div className="ai-status-scroll-area">
+            <div className="ai-status-board">
+            <h3>エージェントの稼働状態</h3>
+            <div className="ai-status-columns">
+                {/* 稼働中 */}
+                <div className="ai-status-column">
+                <h4>稼働中のエージェント</h4>
+                <div className="ai-agent-list">
+                    {runningAgents.length > 0 ? (
+                    runningAgents.map((agent) => (
+                        <div key={agent.id} className="ai-agent-card active">
+                        <span className="ai-agent-icon">🚀</span>
+                        <div className="ai-agent-info">
+                            <strong>{agent.label}</strong>
+                            <span className="ai-agent-id">ID: {agent.id}</span>
+                        </div>
+                        </div>
+                    ))
+                    ) : (
+                    <div className="ai-agent-empty">
+                        稼働中のエージェントなし
+                    </div>
+                    )}
                 </div>
-            ))}
-            <div ref={logEndRef} />
+                </div>
+
+                {/* 待機中 */}
+                <div className="ai-status-column">
+                <h4>待機中のエージェント</h4>
+                <div className="ai-agent-list">
+                    {idleAgents.length > 0 ? (
+                    idleAgents.map((agent) => (
+                        <div key={agent.id} className="ai-agent-card idle">
+                        <span className="ai-agent-icon">💤</span>
+                        <div className="ai-agent-info">
+                            <strong>{agent.label}</strong>
+                            <span className="ai-agent-id">ID: {agent.id}</span>
+                        </div>
+                        </div>
+                    ))
+                    ) : (
+                    <div className="ai-agent-empty">
+                        全エージェントが稼働中
+                    </div>
+                    )}
+                </div>
+                </div>
+            </div>
             </div>
         </div>
         </div>

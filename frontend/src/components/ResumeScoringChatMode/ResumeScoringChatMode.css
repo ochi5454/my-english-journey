@@ -1,225 +1,386 @@
-.resume-container {
-    padding: 1.5rem;
-    max-width: 1000px;
-    margin: auto;
-    font-family: sans-serif;
-}
-
-.resume-tabs {
+/* === 全体レイアウト === */
+.resume-chat-layout {
   display: flex;
-  border-bottom: 2px solid #ccc;
-  margin-bottom: 1rem;
-}
-
-.resume-tab {
-  padding: 10px 20px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  border-bottom: none;
-  background-color: #f9f9f9;
-  font-weight: 500;
-  color: #666;
-  transition: all 0.2s ease-in-out;
-}
-
-.resume-tab:hover {
-  background-color: #f0f0f0;
-}
-
-.resume-tab.active {
-  background-color: #ffffff;
-  border: 1px solid #ccc;
-  border-bottom: 2px solid white;
-  color: #333;
-  font-weight: bold;
-}
-
-.resume-title {
-  font-size: 1.8rem;
-  font-weight: bold;
-  margin-bottom: 1rem;
-}
-
-.resume-select {
-  padding: 0.5rem;
-  font-size: 1rem;
   width: 100%;
-  max-width: 250px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background-color: #fff;
-  cursor: pointer;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #f8fafc;
+  font-family: "Hiragino Sans", "Segoe UI", sans-serif;
 }
 
-.resume-upload {
+/* === 左パネル === */
+.left-panel {
+  flex: 0.42;
+  background-color: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* === 右パネル === */
+.right-panel {
+  flex: 0.58;
+  display: flex;
+  flex-direction: column;
+  background-color: #f8fafc;
+  padding: 20px;
+}
+
+
+/* === チャット全体カード === */
+.chat-window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  overflow-y: auto;
+  gap: 12px;
+  margin-top: 0; /* ← 上のヘッダーとのずれ防止 */
+}
+
+/* === チャットヘッダー === */
+.chat-header {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 16px; /* ← 下のボックスとの隙間 */
+  color: #1e293b;
+  font-weight: 600;
+  font-size: 17px;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.03);
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: flex-start;
 }
 
-.resume-upload input[type="text"] {
-  padding: 0.5rem;
-  font-size: 1rem;
-  margin-top: 0.25rem;
-  width: 100%;
-  max-width: 400px;
-  border: 1px solid #ccc;
+.chat-header h2 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+/* === メッセージ === */
+.chat-message {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-size: 14px;
+  animation: fadeIn 0.25s ease;
+}
+
+/* === User === */
+.chat-message.user {
+  background-color: #e0f2fe;
+  align-self: flex-end;
+  border: 1px solid #bae6fd;
+}
+
+/* === AI === */
+.chat-message.ai {
+  background-color: #ecfdf5;
+  align-self: flex-start;
+  border: 1px solid #bbf7d0;
+}
+
+/* === チャット入力欄 === */
+.chat-input-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.second-row {
+  justify-content: space-between;
+}
+
+/* === ファイル選択 + ファイル名 === */
+.file-upload-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.custom-file-upload {
+  display: inline-block;
+  padding: 8px 14px;
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+  white-space: nowrap;
+}
+.custom-file-upload:hover {
+  background-color: #e2e8f0;
+}
+.custom-file-upload input[type="file"] {
+  display: none;
+}
+
+/* ファイル名リスト */
+.file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 13px;
+  color: #475569;
+}
+.file-name {
+  background: #f8fafc;
+  padding: 4px 8px;
   border-radius: 6px;
-  background-color: #fff;
+  border: 1px solid #e2e8f0;
 }
 
-.resume-upload input[type="file"] {
-    padding: 0.5rem;
-    font-size: 1rem;
-    margin-top: 0.25rem;
-    width: 100%;
-    max-width: 400px;
+/* === 送信ボタン右端固定 === */
+.send-btn-container {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 80px;
 }
 
-.resume-submit,
-.resume-generate-id{
-  padding: 0.5rem 1rem;
-  margin-top: 0.5rem;
-  margin-right: 0.5rem;
-  font-weight: bold;
-  background-color: #28a745;
+.send-btn {
+  padding: 8px 18px;
+  background-color: #22c55e;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
+  font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.25s ease;
 }
-
-.resume-submit:disabled {
-  background-color: #aaa;
+.send-btn:hover {
+  background-color: #16a34a;
+}
+.send-btn:disabled {
+  background-color: #a7f3d0;
   cursor: not-allowed;
 }
 
-.resume-submit:hover {
-  background-color: #218838;
-}
-
-.resume-submit {
-  padding: 10px 16px;
-  border-radius: 6px;
-  font-size: 0.95rem;
-}
-
-.ai-processing-wrapper {
-  margin-top: 20px;
-  padding: 12px;
-  border-radius: 12px;
-  background: #f8f9fa;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
-
-.resume-result {
-  margin-top: 2rem;
-  border: 1px solid #ddd;
+/* === その他既存定義 === */
+.chat-select {
+  font-size: 13px;
+  padding: 8px 10px;
   border-radius: 8px;
-  padding: 1rem;
-  background-color: #f9f9f9;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
 }
 
+.candidate-id-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.chat-candidate-input {
+  flex: 1;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #1e293b;
+}
+
+.generate-id-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #f1f5f9;
+  color: #334155;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background-color 0.25s ease;
+}
+.generate-id-btn:hover {
+  background-color: #e2e8f0;
+}
+
+/* === スコア結果カード === */
+.chat-result-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-top: 10px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+  animation: fadeInUp 0.3s ease;
+}
+
+.chat-result-section h4 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #1e293b;
+}
+
+/* === 部門比較カード === */
 .resume-compare-section {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-
 .resume-compare-card {
   flex: 1;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 1rem;
-  background-color: #ffffff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  text-align: center;
+  min-width: 180px;
+  background-color: #f9fafb;
+  border-radius: 10px;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-
-.resume-compare-card h4 {
-  font-size: 1.1rem;
-  margin-bottom: 0.5rem;
-  color: #333;
+.resume-compare-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
-
+.resume-compare-card h5 {
+  font-size: 14px;
+  color: #16a34a;
+  margin-bottom: 6px;
+}
 .resume-compare-division {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: #007bff;
-  margin-bottom: 0.3rem;
-}
-
-.resume-compare-score {
-  font-size: 1rem;
   font-weight: 600;
-  color: #444;
+  color: #1e293b;
 }
-
-.resume-score-reason {
-  font-size: 0.9rem;
-  color: #555;
-  margin-top: 0.25rem;
+.resume-compare-score {
+  color: #16a34a;
+  font-weight: bold;
+  font-size: 14px;
+  margin-top: 4px;
 }
 
 .resume-section {
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-top: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 
-.resume-section h4 {
-  margin-bottom: 0.5rem;
-  font-size: 1.1rem;
+.resume-section h5,
+.resume-section h6 {
+  margin-bottom: 8px;
   color: #333;
-}
-
-.resume-section p {
-  margin: 0.25rem 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
 }
 
 .resume-mustcheck-list {
-  list-style-type: none;
+  list-style: none;
   padding-left: 0;
+  margin: 0;
 }
 
 .resume-mustcheck-list li {
-  margin-bottom: 8px;
-  padding: 6px 10px;
-  border-left: 4px solid #ccc;
-  background: #fafafa;
-  border-radius: 6px;
+  margin-bottom: 6px;
+  line-height: 1.4;
 }
 
 .mustcheck-pass {
-  color: #2e8b57;
+  color: #2e7d32;
   font-weight: bold;
-  margin-left: 4px;
+  margin-left: 6px;
 }
 
 .mustcheck-fail {
-  color: #d9534f;
+  color: #c62828;
   font-weight: bold;
-  margin-left: 4px;
+  margin-left: 6px;
 }
 
-.resume-division-mustcheck {
-  border: 1px solid #ddd;
+.resume-score-reason {
+  margin-left: 1em;
+  color: #555;
+  font-size: 0.9em;
+}
+
+/* === スクロールバー === */
+.chat-window::-webkit-scrollbar {
+  width: 8px;
+}
+.chat-window::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* === アニメーション === */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* === レスポンシブ === */
+@media (max-width: 1024px) {
+  .resume-chat-layout { flex-direction: column; }
+  .left-panel { flex: none; height: 45vh; border-right: none; }
+  .right-panel { flex: none; height: 55vh; }
+  .resume-compare-section { flex-direction: column; }
+}
+
+.hr-decision-section {
+  border-top: 1px solid #ddd;
+  margin-top: 20px;
+  padding-top: 15px;
+  background: #f9f9f9;
   border-radius: 8px;
-  padding: 10px 15px;
-  margin-bottom: 12px;
-  background-color: #fafafa;
+  padding: 16px;
 }
 
-.resume-division-title {
-  font-weight: bold;
-  margin-bottom: 6px;
-  color: #333;
-  border-left: 4px solid #0077cc;
-  padding-left: 8px;
+.hr-decision-section h4 {
+  margin-bottom: 10px;
+}
+
+.hr-decision-options {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.hr-decision-options label {
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.save-hr-btn {
+  background-color: #3da35d;
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.save-hr-btn:hover {
+  background-color: #338a4f;
 }
