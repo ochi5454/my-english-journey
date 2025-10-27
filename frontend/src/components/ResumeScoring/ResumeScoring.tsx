@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import './ResumeScoring.css';
 import CandidateScoreMatrix from '../CandidateScoreMatrix/CandidateScoreMatrix.tsx';
 import HRFinalReviewDashboard from '../HRFinalReviewDashboard/HRFinalReviewDashboard.tsx';
+import AIProcessingScreen from './AIProcessingScreen.tsx';
+import { progressSteps, masterMap, masterDefinitions, resolveStepId } from './progressSteps.ts'
 import appConfig from '../../config.ts';
 
 type ViewMode = 'form' | 'matrix' | 'hr';
@@ -10,6 +12,8 @@ type DivisionOption = { name: string; prefix: string };
 const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     const [files, setFiles] = useState<File[]>([]);
     const [loading, setLoading] = useState(false);
+    const [currentStatus, setCurrentStatus] = useState<string>('');
+    const [logs, setLogs] = useState<string[]>([]);
     const [result, setResult] = useState<any>(null);
     const [candidateId, setCandidateId] = useState<string>('');
     const [viewMode, setViewMode] = useState<ViewMode>('form');
@@ -62,30 +66,57 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
 
     const handleSubmit = async () => {
         if (files.length === 0 || !candidateId) return;
+
         setLoading(true);
+        setCurrentStatus("start");
+        setLogs([]); // ← ログリセット
+
         const formData = new FormData();
-        files.forEach((file) => formData.append('files', file)); // ← 複数append
-        formData.append('candidate_id', candidateId);
-        formData.append('uploader_id', userId);
-        formData.append('desired_division', selectedDivision);
+        files.forEach((file) => formData.append("files", file));
+        formData.append("candidate_id", candidateId);
+        formData.append("uploader_id", userId);
+        formData.append("desired_division", selectedDivision);
 
         try {
             const response = await fetch(`${appConfig.API_BASE_URL}/resume-score-save`, {
-                method: 'POST',
-                body: formData,
+            method: "POST",
+            body: formData,
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                alert(`エラー: ${errorData.error}`);
-                return;
+            if (!response.ok || !response.body) {
+            const errorData = await response.json();
+            alert(`エラー: ${errorData.error}`);
+            return;
             }
 
-            const data = await response.json();
-            setResult(data);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split("\n");
+
+                for (const line of lines) {
+                    if (line.startsWith("data:")) {
+                    try {
+                        const json = JSON.parse(line.slice(5).trim()); // ← trim()を追加
+                        if (json.log) setLogs((prev) => [...prev, json.log]);
+                        if (json.status) setCurrentStatus(json.status);
+                        if (json.status === "final_payload" && json.data) setResult(json.data);
+                    } catch (err) {
+                        console.error("JSON parse error:", err, line);
+                    }
+                    }
+                }
+            }
+
+            setCurrentStatus("done");
         } catch (err) {
             console.error(err);
-            alert('スコアリング中にエラーが発生しました。');
+            alert("スコアリング中にエラーが発生しました。");
         } finally {
             setLoading(false);
         }
@@ -182,6 +213,17 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
                 >
                     {loading ? 'スコアリング中...' : '送信'}
                 </button>
+
+                {/* ストリーム */}
+                {loading && (
+                <AIProcessingScreen
+                    currentStatus={resolveStepId(currentStatus)}
+                    logs={logs}
+                    progressSteps={progressSteps}
+                    masterMap={masterMap}
+                    masterDefinitions={masterDefinitions}
+                />
+                )}
 
                 {result && (
                     <div className="resume-result">

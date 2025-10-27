@@ -104,6 +104,14 @@
   font-size: 0.95rem;
 }
 
+.ai-processing-wrapper {
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8f9fa;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
 .resume-result {
   margin-top: 2rem;
   border: 1px solid #ddd;

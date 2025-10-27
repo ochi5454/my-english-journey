@@ -1,11 +1,13 @@
 import os
 import io
 import re
+import traceback
 from uuid import uuid4
 from datetime import datetime
 from typing import List, Optional
 from fastapi import HTTPException, APIRouter, UploadFile, File, Form
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+import asyncio
 from fastapi.exceptions import HTTPException
 from pathlib import Path
 from backend.core.database import SessionLocal
@@ -18,6 +20,7 @@ from backend.services.score_resume.score import score_resume_from_text, score_mo
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
+from backend.services.score_resume.streaming import _sse, log_step
 from backend.utils.division import convert_division_to_prefix
 
 router = APIRouter()
@@ -33,295 +36,371 @@ async def resume_score_save(
     uploader_id: str = Form(...),
     desired_division: Optional[str] = Form(None)
 ):
-    try:
-        merged_texts = []
 
-        # === 各ファイルを順に処理 ===
-        for file in files:        
-            # === ① 拡張子チェックと読み込み ===
-            raw_filename = (file.filename or "").strip()
-            ext = Path(raw_filename).suffix.lower()
+    # === 🔹 まずはすべてのファイルを一度メモリに読む ===
+    safe_files = []
+    for file in files:
+        raw_filename = (file.filename or "").strip()
+        content = await file.read()
+        await file.close()
+        safe_files.append({
+            "filename": raw_filename,
+            "content": content,
+            "content_type": file.content_type
+        })
 
-            if not ext and file.content_type in MIME_TO_EXT:
-                ext = MIME_TO_EXT[file.content_type]
+    async def run_and_stream():
+        try:
+            yield log_step("start", "🚀 処理を開始しました")
+            await asyncio.sleep(0)
+            merged_texts = []
 
-            if not ext:
-                return JSONResponse(content={"error": "拡張子不明"}, status_code=400)
+            # === 各ファイルを順に処理 ===
+            for f in safe_files:
+            
+                # === ① 拡張子チェックと読み込み ===
+                raw_filename = (f["filename"] or "").strip()
+                ext = Path(raw_filename).suffix.lower()
+                yield log_step("reading_start", f"📄 ファイル {raw_filename} の読み込みを開始します")
+                await asyncio.sleep(0)
+                file_stream = io.BytesIO(f["content"])
 
-            content = await file.read()
-            file_stream = io.BytesIO(content)
+                if not ext and file.content_type in MIME_TO_EXT:
+                    ext = MIME_TO_EXT[file.content_type]
+                if not ext:
+                    yield _sse({"status": "error", "log": f"⚠️ 拡張子が不明なファイルです: {raw_filename}"})
+                    await asyncio.sleep(0)
+                    return
+                yield log_step("reading_done", f"📄 ファイル {raw_filename} の読み込み完了")
+                await asyncio.sleep(0)
+                # === ② ファイル形式に応じたテキスト抽出 ===
+                yield log_step("extract_start", f"🧾 テキスト抽出を開始 ({ext} 形式)")
+                await asyncio.sleep(0)
+                if ext == ".pdf":
+                    extracted_text = extract_resume_text_from_pdf(file_stream)
+                elif ext in (".doc", ".docx"):
+                    extracted_text = extract_resume_text_from_docx(file_stream)
+                elif ext in (".xls", ".xlsx"):
+                    extracted_text = extract_resume_text_from_xlsx(file_stream)
+                else:
+                    yield _sse({"status": "error", "log": f"⚠️ 未対応形式: {ext}"})
+                    await asyncio.sleep(0)
+                    return
+                if not extracted_text.strip():
+                    yield _sse({"status": "error", "log": "⚠️ テキスト抽出に失敗しました"})
+                    await asyncio.sleep(0)
+                    return
+                # 正規化
+                extracted_text = normalize_pdf_text(extracted_text)
+                merged_texts.append(f"## {raw_filename}\n{extracted_text}")
+                yield log_step("extract_done", f"🧾 テキスト抽出完了 ({len(extracted_text)} 文字)")
+                await asyncio.sleep(0)
+            # === ③ 全ファイルを1つのテキストに結合 ===
+            yield log_step("normalize_start", f"📎 {len(merged_texts)} ファイルの結合を開始")
+            await asyncio.sleep(0)
+            merged_text = "\n\n".join(merged_texts)
+            print("=== 抽出テキスト ===")
+            print(merged_text[:1500])
+            yield log_step("normalize_done", "📎 テキスト結合完了")
+            await asyncio.sleep(0)
+            
+            # === ④ マスキング処理 ＆ 氏名性別抽出 ===
+            yield log_step("mask_start", "🙈 個人情報マスキングを開始")
+            await asyncio.sleep(0)
+            masked_text, extracted_name = mask_personal_info(merged_text)
+            extracted_gender = extract_gender_from_text(merged_text)
+            yield log_step("mask_done", f"🙈 マスキング完了 — 氏名候補: {extracted_name or '不明'}")
+            await asyncio.sleep(0)
 
-            # === ② ファイル形式に応じたテキスト抽出 ===
-            if ext == ".pdf":
-                extracted_text = extract_resume_text_from_pdf(file_stream)
-            elif ext in (".doc", ".docx"):
-                extracted_text = extract_resume_text_from_docx(file_stream)
-            elif ext in (".xls", ".xlsx"):
-                extracted_text = extract_resume_text_from_xlsx(file_stream)
-            else:
-                return JSONResponse(content={"error": f"未対応形式: {ext}"}, status_code=400)
+            # === ⑤ ベクトルDB保存 ===
+            yield log_step("embed_start", "🧠 ベクトルDBへの保存を開始")
+            await asyncio.sleep(0)
+            save_masked_resume_embedding_local(candidate_id, masked_text)
+            yield log_step("embed_done", "✅ ベクトルDB保存完了")
+            await asyncio.sleep(0)
 
-            if not extracted_text.strip():
-                return JSONResponse(content={"error": "テキスト抽出失敗"}, status_code=400)
+            # === ⑥ SQL構造保存（オプション） ===
+            yield log_step("sql_start", "🧾 SQL構造生成を開始")
+            await asyncio.sleep(0)
+            generated_sql = generate_resume_sql(masked_text, candidate_id)
+            save_sql_to_sqlite(generated_sql)
+            yield log_step("sql_done", "✅ SQL構造保存完了")
+            await asyncio.sleep(0)
 
-            # 正規化（追加）
-            extracted_text = normalize_pdf_text(extracted_text)
+            # === ⑦ Candidateと CandidateStatusを保存 ===
+            yield log_step("db_init_start", "👤 候補者情報の登録を開始")
+            await asyncio.sleep(0)
+            now = datetime.utcnow()
 
-            merged_texts.append(f"## {raw_filename}\n{extracted_text}")
+            with SessionLocal() as db:
 
-        # === ③ 全ファイルを1つのテキストに結合 ===
-        merged_text = "\n\n".join(merged_texts)
+                work_histories = db.query(ResumeWorkHistory).filter_by(resume_id=candidate_id).all()
+                experience_years = calculate_total_experience(work_histories)
+                candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
 
-        print("=== 抽出テキスト ===")
-        print(merged_text[:1500])
+                # 🔁 和名 → prefix に変換
+                prefix = convert_division_to_prefix(desired_division) if desired_division else None
 
-        # === ③ マスキング処理 ＆ 氏名性別抽出 ===
-        masked_text, extracted_name = mask_personal_info(merged_text)
-        extracted_gender = extract_gender_from_text(merged_text)
-
-        # === ④ ベクトルDB保存 ===
-        save_masked_resume_embedding_local(candidate_id, masked_text)
-
-        # === ⑤ SQL構造保存（オプション） ===
-        generated_sql = generate_resume_sql(masked_text, candidate_id)
-        save_sql_to_sqlite(generated_sql)
-
-        # === ⑥ Candidateと CandidateStatusを保存 ===
-        now = datetime.utcnow()
-
-        with SessionLocal() as db:
-
-            work_histories = db.query(ResumeWorkHistory).filter_by(resume_id=candidate_id).all()
-            experience_years = calculate_total_experience(work_histories)
-            candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
-
-            # 🔁 和名 → prefix に変換
-            prefix = convert_division_to_prefix(desired_division) if desired_division else None
-
-            if not candidate:
-                candidate = Candidate(
-                    id=str(uuid4()),
-                    user_id=candidate_id,
-                    name=extracted_name,
-                    gender=extracted_gender,
-                    experience=experience_years,
-                    uploader_id=uploader_id,
-                    preferred_div=prefix,
-                    updated_by="system",
-                    updated_at=now
-                )
-                db.add(candidate)
-            else:
-                candidate.updated_by = "system"
-                candidate.updated_at = now
-                candidate.experience = experience_years
-                candidate.preferred_div = prefix
-            db.commit()
-
-            new_status = CandidateStatus(
-                id=str(uuid4()),
-                user_id=candidate_id,
-                stage="アップロード",
-                chat_reviewer=uploader_id,
-                reviewed_at=now,
-                reviewed_resume=False
-            )
-            db.add(new_status)
-            db.commit()
-
-        # === ⑦ LLMスコアリング実行 ===
-        filtered_text = re.sub(
-            r"志望動機[:：]?\s*.*?(?=(?:\n\S{2,3}|##|職務経歴|$))",
-            "",
-            masked_text,
-            flags=re.DOTALL
-        )
-        print("🧠 LLMスコアリングに渡す前に１次精査。なるべく職務経歴重視: %s", filtered_text)
-        scoring_result = score_resume_from_text(filtered_text, candidate_id)
-
-        # 🔽 和名 → prefix 変換をここで実施
-        raw_recommended = scoring_result.get("recommended_division")
-        recommended_div_prefix = (
-            convert_division_to_prefix(raw_recommended) if raw_recommended else None
-        )
-        scoring_result["recommended_division"] = recommended_div_prefix
-
-        # === ⑧ スコア・must_checkをDBに保存 ===
-        now = datetime.utcnow()
-
-        with SessionLocal() as db:
-            # === 志望動機・職務経歴の抽出 ===
-            print("🎯 志望動機と職務経歴の抽出を開始します")
-
-            motivation_text = extract_motivation(masked_text)
-            work_experience_text = extract_work_experience(masked_text)
-
-            # === 要約とスコアリング ===
-            summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
-            score_motivation = score_motivation_statement(motivation_text) if motivation_text else None
-
-            summarized_work = summarize_work_experience(work_experience_text) if work_experience_text else None
-            score_work = score_work_experience(work_experience_text) if work_experience_text else None
-
-            print(f"志望動機サマリ: {summarized_motivation}")
-            print(f"志望動機スコア: {score_motivation}")
-            print(f"職務経歴サマリ: {summarized_work}")
-            print(f"職務経歴スコア: {score_work}")
-
-            # 🎯 candidates テーブル更新 or INSERT
-            candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
-            if not candidate:
-                candidate = Candidate(
-                    id=str(uuid4()),
-                    user_id=candidate_id,
-                    notes=summarized_motivation,        # 志望動機サマリ
-                    score_notes=score_motivation,       # 志望動機スコア
-                    work_summary=summarized_work,       # 職務経歴サマリ（新規）
-                    score_work=score_work,              # 職務経歴スコア（新規）
-                    recommended_div=scoring_result.get("recommended_division"),
-                    uploader_id=uploader_id,
-                    updated_by="system",
-                    updated_at=now
-                )
-                db.add(candidate)
-            else:
-                candidate.notes = summarized_motivation
-                candidate.score_notes = score_motivation
-                candidate.work_summary = summarized_work
-                candidate.score_work = score_work
-                candidate.recommended_div = scoring_result.get("recommended_division")
-                candidate.updated_by = "system"
-                candidate.updated_at = now
-
-            # 🎯 must_check項目 保存
-            db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).delete()
-            for name, info in scoring_result.get("must_check", {}).items():
-                db.add(CandidateMustCheckItem(
-                    id=str(uuid4()),
-                    user_id=candidate_id,
-                    item_name=name,
-                    result=info.get("result", False),
-                    reason=info.get("reason", "")
-                ))
-
-            # 🎯 divisionごとのmust_check保存
-            for division, checks in scoring_result.get("must_check_by_division", {}).items():
-                division_prefix = convert_division_to_prefix(division)
-                for name, info in checks.items():
-                    db.add(CandidateDivisionMustCheckItem(
+                if not candidate:
+                    candidate = Candidate(
                         id=str(uuid4()),
                         user_id=candidate_id,
-                        division=division_prefix,
+                        name=extracted_name,
+                        gender=extracted_gender,
+                        experience=experience_years,
+                        uploader_id=uploader_id,
+                        preferred_div=prefix,
+                        updated_by="system",
+                        updated_at=now
+                    )
+                    db.add(candidate)
+                else:
+                    candidate.updated_by = "system"
+                    candidate.updated_at = now
+                    candidate.experience = experience_years
+                    candidate.preferred_div = prefix
+                db.commit()
+
+                new_status = CandidateStatus(
+                    id=str(uuid4()),
+                    user_id=candidate_id,
+                    stage="アップロード",
+                    chat_reviewer=uploader_id,
+                    reviewed_at=now,
+                    reviewed_resume=False
+                )
+                db.add(new_status)
+                db.commit()
+
+            yield log_step("db_init_done", f"✅ 候補者登録完了 — 経験年数: {experience_years}年")
+            await asyncio.sleep(0)
+
+            # === ⑧ LLMスコアリング実行 ===
+            yield log_step("llm_start", "🤖 LLMスコアリングを開始")
+            await asyncio.sleep(0)
+            filtered_text = re.sub(
+                r"志望動機[:：]?\s*.*?(?=(?:\n\S{2,3}|##|職務経歴|$))",
+                "",
+                masked_text,
+                flags=re.DOTALL
+            )
+            print("🧠 LLMスコアリングに渡す前に１次精査。なるべく職務経歴重視: %s", filtered_text)
+            scoring_result = score_resume_from_text(filtered_text, candidate_id)
+            yield log_step("llm_done", "✅ LLMスコアリング完了")
+            await asyncio.sleep(0)
+
+            # 🔽 和名 → prefix 変換をここで実施
+            raw_recommended = scoring_result.get("recommended_division")
+            recommended_div_prefix = (
+                convert_division_to_prefix(raw_recommended) if raw_recommended else None
+            )
+            scoring_result["recommended_division"] = recommended_div_prefix
+
+            # === ⑨ スコア・must_checkをDBに保存 ===
+            yield log_step("db_scores_start", "💾 スコア・サマリの保存を開始")
+            await asyncio.sleep(0)
+            now = datetime.utcnow()
+
+            with SessionLocal() as db:
+                # === 志望動機・職務経歴の抽出 ===
+                print("🎯 志望動機と職務経歴の抽出を開始します")
+
+                motivation_text = extract_motivation(masked_text)
+                work_experience_text = extract_work_experience(masked_text)
+
+                # === 要約とスコアリング ===
+                summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
+                score_motivation = score_motivation_statement(motivation_text) if motivation_text else None
+
+                summarized_work = summarize_work_experience(work_experience_text) if work_experience_text else None
+                score_work = score_work_experience(work_experience_text) if work_experience_text else None
+
+                print(f"志望動機サマリ: {summarized_motivation}")
+                print(f"志望動機スコア: {score_motivation}")
+                print(f"職務経歴サマリ: {summarized_work}")
+                print(f"職務経歴スコア: {score_work}")
+
+                # 🎯 candidates テーブル更新 or INSERT
+                candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+                if not candidate:
+                    candidate = Candidate(
+                        id=str(uuid4()),
+                        user_id=candidate_id,
+                        notes=summarized_motivation,        # 志望動機サマリ
+                        score_notes=score_motivation,       # 志望動機スコア
+                        work_summary=summarized_work,       # 職務経歴サマリ（新規）
+                        score_work=score_work,              # 職務経歴スコア（新規）
+                        recommended_div=scoring_result.get("recommended_division"),
+                        uploader_id=uploader_id,
+                        updated_by="system",
+                        updated_at=now
+                    )
+                    db.add(candidate)
+                else:
+                    candidate.notes = summarized_motivation
+                    candidate.score_notes = score_motivation
+                    candidate.work_summary = summarized_work
+                    candidate.score_work = score_work
+                    candidate.recommended_div = scoring_result.get("recommended_division")
+                    candidate.updated_by = "system"
+                    candidate.updated_at = now
+
+                # 🎯 must_check項目 保存
+                db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).delete()
+                for name, info in scoring_result.get("must_check", {}).items():
+                    db.add(CandidateMustCheckItem(
+                        id=str(uuid4()),
+                        user_id=candidate_id,
                         item_name=name,
                         result=info.get("result", False),
                         reason=info.get("reason", "")
                     ))
 
-            # 🎯 divisionスコア 保存
-            db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).delete()
-            for s in scoring_result.get("scores", []):
-                division_prefix = convert_division_to_prefix(s["division"])
-                db.add(CandidateDivisionScore(
-                    id=str(uuid4()),
-                    user_id=candidate_id,
-                    division=division_prefix,
-                    score=s["score"],
-                    reason=s["reason"]
-                ))
+                # 🎯 divisionごとのmust_check保存
+                for division, checks in scoring_result.get("must_check_by_division", {}).items():
+                    division_prefix = convert_division_to_prefix(division)
+                    for name, info in checks.items():
+                        db.add(CandidateDivisionMustCheckItem(
+                            id=str(uuid4()),
+                            user_id=candidate_id,
+                            division=division_prefix,
+                            item_name=name,
+                            result=info.get("result", False),
+                            reason=info.get("reason", "")
+                        ))
 
-            # 🎯 スコア履歴 保存（重複チェックあり）
-            for s in scoring_result.get("scores", []):
-                # --- 重複チェック ---
-                division_prefix = convert_division_to_prefix(s["division"])
-                existing = db.query(CandidateScoreHistory).filter(
-                    CandidateScoreHistory.user_id == candidate_id,
-                    CandidateScoreHistory.division == division_prefix,
-                    CandidateScoreHistory.score == s["score"],
-                    CandidateScoreHistory.reason == s["reason"],
-                    CandidateScoreHistory.source.in_(["resume_upload", "resume_score_save"])
-                ).first()
+                # 🎯 divisionスコア 保存
+                db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).delete()
+                for s in scoring_result.get("scores", []):
+                    division_prefix = convert_division_to_prefix(s["division"])
+                    db.add(CandidateDivisionScore(
+                        id=str(uuid4()),
+                        user_id=candidate_id,
+                        division=division_prefix,
+                        score=s["score"],
+                        reason=s["reason"]
+                    ))
 
-                if existing:
-                    # 既に 行がある -> 挿入スキップ
-                    print(f"skip duplicate score history for {candidate_id} {s['division']} cus it is added already")
-                    continue
+                # 🎯 スコア履歴 保存（重複チェックあり）
+                for s in scoring_result.get("scores", []):
+                    # --- 重複チェック ---
+                    division_prefix = convert_division_to_prefix(s["division"])
+                    existing = db.query(CandidateScoreHistory).filter(
+                        CandidateScoreHistory.user_id == candidate_id,
+                        CandidateScoreHistory.division == division_prefix,
+                        CandidateScoreHistory.score == s["score"],
+                        CandidateScoreHistory.reason == s["reason"],
+                        CandidateScoreHistory.source.in_(["resume_upload", "resume_score_save"])
+                    ).first()
 
-                # 重複がなければ挿入
-                db.add(CandidateScoreHistory(
-                    id=str(uuid4()),
-                    user_id=candidate_id,
-                    division=division_prefix,
-                    score=s["score"],
-                    reason=s["reason"],
-                    reviewer="system",
-                    reviewed_at=now,
-                    source="resume_score_save"
-                ))
+                    if existing:
+                        # 既に 行がある -> 挿入スキップ
+                        print(f"skip duplicate score history for {candidate_id} {s['division']} cus it is added already")
+                        continue
 
-            db.commit()
+                    # 重複がなければ挿入
+                    db.add(CandidateScoreHistory(
+                        id=str(uuid4()),
+                        user_id=candidate_id,
+                        division=division_prefix,
+                        score=s["score"],
+                        reason=s["reason"],
+                        reviewer="system",
+                        reviewed_at=now,
+                        source="resume_score_save"
+                    ))
 
-            preferred_div_score = None
-            recommended_div_score = None
-            preferred_div_reason = None
-            recommended_div_reason = None
+                db.commit()
 
-            # 🙋希望部門スコアを抽出
-            if desired_division:
-                preferred_score_row = db.query(CandidateDivisionScore).filter_by(
-                    user_id=candidate_id, division=desired_division
-                ).first()
-                if preferred_score_row:
-                    preferred_div_score = preferred_score_row.score
-                    preferred_div_reason = preferred_score_row.reason
+                preferred_div_score = None
+                recommended_div_score = None
+                preferred_div_reason = None
+                recommended_div_reason = None
 
-            # 🙋‍♀️推薦部門スコアを抽出
-            recommended_div = scoring_result.get("recommended_division")
-            if recommended_div:
-                recommended_score_row = db.query(CandidateDivisionScore).filter_by(
-                    user_id=candidate_id, division=recommended_div
-                ).first()
-                if recommended_score_row:
-                    recommended_div_score = recommended_score_row.score
-                    recommended_div_reason = recommended_score_row.reason
+                # 🙋希望部門スコアを抽出
+                if desired_division:
+                    preferred_score_row = db.query(CandidateDivisionScore).filter_by(
+                        user_id=candidate_id, division=desired_division
+                    ).first()
+                    if preferred_score_row:
+                        preferred_div_score = preferred_score_row.score
+                        preferred_div_reason = preferred_score_row.reason
 
-        # === ⑨ 応答 ===
-        return JSONResponse(content={
-            "candidate_id": candidate_id,
-            "uploader_id": uploader_id,
-            "desired_division": prefix,
-            "timestamp": now.isoformat(),
-            "generated_sql": generated_sql,
+                # 🙋‍♀️推薦部門スコアを抽出
+                recommended_div = scoring_result.get("recommended_division")
+                if recommended_div:
+                    recommended_score_row = db.query(CandidateDivisionScore).filter_by(
+                        user_id=candidate_id, division=recommended_div
+                    ).first()
+                    if recommended_score_row:
+                        recommended_div_score = recommended_score_row.score
+                        recommended_div_reason = recommended_score_row.reason
 
-            # 希望部門・推薦部門情報を追加
-            "preferred_div": prefix,
-            "preferred_div_score": preferred_div_score,
-            "preferred_div_reason": preferred_div_reason,
-            "recommended_div": recommended_div_prefix,
-            "recommended_div_score": recommended_div_score,
-            "recommended_div_reason": recommended_div_reason,
+            yield log_step("db_scores_done", f"✅ 保存完了 — {len(scoring_result.get('scores', []))} 件")
+            await asyncio.sleep(0)
 
-            # 推薦部門・must_check・スコア
-            "must_check": scoring_result.get("must_check"),
-            "must_check_by_division": scoring_result.get("must_check_by_division"),
-            "scores": scoring_result.get("scores"),
+            # === ⑩ 応答 ===
+            yield log_step("finalize_start", "📦 最終応答を生成中...")
+            await asyncio.sleep(0)
+            final_payload = {
+                "candidate_id": candidate_id,
+                "uploader_id": uploader_id,
+                "desired_division": prefix,
+                "timestamp": now.isoformat(),
+                "generated_sql": generated_sql,
 
-            # 既存のネストも残す（将来用）
-            "llm_scoring": scoring_result,
+                # 希望部門・推薦部門情報を追加
+                "preferred_div": prefix,
+                "preferred_div_score": preferred_div_score,
+                "preferred_div_reason": preferred_div_reason,
+                "recommended_div": recommended_div_prefix,
+                "recommended_div_score": recommended_div_score,
+                "recommended_div_reason": recommended_div_reason,
 
-            # 志望動機・職務経歴のサマリとスコア
-            "summarized_motivation": summarized_motivation,
-            "score_motivation": score_motivation,
-            "summarized_work": summarized_work,
-            "score_work": score_work,
+                # 推薦部門・must_check・スコア
+                "must_check": scoring_result.get("must_check"),
+                "must_check_by_division": scoring_result.get("must_check_by_division"),
+                "scores": scoring_result.get("scores"),
 
-            "message": "✅ 全データ保存完了"
-        })
+                # 既存のネストも残す（将来用）
+                "llm_scoring": scoring_result,
 
-    except Exception as e:
-        print("❌ エラー:", str(e))
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(content={"error": f"処理中に例外が発生しました: {str(e)}"}, status_code=500)
+                # 志望動機・職務経歴のサマリとスコア
+                "summarized_motivation": summarized_motivation,
+                "score_motivation": score_motivation,
+                "summarized_work": summarized_work,
+                "score_work": score_work,
+
+                "message": "✅ 全データ保存完了"
+            }
+
+            yield _sse({
+                "status": "final_payload",
+                "log": "📤 最終結果データを送信しました",
+                "data": final_payload
+            })
+            yield log_step("finalize_done", "✅ 最終応答生成完了")
+            yield log_step("done", "🎉 すべての処理が完了しました")
+            await asyncio.sleep(0)
+
+        except Exception as e:
+            error_msg = f"❌ エラー発生: {str(e)}"
+            print(error_msg)
+            traceback.print_exc()
+            yield _sse({"status": "error", "log": error_msg})
+            await asyncio.sleep(0)
+            return
+    
+    # SSE（POSTレスポンスをストリーム）
+    return StreamingResponse(
+        run_and_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Nginx対策
+        }
+    )
 
 @router.get("/resume-results")
 async def get_resume_results():
