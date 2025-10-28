@@ -1,12 +1,21 @@
 from sqlalchemy import text
 import openai
+from typing import Dict, Any, Callable, Optional
 from backend.core.database import SessionLocal
+
+# ============================================
+# ✅ emit呼び出し
+# ============================================
+
+EmitFn = Callable[[Dict[str, Any]], None]
 
 # ============================================
 # 🧠 テキストをSQLiteに保存
 # ============================================
 
-def generate_resume_sql(masked_text: str, candidate_id: str) -> str:
+def generate_resume_sql(masked_text: str, candidate_id: str, emit: Optional[EmitFn] = None) -> str:
+    if emit:
+        emit({"kind": "sql_prompt_build", "message": "🧾 SQL生成用プロンプトを構築中..."})
     prompt = f"""
 あなたは人事用のデータ構造化AIです。
 以下の履歴書情報（個人情報マスク済み）を読み、以下の3つのテーブルに分けてINSERT文を出力してください。
@@ -61,21 +70,34 @@ CREATE TABLE resume_work_history (
 - 「＜削除＞」や空文字列に変換してはいけません。
 - SQLコードのみ出力し、解説や囲いなどは不要です。
 """
+    
+    if emit:
+        emit({"kind": "sql_llm_call", "message": "🤖 GPTへSQL構造生成リクエストを送信中..."})
     response = openai.chat.completions.create(
         model="gpt-3.5-turbo",  # ダウングレード済
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2
     )
 
-    # ★ Noneセーフ化
-    return (response.choices[0].message.content or "").strip()
+    raw_sql = (response.choices[0].message.content or "").strip()
+    if emit:
+        emit({"kind": "sql_llm_response", "message": "🧩 GPTからSQL構造を受信", "data": {"sql_length": len(raw_sql)}})
+    return raw_sql
 
-def save_sql_to_sqlite(sql: str):
+def save_sql_to_sqlite(sql: str, emit: Optional[EmitFn] = None):
     try:
+        if emit:
+            emit({"kind": "sql_parse_start", "message": "🔍 SQL文を分割・解析中..."})
         with SessionLocal() as db:
             statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
             for stmt in statements:
-                db.execute(text(stmt))   # ← cursor.execute の代わり
+                if emit:
+                    emit({"kind": "sql_exec", "message": f"💾 SQL文を実行中: {stmt[:40]}..."})
+                db.execute(text(stmt))
             db.commit()
+        if emit:
+            emit({"kind": "sql_done", "message": f"✅ SQL構造保存完了（{len(statements)}文）"})
     except Exception as e:
+        if emit:
+            emit({"kind": "sql_error", "message": f"❌ SQL実行エラー: {e}"})
         print(f"❌ SQL実行エラー: {e}")

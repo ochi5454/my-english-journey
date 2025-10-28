@@ -4,7 +4,7 @@ from datetime import datetime
 from backend.models.score_resume import CandidateExpectations
 from backend.core.database import SessionLocal
 from math import isnan
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable, Optional
 from backend.core.openai_config import get_openai_client
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
 from backend.services.score_adjustment.save import save_score_to_history
@@ -16,17 +16,30 @@ from backend.services.score_adjustment.save import save_score_to_history
 client = get_openai_client()
 
 # ============================================
+# ✅ emit呼び出し
+# ============================================
+
+EmitFn = Callable[[Dict[str, Any]], None]
+
+# ============================================
 # 🧠 部門ごとのスコアリング（中でマストチェックを呼ぶ）
 # ============================================
 
-def score_resume_from_text(text: str, candidate_id: str) -> dict:
+def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] = None,) -> dict:
+    def log(kind: str, msg: str, **extra):
+        if emit:
+            emit({"kind": kind, "message": msg, **extra})
+
     print("📥 score_resume_from_text() called: candidate_id=%s", candidate_id)
+    log("llm_call", f"📥 候補者ID: {candidate_id}のスコアリングを開始")
 
     must_results = check_must_requirements_llm(text)
     must_results_by_division = check_must_requirements_by_division_llm(text)
 
     print("✅ must_check 結果: %s", must_results)
     print("✅ must_results_by_division 結果: %s", must_results_by_division)
+    log("must_check", "✅ マストスキル（共通） 結果ログ", must_results=must_results)
+    log("must_check_by_division", "✅ 部門別マストスキル 結果ログ", data=must_results_by_division)
 
     # === マスト条件NGなら即中断 ===
     if not all(bool(item.get("result")) for item in must_results.values()):
@@ -49,6 +62,7 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
     # === 部門プロフィールのロード ===
     division_profiles = load_division_profiles()
     print("🧠 division_profiles: %s", division_profiles)
+    log("division_profiles", "🧠 部門別で求められる歓迎スキル 取得ログ", data=division_profiles)
 
     division_descriptions = "\n\n".join(
         f"部門名: {profile.get('division','')}\n理想の特徴: {', '.join(profile.get('desired_traits', []))}"
@@ -87,6 +101,7 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
 """
 
     # === GPT呼び出し ===
+    log("division_request", "🤖 LLM呼び出し開始")
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
@@ -95,10 +110,12 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
 
     raw = (response.choices[0].message.content or "").strip()
     print("🧠 GPT応答 raw: %s", raw)
+    log("division_response_raw", "🧠 GPT応答ログ", raw=raw)
 
     try:
         parsed = json.loads(raw)
         print("✅ GPT応答 JSONパース成功。件数: %d", len(parsed) if isinstance(parsed, list) else 1)
+        log("division_parse_ok", "✅ GPT応答 JSONパース成功", count=(len(parsed) if isinstance(parsed, list) else 1))
 
         if isinstance(parsed, dict):
             parsed = [parsed]
@@ -136,6 +153,7 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
 
     except Exception as e:
         print("❌ GPT応答 JSONパース失敗: %s", e)
+        log("division_parse_error", f"❌ GPT応答 JSONパース失敗: {e}", raw=raw)
         print("🧠 GPT raw応答: %s", raw)
         scores = [{
             "division": "N/A",
@@ -202,6 +220,8 @@ def score_resume_from_text(text: str, candidate_id: str) -> dict:
 
     print("📊 正常に取得したスコア: %s", scores)
     print("🏆 recommended_division: %s", recommended.get("division"))
+    log("division_scores_ready", "📊 正常に取得したスコア", scores=normalized_scores)
+    log("division_recommended", "🏆 recommended_division", division=result["recommended_division"])
     return result
 
 # ============================================

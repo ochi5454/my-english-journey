@@ -122,8 +122,26 @@ async def resume_score_save(
             # === ⑥ SQL構造保存（オプション） ===
             yield log_step("sql_start", "🧾 SQL構造生成を開始")
             await asyncio.sleep(0)
-            generated_sql = generate_resume_sql(masked_text, candidate_id)
-            save_sql_to_sqlite(generated_sql)
+
+            # 🔹 emit_sql 関数を定義（_sseを使って整形）
+            def emit_sql(event: dict):
+                sse_data = _sse({
+                    "status": event.get("kind", "sql_log"),
+                    "log": event.get("message"),
+                    "data": event.get("data", {}),
+                })
+                # 後でまとめてyieldするためリストに貯めておく
+                emitted_sql_logs.append(sse_data)
+
+            emitted_sql_logs = []
+
+            generated_sql = generate_resume_sql(masked_text, candidate_id, emit=emit_sql)
+            save_sql_to_sqlite(generated_sql, emit=emit_sql)
+
+            # ためたログを逐次送信
+            for sse_data in emitted_sql_logs:
+                yield sse_data
+                await asyncio.sleep(0)
             yield log_step("sql_done", "✅ SQL構造保存完了")
             await asyncio.sleep(0)
 
@@ -185,7 +203,45 @@ async def resume_score_save(
                 flags=re.DOTALL
             )
             print("🧠 LLMスコアリングに渡す前に１次精査。なるべく職務経歴重視: %s", filtered_text)
-            scoring_result = score_resume_from_text(filtered_text, candidate_id)
+
+            # --- 🧩 ここから追加 ---
+            loop = asyncio.get_running_loop()
+            queue: asyncio.Queue[dict] = asyncio.Queue()
+
+            # emit関数: score_resume_from_text() 内から呼ばれる
+            def emit(event: dict):
+                queue.put_nowait(event)
+
+            # score_resume_from_text() を別スレッドで実行（同期関数なので）
+            scoring_task = loop.run_in_executor(
+                None,
+                score_resume_from_text,
+                filtered_text,
+                candidate_id,
+                emit
+            )
+
+            # イベントを逐次フロントへ転送
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=0.3)
+                    # score_resume_from_text 側から emit されたログを SSEで出力
+                    yield _sse({
+                        "status": event.get("kind", "log"),
+                        "log": event.get("message"),
+                        "data": {k: v for k, v in event.items() if k not in ("kind", "message")}
+                    })
+                except asyncio.TimeoutError:
+                    pass
+
+                # 終了検知
+                if scoring_task.done():
+                    scoring_result = scoring_task.result()
+                    break
+            # --- 🧩 ここまで追加 ---
+            # 元々は次の1行
+            # scoring_result = score_resume_from_text(filtered_text, candidate_id)
+
             yield log_step("llm_done", "✅ LLMスコアリング完了")
             await asyncio.sleep(0)
 
@@ -203,24 +259,31 @@ async def resume_score_save(
 
             with SessionLocal() as db:
                 # === 志望動機・職務経歴の抽出 ===
-                print("🎯 志望動機と職務経歴の抽出を開始します")
+                print("🎯 志望動機と職務経歴のサマリを開始します")
+                yield log_step("db_scores_extract_start", "🎯 志望動機と職務経歴のサマリを開始します")
+                await asyncio.sleep(0)
 
                 motivation_text = extract_motivation(masked_text)
                 work_experience_text = extract_work_experience(masked_text)
 
                 # === 要約とスコアリング ===
+                yield log_step("db_scores_summary_start", "🧩 要約とスコアリングを実施中...")
+                await asyncio.sleep(0)
                 summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
                 score_motivation = score_motivation_statement(motivation_text) if motivation_text else None
 
                 summarized_work = summarize_work_experience(work_experience_text) if work_experience_text else None
                 score_work = score_work_experience(work_experience_text) if work_experience_text else None
-
+                yield log_step("db_scores_summary_done", "✅ 要約・スコアリング完了")
+                await asyncio.sleep(0)
                 print(f"志望動機サマリ: {summarized_motivation}")
                 print(f"志望動機スコア: {score_motivation}")
                 print(f"職務経歴サマリ: {summarized_work}")
                 print(f"職務経歴スコア: {score_work}")
 
                 # 🎯 candidates テーブル更新 or INSERT
+                yield log_step("db_scores_candidate_update", "💾 候補者情報を更新中...")
+                await asyncio.sleep(0)
                 candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
                 if not candidate:
                     candidate = Candidate(
@@ -245,7 +308,12 @@ async def resume_score_save(
                     candidate.updated_by = "system"
                     candidate.updated_at = now
 
+                yield log_step("db_scores_candidate_done", "✅ 候補者更新完了")
+                await asyncio.sleep(0)
+
                 # 🎯 must_check項目 保存
+                yield log_step("must_scores_mustcheck_start", "🧩 マストチェックの結果を保存中...")
+                await asyncio.sleep(0)
                 db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).delete()
                 for name, info in scoring_result.get("must_check", {}).items():
                     db.add(CandidateMustCheckItem(
@@ -255,8 +323,12 @@ async def resume_score_save(
                         result=info.get("result", False),
                         reason=info.get("reason", "")
                     ))
+                yield log_step("must_scores_mustcheck_done", "✅ マストチェックの結果の保存完了")
+                await asyncio.sleep(0)
 
                 # 🎯 divisionごとのmust_check保存
+                yield log_step("division_mustcheck_start", "🧩 部門ごとのマストチェックの結果を保存中...")
+                await asyncio.sleep(0)
                 for division, checks in scoring_result.get("must_check_by_division", {}).items():
                     division_prefix = convert_division_to_prefix(division)
                     for name, info in checks.items():
@@ -268,8 +340,12 @@ async def resume_score_save(
                             result=info.get("result", False),
                             reason=info.get("reason", "")
                         ))
+                yield log_step("division_mustcheck_done", "✅ 部門ごとのマストチェックの結果の保存完了")
+                await asyncio.sleep(0)
 
                 # 🎯 divisionスコア 保存
+                yield log_step("division_scores_division_start", "🏢 部門スコアを保存中...")
+                await asyncio.sleep(0)
                 db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).delete()
                 for s in scoring_result.get("scores", []):
                     division_prefix = convert_division_to_prefix(s["division"])
@@ -280,8 +356,12 @@ async def resume_score_save(
                         score=s["score"],
                         reason=s["reason"]
                     ))
+                yield log_step("division_scores_division_done", "✅ 部門スコア保存完了")
+                await asyncio.sleep(0)
 
                 # 🎯 スコア履歴 保存（重複チェックあり）
+                yield log_step("division_scores_history_start", "🕓 部門スコア履歴をチェック・保存中...")
+                await asyncio.sleep(0)
                 for s in scoring_result.get("scores", []):
                     # --- 重複チェック ---
                     division_prefix = convert_division_to_prefix(s["division"])
@@ -310,7 +390,13 @@ async def resume_score_save(
                         source="resume_score_save"
                     ))
 
+                yield log_step("division_scores_history_done", "✅ スコア履歴保存完了")
+                await asyncio.sleep(0)
+
                 db.commit()
+
+                yield log_step("db_scores_commit_done", "🧾 DBコミット完了")
+                await asyncio.sleep(0)
 
                 preferred_div_score = None
                 recommended_div_score = None

@@ -116,8 +116,23 @@ const ResumeScoringChatMode: React.FC<{ userId: string }> = ({ userId }) => {
                     try {
                         const json = JSON.parse(line.slice(5).trim());
                         if (json.log) {
-                            setLogs((prev) => [...prev, json.log]);
-                            setMessages((prev) => [...prev, { role: 'ai', text: json.log }]);
+                            const logText = json.log;
+
+                            // ✅ dataText の生成前に空チェックを追加
+                            const hasData =
+                                json.data &&
+                                !(
+                                (typeof json.data === 'object' && Object.keys(json.data).length === 0) ||
+                                (Array.isArray(json.data) && json.data.length === 0)
+                                );
+
+                            const dataText = hasData ? JSON.stringify(json.data, null, 2) : null;
+
+                            setMessages((prev) => [
+                                ...prev,
+                                { role: 'ai' as const, text: logText },
+                                ...(dataText ? [{ role: 'ai' as const, text: `\`\`\`json\n${dataText}\n\`\`\`` }] : []),
+                            ]);
                         }
                         if (json.status) setCurrentStatus(json.status);
                         if (json.status === 'final_payload' && json.data) {
