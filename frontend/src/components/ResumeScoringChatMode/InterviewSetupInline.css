@@ -1,9 +1,16 @@
+/* 親の .chat-message.ai に包まれても余白・枠を二重にしない */
 .inline-chatflow-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  font-size: 0.95rem;
-  line-height: 1.5;
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+.inline-chatflow-container .chat-message.ai {
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
 }
 
 /* === 各ステップ === */

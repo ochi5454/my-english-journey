@@ -67,9 +67,7 @@ const AIProcessingScreen: React.FC<AIProcessingScreenProps> = ({
 
             {/* 🤖 エージェント */}
             <div
-                className={`ai-agent-mover ${
-                    currentStatus === "llm" ? "bouncing" : ""
-                }`}
+                className="ai-agent-mover bouncing"
                 style={{ left: `${agentPosition}%` }}
             >
                 {agentEmoji}
@@ -83,7 +81,7 @@ const AIProcessingScreen: React.FC<AIProcessingScreenProps> = ({
             <div className="ai-status-columns">
                 {/* 稼働中 */}
                 <div className="ai-status-column">
-                <h4>稼働中のエージェント</h4>
+                <h4>稼働中</h4>
                 <div className="ai-agent-list">
                     {runningAgents.length > 0 ? (
                     runningAgents.map((agent) => (
@@ -97,7 +95,7 @@ const AIProcessingScreen: React.FC<AIProcessingScreenProps> = ({
                     ))
                     ) : (
                     <div className="ai-agent-empty">
-                        稼働中のエージェントなし
+                        稼働中エージェントなし
                     </div>
                     )}
                 </div>
@@ -105,7 +103,7 @@ const AIProcessingScreen: React.FC<AIProcessingScreenProps> = ({
 
                 {/* 待機中 */}
                 <div className="ai-status-column">
-                <h4>待機中のエージェント</h4>
+                <h4>待機中</h4>
                 <div className="ai-agent-list">
                     {idleAgents.length > 0 ? (
                     idleAgents.map((agent) => (

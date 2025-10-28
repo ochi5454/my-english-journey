@@ -1,0 +1,38 @@
+.hr-decision-section {
+  border-top: 1px solid #ddd;
+  margin-top: 20px;
+  padding-top: 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.hr-decision-section h4 {
+  margin-bottom: 10px;
+}
+
+.hr-decision-options {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.hr-decision-options label {
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.save-hr-btn {
+  background-color: #3da35d;
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.save-hr-btn:hover {
+  background-color: #338a4f;
+}
