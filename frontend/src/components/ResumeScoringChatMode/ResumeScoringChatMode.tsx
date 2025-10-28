@@ -5,6 +5,7 @@ import ResumeResultSection from './ResumeResultSection';
 import HRDecisionSection from './HRDecisionSection';
 import InterviewSetupInline from './InterviewSetupInline';
 import ChatInputArea, { type DivisionOption } from './ChatInputArea';
+import DummyAILogGenerator from './DummyAILogGenerator';
 import { progressSteps, masterDefinitions, resolveStepId } from './progressSteps';
 import appConfig from '../../config';
 
@@ -21,6 +22,9 @@ const ResumeScoringChatMode: React.FC<{ userId: string }> = ({ userId }) => {
     const [currentStatus, setCurrentStatus] = useState<string>('start');
     const [hrDecisionDraft, setHrDecisionDraft] = useState<'hire_ok' | 'no_hire' | ''>('');
     const [showSaved, setShowSaved] = useState(false);
+    // ダミーログ用
+    const [lastLogTime, setLastLogTime] = useState<number | null>(null);
+    const [shouldShowDummy, setShouldShowDummy] = useState(false);
 
     // --- 特殊マーカー定義 ---
     const MSG_RESULT = '__RESULT__';
@@ -116,6 +120,8 @@ const ResumeScoringChatMode: React.FC<{ userId: string }> = ({ userId }) => {
                     try {
                         const json = JSON.parse(line.slice(5).trim());
                         if (json.log) {
+                            // まずログ受信の記録
+                            setLastLogTime(Date.now());
                             const logText = json.log;
 
                             // ✅ dataText の生成前に空チェックを追加
@@ -160,6 +166,18 @@ const ResumeScoringChatMode: React.FC<{ userId: string }> = ({ userId }) => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (!loading) return;
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const threshold = 3000 + Math.random() * 1500; // 3〜4.5秒
+            if (lastLogTime && now - lastLogTime > threshold) {
+            setShouldShowDummy(true);
+            }
+        }, 1200 + Math.random() * 800);
+        return () => clearInterval(interval);
+    }, [lastLogTime, loading]);
 
     // === HR決定保存 ===
     const handleSaveHrDecision = async () => {
@@ -260,6 +278,16 @@ const ResumeScoringChatMode: React.FC<{ userId: string }> = ({ userId }) => {
             setFiles={setFiles}
             loading={loading}
             handleUpload={handleUpload}
+        />
+        {/* ダミーレスポンス */}
+        <DummyAILogGenerator
+            active={false} // 常時ではなく、トリガーで出す
+            trigger={shouldShowDummy}
+            onLog={(log) => {
+                setMessages((prev) => [...prev, { role: 'ai', text: log }]);
+                setShouldShowDummy(false); // 出したらリセット
+                setLastLogTime(Date.now()); // ダミーも「最新ログ」として扱う
+            }}
         />
         </div>
     </div>

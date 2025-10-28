@@ -260,21 +260,21 @@ async def resume_score_save(
             with SessionLocal() as db:
                 # === 志望動機・職務経歴の抽出 ===
                 print("🎯 志望動機と職務経歴のサマリを開始します")
-                yield log_step("db_scores_extract_start", "🎯 志望動機と職務経歴のサマリを開始します")
+                yield log_step("reading_extract_start", "🎯 志望動機と職務経歴のサマリを開始します")
                 await asyncio.sleep(0)
 
                 motivation_text = extract_motivation(masked_text)
                 work_experience_text = extract_work_experience(masked_text)
 
                 # === 要約とスコアリング ===
-                yield log_step("db_scores_summary_start", "🧩 要約とスコアリングを実施中...")
+                yield log_step("reading_summary_start", "🧩 要約とスコアリングを実施中...")
                 await asyncio.sleep(0)
                 summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
                 score_motivation = score_motivation_statement(motivation_text) if motivation_text else None
 
                 summarized_work = summarize_work_experience(work_experience_text) if work_experience_text else None
                 score_work = score_work_experience(work_experience_text) if work_experience_text else None
-                yield log_step("db_scores_summary_done", "✅ 要約・スコアリング完了")
+                yield log_step("reading_summary_done", "✅ 要約・スコアリング完了")
                 await asyncio.sleep(0)
                 print(f"志望動機サマリ: {summarized_motivation}")
                 print(f"志望動機スコア: {score_motivation}")
@@ -282,7 +282,7 @@ async def resume_score_save(
                 print(f"職務経歴スコア: {score_work}")
 
                 # 🎯 candidates テーブル更新 or INSERT
-                yield log_step("db_scores_candidate_update", "💾 候補者情報を更新中...")
+                yield log_step("save_candidate_update", "💾 候補者情報を更新中...")
                 await asyncio.sleep(0)
                 candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
                 if not candidate:
@@ -308,11 +308,11 @@ async def resume_score_save(
                     candidate.updated_by = "system"
                     candidate.updated_at = now
 
-                yield log_step("db_scores_candidate_done", "✅ 候補者更新完了")
+                yield log_step("save_candidate_done", "✅ 候補者更新完了")
                 await asyncio.sleep(0)
 
                 # 🎯 must_check項目 保存
-                yield log_step("must_scores_mustcheck_start", "🧩 マストチェックの結果を保存中...")
+                yield log_step("must_scores_start", "🧩 マストチェックの結果を保存中...")
                 await asyncio.sleep(0)
                 db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).delete()
                 for name, info in scoring_result.get("must_check", {}).items():
@@ -323,7 +323,7 @@ async def resume_score_save(
                         result=info.get("result", False),
                         reason=info.get("reason", "")
                     ))
-                yield log_step("must_scores_mustcheck_done", "✅ マストチェックの結果の保存完了")
+                yield log_step("must_scores_done", "✅ マストチェックの結果の保存完了")
                 await asyncio.sleep(0)
 
                 # 🎯 divisionごとのmust_check保存
@@ -344,7 +344,7 @@ async def resume_score_save(
                 await asyncio.sleep(0)
 
                 # 🎯 divisionスコア 保存
-                yield log_step("division_scores_division_start", "🏢 部門スコアを保存中...")
+                yield log_step("division_scores_start", "🏢 部門スコアを保存中...")
                 await asyncio.sleep(0)
                 db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).delete()
                 for s in scoring_result.get("scores", []):
@@ -356,7 +356,7 @@ async def resume_score_save(
                         score=s["score"],
                         reason=s["reason"]
                     ))
-                yield log_step("division_scores_division_done", "✅ 部門スコア保存完了")
+                yield log_step("division_scores_done", "✅ 部門スコア保存完了")
                 await asyncio.sleep(0)
 
                 # 🎯 スコア履歴 保存（重複チェックあり）
@@ -395,7 +395,7 @@ async def resume_score_save(
 
                 db.commit()
 
-                yield log_step("db_scores_commit_done", "🧾 DBコミット完了")
+                yield log_step("save_commit_done", "🧾 DBコミット完了")
                 await asyncio.sleep(0)
 
                 preferred_div_score = None

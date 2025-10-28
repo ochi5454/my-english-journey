@@ -24,7 +24,7 @@
 }
 
 .save-hr-btn {
-  background-color: #3da35d;
+  background-color: #22c55e;
   color: white;
   border: none;
   padding: 8px 18px;
@@ -34,5 +34,5 @@
 }
 
 .save-hr-btn:hover {
-  background-color: #338a4f;
+  background-color: #16a34a;
 }

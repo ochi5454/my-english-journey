@@ -15,19 +15,18 @@ export const progressSteps = [
 // 細かい status を大きな step に畳み込むルール
 export const stepGroupingRules: Record<string, RegExp[]> = {
   start:   [/^start$/],
-  reading: [/^reading(_|$)/, /^extract_/, /^normalize_/],
-  mask:    [/^mask_/],
-  division:[/^division_/],
+  reading: [/^reading/, /^extract/, /^normalize/],
+  mask:    [/^mask/],
+  embed:   [/^embed/],
+  sql:     [/^sql/],
+  llm:     [/^llm/],
   must:    [/^must/],
-  embed:   [/^embed_/],
-  sql:     [/^sql_/],
-  llm:     [/^llm(_|$)/],
-  save:    [/^db_init_/, /^db_scores_/, /^finalize_/, /^final_payload$/],
+  division:[/^division/],
+  save:    [/^db/, /^save/, /^finalize/, /^final_payload$/],
   done:    [/^done$/],
 };
 
 // === ステップID → 対応マスタ ===
-// （旧 masterMap は細かいステータス用、resolve後には下の map を使う）
 export const stepToMasterMap: Record<string, keyof typeof masterDefinitions> = {
   start: "resume",
   reading: "resume",
@@ -50,10 +49,12 @@ export const masterMap: Record<string, keyof typeof masterDefinitions> = {
   extract_done: "resume",
   normalize_start: "resume",
   normalize_done: "resume",
+
   mask_start: "vector",
   mask_done: "vector",
   embed_start: "vector",
   embed_done: "vector",
+
   sql_start: "sql",
   sql_prompt_build: "sql",
   sql_llm_call: "sql",
@@ -61,15 +62,15 @@ export const masterMap: Record<string, keyof typeof masterDefinitions> = {
   sql_parse_start: "sql",
   sql_exec: "sql",
   sql_done: "sql",
+
   db_init_start: "candidate",
   db_init_done: "candidate",
   llm_start: "candidate",
   llm_call: "candidate",
-  // === マストチェック ===
+
   must_check: "must",
   must_check_by_division: "must",
 
-  // === 部門スコアリング ===
   division_profiles: "division",
   division_request: "division",
   division_response_raw: "division",
@@ -80,22 +81,25 @@ export const masterMap: Record<string, keyof typeof masterDefinitions> = {
 
   llm_done: "candidate",
   db_scores_start: "candidate",
-  db_scores_extract_start: "candidate",
-  db_scores_summary_start: "candidate",
-  db_scores_summary_done: "candidate",
-  db_scores_candidate_update: "candidate",
-  db_scores_candidate_done: "candidate",
 
-  must_scores_mustcheck_start: "must",
-  must_scores_mustcheck_done: "must",
+  reading_extract_start: "resume",
+  reading_summary_start: "resume",
+  reading_summary_done: "resume",
+  
+  save_candidate_update: "candidate",
+  save_candidate_done: "candidate",
+
+  must_scores_start: "must",
+  must_scores_done: "must",
+
   division_mustcheck_start: "division",
   division_mustcheck_done: "division",
-  division_scores_division_start: "division",
-  division_scores_division_done: "division",
+  division_scores_start: "division",
+  division_scores_done: "division",
   division_scores_history_start: "division",
   division_scores_history_done: "division",
-  db_scores_commit_done: "candidate",
 
+  db_scores_commit_done: "candidate",
   db_scores_done: "candidate",
   finalize_start: "candidate",
   finalize_done: "candidate",
@@ -141,15 +145,17 @@ export const masterDefinitions = {
 export function resolveStepId(status: string): string {
   const lower = status.toLowerCase();
 
+  if (lower === "done") return "done"; // 最優先で厳密一致
+
+  // progressSteps に存在するIDのみ返す
   if (lower.includes("must")) return "must";
   if (lower.includes("division")) return "division";
   if (lower.includes("sql")) return "sql";
-  if (lower.includes("embed")) return "vector";
-  if (lower.includes("mask")) return "vector";
+  if (lower.includes("embed")) return "embed";
+  if (lower.includes("mask")) return "mask";
   if (lower.includes("llm")) return "llm";
-  if (lower.includes("save") || lower.includes("final")) return "candidate";
-  if (lower.includes("resume") || lower.includes("reading") || lower.includes("extract"))
-    return "resume";
+  if (lower.includes("save") || lower.includes("final") || lower.startsWith("db_")|| lower.startsWith("save_")) return "save";
+  if (lower.includes("resume") || lower.includes("reading") || lower.includes("extract") || lower.includes("normalize")) return "reading";
 
-  return "start"; // fallback
+  return "start";
 }
