@@ -69,6 +69,21 @@
   filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.5));
 }
 
+/* === 🤖 バウンドアニメーション === */
+@keyframes agentBounce {
+  0%, 100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, -8px);
+  }
+}
+
+/* AIが稼働中（💭状態）のときだけバウンド */
+.ai-agent-mover.bouncing {
+  animation: agentBounce 1s infinite ease-in-out;
+}
+
 /* ===== 下部：稼働状態ゾーン ===== */
 .ai-status-scroll-area {
   flex: 1;

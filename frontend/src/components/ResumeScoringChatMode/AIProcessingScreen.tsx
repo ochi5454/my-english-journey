@@ -66,8 +66,13 @@ const AIProcessingScreen: React.FC<AIProcessingScreenProps> = ({
 
 
             {/* 🤖 エージェント */}
-            <div className="ai-agent-mover" style={{ left: `${agentPosition}%` }}>
-            {agentEmoji}
+            <div
+                className={`ai-agent-mover ${
+                    currentStatus === "llm" ? "bouncing" : ""
+                }`}
+                style={{ left: `${agentPosition}%` }}
+            >
+                {agentEmoji}
             </div>
         </div>
 
