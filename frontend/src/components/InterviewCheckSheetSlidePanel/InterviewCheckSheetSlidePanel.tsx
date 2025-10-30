@@ -80,7 +80,7 @@ const InterviewCheckSheetSlidePanel: React.FC<Props> = ({
         () =>
             Object.entries(prefixToName)
             // 「common」を除外（表示名で除外）
-            .filter(([code, name]) => name !== prefixToName['common'])
+            .filter(([_, name]) => name !== prefixToName['common'])
             .map(([code, name]) => ({ value: code, label: name })),
         [prefixToName]
     );

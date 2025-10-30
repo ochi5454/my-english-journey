@@ -96,7 +96,7 @@ export const calculateTruePercentilesByPreferredDiv = (data: Result[]): Result[]
     });
 
     const updated: Result[] = [];
-    Object.entries(divisionGroups).forEach(([div, group]) => {
+    Object.entries(divisionGroups).forEach(([_div, group]) => {
         const scores = group.map(r => r.ai_score ?? 0);
         group.forEach(r => {
             const score = r.ai_score ?? 0;
@@ -120,7 +120,7 @@ export const calculateTruePercentilesByRecommendedDiv = (data: Result[]): Result
     });
 
     const updated: Result[] = [];
-    Object.entries(divisionGroups).forEach(([div, group]) => {
+    Object.entries(divisionGroups).forEach(([_div, group]) => {
         // ✅ 修正：ai_score_recommended を使用
         const scores = group.map(r => r.ai_score_recommended ?? 0);
         group.forEach(r => {
