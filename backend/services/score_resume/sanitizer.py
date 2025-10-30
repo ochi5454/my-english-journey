@@ -1,8 +1,9 @@
+# backend/services/score_resume/sanitizer.py
 import re
 from janome.tokenizer import Token
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 from backend.core.tokenizer_config import get_tokenizer
-from backend.services.score_resume.extract import extract_name_from_table
+from backend.services.score_resume.extract import extract_person_info
 
 # ============================================
 # ✅ トークナイザー初期化
@@ -11,7 +12,7 @@ from backend.services.score_resume.extract import extract_name_from_table
 tokenizer = get_tokenizer()
 
 # ============================================
-# ✅ 正規表現・ホワイトリスト定義
+# ✅ 正規表現・ホワイトリスト定義（事前コンパイル）
 # ============================================
 
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
@@ -22,58 +23,75 @@ NON_NAME_WHITELIST = {
 }
 
 # ============================================
-# 🧠 個人情報マスキングユーティリティ
+# 🧠 個人情報抽出＆マスキング（LangChain統合版）
 # ============================================
 
-def mask_names_by_label(text: str) -> Tuple[str, Optional[str]]:
-    name_labels = ["氏名", "姓名", "名前", "Name", "Full Name"]
-    extracted_name = None
+def extract_email(text: str) -> Optional[str]:
+    """
+    📧 メールアドレスを抽出
+    """
+    match = EMAIL_REGEX.search(text)
+    if match:
+        email = match.group(0)
+        print(f"✅ メールアドレス抽出: {email}")
+        return email
+    return None
 
-    for label in name_labels:
-        # 改行や「性別」「住所」などで止める安全なパターン
-        stop_words = ["性別", "生年月日", "住所", "電話", "メール", "連絡先"]
-        pattern = rf"{label}\s*[:：]?\s*([^\s\n（(]+)[\s　]+([^\s\n（(：:\n]+)(?=(?:{'|'.join(stop_words)}|$))"
-
-        match = re.search(pattern, text)
-        if match:
-            # グループ1, 2のみ（旧group(2),(3)→新group(1),(2)）
-            name_part = f"{match.group(1)} {match.group(2)}".strip()
-            name_part = re.sub(r"[（(].*", "", name_part).strip()
-            extracted_name = name_part
-            # 氏名ラベル部分を安全にマスク
-            text = re.sub(pattern, f"{label} ＜人名削除＞", text)
-            break
-
-    # 表形式fallback
-    if not extracted_name:
-        extracted_name = extract_name_from_table(text)
-        if extracted_name:
-            text = re.sub(r"(氏名\s+[^\s（(]+[\s　]+[^\s（(]+)", "氏名 ＜人名削除＞", text)
-
-    return text, extracted_name
-
-def mask_name_headline(text: str) -> Tuple[str, Optional[str]]:
-    lines = text.splitlines()
-    extracted_name = None
-    for i in range(min(3, len(lines))):
-        line = lines[i].strip()
-        if re.match(r"^[\u4E00-\u9FFF]{1,4}[\s　][\u3040-\u9FFF]{1,4}$", line):
-            extracted_name = line.strip()
-            lines[i] = '＜人名削除＞'
-            break
-    return '\n'.join(lines), extracted_name
+def extract_phone(text: str) -> Optional[str]:
+    """
+    📞 電話番号を抽出
+    """
+    match = PHONE_REGEX.search(text)
+    if match:
+        phone = match.group(0)
+        print(f"✅ 電話番号抽出: {phone}")
+        return phone
+    return None
 
 def mask_personal_info(text: str) -> Tuple[str, Optional[str]]:
-    name1 = None
-    name2 = None
+    """
+    個人情報マスキング（旧版 - 互換性維持用）
+    
+    Returns:
+        (masked_text, extracted_name)
+    """
+    masked_text, info = mask_and_extract_personal_info(text)
+    return masked_text, info.get("name")
 
-    text, name1 = mask_names_by_label(text)
-    text, name2 = mask_name_headline(text)
+def mask_and_extract_personal_info(text: str) -> Tuple[str, Dict[str, Optional[str]]]:
+    """
+    📧 個人情報をマスク＆抽出（LangChain版）
+    
+    Returns:
+        (masked_text, {
+            "name": str,
+            "email": str,
+            "phone": str
+        })
+    """
+    # 🆕 マスクする前に個人情報を抽出
+    email = extract_email(text)
+    phone = extract_phone(text)
+    
+    # ✅ LangChainで名前と性別を抽出
+    extracted_name = None
+    try:
+        name, gender = extract_person_info(text)
+        if name:
+            extracted_name = name
+            print(f"✅ LangChain名前抽出成功: {extracted_name}")
+        else:
+            print("⚠️ LangChainで名前を抽出できませんでした")
+    except Exception as e:
+        print(f"❌ LangChain抽出エラー: {e}")
+        extracted_name = None
+    
+    # メール・電話のマスク
+    masked_text = EMAIL_REGEX.sub('＜メールアドレス削除＞', text)
+    masked_text = PHONE_REGEX.sub('＜電話番号削除＞', masked_text)
 
-    text = EMAIL_REGEX.sub('＜メールアドレス削除＞', text)
-    text = PHONE_REGEX.sub('＜電話番号削除＞', text)
-
-    tokens = tokenizer.tokenize(text)
+    # 形態素解析による人名検出（追加のマスキング）
+    tokens = tokenizer.tokenize(masked_text)
     masked_words = []
     in_name = False
 
@@ -101,5 +119,40 @@ def mask_personal_info(text: str) -> Tuple[str, Optional[str]]:
             in_name = False
 
     masked_text = ''.join(masked_words)
-    extracted_name = name1 or name2
-    return masked_text, extracted_name
+    
+    if extracted_name:
+        print(f"✅ 最終抽出名: {extracted_name}")
+    else:
+        print("⚠️ 名前を抽出できませんでした")
+    
+    # 抽出した情報を辞書で返す
+    extracted_info = {
+        "name": extracted_name,
+        "email": email,
+        "phone": phone
+    }
+    
+    return masked_text, extracted_info
+
+# ============================================
+# 🧪 デバッグ用
+# ============================================
+
+def debug_personal_info_extraction(text: str):
+    """デバッグ用: 個人情報抽出の過程を詳細表示"""
+    print("=" * 60)
+    print("🔍 個人情報抽出デバッグ開始")
+    print("=" * 60)
+    print(f"入力テキスト（最初の300文字）:\n{text[:300]}")
+    print("-" * 60)
+    
+    masked, info = mask_and_extract_personal_info(text)
+    
+    print("-" * 60)
+    print(f"📛 名前: {info['name']}")
+    print(f"📧 メール: {info['email']}")
+    print(f"📞 電話: {info['phone']}")
+    print(f"\nマスク済みテキスト（最初の200文字）:\n{masked[:200]}")
+    print("=" * 60)
+    
+    return masked, info

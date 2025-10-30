@@ -20,30 +20,30 @@ const AppContent: React.FC<{ userId: string; onLogout: () => void }> = ({ userId
   return (
     <div className="app">
       <nav className="navbar">
-        <div className="navbar-left">
+        {/* 上段: ブランド・バッジ・ユーザー情報 */}
+        <div className="navbar-top">
           <div className="nav-brand">
             <h1 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              RAG Test
+              採用支援AIエージェント
               <span className="badge">{badgeText}</span>
             </h1>
           </div>
-        </div>
 
-        <div className="navbar-center">
-          <div className="nav-links">
-            <Link to="/resume-scoring-chatmode">候補者判定（簡易）</Link>
-            <Link to="/resume-scoring">候補者判定（詳細）</Link>
-            <Link to="/interviewer-overview">面接官判定</Link>
-            <Link to="/admin">管理</Link>
-          </div>
-        </div>
-
-        <div className="navbar-right">
           <div className="user-info">
             <span className="user-display">User: {userId}</span>
             <button onClick={onLogout} className="logout-button">
               ログアウト
             </button>
+          </div>
+        </div>
+
+        {/* 下段: メニューリンク */}
+        <div className="navbar-bottom">
+          <div className="nav-links">
+            <Link to="/resume-scoring-chatmode">候補者判定（簡易）</Link>
+            <Link to="/resume-scoring">候補者判定（詳細）</Link>
+            <Link to="/interviewer-overview">面接官判定</Link>
+            <Link to="/admin">管理</Link>
           </div>
         </div>
       </nav>

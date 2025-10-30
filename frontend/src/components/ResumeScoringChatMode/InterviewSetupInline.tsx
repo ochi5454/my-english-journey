@@ -13,6 +13,7 @@ interface TodoItem {
 
 interface Props {
     candidateId: string;
+    candidateName?: string;
     stage: string;
     userId: string;
     onMessage: (msg: { role: 'ai' | 'user'; text: string }) => void;
@@ -21,6 +22,7 @@ interface Props {
 
 const InterviewSetupInline: React.FC<Props> = ({
     candidateId,
+    candidateName,  // ✅ 追加
     stage,
     userId,
     onMessage,
@@ -70,6 +72,7 @@ const InterviewSetupInline: React.FC<Props> = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
             candidate: candidateId,
+            candidateName: candidateName || candidateId,  // ✅ 追加
             interviewer: selectedInterviewer,
             interviewDate,
             todo: todos.map((t) => t.label).join(', '),

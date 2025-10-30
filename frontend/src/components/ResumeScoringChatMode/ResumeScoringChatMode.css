@@ -8,37 +8,104 @@
   font-family: "Hiragino Sans", "Segoe UI", sans-serif;
 }
 
-/* === 左パネル === */
+/* === 左パネル（折りたたみ対応） === */
 .left-panel {
-  flex: 0.42;
+  position: relative;
   background-color: #f8fafc;
   border-right: 1px solid #e2e8f0;
-  overflow-y: auto;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.left-panel.open {
+  flex-basis: 42%;
+  min-width: 400px;
+}
+
+.left-panel.closed {
+  flex-basis: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding: 0;
+}
+
+/* コンテンツラッパー */
+.left-panel-content {
   padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.left-panel-content.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.left-panel-content.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.left-panel.closed .left-panel-content {
+  display: none;
+}
+
+/* トグルボタン */
+.toggle-panel-btn {
+  position: absolute;
+  top: 20px;
+  right: 10px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.toggle-panel-btn:hover {
+  background: #2563eb;
+  transform: scale(1.05);
+}
+
+.toggle-panel-btn:active {
+  transform: scale(0.95);
+}
+
+.left-panel.closed .toggle-panel-btn {
+  right: 5px;
+  left: 5px;
+  margin: auto;
 }
 
 /* === 右パネル === */
 .right-panel {
-  flex: 0.58;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background-color: #f8fafc;
   padding: 20px;
+  transition: all 0.3s ease;
+  max-width: 100%;
+  min-width: 0;
 }
 
-/* === チャット全体カード === */
-.chat-window {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  overflow-y: auto;
-  gap: 12px;
-  margin-top: 0; /* ← 上のヘッダーとのずれ防止 */
+/* 左パネルが閉じているときは中央寄せ */
+.left-panel.closed ~ .right-panel {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-left: 60px;
 }
 
 /* === チャットヘッダー === */
@@ -47,7 +114,7 @@
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 20px;
-  margin-bottom: 16px; /* ← 下のボックスとの隙間 */
+  margin-bottom: 16px;
   color: #1e293b;
   font-weight: 600;
   font-size: 17px;
@@ -64,6 +131,30 @@
   margin: 0;
 }
 
+/* === チャットウィンドウ === */
+.chat-window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  overflow-y: auto;
+  gap: 12px;
+  margin-top: 0;
+}
+
+.chat-window::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-window::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
 /* === メッセージ === */
 .chat-message {
   max-width: 80%;
@@ -73,47 +164,113 @@
   word-break: break-word;
   font-size: 14px;
   animation: fadeIn 0.25s ease;
+  overflow: visible; /* ✅ 修正: hidden → visible */
+  min-width: 0;
+  height: auto; /* ✅ 追加: 高さを自動調整 */
+  min-height: fit-content; /* ✅ 追加 */
 }
 
-/* === User === */
 .chat-message.user {
   background-color: #e0f2fe;
   align-self: flex-end;
   border: 1px solid #bae6fd;
 }
 
-/* === AI === */
 .chat-message.ai {
   background-color: #ecfdf5;
   align-self: flex-start;
   border: 1px solid #bbf7d0;
-  overflow: visible;
   padding: 12px;
-}
-
-/* === スクロールバー === */
-.chat-window::-webkit-scrollbar {
-  width: 8px;
-}
-.chat-window::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 4px;
+  max-width: 85%;
 }
 
 /* === アニメーション === */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { 
+    opacity: 0; 
+    transform: translateY(4px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
 }
+
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
 }
 
 /* === レスポンシブ === */
 @media (max-width: 1024px) {
-  .resume-chat-layout { flex-direction: column; }
-  .left-panel { flex: none; height: 45vh; border-right: none; }
-  .right-panel { flex: none; height: 55vh; }
-  .resume-compare-section { flex-direction: column; }
+  .resume-chat-layout { 
+    flex-direction: column; 
+  }
+  
+  .left-panel.open { 
+    flex-basis: auto;
+    min-width: auto;
+    height: 45vh; 
+    border-right: none; 
+  }
+  
+  .right-panel { 
+    flex: none; 
+    height: 55vh; 
+  }
+  
+  .left-panel.closed ~ .right-panel {
+    max-width: 100%;
+    margin: 0;
+    padding-left: 20px;
+  }
+  
+  .resume-compare-section { 
+    flex-direction: column; 
+  }
+}
+
+/* スムーズスクロール */
+html {
+    scroll-behavior: smooth;
+}
+
+/* スコアリング結果のスクロール位置調整 */
+.chat-message {
+    scroll-margin-top: 80px; /* ヘッダー分の余白 */
+}
+
+/* ハイライトアニメーション */
+@keyframes highlight-pulse {
+    0% {
+        background-color: rgba(255, 215, 0, 0.4);
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        transform: scale(1);
+    }
+    50% {
+        background-color: rgba(255, 215, 0, 0.2);
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+        transform: scale(1.01);
+    }
+    100% {
+        background-color: transparent;
+        box-shadow: none;
+        transform: scale(1);
+    }
+}
+
+.highlight-animation {
+    animation: highlight-pulse 2s ease-out;
+    border-radius: 8px;
+}
+
+/* スコアリング結果のスタイル強化（オプション） */
+.chat-message.ai {
+    transition: all 0.3s ease;
 }

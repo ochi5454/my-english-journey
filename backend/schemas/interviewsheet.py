@@ -28,7 +28,8 @@ class InterviewPrepByInterviewerRequest(BaseModel):
 class InterviewSetupRequest(BaseModel):
     interviewDate: datetime
     interviewer: str 
-    candidate: str 
+    candidate: str
+    candidateName: str  # ✅ 追加
     todo: str
     candidateMail: str
     interviewerMail: str

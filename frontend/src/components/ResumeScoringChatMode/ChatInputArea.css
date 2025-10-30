@@ -129,3 +129,16 @@
 .generate-id-btn:hover {
   background-color: #e2e8f0;
 }
+
+/* 既存のスタイルに追加 */
+
+.chat-input-area input.auto-generated {
+  background-color: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+  font-style: italic;
+}
+
+.chat-input-area input:disabled {
+  opacity: 0.6;
+}

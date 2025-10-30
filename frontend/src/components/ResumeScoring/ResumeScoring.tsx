@@ -56,6 +56,10 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             setFiles(Array.from(e.target.files));
+            // 既存の評価結果をクリア
+            setResult(null);
+            setLogs([]);
+            setCurrentStatus('');
         }
     };
 

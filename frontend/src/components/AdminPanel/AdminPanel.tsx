@@ -18,7 +18,7 @@ const AdminPanel: React.FC = () => {
                 >
                     部門・スキル
                 </div>
-                {/* <div
+                <div
                     className={`admin-tab ${view === 'roles' ? 'active' : ''}`}
                     onClick={() => setView('roles')}
                 >
@@ -41,7 +41,7 @@ const AdminPanel: React.FC = () => {
                     onClick={() => setView('ai_formula')}
                 >
                     AIスコア
-                </div> */}
+                </div>
             </div>
 
             <div className="admin-content">

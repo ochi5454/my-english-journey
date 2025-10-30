@@ -1,70 +1,80 @@
 import re
-import json
 import hashlib
 import asyncio
 from datetime import datetime, timedelta
 from backend.models.score_resume import CandidateExpectations
 from backend.core.database import SessionLocal
-from math import isnan
 from typing import List, Dict, Any, Callable, Optional
-from concurrent.futures import ThreadPoolExecutor
-from backend.core.openai_config import get_openai_client
+from pydantic import BaseModel, Field
+from collections import OrderedDict
+
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableParallel, RunnableLambda
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_community.cache import InMemoryCache
+from langchain_core.globals import set_llm_cache
+
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
 from backend.services.score_adjustment.save import save_score_to_history
 
 # ============================================
-# ✅ GPT呼び出し
+# ✅ LangChain設定
 # ============================================
 
-client = get_openai_client()
+# キャッシュ設定
+set_llm_cache(InMemoryCache())
+
+# LLMインスタンス（gpt-4はgpt-4o, gpt-4-turboなどStructured Output対応モデルに変更推奨）
+llm_gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.2)  # ← gpt-4oに変更
+llm_gpt35 = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.2)
 
 # ============================================
-# ✅ emit呼び出し
+# 📦 Pydanticモデル定義（構造化出力用）
+# ============================================
+
+class MustCheckResult(BaseModel):
+    """マストチェック結果"""
+    result: bool = Field(description="条件を満たしているか")
+    reason: str = Field(description="判定理由")
+
+class DivisionScore(BaseModel):
+    """部門スコア"""
+    division: str = Field(description="部門名")
+    score: int = Field(ge=0, le=100, description="適合度スコア（0-100）")
+    reason: str = Field(description="評価理由")
+
+class DivisionScoreList(BaseModel):
+    """部門スコアのリスト（Listをラップ）"""
+    scores: List[DivisionScore] = Field(description="各部門のスコアリスト")
+
+class MotivationScore(BaseModel):
+    """志望動機スコア"""
+    理念共感度: int = Field(ge=0, le=25, description="企業理念への共感度（25点満点）")
+    経験接続度: int = Field(ge=0, le=25, description="経験との接続度（25点満点）")
+    具体性: int = Field(ge=0, le=25, description="具体性（25点満点）")
+    成長貢献意欲: int = Field(ge=0, le=25, description="成長・貢献意欲（25点満点）")
+    合計スコア: int = Field(ge=0, le=100, description="合計スコア（100点満点）")
+
+class WorkExperienceScore(BaseModel):
+    """職務経歴スコア"""
+    経験の深さ: int = Field(ge=0, le=25, description="経験の深さ（25点満点）")
+    スキルの幅: int = Field(ge=0, le=25, description="スキルの幅（25点満点）")
+    成果の具体性: int = Field(ge=0, le=25, description="成果の具体性（25点満点）")
+    一貫性成長性: int = Field(ge=0, le=25, description="一貫性・成長性（25点満点）")
+    合計スコア: int = Field(ge=0, le=100, description="合計スコア（100点満点）")
+
+# ============================================
+# 🛠️ ユーティリティ関数
 # ============================================
 
 EmitFn = Callable[[Dict[str, Any]], None]
 
-# ============================================
-# 🚀 パフォーマンス最適化: キャッシング
-# ============================================
-
-# LLM呼び出し結果のキャッシュ（メモリ内）
-_llm_cache: Dict[str, tuple[Any, datetime]] = {}
-CACHE_TTL_SECONDS = 3600  # 1時間
-
-def _cache_key(prompt: str) -> str:
-    """プロンプトからキャッシュキーを生成"""
-    return hashlib.md5(prompt.encode('utf-8')).hexdigest()
-
-def _get_cached_result(prompt: str) -> Optional[str]:
-    """キャッシュから結果を取得"""
-    key = _cache_key(prompt)
-    if key in _llm_cache:
-        result, timestamp = _llm_cache[key]
-        if datetime.now() - timestamp < timedelta(seconds=CACHE_TTL_SECONDS):
-            print(f"✅ キャッシュヒット: {key[:8]}...")
-            return result
-        else:
-            del _llm_cache[key]
-    return None
-
-def _set_cached_result(prompt: str, result: str):
-    """結果をキャッシュに保存"""
-    key = _cache_key(prompt)
-    _llm_cache[key] = (result, datetime.now())
-
-# ============================================
-# 🚀 パフォーマンス最適化: テキスト切り詰め
-# ============================================
-
 def _truncate_text_smart(text: str, max_chars: int = 3000) -> str:
-    """
-    重要な情報を残しながらテキストを切り詰める
-    """
+    """重要な情報を残しながらテキストを切り詰める"""
     if len(text) <= max_chars:
         return text
     
-    # 重要なキーワードを含むセクションを優先的に抽出
     important_keywords = [
         "職務経歴", "業務内容", "実績", "スキル", "資格",
         "学歴", "経験", "プロジェクト", "担当"
@@ -81,39 +91,294 @@ def _truncate_text_smart(text: str, max_chars: int = 3000) -> str:
     if len(combined) <= max_chars:
         return combined
     
-    # それでも長い場合は先頭から切り詰め
     return text[:max_chars] + "\n...(以下省略)"
 
 # ============================================
-# 🚀 パフォーマンス最適化: 並列実行用のスレッドプール
+# 🧠 プロンプトテンプレート定義
 # ============================================
 
-_executor = ThreadPoolExecutor(max_workers=4)
+# 共通マストスキルチェック用
+must_check_common_template = ChatPromptTemplate.from_messages([
+    ("system", "あなたは採用担当者です。候補者の履歴書情報をもとに、マスト条件を満たしているか判定してください。"),
+    ("user", """
+以下はある候補者の履歴書情報です：
+---
+{content}
+---
 
-async def _call_llm_async(prompt: str, model: str = "gpt-4", temperature: float = 0.2) -> str:
-    """LLMを非同期で呼び出す"""
-    # キャッシュチェック
-    cached = _get_cached_result(prompt)
-    if cached:
-        return cached
-    
-    # 非同期実行
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        _executor,
-        lambda: client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-        )
-    )
-    
-    result = response.choices[0].message.content or ""
-    _set_cached_result(prompt, result)
-    return result
+以下のマスト条件を満たしているか、それぞれTrueまたはFalseで判定し、その根拠となる理由も併記してください。
+
+条件: {must_keywords}
+
+必ず以下のJSON形式で返してください：
+{{
+  "大卒以上": {{"result": true, "reason": "東京大学卒業と明記されているため"}},
+  ...
+}}
+""")
+])
+
+# 部門別マストスキルチェック用
+must_check_division_template = ChatPromptTemplate.from_messages([
+    ("system", "あなたは採用担当者です。"),
+    ("user", """
+以下の候補者の履歴書情報をもとに、「{division}」部門に必要な**特定のマスト条件のみ**について、各条件が満たされているかを判定してください。
+
+条件リスト（これ以外は絶対に判定しないこと）:
+{traits}
+
+---
+
+履歴書内容（マスク済み）:
+{content}
+
+---
+
+出力形式は必ず以下のJSON形式で、**条件ラベル名をキーとした辞書形式**で返してください（それ以外の項目を追加しないこと）：
+{{
+  "ビル設備管理技能士": {{"result": true, "reason": "資格欄に明記されているため"}},
+  "危険物取扱者": {{"result": false, "reason": "記載なし"}},
+  ...
+}}
+""")
+])
+
+# 部門別スコアリング用
+division_scoring_template = ChatPromptTemplate.from_messages([
+    ("system", "あなたは企業の採用担当者です。"),
+    ("user", """
+以下の応募書類（履歴書および職務経歴書）を読み、
+候補者の職務経歴・スキルセット・実績内容のみをもとに、
+各部門に対する適合度を **100点満点** で評価してください。
+
+- 志望動機や希望部門の記載には影響されないようにしてください。
+- 評価は「スキル内容・実績・経験の方向性」が、各部門の理想像にどの程度合致しているかで判断します。
+
+【評価基準の目安】
+- 90〜100点: 各部門の理想像に非常によく合致している
+- 70〜89点: 多くの要素で合致しており、実務上も即戦力の可能性が高い
+- 50〜69点: 一部合致しているが、経験やスキルにギャップあり
+- 30〜49点: 理想像とは離れている
+- 0〜29点: スキルや経歴がほぼ一致していない
+
+【部門ごとの理想像】
+{division_descriptions}
+
+【候補者の応募書類（マスク済み）】
+{content}
+
+---
+
+【出力形式（JSON）】必ず以下の形式で返してください：
+{{
+  "scores": [
+    {{"division": "部門名", "score": 数値（0〜100）, "reason": "理由"}},
+    ...
+  ]
+}}
+""")
+])
+
+# 志望動機スコアリング用
+motivation_scoring_template = ChatPromptTemplate.from_messages([
+    ("system", "あなたは新卒採用の人事担当者です。"),
+    ("user", """
+以下の志望動機を読み、候補者の「やる気・熱意」を次の4つの観点から評価してください。
+**各観点を25点満点**とし、合計100点で総合評価を出してください。
+
+【評価軸（各25点満点）】
+1️⃣ 理念共感度（企業理念や事業への理解・共感の深さ）
+2️⃣ 経験接続度（自分の経験や学びと企業の方向性の結びつき）
+3️⃣ 具体性（抽象的表現ではなく、具体的な事例・行動・成果があるか）
+4️⃣ 成長・貢献意欲（入社後にどう貢献・成長したいかが明確か）
+
+【スコアリングガイドライン】
+- 各項目は0〜25点で採点してください
+- 内容が浅く、どの企業にも使えそうな志望動機 → 各項目10点未満
+- ある程度具体的だが独自性が乏しい → 各項目13〜18点
+- 理念・経験・貢献意欲の全てが明確で独自性がある → 各項目20点以上
+- 特に熱意・具体性が突出している → 各項目23点以上
+
+【評価対象の志望動機】
+{text}
+
+---
+
+【出力形式（JSON）】必ず以下の形式で返してください。各項目は25点満点です：
+{{
+  "理念共感度": 数値（0〜25）,
+  "経験接続度": 数値（0〜25）,
+  "具体性": 数値（0〜25）,
+  "成長貢献意欲": 数値（0〜25）,
+  "合計スコア": 数値（0〜100）
+}}
+""")
+])
+
+# 職務経歴スコアリング用
+work_experience_template = ChatPromptTemplate.from_messages([
+    ("system", "あなたは採用担当者です。"),
+    ("user", """
+以下の職務経歴を読み、候補者の「経験の深さ・スキルの幅・成果の具体性・一貫性」を
+**それぞれ25点満点**で評価し、合計100点満点のスコアを算出してください。
+
+【評価軸（各25点満点）】
+1️⃣ 経験の深さ（経験年数・担当業務の難易度・責任範囲）
+2️⃣ スキルの幅（扱った技術・ツール・業務領域の多様さ）
+3️⃣ 成果の具体性（成果・実績が定量的か、具体的に示されているか）
+4️⃣ 一貫性・成長性（キャリアに筋が通っており、成長が見えるか）
+
+【スコアリングガイドライン】
+- 各項目は0〜25点で採点してください
+- 期間・成果が曖昧で抽象的 → 各項目10点未満
+- 一般的な内容で可もなく不可もない → 各項目13〜18点
+- 成果や責任範囲が明確で、経験に厚みがある → 各項目19〜21点
+- 業務内容・成果・成長がすべて明確で卓越している → 各項目23点以上
+
+【評価対象の職務経歴】
+{text}
+
+---
+
+【出力形式（JSON）】必ず以下の形式で返してください。各項目は25点満点です：
+{{
+  "経験の深さ": 数値（0〜25）,
+  "スキルの幅": 数値（0〜25）,
+  "成果の具体性": 数値（0〜25）,
+  "一貫性成長性": 数値（0〜25）,
+  "合計スコア": 数値（0〜100）
+}}
+""")
+])
 
 # ============================================
-# 🧠 部門ごとのスコアリング（並列化版）
+# 🧠 LangChainチェーン構築
+# ============================================
+
+# JSONパーサー
+json_parser = JsonOutputParser()
+
+# 部門スコアリングチェーン（gpt-4oでStructured Output使用）
+division_scoring_chain = (
+    division_scoring_template 
+    | llm_gpt4.with_structured_output(DivisionScoreList)
+)
+
+# 志望動機スコアリングチェーン（gpt-3.5-turboはfunction_calling指定）
+motivation_scoring_chain = (
+    motivation_scoring_template 
+    | llm_gpt35.with_structured_output(MotivationScore, method="function_calling")  # ← 追加
+)
+
+# 職務経歴スコアリングチェーン（gpt-3.5-turboはfunction_calling指定）
+work_experience_chain = (
+    work_experience_template 
+    | llm_gpt35.with_structured_output(WorkExperienceScore, method="function_calling")  # ← 追加
+)
+
+# マストチェック用（JSONパーサー使用）
+must_check_common_chain = must_check_common_template | llm_gpt4 | json_parser
+must_check_division_chain = must_check_division_template | llm_gpt4 | json_parser
+
+# ============================================
+# 🧠 共通マストスキルチェック（非同期版）
+# ============================================
+
+async def _check_must_requirements_llm_async(content: str) -> dict:
+    """非同期版: 共通マストスキルチェック"""
+    with SessionLocal() as db:
+        rows = db.query(CandidateExpectations)\
+                    .filter(CandidateExpectations.division_prefix == "common")\
+                    .filter(CandidateExpectations.trait_type == "must_requirement")\
+                    .all()
+        must_keywords = [r.trait_label.strip() for r in rows if r.trait_label.strip()]
+
+    if not must_keywords:
+        return {}
+
+    try:
+        result = await must_check_common_chain.ainvoke({
+            "content": content,
+            "must_keywords": ', '.join(must_keywords)
+        })
+        return result
+        
+    except Exception as e:
+        print(f"❌ マストチェック失敗: {e}")
+        return {k: {"result": False, "reason": "判定失敗"} for k in must_keywords}
+
+def check_must_requirements_llm(content: str) -> dict:
+    """同期版ラッパー"""
+    return asyncio.run(_check_must_requirements_llm_async(content))
+
+# ============================================
+# 🧠 部門別マストスキルチェック（非同期版）
+# ============================================
+
+async def _check_must_requirements_by_division_llm_async(
+    content: str
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """非同期版: 部門別マストスキルチェック（並列実行）"""
+    
+    with SessionLocal() as db:
+        rows = db.query(CandidateExpectations)\
+            .filter(CandidateExpectations.trait_type == "must_requirement")\
+            .filter(CandidateExpectations.division_prefix != "common")\
+            .all()
+
+    division_map: Dict[str, List[str]] = OrderedDict()
+    for r in rows:
+        division = r.division.strip()
+        label = r.trait_label.strip()
+        if not label:
+            continue
+        division_map.setdefault(division, []).append(label)
+
+    if not division_map:
+        return {}
+
+    # 🚀 各部門のチェックを並列実行
+    tasks = []
+    division_names = []
+    
+    for division, traits in division_map.items():
+        joined_traits = ', '.join(f'"{t}"' for t in traits)
+        
+        task = must_check_division_chain.ainvoke({
+            "content": content,
+            "division": division,
+            "traits": joined_traits
+        })
+        tasks.append(task)
+        division_names.append((division, traits))
+
+    # 並列実行
+    responses = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    results = {}
+    for (division, traits), response in zip(division_names, responses):
+        try:
+            if isinstance(response, Exception):
+                raise response
+            
+            # responseは既にdictとしてパース済み
+            filtered = {k: v for k, v in response.items() if k in traits}
+            results[division] = filtered
+            
+        except Exception as e:
+            print(f"❌ 部門別マストチェック失敗 ({division}): {e}")
+            results[division] = {
+                label: {"result": False, "reason": "パース失敗"} for label in traits
+            }
+
+    return results
+
+def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """同期版ラッパー"""
+    return asyncio.run(_check_must_requirements_by_division_llm_async(content))
+
+# ============================================
+# 🚀 メインスコアリング関数（非同期版）
 # ============================================
 
 async def score_resume_from_text_async(
@@ -122,7 +387,7 @@ async def score_resume_from_text_async(
     emit: Optional[EmitFn] = None,
 ) -> dict:
     """
-    最適化版: マストチェックとスコアリングを並列実行
+    LangChain最適化版: マストチェックとスコアリングを並列実行
     """
     def log(kind: str, msg: str, **extra):
         if emit:
@@ -131,7 +396,7 @@ async def score_resume_from_text_async(
     print("📥 score_resume_from_text_async() called: candidate_id=%s", candidate_id)
     log("llm_call", f"📥 候補者ID: {candidate_id}のスコアリングを開始")
 
-    # テキストを最適化（長すぎる場合は切り詰め）
+    # テキストを最適化
     optimized_text = _truncate_text_smart(text, max_chars=4000)
     
     # ============================================
@@ -140,12 +405,9 @@ async def score_resume_from_text_async(
     
     log("parallel_start", "⚡ マストチェックを並列実行中...")
     
-    must_check_task = _check_must_requirements_llm_async(optimized_text)
-    must_by_div_task = _check_must_requirements_by_division_llm_async(optimized_text)
-    
     must_results, must_results_by_division = await asyncio.gather(
-        must_check_task,
-        must_by_div_task
+        _check_must_requirements_llm_async(optimized_text),
+        _check_must_requirements_by_division_llm_async(optimized_text)
     )
 
     print("✅ must_check 結果: %s", must_results)
@@ -172,7 +434,7 @@ async def score_resume_from_text_async(
         return result
 
     # ============================================
-    # 🚀 並列実行: 部門別スコアリング
+    # 🚀 部門別スコアリング（LangChainチェーン使用）
     # ============================================
     
     division_profiles = load_division_profiles()
@@ -184,90 +446,26 @@ async def score_resume_from_text_async(
         for profile in division_profiles
     )
 
-    prompt = f"""
-あなたは企業の採用担当者です。
-以下の応募書類（履歴書および職務経歴書）を読み、
-候補者の職務経歴・スキルセット・実績内容のみをもとに、
-各部門に対する適合度を **100点満点** で評価してください。
-
-- 志望動機や希望部門の記載には影響されないようにしてください。
-- 評価は「スキル内容・実績・経験の方向性」が、各部門の理想像にどの程度合致しているかで判断します。
-
-【評価基準の目安】
-- 90〜100点: 各部門の理想像に非常によく合致している
-- 70〜89点: 多くの要素で合致しており、実務上も即戦力の可能性が高い
-- 50〜69点: 一部合致しているが、経験やスキルにギャップあり
-- 30〜49点: 理想像とは離れている
-- 0〜29点: スキルや経歴がほぼ一致していない
-
-【部門ごとの理想像】
-{division_descriptions}
-
-【候補者の応募書類（マスク済み）】
-{optimized_text}
-
----
-
-【出力形式（JSON配列）】
-[
-  {{"division": "部門名", "score": 数値（0〜100）,"reason": "理由"}}, ...
-]
-"""
-
     log("division_request", "🤖 LLM呼び出し開始")
-    raw = await _call_llm_async(prompt, model="gpt-4", temperature=0.2)
     
-    print("🧠 GPT応答 raw: %s", raw)
-    log("division_response_raw", "🧠 GPT応答ログ", raw=raw)
-
     try:
-        parsed = json.loads(raw)
-        print("✅ GPT応答 JSONパース成功。件数: %d", len(parsed) if isinstance(parsed, list) else 1)
-        log("division_parse_ok", "✅ GPT応答 JSONパース成功", count=(len(parsed) if isinstance(parsed, list) else 1))
-
-        if isinstance(parsed, dict):
-            parsed = [parsed]
-        if not isinstance(parsed, list):
-            raise ValueError("JSON is not a list")
-
-        # === スコアの正規化 ===
-        scores: List[Dict[str, Any]] = []
-        for item in parsed:
-            if not isinstance(item, dict):
-                continue
-            division = str(item.get("division", "")).strip()
-            reason = str(item.get("reason", "")).strip()
-
-            sc = item.get("score", 0)
-            try:
-                score_val = float(sc)
-                if isnan(score_val):
-                    continue
-            except Exception:
-                continue
-
-            score_val = min(score_val, 100)
-
-            if division:
-                scores.append({"division": division, "score": score_val, "reason": reason})
-
-        if not scores:
-            scores = [{
-                "division": "N/A",
-                "score": 0,
-                "reason": "解析エラー: 空または不正なJSON",
-            }]
-
+        # LangChainチェーンで実行（自動的にPydanticモデルに変換）
+        result_obj: DivisionScoreList = await division_scoring_chain.ainvoke({
+            "division_descriptions": division_descriptions,
+            "content": optimized_text
+        })
+        
+        scores = result_obj.scores  # List[DivisionScore]
+        
+        print("✅ GPT応答 パース成功。件数: %d", len(scores))
+        log("division_parse_ok", "✅ GPT応答 パース成功", count=len(scores))
+        
     except Exception as e:
-        print("❌ GPT応答 JSONパース失敗: %s", e)
-        log("division_parse_error", f"❌ GPT応答 JSONパース失敗: {e}", raw=raw)
-        scores = [{
-            "division": "N/A",
-            "score": 0,
-            "reason": "JSON解析エラー",
-        }]
+        print("❌ GPT応答 処理失敗: %s", e)
+        log("division_parse_error", f"❌ GPT応答 処理失敗: {e}")
+        scores = [DivisionScore(division="N/A", score=0, reason="解析エラー")]
 
-    # === 推薦部門決定 ===
+    # === スコアの正規化と調整 ===
     ng_divisions = {
         convert_division_to_prefix(div)
         for div, checks in must_results_by_division.items()
@@ -275,11 +473,13 @@ async def score_resume_from_text_async(
     }
 
     normalized_scores = []
-    for s in scores:
-        div_prefix = convert_division_to_prefix(s["division"])
-        base_score = s["score"]
+    for score_obj in scores:
+        div_prefix = convert_division_to_prefix(score_obj.division)
+        base_score = score_obj.score
 
-        checks = must_results_by_division.get(s["division"]) or must_results_by_division.get(div_prefix)
+        checks = must_results_by_division.get(score_obj.division) or \
+                 must_results_by_division.get(div_prefix)
+        
         if checks:
             ng_count = sum(1 for c in checks.values() if not c.get("result"))
             PENALTY_PER_NG = 10
@@ -291,11 +491,12 @@ async def score_resume_from_text_async(
         normalized_scores.append({
             "division": div_prefix,
             "score": adjusted_score,
-            "reason": s["reason"],
+            "reason": score_obj.reason,
             "base_score": base_score,
             "ng_count": ng_count,
         })
 
+    # === 推薦部門決定 ===
     valid_scores = [s for s in normalized_scores if s["division"] not in ng_divisions]
     recommended = (
         max(valid_scores, key=lambda x: x.get("score", -1))
@@ -318,260 +519,57 @@ async def score_resume_from_text_async(
         updated_by="system",
     )
 
-    print("📊 正常に取得したスコア: %s", scores)
-    print("🏆 recommended_division: %s", recommended.get("division"))
+    print("📊 正常に取得したスコア: %s", normalized_scores)
+    print("🏆 recommended_division: %s", result["recommended_division"])
     log("division_scores_ready", "📊 正常に取得したスコア", scores=normalized_scores)
     log("division_recommended", "🏆 recommended_division", division=result["recommended_division"])
+    
     return result
 
 # ============================================
-# 同期版のラッパー（既存コードとの互換性）
+# 🧠 志望動機のスコアリング（LangChain版）
 # ============================================
 
-def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] = None) -> dict:
-    """
-    同期版（既存コードとの互換性のため）
-    内部で非同期版を呼び出す
-    """
-    return asyncio.run(score_resume_from_text_async(text, candidate_id, emit))
-
-# ============================================
-# 🧠 共通マストスキルの判定（非同期版）
-# ============================================
-
-async def _check_must_requirements_llm_async(content: str) -> dict:
-    """非同期版: 共通マストスキルチェック"""
-    with SessionLocal() as db:
-        rows = db.query(CandidateExpectations)\
-                    .filter(CandidateExpectations.division_prefix == "common")\
-                    .filter(CandidateExpectations.trait_type == "must_requirement")\
-                    .all()
-        must_keywords = [r.trait_label.strip() for r in rows if r.trait_label.strip()]
-
-    if not must_keywords:
-        return {}
-
-    prompt = f"""
-以下はある候補者の履歴書情報です：
----
-{content}
----
-
-以下のマスト条件を満たしているか、それぞれTrueまたはFalseで判定し、その根拠となる理由も併記してください。
-
-条件: {', '.join(must_keywords)}
-
-回答形式:
-JSON形式で次のように返してください：
-{{
-  "大卒以上": {{"result": true, "reason": "東京大学卒業と明記されているため"}},
-  ...
-}}
-"""
-
-    try:
-        raw = await _call_llm_async(prompt, model="gpt-4", temperature=0.2)
-        return json.loads(raw)
-    except Exception as e:
-        print(f"❌ マストチェック失敗: {e}")
-        return {k: {"result": False, "reason": "判定失敗"} for k in must_keywords}
-
-def check_must_requirements_llm(content: str) -> dict:
-    """同期版ラッパー"""
-    return asyncio.run(_check_must_requirements_llm_async(content))
-
-# ============================================
-# 🧠 部門単位マストスキルの判定（非同期版）
-# ============================================
-
-async def _check_must_requirements_by_division_llm_async(content: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
-    """非同期版: 部門別マストスキルチェック（並列実行）"""
-    from collections import OrderedDict
-
-    with SessionLocal() as db:
-        rows = db.query(CandidateExpectations)\
-            .filter(CandidateExpectations.trait_type == "must_requirement")\
-            .filter(CandidateExpectations.division_prefix != "common")\
-            .all()
-
-    division_map: Dict[str, List[str]] = OrderedDict()
-    for r in rows:
-        division = r.division.strip()
-        label = r.trait_label.strip()
-        if not label:
-            continue
-        division_map.setdefault(division, []).append(label)
-
-    # 🚀 並列実行: 各部門のマストチェックを同時に行う
-    tasks = []
-    division_names = []
-    
-    for division, traits in division_map.items():
-        joined_traits = ', '.join(f'"{t}"' for t in traits)
-        
-        prompt = f"""
-あなたは採用担当者です。
-以下の候補者の履歴書情報をもとに、「{division}」部門に必要な**特定のマスト条件のみ**について、各条件が満たされているかを判定してください。
-
-条件リスト（これ以外は絶対に判定しないこと）:
-{joined_traits}
-
----
-
-履歴書内容（マスク済み）:
-{content}
-
----
-
-出力形式は必ず以下のJSON形式で、**条件ラベル名をキーとした辞書形式**で返してください（それ以外の項目を追加しないこと）：
-{{
-  "ビル設備管理技能士": {{"result": true, "reason": "資格欄に明記されているため"}},
-  "危険物取扱者": {{"result": false, "reason": "記載なし"}},
-  ...
-}}
-"""
-        tasks.append(_call_llm_async(prompt, model="gpt-4", temperature=0.2))
-        division_names.append((division, traits))
-
-    # 並列実行
-    responses = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    results = {}
-    for (division, traits), response in zip(division_names, responses):
-        try:
-            if isinstance(response, Exception):
-                raise response
-            parsed = json.loads(response)
-            filtered = {k: v for k, v in parsed.items() if k in traits}
-            results[division] = filtered
-        except Exception as e:
-            print(f"❌ 部門別マストチェック失敗 ({division}): {e}")
-            results[division] = {
-                label: {"result": False, "reason": "パース失敗"} for label in traits
-            }
-
-    return results
-
-def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
-    """同期版ラッパー"""
-    return asyncio.run(_check_must_requirements_by_division_llm_async(content))
-
-# ============================================
-# 🧠 志望動機のスコアリング
-# ============================================
-
-def score_motivation_statement(text: str) -> int:
-    """
-    志望動機テキスト（~500文字）からやる気スコア（0〜100）を判定する関数。
-    """
-    # テキストを切り詰め
+async def score_motivation_statement_async(text: str) -> int:
+    """LangChain版: 志望動機スコアリング（非同期）"""
     text = _truncate_text_smart(text, max_chars=800)
     
-    prompt = f"""
-あなたは新卒採用の人事担当者です。
-以下の志望動機を読み、候補者の「やる気・熱意」を次の4つの観点から評価してください。
-各観点を25点満点とし、合計100点で総合評価を出してください。
+    try:
+        result: MotivationScore = await motivation_scoring_chain.ainvoke({"text": text})
+        print("📝 志望動機スコア:", result)
+        return min(result.合計スコア, 100)
+    except Exception as e:
+        print(f"❌ 志望動機スコアリング失敗: {e}")
+        return 0
 
-【評価軸】
-1️⃣ 理念共感度（企業理念や事業への理解・共感の深さ）
-2️⃣ 経験接続度（自分の経験や学びと企業の方向性の結びつき）
-3️⃣ 具体性（抽象的表現ではなく、具体的な事例・行動・成果があるか）
-4️⃣ 成長・貢献意欲（入社後にどう貢献・成長したいかが明確か）
-
-【スコアリングガイドライン】
-- 内容が浅く、どの企業にも使えそうな志望動機 → 40点未満
-- ある程度具体的だが独自性が乏しい → 50〜70点
-- 理念・経験・貢献意欲の全てが明確で独自性がある → 80点以上
-- 特に熱意・具体性が突出している → 90点以上
-スコアにばらつきが出るよう、同質な内容には平均点を、突出して良い内容には高得点をつけてください。
-
-【評価対象の志望動機】
-{text}
-
----
-
-出力フォーマット：
-理念共感度: xx点
-経験接続度: xx点
-具体性: xx点
-成長・貢献意欲: xx点
-合計スコア: xx
-"""
-
-    # キャッシュチェック
-    cached = _get_cached_result(prompt)
-    if cached:
-        content = cached
-    else:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
-        content = response.choices[0].message.content
-        _set_cached_result(prompt, content)
-    
-    print("📝 GPT応答:", content)
-
-    match = re.search(r"\d{1,3}", content)
-    return min(int(match.group()), 100) if match else 0
+def score_motivation_statement(text: str) -> int:
+    """同期版ラッパー"""
+    return asyncio.run(score_motivation_statement_async(text))
 
 # ============================================
-# 🧠 職務経歴のスコアリング
+# 🧠 職務経歴のスコアリング（LangChain版）
 # ============================================
 
-def score_work_experience(text: str) -> int:
-    """
-    職務経歴書テキストから経験・実績スコア（0〜100）を算出する関数。
-    """
-    # テキストを切り詰め
+async def score_work_experience_async(text: str) -> int:
+    """LangChain版: 職務経歴スコアリング（非同期）"""
     text = _truncate_text_smart(text, max_chars=1000)
     
-    prompt = f"""
-あなたは採用担当者です。
-以下の職務経歴を読み、候補者の「経験の深さ・スキルの幅・成果の具体性・一貫性」を
-それぞれ25点満点で評価し、合計100点満点のスコアを算出してください。
+    try:
+        result: WorkExperienceScore = await work_experience_chain.ainvoke({"text": text})
+        print("🧾 職務経歴スコア:", result)
+        return min(result.合計スコア, 100)
+    except Exception as e:
+        print(f"❌ 職務経歴スコアリング失敗: {e}")
+        return 0
 
-【評価軸】
-1️⃣ 経験の深さ（経験年数・担当業務の難易度・責任範囲）
-2️⃣ スキルの幅（扱った技術・ツール・業務領域の多様さ）
-3️⃣ 成果の具体性（成果・実績が定量的か、具体的に示されているか）
-4️⃣ 一貫性・成長性（キャリアに筋が通っており、成長が見えるか）
+def score_work_experience(text: str) -> int:
+    """同期版ラッパー"""
+    return asyncio.run(score_work_experience_async(text))
 
-【スコアリングガイドライン】
-- 期間・成果が曖昧で抽象的 → 40点未満
-- 一般的な内容で可もなく不可もない → 50〜70点
-- 成果や責任範囲が明確で、経験に厚みがある → 75〜85点
-- 業務内容・成果・成長がすべて明確で卓越している → 90点以上
-スコアが均一にならないよう、内容の充実度に応じて積極的に点差をつけてください。
-
-【評価対象の職務経歴】
-{text}
-
----
-
-出力フォーマット：
-経験の深さ: xx点
-スキルの幅: xx点
-成果の具体性: xx点
-一貫性・成長性: xx点
-合計スコア: xx
-"""
-
-    # キャッシュチェック
-    cached = _get_cached_result(prompt)
-    if cached:
-        content = cached
-    else:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
-        content = response.choices[0].message.content
-        _set_cached_result(prompt, content)
-    
-    print("🧾 GPT応答（職務経歴スコア）:", content)
-
-    match = re.search(r"\d{1,3}", content)
-    return min(int(match.group()), 100) if match else 0
+__all__ = [
+    'score_resume_from_text_async',
+    'score_motivation_statement_async',
+    'score_work_experience_async',
+    '_check_must_requirements_llm_async',
+    '_check_must_requirements_by_division_llm_async',
+]

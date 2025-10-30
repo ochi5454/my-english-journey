@@ -28,7 +28,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   return (
     <div className="login-container">
       <div className="login-box">
-        <h1>RAG Test</h1>
+        <h1>採用支援AIエージェント</h1>
         <h2>ログイン</h2>
         
         <form onSubmit={handleSubmit}>

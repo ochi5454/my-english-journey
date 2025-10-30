@@ -5,13 +5,11 @@
 }
 
 .navbar {
+  display: flex;
+  flex-direction: column;
   background-color: #2c3e50;
   color: white;
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .navbar-left,
@@ -114,4 +112,79 @@
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* 上段: ブランド・バッジ・ユーザー情報 */
+.navbar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-brand h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.badge {
+  background-color: #e74c3c;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-display {
+  font-size: 0.9rem;
+  color: #ecf0f1;
+}
+
+.logout-button {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.logout-button:hover {
+  background-color: #c0392b;
+}
+
+/* 下段: メニューリンク */
+.navbar-bottom {
+  display: flex;
+  justify-content: center;
+  padding: 0 24px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 0;
+}
+
+.nav-links a {
+  color: white;
+  text-decoration: none;
+  padding: 14px 24px;
+  transition: background-color 0.2s;
+  border-bottom: 3px solid transparent;
+}
+
+.nav-links a:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-bottom-color: #3498db;
 }
