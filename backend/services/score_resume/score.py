@@ -1,10 +1,13 @@
 import re
 import json
-from datetime import datetime
+import hashlib
+import asyncio
+from datetime import datetime, timedelta
 from backend.models.score_resume import CandidateExpectations
 from backend.core.database import SessionLocal
 from math import isnan
 from typing import List, Dict, Any, Callable, Optional
+from concurrent.futures import ThreadPoolExecutor
 from backend.core.openai_config import get_openai_client
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
 from backend.services.score_adjustment.save import save_score_to_history
@@ -22,19 +25,128 @@ client = get_openai_client()
 EmitFn = Callable[[Dict[str, Any]], None]
 
 # ============================================
-# 🧠 部門ごとのスコアリング（中でマストチェックを呼ぶ）
+# 🚀 パフォーマンス最適化: キャッシング
 # ============================================
 
-def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] = None,) -> dict:
+# LLM呼び出し結果のキャッシュ（メモリ内）
+_llm_cache: Dict[str, tuple[Any, datetime]] = {}
+CACHE_TTL_SECONDS = 3600  # 1時間
+
+def _cache_key(prompt: str) -> str:
+    """プロンプトからキャッシュキーを生成"""
+    return hashlib.md5(prompt.encode('utf-8')).hexdigest()
+
+def _get_cached_result(prompt: str) -> Optional[str]:
+    """キャッシュから結果を取得"""
+    key = _cache_key(prompt)
+    if key in _llm_cache:
+        result, timestamp = _llm_cache[key]
+        if datetime.now() - timestamp < timedelta(seconds=CACHE_TTL_SECONDS):
+            print(f"✅ キャッシュヒット: {key[:8]}...")
+            return result
+        else:
+            del _llm_cache[key]
+    return None
+
+def _set_cached_result(prompt: str, result: str):
+    """結果をキャッシュに保存"""
+    key = _cache_key(prompt)
+    _llm_cache[key] = (result, datetime.now())
+
+# ============================================
+# 🚀 パフォーマンス最適化: テキスト切り詰め
+# ============================================
+
+def _truncate_text_smart(text: str, max_chars: int = 3000) -> str:
+    """
+    重要な情報を残しながらテキストを切り詰める
+    """
+    if len(text) <= max_chars:
+        return text
+    
+    # 重要なキーワードを含むセクションを優先的に抽出
+    important_keywords = [
+        "職務経歴", "業務内容", "実績", "スキル", "資格",
+        "学歴", "経験", "プロジェクト", "担当"
+    ]
+    
+    sections = []
+    for keyword in important_keywords:
+        if keyword in text:
+            start = max(0, text.find(keyword) - 50)
+            end = min(len(text), text.find(keyword) + 400)
+            sections.append(text[start:end])
+    
+    combined = "\n...\n".join(sections)
+    if len(combined) <= max_chars:
+        return combined
+    
+    # それでも長い場合は先頭から切り詰め
+    return text[:max_chars] + "\n...(以下省略)"
+
+# ============================================
+# 🚀 パフォーマンス最適化: 並列実行用のスレッドプール
+# ============================================
+
+_executor = ThreadPoolExecutor(max_workers=4)
+
+async def _call_llm_async(prompt: str, model: str = "gpt-4", temperature: float = 0.2) -> str:
+    """LLMを非同期で呼び出す"""
+    # キャッシュチェック
+    cached = _get_cached_result(prompt)
+    if cached:
+        return cached
+    
+    # 非同期実行
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(
+        _executor,
+        lambda: client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+        )
+    )
+    
+    result = response.choices[0].message.content or ""
+    _set_cached_result(prompt, result)
+    return result
+
+# ============================================
+# 🧠 部門ごとのスコアリング（並列化版）
+# ============================================
+
+async def score_resume_from_text_async(
+    text: str,
+    candidate_id: str,
+    emit: Optional[EmitFn] = None,
+) -> dict:
+    """
+    最適化版: マストチェックとスコアリングを並列実行
+    """
     def log(kind: str, msg: str, **extra):
         if emit:
             emit({"kind": kind, "message": msg, **extra})
 
-    print("📥 score_resume_from_text() called: candidate_id=%s", candidate_id)
+    print("📥 score_resume_from_text_async() called: candidate_id=%s", candidate_id)
     log("llm_call", f"📥 候補者ID: {candidate_id}のスコアリングを開始")
 
-    must_results = check_must_requirements_llm(text)
-    must_results_by_division = check_must_requirements_by_division_llm(text)
+    # テキストを最適化（長すぎる場合は切り詰め）
+    optimized_text = _truncate_text_smart(text, max_chars=4000)
+    
+    # ============================================
+    # 🚀 並列実行: マストチェック（共通 + 部門別）
+    # ============================================
+    
+    log("parallel_start", "⚡ マストチェックを並列実行中...")
+    
+    must_check_task = _check_must_requirements_llm_async(optimized_text)
+    must_by_div_task = _check_must_requirements_by_division_llm_async(optimized_text)
+    
+    must_results, must_results_by_division = await asyncio.gather(
+        must_check_task,
+        must_by_div_task
+    )
 
     print("✅ must_check 結果: %s", must_results)
     print("✅ must_results_by_division 結果: %s", must_results_by_division)
@@ -59,7 +171,10 @@ def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] 
         )
         return result
 
-    # === 部門プロフィールのロード ===
+    # ============================================
+    # 🚀 並列実行: 部門別スコアリング
+    # ============================================
+    
     division_profiles = load_division_profiles()
     print("🧠 division_profiles: %s", division_profiles)
     log("division_profiles", "🧠 部門別で求められる歓迎スキル 取得ログ", data=division_profiles)
@@ -69,7 +184,6 @@ def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] 
         for profile in division_profiles
     )
 
-    # === 🔧 プロンプト修正版（100点スケール対応） ===
     prompt = f"""
 あなたは企業の採用担当者です。
 以下の応募書類（履歴書および職務経歴書）を読み、
@@ -90,7 +204,7 @@ def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] 
 {division_descriptions}
 
 【候補者の応募書類（マスク済み）】
-{text}
+{optimized_text}
 
 ---
 
@@ -100,15 +214,9 @@ def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] 
 ]
 """
 
-    # === GPT呼び出し ===
     log("division_request", "🤖 LLM呼び出し開始")
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-
-    raw = (response.choices[0].message.content or "").strip()
+    raw = await _call_llm_async(prompt, model="gpt-4", temperature=0.2)
+    
     print("🧠 GPT応答 raw: %s", raw)
     log("division_response_raw", "🧠 GPT応答ログ", raw=raw)
 
@@ -138,7 +246,6 @@ def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] 
             except Exception:
                 continue
 
-            # ✅ 上限100点に正規化
             score_val = min(score_val, 100)
 
             if division:
@@ -154,33 +261,27 @@ def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] 
     except Exception as e:
         print("❌ GPT応答 JSONパース失敗: %s", e)
         log("division_parse_error", f"❌ GPT応答 JSONパース失敗: {e}", raw=raw)
-        print("🧠 GPT raw応答: %s", raw)
         scores = [{
             "division": "N/A",
             "score": 0,
             "reason": "JSON解析エラー",
         }]
 
-    # === 推薦部門決定（must_check NG部門を除外） ===
-
-    # must_check_by_division から NG部門を抽出
+    # === 推薦部門決定 ===
     ng_divisions = {
         convert_division_to_prefix(div)
         for div, checks in must_results_by_division.items()
         if any(not c.get("result") for c in checks.values())
     }
 
-    # スコア上位から順に、有効な部門を選ぶ（NGは減点処理）
     normalized_scores = []
     for s in scores:
         div_prefix = convert_division_to_prefix(s["division"])
         base_score = s["score"]
 
-        # 部門ごとのmust_check結果を取得
         checks = must_results_by_division.get(s["division"]) or must_results_by_division.get(div_prefix)
         if checks:
             ng_count = sum(1 for c in checks.values() if not c.get("result"))
-            # 1項目NGごとに−10点、下限0点
             PENALTY_PER_NG = 10
             adjusted_score = max(base_score - (ng_count * PENALTY_PER_NG), 0)
         else:
@@ -195,7 +296,6 @@ def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] 
             "ng_count": ng_count,
         })
 
-    # must_check NG部門を除外して推薦候補を決定
     valid_scores = [s for s in normalized_scores if s["division"] not in ng_divisions]
     recommended = (
         max(valid_scores, key=lambda x: x.get("score", -1))
@@ -225,19 +325,31 @@ def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] 
     return result
 
 # ============================================
-# 🧠 共通マストスキルの判定
+# 同期版のラッパー（既存コードとの互換性）
 # ============================================
 
-def check_must_requirements_llm(content: str) -> dict:
+def score_resume_from_text(text: str, candidate_id: str, emit: Optional[EmitFn] = None) -> dict:
     """
-    ResumeTraitテーブルからCommonのmust_requirementを取得して、LLM判定を行う
+    同期版（既存コードとの互換性のため）
+    内部で非同期版を呼び出す
     """
+    return asyncio.run(score_resume_from_text_async(text, candidate_id, emit))
+
+# ============================================
+# 🧠 共通マストスキルの判定（非同期版）
+# ============================================
+
+async def _check_must_requirements_llm_async(content: str) -> dict:
+    """非同期版: 共通マストスキルチェック"""
     with SessionLocal() as db:
         rows = db.query(CandidateExpectations)\
                     .filter(CandidateExpectations.division_prefix == "common")\
                     .filter(CandidateExpectations.trait_type == "must_requirement")\
                     .all()
         must_keywords = [r.trait_label.strip() for r in rows if r.trait_label.strip()]
+
+    if not must_keywords:
+        return {}
 
     prompt = f"""
 以下はある候補者の履歴書情報です：
@@ -257,26 +369,23 @@ JSON形式で次のように返してください：
 }}
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-
     try:
-        # Noneセーフ化
-        raw_content = response.choices[0].message.content or ""
-        result = json.loads(raw_content)
-        return result
+        raw = await _call_llm_async(prompt, model="gpt-4", temperature=0.2)
+        return json.loads(raw)
     except Exception as e:
-        # JSONパース失敗時は全て False 扱い
+        print(f"❌ マストチェック失敗: {e}")
         return {k: {"result": False, "reason": "判定失敗"} for k in must_keywords}
 
+def check_must_requirements_llm(content: str) -> dict:
+    """同期版ラッパー"""
+    return asyncio.run(_check_must_requirements_llm_async(content))
+
 # ============================================
-# 🧠 部門単位マストスキルの判定
+# 🧠 部門単位マストスキルの判定（非同期版）
 # ============================================
 
-def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+async def _check_must_requirements_by_division_llm_async(content: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """非同期版: 部門別マストスキルチェック（並列実行）"""
     from collections import OrderedDict
 
     with SessionLocal() as db:
@@ -285,7 +394,6 @@ def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str,
             .filter(CandidateExpectations.division_prefix != "common")\
             .all()
 
-    # divisionごとに分類（順番保持のためOrderedDict推奨）
     division_map: Dict[str, List[str]] = OrderedDict()
     for r in rows:
         division = r.division.strip()
@@ -294,10 +402,13 @@ def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str,
             continue
         division_map.setdefault(division, []).append(label)
 
-    results = {}
+    # 🚀 並列実行: 各部門のマストチェックを同時に行う
+    tasks = []
+    division_names = []
+    
     for division, traits in division_map.items():
         joined_traits = ', '.join(f'"{t}"' for t in traits)
-
+        
         prompt = f"""
 あなたは採用担当者です。
 以下の候補者の履歴書情報をもとに、「{division}」部門に必要な**特定のマスト条件のみ**について、各条件が満たされているかを判定してください。
@@ -319,29 +430,31 @@ def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str,
   ...
 }}
 """
+        tasks.append(_call_llm_async(prompt, model="gpt-4", temperature=0.2))
+        division_names.append((division, traits))
 
+    # 並列実行
+    responses = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    results = {}
+    for (division, traits), response in zip(division_names, responses):
         try:
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-            )
-            raw = response.choices[0].message.content or ""
-            parsed = json.loads(raw)
-
-            # ❗念のため trait_label 以外を除外（保険）
-            filtered = {
-                k: v for k, v in parsed.items()
-                if k in traits
-            }
+            if isinstance(response, Exception):
+                raise response
+            parsed = json.loads(response)
+            filtered = {k: v for k, v in parsed.items() if k in traits}
             results[division] = filtered
-
-        except Exception:
+        except Exception as e:
+            print(f"❌ 部門別マストチェック失敗 ({division}): {e}")
             results[division] = {
                 label: {"result": False, "reason": "パース失敗"} for label in traits
             }
 
     return results
+
+def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """同期版ラッパー"""
+    return asyncio.run(_check_must_requirements_by_division_llm_async(content))
 
 # ============================================
 # 🧠 志望動機のスコアリング
@@ -350,8 +463,10 @@ def check_must_requirements_by_division_llm(content: str) -> Dict[str, Dict[str,
 def score_motivation_statement(text: str) -> int:
     """
     志望動機テキスト（~500文字）からやる気スコア（0〜100）を判定する関数。
-    GPT-3.5-turbo用。サンプルとスコア基準付きでプロンプト設計。
     """
+    # テキストを切り詰め
+    text = _truncate_text_smart(text, max_chars=800)
+    
     prompt = f"""
 あなたは新卒採用の人事担当者です。
 以下の志望動機を読み、候補者の「やる気・熱意」を次の4つの観点から評価してください。
@@ -383,15 +498,21 @@ def score_motivation_statement(text: str) -> int:
 合計スコア: xx
 """
 
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-    content = response.choices[0].message.content
+    # キャッシュチェック
+    cached = _get_cached_result(prompt)
+    if cached:
+        content = cached
+    else:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        content = response.choices[0].message.content
+        _set_cached_result(prompt, content)
+    
     print("📝 GPT応答:", content)
 
-    # 数字だけを抽出
     match = re.search(r"\d{1,3}", content)
     return min(int(match.group()), 100) if match else 0
 
@@ -402,8 +523,10 @@ def score_motivation_statement(text: str) -> int:
 def score_work_experience(text: str) -> int:
     """
     職務経歴書テキストから経験・実績スコア（0〜100）を算出する関数。
-    GPT-3.5-turbo用。スコア基準付き。
     """
+    # テキストを切り詰め
+    text = _truncate_text_smart(text, max_chars=1000)
+    
     prompt = f"""
 あなたは採用担当者です。
 以下の職務経歴を読み、候補者の「経験の深さ・スキルの幅・成果の具体性・一貫性」を
@@ -435,12 +558,19 @@ def score_work_experience(text: str) -> int:
 合計スコア: xx
 """
 
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-    content = response.choices[0].message.content
+    # キャッシュチェック
+    cached = _get_cached_result(prompt)
+    if cached:
+        content = cached
+    else:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        content = response.choices[0].message.content
+        _set_cached_result(prompt, content)
+    
     print("🧾 GPT応答（職務経歴スコア）:", content)
 
     match = re.search(r"\d{1,3}", content)
