@@ -1,5 +1,5 @@
 const config = {
-  API_BASE_URL: "http://localhost:8000", // ← ここを本番用に書き換えればOK
+  API_BASE_URL: "https://prothentia.ngrok.app" // ← ここを本番用に書き換えればOK
 };
 
 export default config;
