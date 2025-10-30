@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@types/expr-eval": "^1.0.2",
+    "@types/node": "^24.9.2",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.8",
     "@vitejs/plugin-react": "^5.0.1",
