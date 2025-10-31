@@ -1,0 +1,436 @@
+/* ResumeBatchUpload.css */
+
+/* ファイル選択エリアの開閉 */
+.chat-input-wrapper-batch {
+    position: relative;
+    border-top: 1px solid #ddd;
+    background: #f8f9fa;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    overflow: visible; /* ✅ visible に変更（ボタンを外に出せるように） */
+}
+
+.chat-input-wrapper-batch.open {
+    max-height: 500px;
+    padding: 16px;
+    padding-top: 50px;
+}
+
+.chat-input-wrapper-batch.closed {
+    max-height: 0px; /* ✅ 完全に閉じる */
+    padding: 0;
+}
+
+/* ✅ トグルボタン（常に表示、閉じた時もホバーで見える） */
+.toggle-input-btn {
+    position: absolute;
+    top: -48px; /* ✅ エリアの外側（上）に配置 */
+    right: 8px;
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1.2em;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    z-index: 10;
+    opacity: 0.7; /* ✅ 通常時は半透明 */
+}
+
+/* ✅ ホバー時に完全に表示 */
+.toggle-input-btn:hover {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+.toggle-input-btn:active {
+    transform: scale(0.95);
+}
+
+/* ✅ 閉じている時の表示 */
+.chat-input-wrapper-batch.closed .toggle-input-btn {
+    opacity: 0.3; /* ✅ さらに薄く */
+}
+
+.chat-input-wrapper-batch.closed:hover .toggle-input-btn {
+    opacity: 1; /* ✅ ホバー時にはっきり表示 */
+}
+
+.input-area-content {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.batch-upload-info {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.batch-upload-info p {
+    margin: 0 0 8px 0;
+    font-weight: bold;
+    color: #333;
+}
+
+.batch-upload-info ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.batch-upload-info li {
+    margin: 4px 0;
+    font-size: 0.9em;
+    color: #555;
+}
+
+.file-input-area {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.file-input-area input[type="file"] {
+    width: 100%;
+    padding: 12px;
+    border: 2px dashed #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.file-input-area input[type="file"]:hover:not(:disabled) {
+    border-color: #667eea;
+}
+
+.file-input-area input[type="file"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.selected-files-preview {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.selected-files-preview strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.file-list-scroll {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-top: 8px;
+}
+
+.file-list-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.file-list-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.file-list-scroll::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.file-list-scroll::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.file-item {
+    padding: 8px 12px;
+    background: white;
+    border-radius: 4px;
+    margin: 4px 0;
+    font-size: 0.9em;
+    border-left: 3px solid #667eea;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.upload-button {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1em;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.upload-button:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.upload-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.upload-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* チャットサブタイトル */
+.chat-subtitle {
+    margin: 0;
+    font-size: 0.9em;
+    color: #666;
+    font-weight: normal;
+}
+/* === 左パネル（折りたたみ対応） === */
+.left-panel {
+  position: relative;
+  background-color: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+  overflow: visible; /* ボタンを外に出せるように */
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.left-panel.open {
+  flex-basis: 42%;
+  min-width: 400px;
+}
+
+.left-panel.closed {
+  flex-basis: 0;
+  min-width: 0;
+  max-width: 0;
+  padding: 0;
+  border-right: none;
+}
+
+/* コンテンツラッパー */
+.left-panel-content {
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  
+  /* ✅ スクロールバー非表示 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE, Edge */
+}
+
+/* ✅ スクロールバー非表示（Webkit） */
+.left-panel-content::-webkit-scrollbar {
+  display: none;
+}
+
+.left-panel-content.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.left-panel-content.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.left-panel.closed .left-panel-content {
+  display: none;
+}
+
+/* ✅ トグルボタン（上部に配置） */
+.toggle-panel-btn {
+  position: absolute;
+  top: 20px; /* ✅ 上部に配置 */
+  right: -20px;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.2em;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  z-index: 100;
+  opacity: 0.7;
+}
+
+.toggle-panel-btn:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.toggle-panel-btn:active {
+  transform: scale(0.95);
+}
+
+.left-panel.closed .toggle-panel-btn {
+  opacity: 0.3;
+  right: -20px;
+  left: auto;
+}
+
+.left-panel.closed:hover .toggle-panel-btn {
+  opacity: 1;
+}
+
+/* ✅ ファイル選択とボタンの横並びレイアウト */
+.batch-file-upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+/* ✅ ドラッグ&ドロップエリア（コンパクト版） */
+.batch-file-drop-area {
+    flex: 1;
+    border: 2px dashed #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f8f9fa;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.batch-file-drop-area:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.batch-file-drop-area.dragging {
+    border-color: #667eea;
+    background: #e0e7ff;
+    transform: scale(1.01);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.batch-file-drop-area.has-files {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.drop-placeholder {
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 500;
+    user-select: none;
+    text-align: center;
+}
+
+.selected-files-compact {
+    width: 100%;
+}
+
+.selected-files-compact strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #667eea;
+    font-size: 13px;
+}
+
+.file-list-scroll {
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.file-list-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.file-list-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.file-list-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.file-list-scroll::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.file-item-compact {
+    padding: 4px 8px;
+    background: white;
+    border-radius: 4px;
+    margin: 2px 0;
+    font-size: 12px;
+    border-left: 3px solid #667eea;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ✅ アップロードボタン（コンパクト版） */
+.batch-upload-button {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    min-width: 80px;
+}
+
+.batch-upload-button:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.batch-upload-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.batch-upload-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
