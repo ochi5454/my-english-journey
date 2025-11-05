@@ -36,12 +36,20 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
     const [showInterviewPrepModal, setShowInterviewPrepModal] = useState(false);
     const [interviewPrepData, setInterviewPrepData] = useState<Record<string, any>>({});
     const [isPrepLoading, setIsPrepLoading] = useState(false);
+    const [hrDecisionDraft, setHrDecisionDraft] = useState(localResult.hr_decision || '');
+    const [isEditingHrDecision, setIsEditingHrDecision] = useState(false);
+    const [isReEvaluating, setIsReEvaluating] = useState(false);
+    const [showReuploadModal, setShowReuploadModal] = useState(false);
+    const [reuploadFiles, setReuploadFiles] = useState<File[]>([]);
+    const [isReuploading, setIsReuploading] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [isEditingGender, setIsEditingGender] = useState(false);
+    const [genderDraft, setGenderDraft] = useState(localResult.gender || 'その他');
+
     const hasMustCheckFailure = (): boolean => {
         const mustCheck = localResult.must_check || {};
         return Object.values(mustCheck).some((item: any) => item.result === false);
     };
-    const [hrDecisionDraft, setHrDecisionDraft] = useState(localResult.hr_decision || '');
-    const [isEditingHrDecision, setIsEditingHrDecision] = useState(false);
     
     useEffect(() => {
         setLocalResult(result);
@@ -60,8 +68,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         fetch(encodeURI(url))
         .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
         .then(block => {
-            // 画面ではステージごとに使いたいのでステージ→ブロックの形に寄せる
-            setInterviewPrepData(prev => ({ ...prev, [interviewStage]: block })); // ← 変数キーを使う
+            setInterviewPrepData(prev => ({ ...prev, [interviewStage]: block }));
         })
         .catch(err => console.warn('面談準備取得失敗:', err));
     }, [interviewStage, interviewerId, result?.user_id]); 
@@ -79,7 +86,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-user-id': interviewerId,  // 認証や更新者記録用
+                'x-user-id': interviewerId,
             },
             body: JSON.stringify({
                 candidate_id: localResult.user_id,
@@ -91,7 +98,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
             if (!res.ok) throw new Error('保存に失敗しました');
 
-            // 保存後にローカルstateに反映
             setLocalResult((prev: any) => ({
                 ...prev,
                 hr_decision: hrDecisionDraft,
@@ -121,6 +127,38 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         } catch (err) {
             console.error(err);
             alert('保存エラーが発生しました');
+        }
+    };
+
+    // 性別保存関数を追加
+    const handleSaveGender = async () => {
+        try {
+            const res = await fetch(`${appConfig.API_BASE_URL}/candidate-gender-update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_id: localResult.user_id,
+                    gender: genderDraft,
+                }),
+            });
+
+            if (!res.ok) throw new Error('性別の更新に失敗しました');
+
+            setLocalResult((prev: any) => ({
+                ...prev,
+                gender: genderDraft,
+            }));
+
+            onResultUpdate?.({
+                ...(localResult || {}),
+                gender: genderDraft,
+            });
+
+            setIsEditingGender(false);
+            alert('性別を更新しました');
+        } catch (err) {
+            console.error(err);
+            alert('更新エラーが発生しました');
         }
     };
 
@@ -160,10 +198,8 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             ? data.adjusted_scores
             : [];
 
-            // 🤖 チャットログにAI応答を1回だけ追加
             setChatLog(prev => [...prev, { role: 'assistant', content: aiReply }]);
 
-            // 🔸 ステータス更新（AIとのチャット記録）
             const now = new Date().toISOString();
             const newChatReviewKey = `chat_review_${chatStage}_at`;
             const newChatReviewerKey = `chat_reviewer_${chatStage}`;
@@ -178,7 +214,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             [newChatReviewerKey]: interviewerId,
             });
 
-            // ✅ 確定フェーズ（shouldUpdateScore=true）の場合のみ update-score を呼ぶ
             if (shouldUpdate && scoreChangesArray.length > 0) {
             const updateRes = await fetch(`${appConfig.API_BASE_URL}/update-score`, {
                 method: 'POST',
@@ -237,6 +272,87 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             setShowInterviewModal(true);
         }
     };
+
+    const handleReEvaluate = async () => {
+        if (!localResult.user_id) return;
+        
+        setIsReEvaluating(true);
+        setIsProcessing(true);
+        
+        try {
+            const res = await fetch(`${appConfig.API_BASE_URL}/resume-score-rescore/${localResult.user_id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reviewer_id: interviewerId }),
+            });
+
+            if (res.status === 404) {
+                const errorData = await res.json();
+                if (errorData.detail?.includes('履歴書テキストが見つかりません')) {
+                    setIsReEvaluating(false);
+                    setShowReuploadModal(true);
+                    return;
+                }
+            }
+
+            if (!res.ok) throw new Error(`評価失敗: ${res.status}`);
+
+            const refreshed = await fetch(
+                `${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`,
+                { cache: 'no-store' }
+            );
+            
+            if (refreshed.ok) {
+                const updatedResult = await refreshed.json();
+                setLocalResult(updatedResult);
+                onResultUpdate?.(updatedResult);
+                alert('AI評価が完了しました');
+            }
+        } catch (err: any) {
+            alert(`評価エラー: ${err.message || err.toString()}`);
+        } finally {
+            setIsReEvaluating(false);
+            setIsProcessing(false);
+        }
+    };
+
+    const handleFileReupload = async () => {
+        if (reuploadFiles.length === 0) {
+            alert('ファイルを選択してください');
+            return;
+        }
+
+        setIsReuploading(true);
+
+        try {
+            const formData = new FormData();
+            reuploadFiles.forEach(file => formData.append('files', file));
+            formData.append('candidate_id', localResult.user_id);
+            formData.append('uploader_id', interviewerId);
+            if (localResult.preferred_div) {
+                formData.append('desired_division', localResult.preferred_div);
+            }
+
+            const res = await fetch(`${appConfig.API_BASE_URL}/resume-score-save`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!res.ok) throw new Error('アップロード失敗');
+
+            alert('再アップロード完了。AI評価を開始します...');
+            
+            setShowReuploadModal(false);
+            setReuploadFiles([]);
+            
+            setTimeout(() => handleReEvaluate(), 1000);
+
+        } catch (err: any) {
+            alert(`アップロードエラー: ${err.message}`);
+        } finally {
+            setIsReuploading(false);
+        }
+    };
     
     async function refreshChecksheet(stage: string) {
         const url = new URL(`${appConfig.API_BASE_URL}/checksheet/one`, window.location.origin);
@@ -260,7 +376,50 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 <div className="result-d-header-row">
                     <div className="result-d-header-info-inline">
                         <div className="icon">
-                            👤 <span className="label">候補者:</span> {localResult.user_id}
+                            👤 <span className="label">候補者:</span> {localResult.user_name || localResult.user_id}
+                        </div>
+                        {/* ✅ 性別表示を修正 */}
+                        <div className="icon gender-display">
+                            {(localResult.gender === 'その他' || localResult.gender === '不明' || !localResult.gender) ? (
+                                isEditingGender ? (
+                                    <div className="gender-edit-inline">
+                                        <select 
+                                            value={genderDraft} 
+                                            onChange={(e) => setGenderDraft(e.target.value)}
+                                            className="gender-select"
+                                        >
+                                            <option value="男性">男性</option>
+                                            <option value="女性">女性</option>
+                                            <option value="その他">その他</option>
+                                            <option value="不明">不明</option>
+                                        </select>
+                                        <button onClick={handleSaveGender} className="gender-save-btn">✓</button>
+                                        <button 
+                                            onClick={() => {
+                                                setIsEditingGender(false);
+                                                setGenderDraft(localResult.gender || 'その他');
+                                            }} 
+                                            className="gender-cancel-btn"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <span 
+                                        className="gender-clickable" 
+                                        onClick={() => setIsEditingGender(true)}
+                                        title="クリックして性別を変更"
+                                    >
+                                        ⚧️ <span className="label">性別:</span> 
+                                        <span className="gender-unknown">{localResult.gender || '不明'}</span>
+                                    </span>
+                                )
+                            ) : (
+                                <span>
+                                    {localResult.gender === '男性' ? '👨' : '👩'} 
+                                    <span className="label">性別:</span> {localResult.gender}
+                                </span>
+                            )}
                         </div>
                         <div className="icon">
                             📌 <span className="label">推奨部門:</span> 
@@ -269,22 +428,34 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
                         <div className="candidate-hr_decision-chip">
                             <HrDecisionEditor
-                                    value={hrDecisionDraft}
-                                    isEditing={isEditingHrDecision}
-                                    setIsEditing={setIsEditingHrDecision}
-                                    onChange={setHrDecisionDraft}
-                                    onSave={async () => {
+                                value={hrDecisionDraft}
+                                isEditing={isEditingHrDecision}
+                                setIsEditing={setIsEditingHrDecision}
+                                onChange={setHrDecisionDraft}
+                                onSave={async () => {
                                     await handleSaveHrDecision();
                                     setIsEditingHrDecision(false);
                                 }}
-                                    onCancel={() => {
+                                onCancel={() => {
                                     setIsEditingHrDecision(false);
                                     setHrDecisionDraft(localResult.hr_decision || '');
                                 }}
                                 hiringDecisions={configData.hiringDecisions}
                             />
                         </div>
+
+                        {/* ✅ 修正: スコアがない場合は常にボタン表示 */}
+                        {(!localResult.preferred_div_score && !localResult.recommended_div_score) && (
+                            <button 
+                                onClick={handleReEvaluate}
+                                className="re-evaluate-button"
+                                disabled={isReEvaluating}
+                            >
+                                {isReEvaluating ? '再評価中...' : '🔄 AI評価を再実行'}
+                            </button>
+                        )}
                     </div>
+                    
                     <button onClick={onClose} className="result-d-close-button-absolute">✖ 閉じる</button>
                 </div>
 
@@ -297,9 +468,9 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                         setIsPrepLoading(true);
 
                         setTimeout(() => {
-                        refreshChecksheet(stage)
-                            .catch((err) => console.warn("checksheet fetch error", err))
-                            .finally(() => setIsPrepLoading(false));
+                            refreshChecksheet(stage)
+                                .catch((err) => console.warn("checksheet fetch error", err))
+                                .finally(() => setIsPrepLoading(false));
                         }, 0);
                     }}
                 />
@@ -346,7 +517,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                     if (!res.ok) throw new Error(`送信エラー: ${res.status}`);
                     alert("面談メールを送信しました");
 
-                    // 🔽 ここで最新の候補者データを取得
                     if (onResultUpdate) {
                         const updatedRes = await fetch(`${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`, { cache: 'no-store' });
                         const updatedResult = await updatedRes.json();
@@ -387,13 +557,10 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             stage={interviewStage}
             isOpen={showInterviewPrepModal}
             onClose={() => setShowInterviewPrepModal(false)}
-            // ❗ 常に「空オブジェクト or 実データ」を渡す（undefined は渡さない）
             initialData={interviewPrepData[interviewStage] || {}}
-            // スピナーは親が明示
             loadingInitial={isPrepLoading}
             onSubmit={async (data) => {
             try {
-                // 保存用API呼び出し
                 const res = await fetch(`${appConfig.API_BASE_URL}/checksheet`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -407,7 +574,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
                 if (!res.ok) throw new Error(`保存に失敗: ${res.status}`);
 
-                // ローカルにも反映
                 setInterviewPrepData((prev: Record<string, any>) => ({
                 ...prev,
                 [interviewStage]: data,
@@ -428,7 +594,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
             setLocalResult((prev: Record<string, any>) => ({
                 ...prev,
-                ...updated, // 差分を上書き
+                ...updated,
                 [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
                 [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
             }));
@@ -442,6 +608,78 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             }}
             prefixToName={prefixToName}
         />
+        )}
+
+        {showReuploadModal && (
+            <div className="reupload-modal-overlay" onClick={() => setShowReuploadModal(false)}>
+                <div className="reupload-modal-box" onClick={(e) => e.stopPropagation()}>
+                    <h3>📄 履歴書が見つかりません</h3>
+                    <p>履歴書・職務経歴書を再度アップロードしてください</p>
+                    
+                    <div 
+                        className="file-drop-zone"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            const files = Array.from(e.dataTransfer.files);
+                            setReuploadFiles(files);
+                        }}
+                    >
+                        <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.doc,.docx,.xls,.xlsx"
+                            onChange={(e) => {
+                                const files = Array.from(e.target.files || []);
+                                setReuploadFiles(files);
+                            }}
+                            style={{ display: 'none' }}
+                            id="reupload-input"
+                        />
+                        <label htmlFor="reupload-input" className="file-drop-label">
+                            {reuploadFiles.length > 0 ? (
+                                <div>
+                                    <p>✅ {reuploadFiles.length}件選択済み</p>
+                                    {reuploadFiles.map((f, i) => (
+                                        <div key={i} className="file-item">{f.name}</div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div>
+                                    <p>📁 ここにファイルをドロップ</p>
+                                    <p>または クリックして選択</p>
+                                </div>
+                            )}
+                        </label>
+                    </div>
+
+                    <div className="reupload-modal-actions">
+                        <button 
+                            onClick={handleFileReupload}
+                            disabled={isReuploading || reuploadFiles.length === 0}
+                            className="reupload-submit-btn"
+                        >
+                            {isReuploading ? 'アップロード中...' : 'アップロードして評価'}
+                        </button>
+                        <button 
+                            onClick={() => setShowReuploadModal(false)}
+                            className="reupload-cancel-btn"
+                        >
+                            キャンセル
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {isProcessing && (
+            <div className="processing-overlay">
+                <div className="processing-spinner">
+                    <div className="spinner"></div>
+                    <p>AI評価を実行中...</p>
+                    <p className="warning">⚠️ ページを閉じないでください</p>
+                </div>
+            </div>
         )}
 
         </>

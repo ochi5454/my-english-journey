@@ -30,9 +30,10 @@ def load_prep_map_with_owner(db: Session) -> Dict[str, Dict[str, List[dict]]]:
     id_to_key_map = {m.id: m.key for m in master_items}  # { 1: "careerGoals", 2: ... }
 
     for r in records:
-        cid = r.candidate_id
-        stage = r.stage_name
-        iid = r.interviewer_id
+        # 🔧 Fix: Convert Column values to actual strings
+        cid = str(r.candidate_id)
+        stage = str(r.stage_name)
+        iid = str(r.interviewer_id)
 
         # prepItems
         prep_items = [
@@ -40,6 +41,7 @@ def load_prep_map_with_owner(db: Session) -> Dict[str, Dict[str, List[dict]]]:
                 "question_id": qa.question_id,
                 "question": qa.question,
                 "answer": qa.answer,
+                # 🔧 Fix: Handle potential None value for tags
                 "tags": qa.tags.split(",") if qa.tags else [],
             }
             for qa in r.prep_items
@@ -52,7 +54,7 @@ def load_prep_map_with_owner(db: Session) -> Dict[str, Dict[str, List[dict]]]:
         qualitative_map = {}
         for qv in qv_list:
             key = id_to_key_map.get(qv.qualitative_item_id)
-            if key:
+            if key is not None:
                 qualitative_map[key] = qv.value or ""
 
         # quantitative
@@ -75,17 +77,39 @@ def load_prep_map_with_owner(db: Session) -> Dict[str, Dict[str, List[dict]]]:
             "recommendedTitle": r.recommended_title,
             "payType": r.pay_type,
             "employmentType": r.employment_type,
-            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            # 🔧 Fix: Properly handle datetime conditional
+            "updated_at": r.updated_at.isoformat() if r.updated_at is not None else None,
         }
 
+        # 🔧 Fix: Use converted string values for dict keys
         stage_map = merged.setdefault(cid, {})
         stage_map.setdefault(stage, []).append(block)
 
-    print(f"🟦 [DEBUG] load_prep_map_with_owner for candidate={cid}, stage={stage}")
-    print(f"     interviewer_id={iid}")
-    print(f"     qualitative keys={list(qualitative_map.keys())}")
-    for k, v in qualitative_map.items():
-        print(f"       - {k} = {v}")
+    # 🔧 Fix: Move debug print outside the loop and add safety check
+    if records:
+        print(f"🟦 [DEBUG] load_prep_map_with_owner processed {len(records)} records")
+        # デバッグ出力は最後のレコードの情報を表示
+        if records:
+            last_r = records[-1]
+            last_cid = str(last_r.candidate_id)
+            last_stage = str(last_r.stage_name)
+            last_iid = str(last_r.interviewer_id)
+            
+            # 最後のレコードのqualitativeを再取得（ループ外なので）
+            last_qv_list = db.query(ResultByInterviewQualitativeValue)\
+                .filter_by(evaluation_id=last_r.id)\
+                .all()
+            last_qualitative_map = {}
+            for qv in last_qv_list:
+                key = id_to_key_map.get(qv.qualitative_item_id)
+                if key is not None:
+                    last_qualitative_map[key] = qv.value or ""
+            
+            print(f"     Last record: candidate={last_cid}, stage={last_stage}")
+            print(f"     interviewer_id={last_iid}")
+            print(f"     qualitative keys={list(last_qualitative_map.keys())}")
+            for k, v in last_qualitative_map.items():
+                print(f"       - {k} = {v}")
 
     return merged
 

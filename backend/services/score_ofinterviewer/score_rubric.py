@@ -21,18 +21,20 @@ def load_interviewer_skills(version: date | None = None) -> dict:
         if not items:
             return default_interviewer_rubric()
 
-        # 重み合計が0なら等分配（normalize_rubric内でも実施されるが念のため）
-        weights = [i.weight for i in items]
-        if sum(weights) == 0:
+        # 🔧 Fix: Explicitly get attribute values and convert
+        weights = [float(getattr(i, 'weight', 0.0)) for i in items]
+        weights_sum = sum(weights)
+        
+        if weights_sum == 0:
             equal_weight = round(1.0 / len(items), 4)
             weights = [equal_weight] * len(items)
 
         criteria = [
             {
-                "key": i.key,
-                "label": i.label,
+                "key": str(i.key),
+                "label": str(i.label),
                 "weight": w,
-                "guidance": i.guidance or ""
+                "guidance": str(i.guidance or "")
             }
             for i, w in zip(items, weights)
         ]
@@ -41,7 +43,7 @@ def load_interviewer_skills(version: date | None = None) -> dict:
             "max_score": 10,
             "criteria": criteria,
         }
-
+     
 def default_interviewer_rubric() -> dict:
     """ファイルが無い/壊れている場合のデフォルト."""
     return {
@@ -105,6 +107,7 @@ def normalize_rubric(raw: dict) -> dict:
 
 def get_interviewer_rubric_or_default(version: date | None = None) -> dict:
     from backend.services.score_ofinterviewer.score_rubric import default_interviewer_rubric
+    from typing import cast
 
     with SessionLocal() as db:
         query = db.query(InterviewerCriteriaItem)
@@ -115,17 +118,20 @@ def get_interviewer_rubric_or_default(version: date | None = None) -> dict:
         if not items:
             return normalize_rubric(default_interviewer_rubric())
 
-        weights = [i.weight for i in items]
-        if sum(weights) == 0:
+        # 🔧 Fix: Use cast to tell type checker this is a float
+        weights = [cast(float, i.weight) for i in items]
+        weights_sum = sum(weights)
+        
+        if weights_sum == 0:
             equal_weight = round(1.0 / len(items), 4)
             weights = [equal_weight] * len(items)
 
         criteria = [
             {
-                "key": i.key,
-                "label": i.label,
+                "key": str(i.key),
+                "label": str(i.label),
                 "weight": w,
-                "guidance": i.guidance or ""
+                "guidance": str(i.guidance or "")
             }
             for i, w in zip(items, weights)
         ]

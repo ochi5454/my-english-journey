@@ -12,7 +12,7 @@ def send_interview_emails(req: InterviewSetupRequest):
     # ✅ 候補者IDから実名を取得
     with SessionLocal() as db:
         candidate = db.query(Candidate).filter_by(user_id=req.candidate).first()
-        candidate_name = candidate.name if candidate and candidate.name else req.candidate
+        candidate_name = candidate.name if candidate is not None and candidate.name is not None else req.candidate
     
     # テンプレート変数
     template_vars = {

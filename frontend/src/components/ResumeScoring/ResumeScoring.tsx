@@ -126,8 +126,8 @@ const ResumeScoring: React.FC<{ userId: string }> = ({ userId }) => {
         }
     };
 
-    return (
-        <div className="resume-container">
+return (
+    <div className={`resume-container ${viewMode === 'matrix' ? 'wide-view' : ''}`}> {/* ← matrixの時だけ */}
         <div className="resume-tabs">
         <div
             className={`resume-tab ${viewMode === 'form' ? 'active' : ''}`}

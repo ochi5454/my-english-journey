@@ -84,12 +84,13 @@ class RoleService:
             db.commit()
             db.refresh(role)
             
+            # 🔧 Fix: Convert Column to string
             # 監査ログ記録
             AuditService.log_action(
                 action="create_role",
                 user_id=created_by,
                 target_type="role",
-                target_id=role.id,
+                target_id=str(role.id),  # Convert to string
                 changes={
                     "after": RoleService._role_to_dict(role)
                 },
@@ -187,11 +188,12 @@ class RoleService:
             # 変更後の状態
             after = RoleService._role_to_dict(role)
             
+            # 🔧 Fix: Convert Column to string
             # 監査ログ記録
             AuditService.log_change(
                 action="update_role",
                 target_type="role",
-                target_id=role.id,
+                target_id=str(role.id),  # Convert to string
                 before=before,
                 after=after,
                 user_id=updated_by,
@@ -230,8 +232,9 @@ class RoleService:
             if not role:
                 raise RoleNotFoundException(f"ロールID '{role_id}' が見つかりません")
             
+            # 🔧 Fix: Proper check for system role
             # システムロールの保護
-            if role.is_system_role:
+            if role.is_system_role is True:  # Explicit comparison
                 raise SystemRoleProtectedException(
                     f"システムロール '{role.name}' は削除できません"
                 )
@@ -494,7 +497,8 @@ class RoleService:
             "display_name": role.display_name,
             "description": role.description,
             "is_system_role": role.is_system_role,
-            "created_at": role.created_at.isoformat() if role.created_at else None,
-            "updated_at": role.updated_at.isoformat() if role.updated_at else None,
+            # 🔧 Fix: Proper datetime check
+            "created_at": role.created_at.isoformat() if role.created_at is not None else None,
+            "updated_at": role.updated_at.isoformat() if role.updated_at is not None else None,
             "created_by": role.created_by
         }

@@ -1,3 +1,4 @@
+/* 元の設定 */
 .resume-container {
     padding: 1.5rem;
     max-width: 1000px;
@@ -5,6 +6,13 @@
     font-family: sans-serif;
 }
 
+/* ✅ 候補者一覧の時だけ横幅いっぱいに */
+.resume-container.wide-view {
+    max-width: 100%;
+    padding: 1.5rem 2rem;
+}
+
+/* その他のCSSは変更なし */
 .resume-tabs {
   display: flex;
   border-bottom: 2px solid #ccc;

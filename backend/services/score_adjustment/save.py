@@ -24,7 +24,7 @@ def load_single_result(candidate_id: str) -> Optional[dict]:
             "user_id": candidate.user_id,
             "recommended_division": candidate.recommended_div,
             "uploader_id": candidate.uploader_id,
-            "timestamp": candidate.updated_at.isoformat() if candidate.updated_at else None,
+            "timestamp": candidate.updated_at.isoformat() if candidate.updated_at is not None else None,
             "must_check": {
                 m.item_name: {"result": m.result, "reason": m.reason}
                 for m in must_items

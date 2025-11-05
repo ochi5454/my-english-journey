@@ -4,6 +4,7 @@ import { RenderMustCheckChip } from './RenderMustCheckChip';
 import HREvaluationModal from './HREvaluationModal';
 import './HRFinalReviewDashboard.css';
 import appConfig from '../../config.ts';
+import { formatToJST } from '../Utils/dateFormat';
 
 interface CandidateReviewBlockProps {
     candidateId: string;
@@ -129,12 +130,12 @@ const CandidateReviewBlock: React.FC<CandidateReviewBlockProps> = ({
 
             {hrEvaluation?.savedAt && (
                 <div className="hr-review-note">
-                保存済: {new Date(hrEvaluation.savedAt).toLocaleString()}
-                {hrEvaluation.decision && ` / ${hrEvaluation.decision}`}
-                {hrEvaluation.division && ` / ${hrEvaluation.division}`}
-                {hrEvaluation.title && ` / ${hrEvaluation.title}`}
-                {hrEvaluation.annualIncome &&
-                    ` / ${hrEvaluation.annualIncome}万円`}
+                    保存済: {formatToJST(hrEvaluation.savedAt)}
+                    {hrEvaluation.decision && ` / ${hrEvaluation.decision}`}
+                    {hrEvaluation.division && ` / ${hrEvaluation.division}`}
+                    {hrEvaluation.title && ` / ${hrEvaluation.title}`}
+                    {hrEvaluation.annualIncome &&
+                        ` / ${hrEvaluation.annualIncome}万円`}
                 </div>
             )}
             </div>

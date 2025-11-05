@@ -24,8 +24,10 @@ def search_resume_snippets(candidate_id: str, query: str, top_k: int = 3, min_sc
         where={"candidate_id": candidate_id}
     )
 
-    docs = results.get("documents", [[]])[0]
-    distances = results.get("distances", [[]])[0]
+    docs = results.get("documents", [[]])
+    docs = docs[0] if docs else []
+    distances = results.get("distances", [[]])
+    distances = distances[0] if distances else []
 
     # ✅ 類似度スコアに変換（距離が小さいほどスコアが高い）
     snippets = []
@@ -56,8 +58,10 @@ def debug_search(candidate_id: str, query: str):
         where={"candidate_id": candidate_id}
     )
 
-    docs = results.get("documents", [[]])[0]
-    distances = results.get("distances", [[]])[0]
+    docs = results.get("documents", [[]])
+    docs = docs[0] if docs else []
+    distances = results.get("distances", [[]]) or [[]]
+    distances = distances[0] if distances else []
 
     print(f"🔍 {len(docs)} 件ヒット")
     for doc, dist in zip(docs, distances):

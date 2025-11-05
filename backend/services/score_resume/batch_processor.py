@@ -1,12 +1,6 @@
-"""
-複数履歴書の一括処理（軽量版）
-- 基本情報のみ抽出（名前・性別・志望動機・職務経歴）
-- 詳細スコアリングは後から個別実行
-"""
-
 import asyncio
 import io
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime
 from uuid import uuid4
 from pathlib import Path
@@ -163,7 +157,7 @@ class BatchResumeProcessor:
     
     async def process_batch(
         self,
-        files: List[Dict[str, any]],
+        files: List[Dict[str, Any]],
         uploader_id: str
     ) -> Dict:
         """

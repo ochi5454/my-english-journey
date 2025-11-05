@@ -88,7 +88,11 @@ def _extract_skills_with_ai(content: str) -> SuggestedSkills:
         temperature=0.3,
     )
 
-    raw = comp.choices[0].message.content.strip()
+    raw = comp.choices[0].message.content
+    if raw is None:
+        logger.warning("AI応答が空でした。")
+        return SuggestedSkills(must_requirement=[], desired_trait=[])
+    raw = raw.strip()
 
     # ✅ コードブロック除去
     if raw.startswith("```"):

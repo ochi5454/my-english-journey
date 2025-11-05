@@ -69,15 +69,16 @@ def list_diff_targets(
     missing, stale = [], []
 
     for row in targets:
-        cid = row.candidate_id
-        iid = row.interviewer_id
-        stg = row.stage_name
+        # 🔧 Fix: Convert Column values to actual strings
+        cid = str(row.candidate_id)  # Convert to string
+        iid = str(row.interviewer_id)  # Convert to string
+        stg = str(row.stage_name)  # Convert to string
 
         if needle and (needle not in iid.lower() and needle not in cid.lower()):
             continue
 
         if cid not in resume_cache:
-            resume_cache[cid] = get_resume_or_empty(cid)
+            resume_cache[cid] = get_resume_or_empty(cid)  # Now cid is str
         resume = resume_cache[cid]
 
         qa_block = prep_map.get(cid, {}).get(stg, [])
@@ -151,7 +152,7 @@ def refresh_targets_and_upsert(
             if row_obj:
                 print(f"    🔍 eval_required: {row_obj.eval_required}")
 
-            if not (row_obj and row_obj.eval_required):
+            if not (row_obj and row_obj.eval_required is True):
                 print(f"    ⛔️ Skipped (eval_required not True)")
                 continue
             else:
