@@ -181,6 +181,54 @@ def normalize_pdf_text(text: str) -> str:
     text = re.sub(r'[ \t]{2,}', ' ', text)
     return text.strip()
 
+import re
+from datetime import datetime
+
+def extract_birth_date(text: str) -> str | None:
+    """
+    履歴書から生年月日を抽出
+    対応形式:
+    - 1990年1月1日
+    - 1990/01/01
+    - 1990-01-01
+    - 平成2年1月1日
+    """
+    
+    # 西暦形式
+    patterns = [
+        r'(\d{4})年(\d{1,2})月(\d{1,2})日',
+        r'(\d{4})/(\d{1,2})/(\d{1,2})',
+        r'(\d{4})-(\d{1,2})-(\d{1,2})',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            year, month, day = match.groups()
+            try:
+                date_obj = datetime(int(year), int(month), int(day))
+                return date_obj.strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+    
+    # 和暦対応（平成・令和）
+    wareki_pattern = r'(平成|令和)(\d{1,2})年(\d{1,2})月(\d{1,2})日'
+    match = re.search(wareki_pattern, text)
+    if match:
+        era, era_year, month, day = match.groups()
+        
+        # 平成 → 1988年基準、令和 → 2018年基準
+        base_year = 1988 if era == '平成' else 2018
+        year = base_year + int(era_year)
+        
+        try:
+            date_obj = datetime(year, int(month), int(day))
+            return date_obj.strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+    
+    return None
+
 # ============================================
 # 🧠 LangChainを使った名前・性別の抽出（高速化版）
 # ============================================

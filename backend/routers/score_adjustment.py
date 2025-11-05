@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
@@ -12,7 +12,7 @@ from backend.services.score_adjustment.score import extract_original_scores_from
 from backend.services.score_adjustment.save import save_score_to_history
 
 router = APIRouter()
-
+JST = timezone(timedelta(hours=9))
 #  ============================================
 #  📮 チャットの中でリスコアリング
 #  ============================================
@@ -85,7 +85,7 @@ async def update_score(payload: ScoreUpdateRequest):
     reviewer_id = payload.reviewer_id
     stage = payload.stage
 
-    now = datetime.utcnow()
+    now = datetime.now(JST)
 
     if not payload.adjustments:
         raise HTTPException(status_code=400, detail="調整内容がありません")

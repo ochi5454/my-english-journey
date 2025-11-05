@@ -3,8 +3,8 @@ import io
 import re
 import traceback
 from uuid import uuid4
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timezone, timedelta
+from typing import List, Optional, Any
 from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 import asyncio
@@ -16,7 +16,7 @@ from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.resume import Resume, ResumeWorkHistory
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
-from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
 from backend.services.score_resume.score import score_resume_from_text_async, score_motivation_statement_async, score_work_experience_async
 from backend.services.score_resume.sanitizer import mask_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
@@ -25,6 +25,20 @@ from backend.services.score_resume.streaming import _sse, log_step
 from backend.utils.division import convert_division_to_prefix
 
 router = APIRouter()
+JST = timezone(timedelta(hours=9))
+
+# ✅ ヘルパー関数: datetime を JST の ISO 文字列に変換
+def to_jst_iso(dt: Any) -> str | None:
+    """datetime を JST の ISO 文字列に変換"""
+    if dt is None:
+        return None
+    if not isinstance(dt, datetime):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=JST)
+    else:
+        dt = dt.astimezone(JST)
+    return dt.isoformat()
 
 #  ============================================
 #  📮 履歴書保存・スコアリング
@@ -110,6 +124,12 @@ async def resume_score_save(
             await asyncio.sleep(0)
             masked_text, extracted_name = mask_personal_info(merged_text)
             extracted_gender = extract_gender_from_text(merged_text)
+            extracted_birth_date = extract_birth_date(merged_text)  # ✅ 追加
+
+            print(f"🔍 extracted_name: '{extracted_name}'")
+            print(f"🔍 extracted_gender: '{extracted_gender}'")
+            print(f"🔍 extracted_birth_date: '{extracted_birth_date}'")  # ✅ 追加
+
             yield log_step("mask_done", f"🙈 マスキング完了 — 氏名候補: {extracted_name or '不明'}")
             await asyncio.sleep(0)
 
@@ -131,7 +151,8 @@ async def resume_score_save(
             # === ⑦ Candidateと CandidateStatusを保存 ===
             yield log_step("db_init_start", "👤 候補者情報の登録を開始")
             await asyncio.sleep(0)
-            now = datetime.utcnow()
+            
+            now = datetime.now(JST)
 
             with SessionLocal() as db:
 
@@ -148,6 +169,7 @@ async def resume_score_save(
                         user_id=candidate_id,
                         name=extracted_name,
                         gender=extracted_gender,
+                        birth_date=extracted_birth_date,  # ✅ 追加
                         experience=experience_years,
                         uploader_id=uploader_id,
                         preferred_div=prefix,
@@ -156,6 +178,9 @@ async def resume_score_save(
                     )
                     db.add(candidate)
                 else:
+                    candidate.name = extracted_name
+                    candidate.gender = extracted_gender
+                    candidate.birth_date = extracted_birth_date  # ✅ 追加
                     candidate.updated_by = "system"
                     candidate.updated_at = now
                     candidate.experience = experience_years
@@ -200,7 +225,7 @@ async def resume_score_save(
             # === ⑨ スコア・must_checkをDBに保存 ===
             yield log_step("db_scores_start", "💾 スコア・サマリの保存を開始")
             await asyncio.sleep(0)
-            now = datetime.utcnow()
+            now = datetime.now(JST)
 
             with SessionLocal() as db:
                 # === 志望動機・職務経歴の抽出 ===
@@ -494,7 +519,7 @@ async def resume_score_rescore(candidate_id: str):
             scoring_result["recommended_division"] = recommended_div_prefix
 
             # ⑥ DBを更新
-            now = datetime.utcnow()
+            now = datetime.now(JST)
 
             motivation_text = extract_motivation(masked_text)
             work_experience_text = extract_work_experience(masked_text)
@@ -595,7 +620,7 @@ async def candidate_gender_update(request: Request):
             raise HTTPException(status_code=404, detail="候補者が見つかりません")
         
         candidate.gender = gender
-        candidate.updated_at = datetime.utcnow()
+        candidate.updated_at = now = datetime.now(JST)
         db.commit()
     
     return JSONResponse(content={"success": True, "gender": gender})
@@ -609,29 +634,20 @@ async def get_resume_results():
         for c in candidates:
             user_id = c.user_id
 
-            # === ステータス取得 ===
             latest_status = (
                 db.query(CandidateStatus)
                 .filter_by(user_id=user_id)
-                .order_by(CandidateStatus.reviewed_at.desc())  # reviewed_atで最新を取る（任意）
+                .order_by(CandidateStatus.reviewed_at.desc())
                 .first()
             )
             status_value = latest_status.stage if latest_status else "アップロード"
 
-            # === 各種関連データ ===
-            must_checks = db.query(CandidateMustCheckItem)\
-                .filter_by(user_id=user_id).all()
-
-            division_must_checks = db.query(CandidateDivisionMustCheckItem)\
-                .filter_by(user_id=user_id).all()
-
-            scores = db.query(CandidateDivisionScore)\
-                .filter_by(user_id=user_id).all()
+            must_checks = db.query(CandidateMustCheckItem).filter_by(user_id=user_id).all()
+            division_must_checks = db.query(CandidateDivisionMustCheckItem).filter_by(user_id=user_id).all()
+            scores = db.query(CandidateDivisionScore).filter_by(user_id=user_id).all()
             
-            # --- 部門別スコア辞書を構築 ---
             division_score_map = {s.division: s.score for s in scores}
 
-            # === division_must_check 整形 ===
             division_must_check_dict = {}
             for d in division_must_checks:
                 division = d.division
@@ -642,7 +658,6 @@ async def get_resume_results():
                     "reason": d.reason
                 }
 
-            # === 希望部門・推薦部門のスコア取得 ===
             preferred_div = c.preferred_div
             recommended_div = c.recommended_div
 
@@ -651,24 +666,14 @@ async def get_resume_results():
             preferred_div_reason = None
             recommended_div_reason = None
 
-            # 希望部門スコア
             if preferred_div is not None:
-                pref_score = (
-                    db.query(CandidateDivisionScore)
-                    .filter_by(user_id=user_id, division=preferred_div)
-                    .one_or_none()  # ← first()でもOK。整合性重視ならこちら。
-                )
+                pref_score = db.query(CandidateDivisionScore).filter_by(user_id=user_id, division=preferred_div).one_or_none()
                 if pref_score:
                     preferred_div_score = pref_score.score
                     preferred_div_reason = pref_score.reason
 
-            # 推薦部門スコア
             if recommended_div is not None:
-                rec_score = (
-                    db.query(CandidateDivisionScore)
-                    .filter_by(user_id=user_id, division=recommended_div)
-                    .one_or_none()
-                )
+                rec_score = db.query(CandidateDivisionScore).filter_by(user_id=user_id, division=recommended_div).one_or_none()
                 if rec_score:
                     recommended_div_score = rec_score.score
                     recommended_div_reason = rec_score.reason
@@ -677,6 +682,7 @@ async def get_resume_results():
                 "user_id": user_id,
                 "user_name": c.name,
                 "gender": c.gender,
+                "birth_date": c.birth_date,
                 "status": status_value,
                 "hr_decision": c.hr_decision,
                 "hr_division": c.hr_division,
@@ -684,10 +690,10 @@ async def get_resume_results():
                 "hr_income": c.hr_income,
                 "hr_pay_type": c.hr_pay_type,
                 "hr_employment_type": c.hr_employment_type, 
-                "hr_saved_at": c.hr_saved_at.isoformat() if c.hr_saved_at is not None else None,
+                "hr_saved_at": to_jst_iso(c.hr_saved_at),  # ✅ 修正
                 "hr_saved_by": c.hr_saved_by,
                 "notes": c.notes,
-                "score_notes":c.score_notes,
+                "score_notes": c.score_notes,
                 "work_summary": c.work_summary,
                 "score_work": c.score_work,
                 "experience": c.experience,
@@ -698,7 +704,7 @@ async def get_resume_results():
                 "recommended_div_score": recommended_div_score,
                 "recommended_div_reason": recommended_div_reason,
                 "uploader_id": c.uploader_id,
-                "timestamp": c.updated_at.isoformat() if c.updated_at is not None else None,
+                "timestamp": to_jst_iso(c.updated_at),  # ✅ 修正
                 "must_check": {
                     m.item_name: {"result": m.result, "reason": m.reason}
                     for m in must_checks
@@ -731,11 +737,10 @@ async def get_result_by_candidate_id(candidate_id: str):
                 "score": h.score,
                 "reason": h.reason,
                 "reviewer": h.reviewer,
-                "reviewed_at": h.reviewed_at.isoformat() if h.reviewed_at is not None else None,
+                "reviewed_at": to_jst_iso(h.reviewed_at),  # ✅ 修正
                 "source": h.source
             })
 
-        # ✅ reviewed_at の最新値を取得
         latest_status = (
             db.query(CandidateStatus)
             .filter(CandidateStatus.user_id == candidate_id)
@@ -748,6 +753,7 @@ async def get_result_by_candidate_id(candidate_id: str):
             "user_id": candidate_id,
             "user_name": c.name,
             "gender": c.gender,
+            "birth_date": c.birth_date,
             "status": latest_status.stage if latest_status else None,
             "notes": c.notes,
             "work_summary": c.work_summary,
@@ -756,7 +762,7 @@ async def get_result_by_candidate_id(candidate_id: str):
             "experience": c.experience,
             "recommended_division": c.recommended_div,
             "uploader_id": c.uploader_id,
-            "timestamp": latest_reviewed_at.isoformat() if latest_reviewed_at is not None else None,
+            "timestamp": to_jst_iso(latest_reviewed_at),  # ✅ 修正
             "hr_decision": c.hr_decision,
             "must_check": {
                 m.item_name: {"result": m.result, "reason": m.reason}
@@ -776,21 +782,23 @@ async def get_result_by_candidate_id(candidate_id: str):
         # ✅ 面談日程情報
         schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
         for s in schedules:
-            if s.interview_stage.is_("interview_1"):
-                result_data["interview_1_date"] = s.scheduled_at.isoformat()
-            elif s.interview_stage.is_("interview_2"):
-                result_data["interview_2_date"] = s.scheduled_at.isoformat()
-            elif s.interview_stage.is_("interview_final"):                
-                result_data["interview_final_date"] = s.scheduled_at.isoformat()
+            if s.interview_stage._is("interview_1"):
+                result_data["interview_1_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
+            elif s.interview_stage._is("interview_2"):
+                result_data["interview_2_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
+            elif s.interview_stage._is("interview_final"):
+                result_data["interview_final_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
+        
         if schedules:
-            result_data["last_updated"] = max(s.last_updated for s in schedules).isoformat()
+            last_updated = max(s.last_updated for s in schedules)
+            result_data["last_updated"] = to_jst_iso(last_updated)  # ✅ 修正
 
         # ✅ ステージごとの最終レビュー者情報
         status_rows = db.query(CandidateStatus).filter_by(user_id=candidate_id).all()
         for status in status_rows:
             stage = status.stage
             if stage is not None:
-                result_data[f"chat_review_{stage}_at"] = status.reviewed_at.isoformat() if status.reviewed_at is not None else None
+                result_data[f"chat_review_{stage}_at"] = to_jst_iso(status.reviewed_at)  # ✅ 修正
                 result_data[f"chat_reviewer_{stage}"] = status.chat_reviewer
 
         return JSONResponse(content=result_data)
@@ -816,3 +824,33 @@ async def get_resume_by_candidate(candidate_id: str):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=target_file.name
     )
+
+@router.post("/candidate-document-review")
+async def candidate_document_review(request: Request):
+    data = await request.json()
+    candidate_id = data.get("candidate_id")
+    reviewer_id = data.get("reviewer_id")
+    is_passed = data.get("is_passed")
+    
+    if not candidate_id or reviewer_id is None:
+        raise HTTPException(status_code=400, detail="必須パラメータが不足しています")
+    
+    now = datetime.now(JST)
+    
+    with SessionLocal() as db:
+        new_status = CandidateStatus(
+            id=str(uuid4()),
+            user_id=candidate_id,
+            stage="書類選考" if is_passed else "内定辞退",
+            chat_reviewer=reviewer_id,
+            reviewed_at=now,
+            reviewed_resume=True
+        )
+        db.add(new_status)
+        db.commit()
+    
+    return JSONResponse(content={
+        "success": True,
+        "is_passed": is_passed,
+        "reviewed_at": to_jst_iso(now)  # ✅ 修正
+    })

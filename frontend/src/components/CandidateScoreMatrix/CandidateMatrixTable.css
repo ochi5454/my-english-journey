@@ -1,0 +1,176 @@
+/* ✅ スクロールインジケーター（ブラウザ全幅に合わせる） */
+.matrix-scroll-indicator {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw; /* ✅ ブラウザ全幅 */
+    height: 32px;
+    background-color: rgba(240, 240, 240, 0.98);
+    border-top: 2px solid #ddd;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    padding: 0 10px; /* ✅ padding を小さく */
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s;
+    box-sizing: border-box;
+}
+
+.matrix-scroll-indicator:hover {
+    background-color: rgba(255, 255, 255, 1);
+    height: 40px;
+    box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* ✅ スクロールバートラック（ブラウザ幅に合わせる） */
+.matrix-scroll-indicator-track {
+    position: relative;
+    width: 100%; /* ✅ 親要素いっぱい */
+    height: 10px;
+    background-color: #e0e0e0;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* ✅ スクロールバーサム（青いバー） */
+.matrix-scroll-indicator-thumb {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #0066cc 0%, #007bff 50%, #0066cc 100%);
+    border-radius: 5px;
+    transition: none;
+    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+    min-width: 30px; /* ✅ 最小幅を小さく */
+    max-width: 200px; /* ✅ 最大幅を制限 */
+    cursor: grab;
+}
+
+.matrix-scroll-indicator-thumb:hover {
+    background: linear-gradient(90deg, #0056b3 0%, #0069d9 50%, #0056b3 100%);
+    box-shadow: 0 3px 10px rgba(0, 123, 255, 0.5);
+}
+
+.matrix-scroll-indicator-thumb:active {
+    cursor: grabbing;
+}
+
+/* ✅ フルスクリーン時も同様 */
+.matrix-fullscreen-overlay .matrix-scroll-indicator {
+    z-index: 1001;
+}
+
+/* ✅ テーブル最終行の下マージン */
+.status-group:last-child {
+    margin-bottom: 50px;
+}
+
+/* ✅ フルスクリーンボタン */
+.matrix-fullscreen-button {
+    position: fixed;
+    bottom: 50px;
+    right: 20px;
+    padding: 12px 24px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+    z-index: 1000;
+    transition: all 0.3s;
+}
+
+.matrix-fullscreen-button:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 123, 255, 0.4);
+}
+
+/* ✅ フルスクリーンオーバーレイ */
+.matrix-fullscreen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* ✅ フルスクリーンコンテンツ */
+.matrix-fullscreen-content {
+    width: 98vw;
+    height: 98vh;
+    background-color: white;
+    border-radius: 12px;
+    overflow: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    position: relative;
+    padding: 20px;
+}
+
+/* ✅ 閉じるボタン */
+.matrix-fullscreen-close {
+    position: sticky;
+    top: 0;
+    right: 0;
+    float: right;
+    padding: 10px 20px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1002;
+    margin-bottom: 10px;
+}
+
+.matrix-fullscreen-close:hover {
+    background-color: #c82333;
+}
+
+/* 기존 테이블 스타일 */
+.resume-matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.resume-matrix-table th,
+.resume-matrix-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.resume-matrix-table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.resume-matrix-table tbody tr:hover {
+    background-color: #f9f9f9;
+    cursor: pointer;
+}
+
+.allow-wrap {
+    white-space: normal;
+    word-break: break-word;
+    max-width: 300px;
+}
+
+.status-group {
+    margin-bottom: 20px;
+}

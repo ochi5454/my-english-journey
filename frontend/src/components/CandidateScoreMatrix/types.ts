@@ -55,11 +55,22 @@ export interface Result {
     ai_score_recommended?: number;  
     ai_score_recommended_percentile?: number;
     division_scores?: Record<string, number>;
+
+    // ✅ 書類選考関連を追加
+    document_review_date?: string;
+    document_review_reviewer?: string;
+    document_review_result?: string;
     
     // ✅ 面接日程関連を追加
     interview_1_date?: string;
+    interview_1_interviewer?: string;
+    interview_1_result?: string;
     interview_2_date?: string;
+    interview_2_interviewer?: string;
+    interview_2_result?: string;
     interview_final_date?: string;
+    interview_final_interviewer?: string;
+    interview_final_result?: string;
     
     llm_scoring?: {
         scores?: Score[];

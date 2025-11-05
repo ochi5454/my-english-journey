@@ -12,7 +12,26 @@ def send_interview_emails(req: InterviewSetupRequest):
     # ✅ 候補者IDから実名を取得
     with SessionLocal() as db:
         candidate = db.query(Candidate).filter_by(user_id=req.candidate).first()
-        candidate_name = candidate.name if candidate is not None and candidate.name is not None else req.candidate
+        
+        # ✅ デバッグ出力
+        print(f"🔍 候補者情報取得: user_id={req.candidate}")
+        if candidate is not None:
+            print(f"🔍 candidate.id: {candidate.id}")
+            print(f"🔍 candidate.name: {candidate.name}")
+            print(f"🔍 candidate.name type: {type(candidate.name)}")
+        else:
+            print(f"❌ 候補者が見つかりません")
+        
+        # ✅ 型チェックエラーを回避
+        candidate_name = req.candidate  # デフォルト値
+        
+        if candidate is not None:
+            name_value = candidate.name
+            # nameが文字列で、空でない場合のみ使用
+            if isinstance(name_value, str) and name_value.strip():
+                candidate_name = name_value.strip()
+            else:
+                print(f"⚠️ 候補者名が取得できないため ID を使用: {req.candidate}")
     
     # テンプレート変数
     template_vars = {
@@ -21,6 +40,8 @@ def send_interview_emails(req: InterviewSetupRequest):
         "interview_date": req.interviewDate,
         "company_name": "株式会社サンプル",  # TODO: 設定ファイルから取得
     }
+    
+    print(f"✅ 最終的な candidate_name: {candidate_name}")
     
     # テンプレート置換
     candidate_mail_body = replace_template_vars(req.candidateMail, template_vars)

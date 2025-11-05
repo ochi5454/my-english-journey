@@ -69,7 +69,7 @@ def convert_division_to_prefix(division_name: str) -> str:
         row = db.query(CandidateExpectations)\
                 .filter(CandidateExpectations.division == division_name)\
                 .first()
-        return row.division_prefix if row else division_name
+        return row.division_prefix.value if row and row.division_prefix is not None else division_name
 
 # ============================================
 # 🧠 プレフィックス→和名の変換
@@ -80,4 +80,4 @@ def convert_prefix_to_division(prefix: str) -> str:
         row = db.query(CandidateExpectations)\
                 .filter(CandidateExpectations.division_prefix == prefix)\
                 .first()
-        return row.division if row else prefix
+        return row.division.value if row and row.division is not None else prefix

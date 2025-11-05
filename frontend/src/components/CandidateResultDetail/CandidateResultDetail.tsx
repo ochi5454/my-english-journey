@@ -444,8 +444,8 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                             />
                         </div>
 
-                        {/* ✅ 修正: スコアがない場合は常にボタン表示 */}
-                        {(!localResult.preferred_div_score && !localResult.recommended_div_score) && (
+                        {/* ✅ 日付とスコアの両方がない場合のみ表示 */}
+                        {(!localResult.timestamp && !localResult.preferred_div_score && !localResult.recommended_div_score) && (
                             <button 
                                 onClick={handleReEvaluate}
                                 className="re-evaluate-button"
@@ -461,6 +461,19 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
                 <StatusBar
                     localResult={localResult}
+                    interviewerId={interviewerId}
+                    onStatusUpdate={async () => {
+                        const refreshed = await fetch(
+                            `${appConfig.API_BASE_URL}/resume-result/${localResult.user_id}`,
+                            { cache: 'no-store' }
+                        );
+                        if (refreshed.ok) {
+                            const updated = await refreshed.json();
+                            setLocalResult(updated);
+                            onResultUpdate?.(updated);
+                        }
+                    }}
+                    onOpenReupload={() => setShowReuploadModal(true)}  // ✅ 追加
                     onOpenInterviewFlow={openInterviewFlow}
                     onOpenInterviewPrep={(stage) => {
                         setInterviewStage(stage);
@@ -613,7 +626,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         {showReuploadModal && (
             <div className="reupload-modal-overlay" onClick={() => setShowReuploadModal(false)}>
                 <div className="reupload-modal-box" onClick={(e) => e.stopPropagation()}>
-                    <h3>📄 履歴書が見つかりません</h3>
+                    <h3>📄 履歴書を再アップロードします</h3>
                     <p>履歴書・職務経歴書を再度アップロードしてください</p>
                     
                     <div 
