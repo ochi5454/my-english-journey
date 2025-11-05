@@ -13,7 +13,7 @@
   position: relative;
   background-color: #f8fafc;
   border-right: 1px solid #e2e8f0;
-  overflow: hidden;
+  overflow: visible; /* ✅ 修正: ボタンを外に出せるように */
   transition: all 0.3s ease;
   flex-shrink: 0;
 }
@@ -24,10 +24,11 @@
 }
 
 .left-panel.closed {
-  flex-basis: 40px;
-  min-width: 40px;
-  max-width: 40px;
+  flex-basis: 0;
+  min-width: 0;
+  max-width: 0;
   padding: 0;
+  border-right: none;
 }
 
 /* コンテンツラッパー */
@@ -53,40 +54,49 @@
   display: none;
 }
 
-/* トグルボタン */
+/* ✅ トグルボタン（統一デザイン） */
 .toggle-panel-btn {
   position: absolute;
-  top: 20px;
-  right: 10px;
-  background: #3b82f6;
+  top: 50%;
+  right: -20px; /* ✅ パネルの外側（右）に配置 */
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 6px;
-  width: 32px;
-  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.2em;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  font-size: 14px;
-  z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  z-index: 100;
+  opacity: 0.7; /* ✅ 通常時は半透明 */
 }
 
+/* ✅ ホバー時に完全に表示 */
 .toggle-panel-btn:hover {
-  background: #2563eb;
-  transform: scale(1.05);
+  opacity: 1;
+  transform: translateY(-50%) scale(1.05);
 }
 
 .toggle-panel-btn:active {
-  transform: scale(0.95);
+  transform: translateY(-50%) scale(0.95);
 }
 
+/* ✅ パネルが閉じている時 */
 .left-panel.closed .toggle-panel-btn {
-  right: 5px;
-  left: 5px;
-  margin: auto;
+  opacity: 0.3;
+  right: -20px;
+  left: auto;
+}
+
+.left-panel.closed:hover .toggle-panel-btn {
+  opacity: 1; /* ✅ ホバー時にはっきり表示 */
 }
 
 /* === 右パネル === */
@@ -164,10 +174,10 @@
   word-break: break-word;
   font-size: 14px;
   animation: fadeIn 0.25s ease;
-  overflow: visible; /* ✅ 修正: hidden → visible */
+  overflow: visible;
   min-width: 0;
-  height: auto; /* ✅ 追加: 高さを自動調整 */
-  min-height: fit-content; /* ✅ 追加 */
+  height: auto;
+  min-height: fit-content;
 }
 
 .chat-message.user {
@@ -182,6 +192,7 @@
   border: 1px solid #bbf7d0;
   padding: 12px;
   max-width: 85%;
+  transition: all 0.3s ease;
 }
 
 /* === アニメーション === */
@@ -205,45 +216,6 @@
     opacity: 1; 
     transform: translateY(0); 
   }
-}
-
-/* === レスポンシブ === */
-@media (max-width: 1024px) {
-  .resume-chat-layout { 
-    flex-direction: column; 
-  }
-  
-  .left-panel.open { 
-    flex-basis: auto;
-    min-width: auto;
-    height: 45vh; 
-    border-right: none; 
-  }
-  
-  .right-panel { 
-    flex: none; 
-    height: 55vh; 
-  }
-  
-  .left-panel.closed ~ .right-panel {
-    max-width: 100%;
-    margin: 0;
-    padding-left: 20px;
-  }
-  
-  .resume-compare-section { 
-    flex-direction: column; 
-  }
-}
-
-/* スムーズスクロール */
-html {
-    scroll-behavior: smooth;
-}
-
-/* スコアリング結果のスクロール位置調整 */
-.chat-message {
-    scroll-margin-top: 80px; /* ヘッダー分の余白 */
 }
 
 /* ハイライトアニメーション */
@@ -270,7 +242,151 @@ html {
     border-radius: 8px;
 }
 
-/* スコアリング結果のスタイル強化（オプション） */
-.chat-message.ai {
-    transition: all 0.3s ease;
+/* スコアリング結果のスクロール位置調整 */
+.chat-message {
+    scroll-margin-top: 80px;
+}
+
+/* スムーズスクロール */
+html {
+    scroll-behavior: smooth;
+}
+
+/* === レスポンシブ === */
+@media (max-width: 1024px) {
+  .resume-chat-layout { 
+    flex-direction: column; 
+  }
+  
+  .left-panel.open { 
+    flex-basis: auto;
+    min-width: auto;
+    height: 45vh; 
+    border-right: none; 
+  }
+  
+  .left-panel.closed {
+    height: 40px;
+  }
+  
+  .toggle-panel-btn {
+    top: 50%;
+    right: 50%;
+    transform: translate(50%, -50%);
+  }
+  
+  .left-panel.closed .toggle-panel-btn {
+    right: 50%;
+  }
+  
+  .right-panel { 
+    flex: none; 
+    height: 55vh; 
+  }
+  
+  .left-panel.closed ~ .right-panel {
+    max-width: 100%;
+    margin: 0;
+    padding-left: 20px;
+  }
+  
+  .resume-compare-section { 
+    flex-direction: column; 
+  }
+}
+/* === 左パネル（折りたたみ対応） === */
+.left-panel {
+  position: relative;
+  background-color: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+  overflow: visible; /* ボタンを外に出せるように */
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.left-panel.open {
+  flex-basis: 42%;
+  min-width: 400px;
+}
+
+.left-panel.closed {
+  flex-basis: 0;
+  min-width: 0;
+  max-width: 0;
+  padding: 0;
+  border-right: none;
+}
+
+/* コンテンツラッパー */
+.left-panel-content {
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  
+  /* ✅ スクロールバー非表示 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE, Edge */
+}
+
+/* ✅ スクロールバー非表示（Webkit） */
+.left-panel-content::-webkit-scrollbar {
+  display: none;
+}
+
+.left-panel-content.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.left-panel-content.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.left-panel.closed .left-panel-content {
+  display: none;
+}
+
+/* ✅ トグルボタン（上部に配置） */
+.toggle-panel-btn {
+  position: absolute;
+  top: 20px; /* ✅ 上部に配置 */
+  right: -20px;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.2em;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  z-index: 100;
+  opacity: 0.7;
+}
+
+.toggle-panel-btn:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.toggle-panel-btn:active {
+  transform: scale(0.95);
+}
+
+.left-panel.closed .toggle-panel-btn {
+  opacity: 0.3;
+  right: -20px;
+  left: auto;
+}
+
+.left-panel.closed:hover .toggle-panel-btn {
+  opacity: 1;
 }

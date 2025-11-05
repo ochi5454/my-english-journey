@@ -8,6 +8,7 @@ import ResumeScoring from './components/ResumeScoring/ResumeScoring'
 import InterviewerOverview from './components/InterviewerOverview/InterviewerOverview'
 import HRFinalReviewDashboard from './components/HRFinalReviewDashboard/HRFinalReviewDashboard'
 import AdminPanel from './components/AdminPanel/AdminPanel'
+import ResumeBatchUpload from './components/ResumeScoringBatch/ResumeBatchUpload';
 
 import './App.css'
 
@@ -15,7 +16,7 @@ const AppContent: React.FC<{ userId: string; onLogout: () => void }> = ({ userId
   const location = useLocation()
   
   // 現在のルートに基づいてバッジを切り替え
-  const badgeText = location.pathname === '/resume-scoring-chatmode' ? '支社ver' : '本社ver'
+  const badgeText = location.pathname === '/resume-batch-upload' ? '支社ver' : '本社ver'
 
   return (
     <div className="app">
@@ -40,6 +41,7 @@ const AppContent: React.FC<{ userId: string; onLogout: () => void }> = ({ userId
         {/* 下段: メニューリンク */}
         <div className="navbar-bottom">
           <div className="nav-links">
+            <Link to="/resume-batch-upload">候補者判定（一括）</Link>
             <Link to="/resume-scoring-chatmode">候補者判定（簡易）</Link>
             <Link to="/resume-scoring">候補者判定（詳細）</Link>
             <Link to="/interviewer-overview">面接官判定</Link>
@@ -50,7 +52,8 @@ const AppContent: React.FC<{ userId: string; onLogout: () => void }> = ({ userId
 
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<ResumeScoring userId={userId} />} />
+          <Route path="/" element={<ResumeBatchUpload userId={userId} />} />
+          <Route path="/resume-batch-upload" element={<ResumeBatchUpload userId={userId} />} />
           <Route path="/resume-scoring-chatmode" element={<ResumeScoringChatMode userId={userId} />} />
           <Route path="/resume-scoring" element={<ResumeScoring userId={userId} />} />
           <Route path="/interviewer-overview" element={<InterviewerOverview />} />

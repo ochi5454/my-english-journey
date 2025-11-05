@@ -8,6 +8,7 @@ from backend.routers import (
     score_byinterview,
     score_ofinterviewer,
     hr,
+    resume_batch,
 )
 from backend.routers.admin import (
     skills,
@@ -38,6 +39,7 @@ app.add_middleware(
 # ============================================
 
 app.include_router(score_resume.router)
+app.include_router(resume_batch.router)
 app.include_router(score_adjustment.router)
 app.include_router(interview_schedule.router)
 app.include_router(checksheet.router)
