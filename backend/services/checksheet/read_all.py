@@ -42,7 +42,7 @@ def list_all_checksheet_blocks(db: Session) -> list[dict]:
             id_to_key_map = {m.id: m.key for m in master_items}
             for qv in qv_list:
                 key = id_to_key_map.get(qv.qualitative_item_id)
-                if key:
+                if key is not None:
                     qualitative_map[key] = qv.value or ""
 
         # ✅ quantitative
@@ -59,7 +59,7 @@ def list_all_checksheet_blocks(db: Session) -> list[dict]:
             "reviewedResume": row.reviewed_resume or False,
             "ai_score_reviewed": row.ai_score_reviewed or False,
             "eval_required": row.eval_required or False,
-            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at is not None else None,
 
             "prepItems": prep_items,
             "qualitative": qualitative_map,

@@ -87,11 +87,12 @@ class PermissionService:
             db.refresh(permission)
             
             # 監査ログ記録
+            # 🔧 Fix: Convert Column to string
             AuditService.log_action(
                 action="create_permission",
                 user_id=created_by,
                 target_type="permission",
-                target_id=permission.id,
+                target_id=str(permission.id),  # Convert to string
                 changes={
                     "after": PermissionService._permission_to_dict(permission)
                 },
@@ -175,8 +176,9 @@ class PermissionService:
             if not permission:
                 raise PermissionNotFoundException(f"権限ID '{permission_id}' が見つかりません")
             
+            # 🔧 Fix: Proper check for system permission
             # システム権限のチェック（nameの変更は不可）
-            if permission.is_system_permission:
+            if permission.is_system_permission is True:  # Explicit comparison
                 # 表示名や説明の変更は許可するが、警告
                 pass
             
@@ -200,10 +202,11 @@ class PermissionService:
             after = PermissionService._permission_to_dict(permission)
             
             # 監査ログ記録
+            # 🔧 Fix: Convert Column to string
             AuditService.log_change(
                 action="update_permission",
                 target_type="permission",
-                target_id=permission.id,
+                target_id=str(permission.id),  # Convert to string
                 before=before,
                 after=after,
                 user_id=updated_by,
@@ -242,8 +245,9 @@ class PermissionService:
             if not permission:
                 raise PermissionNotFoundException(f"権限ID '{permission_id}' が見つかりません")
             
+            # 🔧 Fix: Proper check for system permission
             # システム権限の保護
-            if permission.is_system_permission:
+            if permission.is_system_permission is True:  # Explicit comparison
                 raise SystemPermissionProtectedException(
                     f"システム権限 '{permission.name}' は削除できません"
                 )
@@ -369,7 +373,8 @@ class PermissionService:
             "category": permission.category,
             "description": permission.description,
             "is_system_permission": permission.is_system_permission,
-            "created_at": permission.created_at.isoformat() if permission.created_at else None,
-            "updated_at": permission.updated_at.isoformat() if permission.updated_at else None,
+            # 🔧 Fix: Proper datetime check
+            "created_at": permission.created_at.isoformat() if permission.created_at is not None else None,
+            "updated_at": permission.updated_at.isoformat() if permission.updated_at is not None else None,
             "created_by": permission.created_by
         }

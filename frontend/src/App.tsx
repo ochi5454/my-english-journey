@@ -41,24 +41,24 @@ const AppContent: React.FC<{ userId: string; onLogout: () => void }> = ({ userId
         {/* 下段: メニューリンク */}
         <div className="navbar-bottom">
           <div className="nav-links">
-            <Link to="/resume-batch-upload">候補者判定（一括）</Link>
             <Link to="/resume-scoring-chatmode">候補者判定（簡易）</Link>
             <Link to="/resume-scoring">候補者判定（詳細）</Link>
             <Link to="/interviewer-overview">面接官判定</Link>
             <Link to="/admin">管理</Link>
+            <Link to="/resume-batch-upload">候補者判定（一括）</Link>
           </div>
         </div>
       </nav>
 
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<ResumeBatchUpload userId={userId} />} />
-          <Route path="/resume-batch-upload" element={<ResumeBatchUpload userId={userId} />} />
+          <Route path="/" element={<ResumeScoringChatMode userId={userId} />} />
           <Route path="/resume-scoring-chatmode" element={<ResumeScoringChatMode userId={userId} />} />
           <Route path="/resume-scoring" element={<ResumeScoring userId={userId} />} />
           <Route path="/interviewer-overview" element={<InterviewerOverview />} />
           <Route path="/hr-final-review" element={<HRFinalReviewDashboard interviewerId={userId} />} />
           <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/resume-batch-upload" element={<ResumeBatchUpload userId={userId} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

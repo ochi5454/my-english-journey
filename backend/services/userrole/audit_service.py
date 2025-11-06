@@ -281,7 +281,7 @@ class AuditService:
             "changes": changes,
             "ip_address": log.ip_address,
             "user_agent": log.user_agent,
-            "created_at": log.created_at.isoformat() if log.created_at else None
+            "created_at": log.created_at.isoformat() if log.created_at is not None else None
         }
     
     @staticmethod

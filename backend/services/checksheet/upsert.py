@@ -48,7 +48,7 @@ def get_checksheet_one(db: Session, interviewer_id: str, candidate_id: str, stag
 
         for qv in qv_list:
             key = id_to_key_map.get(qv.qualitative_item_id)
-            if key:
+            if key is not None:
                 qualitative_map[key] = qv.value or ""
     else:
         qualitative_map = {}
@@ -73,7 +73,7 @@ def get_checksheet_one(db: Session, interviewer_id: str, candidate_id: str, stag
         "recommendedTitle": result.recommended_title,
         "payType": result.pay_type,
         "employmentType": result.employment_type,
-        "updatedAt": result.updated_at.isoformat() if result.updated_at else None,
+        "updatedAt": result.updated_at.isoformat() if result.updated_at is not None else None,
         "aiScoreReviewed": result.ai_score_reviewed or False,
         "evalRequired": result.eval_required or False,
     }
@@ -140,7 +140,7 @@ def upsert_checksheet(
 
     for key, value in incoming_qual.items():
         item_id = key_to_id_map.get(key)
-        if not item_id:
+        if item_id is None:
             continue  # 4項目以外（hiringDecision など）は無視
         db.add(ResultByInterviewQualitativeValue(
             evaluation_id=result.id,

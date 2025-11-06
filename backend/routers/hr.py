@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.core.database import get_db
@@ -7,6 +7,7 @@ from backend.models.score_resume import Candidate, CandidateStatus
 from backend.schemas.hr_review import HRReviewUpdate
 
 router = APIRouter()
+JST = timezone(timedelta(hours=9))
 
 ALL_STATUSES = [
     "アップロード",
@@ -31,7 +32,7 @@ async def update_hr_review(
     db: Session = Depends(get_db)
 ):
     user_id = request.headers.get("x-user-id", "unknown")
-    now = datetime.utcnow()
+    now = datetime.now(JST)
 
     # 候補者を取得
     candidate = db.query(Candidate).filter(Candidate.user_id == data.candidate_id).first()
@@ -81,7 +82,7 @@ def advance_candidate_status(payload: dict, db: Session = Depends(get_db)):
             .order_by(CandidateStatus.reviewed_at.desc())
             .first()
         )
-        current_stage = latest_status.stage if latest_status else "アップロード"
+        current_stage = str(latest_status.stage) if latest_status else "アップロード"
 
         # 次ステージを決定
         try:
@@ -96,13 +97,13 @@ def advance_candidate_status(payload: dict, db: Session = Depends(get_db)):
             user_id=user_id,
             stage=next_stage,
             chat_reviewer=advanced_by,
-            reviewed_at=datetime.utcnow(),
+            reviewed_at=datetime.now(JST),
             reviewed_resume=False,
         )
         db.add(new_status)
 
         # Candidateテーブルも更新（任意）
-        candidate.updated_at = datetime.utcnow()
+        candidate.updated_at = datetime.now(JST)
         candidate.updated_by = advanced_by
 
         updated.append({

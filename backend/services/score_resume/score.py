@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 from backend.models.score_resume import CandidateExpectations
 from backend.core.database import SessionLocal
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any, Callable, Optional, Union
 from pydantic import BaseModel, Field
 from collections import OrderedDict
 
@@ -25,8 +25,8 @@ from backend.services.score_adjustment.save import save_score_to_history
 # キャッシュ設定
 set_llm_cache(InMemoryCache())
 
-# LLMインスタンス（gpt-4はgpt-4o, gpt-4-turboなどStructured Output対応モデルに変更推奨）
-llm_gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.2)  # ← gpt-4oに変更
+# LLMインスタンス
+llm_gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.2)
 llm_gpt35 = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.2)
 
 # ============================================
@@ -258,25 +258,25 @@ work_experience_template = ChatPromptTemplate.from_messages([
 # JSONパーサー
 json_parser = JsonOutputParser()
 
-# 部門スコアリングチェーン（gpt-4oでStructured Output使用）
+# 部門スコアリングチェーン
 division_scoring_chain = (
     division_scoring_template 
     | llm_gpt4.with_structured_output(DivisionScoreList)
 )
 
-# 志望動機スコアリングチェーン（gpt-3.5-turboはfunction_calling指定）
+# 志望動機スコアリングチェーン
 motivation_scoring_chain = (
     motivation_scoring_template 
-    | llm_gpt35.with_structured_output(MotivationScore, method="function_calling")  # ← 追加
+    | llm_gpt35.with_structured_output(MotivationScore, method="function_calling")
 )
 
-# 職務経歴スコアリングチェーン（gpt-3.5-turboはfunction_calling指定）
+# 職務経歴スコアリングチェーン
 work_experience_chain = (
     work_experience_template 
-    | llm_gpt35.with_structured_output(WorkExperienceScore, method="function_calling")  # ← 追加
+    | llm_gpt35.with_structured_output(WorkExperienceScore, method="function_calling")
 )
 
-# マストチェック用（JSONパーサー使用）
+# マストチェック用
 must_check_common_chain = must_check_common_template | llm_gpt4 | json_parser
 must_check_division_chain = must_check_division_template | llm_gpt4 | json_parser
 
@@ -337,7 +337,6 @@ async def _check_must_requirements_by_division_llm_async(
     if not division_map:
         return {}
 
-    # 🚀 各部門のチェックを並列実行
     tasks = []
     division_names = []
     
@@ -352,7 +351,6 @@ async def _check_must_requirements_by_division_llm_async(
         tasks.append(task)
         division_names.append((division, traits))
 
-    # 並列実行
     responses = await asyncio.gather(*tasks, return_exceptions=True)
     
     results = {}
@@ -361,7 +359,6 @@ async def _check_must_requirements_by_division_llm_async(
             if isinstance(response, Exception):
                 raise response
             
-            # responseは既にdictとしてパース済み
             filtered = {k: v for k, v in response.items() if k in traits}
             results[division] = filtered
             
@@ -396,12 +393,7 @@ async def score_resume_from_text_async(
     print("📥 score_resume_from_text_async() called: candidate_id=%s", candidate_id)
     log("llm_call", f"📥 候補者ID: {candidate_id}のスコアリングを開始")
 
-    # テキストを最適化
     optimized_text = _truncate_text_smart(text, max_chars=4000)
-    
-    # ============================================
-    # 🚀 並列実行: マストチェック（共通 + 部門別）
-    # ============================================
     
     log("parallel_start", "⚡ マストチェックを並列実行中...")
     
@@ -415,7 +407,6 @@ async def score_resume_from_text_async(
     log("must_check", "✅ マストスキル（共通） 結果ログ", must_results=must_results)
     log("must_check_by_division", "✅ 部門別マストスキル 結果ログ", data=must_results_by_division)
 
-    # === マスト条件NGなら即中断 ===
     if not all(bool(item.get("result")) for item in must_results.values()):
         print("❌ must_check NGのためスコアリング中断 → 候補者ID: %s", candidate_id)
         result = {
@@ -433,10 +424,6 @@ async def score_resume_from_text_async(
         )
         return result
 
-    # ============================================
-    # 🚀 部門別スコアリング（LangChainチェーン使用）
-    # ============================================
-    
     division_profiles = load_division_profiles()
     print("🧠 division_profiles: %s", division_profiles)
     log("division_profiles", "🧠 部門別で求められる歓迎スキル 取得ログ", data=division_profiles)
@@ -449,13 +436,19 @@ async def score_resume_from_text_async(
     log("division_request", "🤖 LLM呼び出し開始")
     
     try:
-        # LangChainチェーンで実行（自動的にPydanticモデルに変換）
-        result_obj: DivisionScoreList = await division_scoring_chain.ainvoke({
+        # ✅ 型アノテーションを明示的に指定
+        result_response: Union[DivisionScoreList, Dict[str, Any]] = await division_scoring_chain.ainvoke({
             "division_descriptions": division_descriptions,
             "content": optimized_text
         })
         
-        scores = result_obj.scores  # List[DivisionScore]
+        # ✅ 型チェックして安全に扱う
+        if isinstance(result_response, dict):
+            result_obj = DivisionScoreList(**result_response)
+        else:
+            result_obj = result_response
+        
+        scores = result_obj.scores
         
         print("✅ GPT応答 パース成功。件数: %d", len(scores))
         log("division_parse_ok", "✅ GPT応答 パース成功", count=len(scores))
@@ -465,7 +458,6 @@ async def score_resume_from_text_async(
         log("division_parse_error", f"❌ GPT応答 処理失敗: {e}")
         scores = [DivisionScore(division="N/A", score=0, reason="解析エラー")]
 
-    # === スコアの正規化と調整 ===
     ng_divisions = {
         convert_division_to_prefix(div)
         for div, checks in must_results_by_division.items()
@@ -496,12 +488,15 @@ async def score_resume_from_text_async(
             "ng_count": ng_count,
         })
 
-    # === 推薦部門決定 ===
     valid_scores = [s for s in normalized_scores if s["division"] not in ng_divisions]
     recommended = (
         max(valid_scores, key=lambda x: x.get("score", -1))
         if valid_scores else {"division": None}
     )
+    
+    # ✅ 型安全に処理
+    recommended_div = recommended.get("division")
+    recommended_division_str = convert_division_to_prefix(recommended_div) if recommended_div else None
 
     result = {
         "user_id": candidate_id,
@@ -509,7 +504,7 @@ async def score_resume_from_text_async(
         "must_check": must_results,
         "must_check_by_division": must_results_by_division,
         "scores": normalized_scores,
-        "recommended_division": convert_division_to_prefix(recommended.get("division")),
+        "recommended_division": recommended_division_str,
     }
 
     save_score_to_history(
@@ -535,7 +530,15 @@ async def score_motivation_statement_async(text: str) -> int:
     text = _truncate_text_smart(text, max_chars=800)
     
     try:
-        result: MotivationScore = await motivation_scoring_chain.ainvoke({"text": text})
+        # ✅ 型アノテーションを明示的に指定
+        result_response: Union[MotivationScore, Dict[str, Any]] = await motivation_scoring_chain.ainvoke({"text": text})
+        
+        # ✅ 型チェック
+        if isinstance(result_response, dict):
+            result = MotivationScore(**result_response)
+        else:
+            result = result_response
+            
         print("📝 志望動機スコア:", result)
         return min(result.合計スコア, 100)
     except Exception as e:
@@ -555,7 +558,15 @@ async def score_work_experience_async(text: str) -> int:
     text = _truncate_text_smart(text, max_chars=1000)
     
     try:
-        result: WorkExperienceScore = await work_experience_chain.ainvoke({"text": text})
+        # ✅ 型アノテーションを明示的に指定
+        result_response: Union[WorkExperienceScore, Dict[str, Any]] = await work_experience_chain.ainvoke({"text": text})
+        
+        # ✅ 型チェック
+        if isinstance(result_response, dict):
+            result = WorkExperienceScore(**result_response)
+        else:
+            result = result_response
+            
         print("🧾 職務経歴スコア:", result)
         return min(result.合計スコア, 100)
     except Exception as e:

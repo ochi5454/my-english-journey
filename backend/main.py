@@ -19,7 +19,24 @@ from backend.routers.admin import (
     candidates,
 )
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from backend.core.database import init_db, init_userrole_db
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ✅ 起動時の処理
+    print("🚀 アプリケーション起動中...")
+    init_db()  # メインDB初期化
+    init_userrole_db()  # UserRole DB初期化
+    print("✅ データベース初期化完了")
+    
+    yield  # アプリケーション実行中
+    
+    # ✅ 終了時の処理（必要なら）
+    print("🛑 アプリケーション終了")
+
+app = FastAPI(lifespan=lifespan)
 
 # ============================================
 # ✅ CORS ミドルウェア設定

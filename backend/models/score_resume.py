@@ -28,6 +28,7 @@ class Candidate(Base):
     user_id = Column(String, nullable=False, unique=True)
     name = Column(String)
     gender = Column(String)
+    birth_date = Column(String, nullable=True)  # ✅ 追加: YYYY-MM-DD 形式
     notes = Column(String)
     score_notes = Column(Integer)
     work_summary = Column(Text, nullable=True)
@@ -44,8 +45,8 @@ class Candidate(Base):
     hr_income = Column(Integer)
     hr_saved_at = Column(DateTime, nullable=True)
     hr_saved_by = Column(String, nullable=True)
-    hr_pay_type = Column(String, nullable=True)         # 例: "daily_monthly" / "hourly"
-    hr_employment_type = Column(String, nullable=True)  # 例: "fulltime" / "part"
+    hr_pay_type = Column(String, nullable=True)
+    hr_employment_type = Column(String, nullable=True)
 
 class CandidateMustCheckItem(Base):
     __tablename__ = "candidates_must_check_items"

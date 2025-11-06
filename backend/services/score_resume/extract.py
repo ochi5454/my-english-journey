@@ -17,7 +17,7 @@ from backend.core.openai_config import get_openai_client
 # ============================================
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, SecretStr
 
 # ============================================
 # ✅ GPT呼び出し
@@ -32,20 +32,20 @@ client = get_openai_client()
 class PersonInfo(BaseModel):
     """履歴書から抽出する個人情報"""
     name: Optional[str] = Field(None, description="氏名（フルネーム）。見つからない場合はNone")
-    gender: Literal["男", "女", "不明"] = Field("不明", description="性別。必ず「男」「女」「不明」のいずれか")
+    gender: Literal["男性", "女性", "その他"] = Field("その他", description="性別。必ず「男性」「女性」「その他」のいずれか")
     
     @field_validator('gender')
     @classmethod
     def normalize_gender(cls, v: str) -> str:
         """性別を正規化"""
         if not v:
-            return "不明"
+            return "その他"
         v_str = str(v).strip()
         if "男" in v_str and "女" not in v_str:
-            return "男"
+            return "男性"  # ✅ 変更
         elif "女" in v_str:
-            return "女"
-        return "不明"
+            return "女性"  # ✅ 変更
+        return "その他"  # ✅ 変更
 
 # ============================================
 # 🚀 LangChainモデルのセットアップ
@@ -55,7 +55,7 @@ class PersonInfo(BaseModel):
 llm = ChatOpenAI(
     model="gpt-3.5-turbo",
     temperature=0,
-    api_key=client.api_key
+    api_key=SecretStr(client.api_key)
 )
 
 # 構造化出力用のLLM
@@ -113,7 +113,8 @@ async def _call_gpt_async(prompt: str, model: str = "gpt-3.5-turbo", temperature
         )
     )
     
-    result = response.choices[0].message.content.strip()
+    content = response.choices[0].message.content
+    result = content.strip() if content else ""
     _set_cache(cache_k, result)
     return result
 
@@ -180,6 +181,54 @@ def normalize_pdf_text(text: str) -> str:
     text = re.sub(r'[ \t]{2,}', ' ', text)
     return text.strip()
 
+import re
+from datetime import datetime
+
+def extract_birth_date(text: str) -> str | None:
+    """
+    履歴書から生年月日を抽出
+    対応形式:
+    - 1990年1月1日
+    - 1990/01/01
+    - 1990-01-01
+    - 平成2年1月1日
+    """
+    
+    # 西暦形式
+    patterns = [
+        r'(\d{4})年(\d{1,2})月(\d{1,2})日',
+        r'(\d{4})/(\d{1,2})/(\d{1,2})',
+        r'(\d{4})-(\d{1,2})-(\d{1,2})',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            year, month, day = match.groups()
+            try:
+                date_obj = datetime(int(year), int(month), int(day))
+                return date_obj.strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+    
+    # 和暦対応（平成・令和）
+    wareki_pattern = r'(平成|令和)(\d{1,2})年(\d{1,2})月(\d{1,2})日'
+    match = re.search(wareki_pattern, text)
+    if match:
+        era, era_year, month, day = match.groups()
+        
+        # 平成 → 1988年基準、令和 → 2018年基準
+        base_year = 1988 if era == '平成' else 2018
+        year = base_year + int(era_year)
+        
+        try:
+            date_obj = datetime(year, int(month), int(day))
+            return date_obj.strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+    
+    return None
+
 # ============================================
 # 🧠 LangChainを使った名前・性別の抽出（高速化版）
 # ============================================
@@ -194,11 +243,10 @@ person_info_prompt = ChatPromptTemplate.from_messages([
 
 抽出ルール:
 - 氏名: フルネームで返す（例: 山田太郎）。見つからない場合はnull
-- 性別: 必ず「男」「女」「不明」のいずれか1つのみ
-  * 「性別：男」「性別：男性」「男性」などは全て「男」
-  * 「性別：女」「性別：女性」「女性」などは全て「女」
-  * 性別の記載がない場合のみ「不明」
-- 性別は「男性」「女性」ではなく、必ず「男」「女」で返す
+- 性別: 必ず「男性」「女性」「その他」のいずれか1つのみ
+  * 「性別：男」「性別：男性」「男性」などは全て「男性」
+  * 「性別：女」「性別：女性」「女性」などは全て「女性」
+  * 性別の記載がない場合のみ「その他」
 """)
 ])
 
@@ -222,10 +270,14 @@ async def extract_person_info_async(text: str) -> tuple[Optional[str], str]:
     try:
         # LangChainチェーンを非同期実行
         loop = asyncio.get_event_loop()
-        result: PersonInfo = await loop.run_in_executor(
+        result = await loop.run_in_executor(
             _executor,
             lambda: person_info_chain.invoke({"text": text[:2000]})
         )
+        
+        # Ensure result is a PersonInfo instance
+        if isinstance(result, dict):
+            result = PersonInfo(**result)
         
         name = result.name
         gender = result.gender  # バリデーターで正規化済み
@@ -539,7 +591,7 @@ async def extract_all_resume_info_async(text: str) -> dict:
     experience_task = _extract_work_experience_async(text)
     
     # すべてを並列実行
-    (name, gender), motivation, experience = await asyncio.gather(
+    results = await asyncio.gather(
         person_info_task,
         motivation_task,
         experience_task,
@@ -547,12 +599,17 @@ async def extract_all_resume_info_async(text: str) -> dict:
     )
     
     # エラーハンドリング
-    if isinstance((name, gender), Exception):
+    person_info_result = results[0]
+    if isinstance(person_info_result, Exception):
         name, gender = None, "不明"
-    if isinstance(motivation, Exception):
-        motivation = ""
-    if isinstance(experience, Exception):
-        experience = ""
+    else:
+        if isinstance(person_info_result, BaseException):
+            name, gender = None, "不明"
+        else:
+            name, gender = person_info_result
+    
+    motivation = results[1] if not isinstance(results[1], Exception) else ""
+    experience = results[2] if not isinstance(results[2], Exception) else ""
     
     return {
         "name": name,

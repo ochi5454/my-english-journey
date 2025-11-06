@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from typing import Generator
@@ -23,6 +23,21 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+# ✅ init_db() を追加
+def init_db():
+    """全テーブルを作成（既存のテーブルは上書きしない）"""
+    # まず全モデルをインポート
+    from backend.models import score_resume  # noqa
+    Base.metadata.create_all(bind=engine)
+    print("✅ メインDB テーブル初期化完了")
+
+def reset_db():
+    """全テーブルを削除して再作成（データが消える！）"""
+    from backend.models import score_resume  # noqa
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    print("✅ メインDB テーブルをリセットしました")
 
 # ============================================
 # ✅ UserRole DB（新規追加）
@@ -71,6 +86,13 @@ def get_userrole_db() -> Generator[Session, None, None]:
     finally:
         db.close()
 
+# ✅ UserRole DB の init_db
+def init_userrole_db():
+    """UserRole DB のテーブルを作成"""
+    from backend.models import userrole  # noqa
+    UserRoleBase.metadata.create_all(bind=userrole_engine)
+    print("✅ UserRole DB テーブル初期化完了")
+
 # ============================================
 # ✅ UserRole DB コンテキストマネージャー
 # ============================================
@@ -101,7 +123,7 @@ def check_userrole_db_connection() -> bool:
     """UserRole DB接続チェック"""
     try:
         with UserRoleDB() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))  # ✅ text() で囲む
         return True
     except Exception as e:
         print(f"❌ UserRole DB接続エラー: {e}")

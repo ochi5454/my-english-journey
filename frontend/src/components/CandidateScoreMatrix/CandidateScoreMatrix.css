@@ -5,6 +5,7 @@
     font-family: sans-serif;
 }
 
+/* ========== フィルター ========== */
 .matrix-filters {
     display: flex;
     flex-wrap: wrap;
@@ -60,11 +61,12 @@
     transform: scale(1.1);
 }
 
+/* ========== サマリー行 ========== */
 .matrix-summary-row {
     display: flex;
     align-items: center;
-    gap: 16px; /* スペースを適宜調整 */
-    flex-wrap: wrap; /* 幅が狭い画面では折り返す */
+    gap: 16px;
+    flex-wrap: wrap;
     margin-bottom: 12px;
 }
 
@@ -81,7 +83,7 @@
 }
 
 .highlight-count {
-    color: #007acc;         /* 青系。お好みで変更可 */
+    color: #007acc;
     font-weight: bold;
     font-size: 20px;
 }
@@ -92,10 +94,55 @@
     font-size: 14px;
 }
 
+/* ========== ステータスフィルタボタン ========== */
+.status-filter-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 8px;
+}
+
+.status-btn {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.status-btn:hover {
+    background: #f5f5f5;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.status-btn.active {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+    font-weight: bold;
+}
+
+/* ========== テーブル ========== */
 .resume-matrix-wrapper {
     overflow-x: auto;
     margin-bottom: 16px;
     padding-bottom: 12px;
+}
+
+.resume-matrix-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+
+.resume-matrix-wrapper::-webkit-scrollbar-thumb {
+    background-color: rgba(100, 100, 100, 0.5);
+    border-radius: 4px;
 }
 
 .resume-matrix-table {
@@ -116,11 +163,21 @@
 }
 
 .resume-matrix-table th {
-    background-color: #f0f0f0;
-    font-weight: bold;
+    background-color: #f5f5f5;
+    font-weight: 600;
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 5;
+    vertical-align: middle;
+    font-size: 12px;
+    padding: 12px 8px;
+    border-bottom: 2px solid #ddd;
+}
+
+.resume-matrix-table td {
+    font-size: 12px;
+    padding: 10px 8px;
+    border-bottom: 1px solid #eee;
     vertical-align: middle;
 }
 
@@ -128,26 +185,48 @@
     background-color: #f0f8ff;
 }
 
-.resume-matrix-wrapper::-webkit-scrollbar {
-    height: 8px;
-}
-
-.resume-matrix-wrapper::-webkit-scrollbar-thumb {
-    background-color: rgba(100, 100, 100, 0.5);
-    border-radius: 4px;
-}
-
-.resume-score-cell {
-    font-weight: 600;
-    color: #256029;
-}
-
-.highlight-recommended {
-    background-color: #e6f4ea;
+/* ========== グループヘッダー ========== */
+.group-header-row {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
     font-weight: bold;
-    border: 1px solid #b7ddb7;
+    cursor: pointer;
 }
 
+.group-header-row:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+}
+
+.group-header-row td {
+    padding: 12px 16px;
+    border-bottom: 2px solid #ddd;
+    text-align: left;
+}
+
+.group-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+}
+
+.group-toggle {
+    font-size: 16px;
+    transition: transform 0.2s;
+}
+
+.group-title {
+    font-weight: bold;
+    font-size: 15px;
+}
+
+.group-count {
+    color: rgba(255,255,255,0.9);
+    font-size: 13px;
+    margin-left: auto;
+}
+
+/* ========== チップ ========== */
 .gender-chip {
     display: inline-block;
     padding: 2px 8px;
@@ -169,7 +248,7 @@
 }
 
 .gender-chip.other {
-    background-color: #6c757d; /* グレー */
+    background-color: #6c757d;
 }
 
 .matrix-status-chip {
@@ -182,12 +261,12 @@
 }
 
 .matrix-status-upload {
-    background-color: #e2e3e5;  /* グレー */
+    background-color: #e2e3e5;
     color: #6c757d;
 }
 
 .matrix-status-active {
-    background-color: #d4edda;  /* 薄い緑 */
+    background-color: #d4edda;
     color: #155724;
 }
 
@@ -207,7 +286,7 @@
 }
 
 .hr-hire-ng {
-    background-color: #e2e3e5;  /* グレー */
+    background-color: #e2e3e5;
     color: #6c757d;
 }
 
@@ -230,11 +309,7 @@
     color: #155724;
 }
 
-.mustcheck-ng {
-    background-color: #e2e3e5;  /* グレー */
-    color: #6c757d;
-}
-
+.mustcheck-ng,
 .mustcheck-unknown {
     background-color: #e2e3e5;
     color: #6c757d;
@@ -251,13 +326,9 @@
     text-align: center;
 }
 
-.ai-unknown {
-    background-color: #e2e3e5;  /* グレー */
-    color: #6c757d;
-}
-
+.ai-unknown,
 .ai-low {
-    background-color: #e2e3e5;  /* グレー */
+    background-color: #e2e3e5;
     color: #6c757d;
 }
 
@@ -283,7 +354,18 @@
     color: #666;
 }
 
-/* 横並び一括ボタン */
+/* ========== その他 ========== */
+.resume-score-cell {
+    font-weight: 600;
+    color: #256029;
+}
+
+.highlight-recommended {
+    background-color: #e6f4ea;
+    font-weight: bold;
+    border: 1px solid #b7ddb7;
+}
+
 .bulk-actions-inline {
     display: flex;
     gap: 6px;
@@ -310,7 +392,7 @@
     cursor: not-allowed;
 }
 
-/* 背景の暗幕 */
+/* ========== AIモーダル ========== */
 .ai-modal-overlay {
     position: fixed;
     top: 0;
@@ -324,14 +406,362 @@
     z-index: 9999;
 }
 
-/* 中央のモーダルコンテンツ */
 .ai-modal-content {
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
     width: 800px;
     max-height: 90vh;
-    overflow-y: visible; /* ← autoをvisibleに */
+    overflow-y: visible;
     padding: 24px;
     position: relative;
 }
+
+/* ========== レスポンシブ ========== */
+@media (max-width: 1400px) {
+    .resume-matrix-table {
+        font-size: 12px;
+    }
+    
+    .resume-matrix-table th,
+    .resume-matrix-table td {
+        padding: 8px 6px;
+    }
+}
+
+.status-group {
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.status-group-header {
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.status-group-header:hover {
+    background-color: #e8e8e8 !important;
+}
+
+.resume-matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.resume-matrix-table th,
+.resume-matrix-table td {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.resume-matrix-table thead {
+    background-color: #f9f9f9;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.resume-matrix-wrapper {
+    width: 100%;
+    overflow-x: auto; /* 横スクロール有効化 */
+    margin-bottom: 20px;
+}
+
+.status-group {
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    min-width: fit-content; /* テーブルの幅に合わせる */
+}
+
+.status-group-header {
+    user-select: none;
+    transition: background-color 0.2s;
+    white-space: nowrap; /* 改行防止 */
+}
+
+.status-group-header:hover {
+    background-color: #e8e8e8 !important;
+}
+
+.resume-matrix-table {
+    width: max-content; /* ✅ 内容に合わせて幅を自動調整 */
+    min-width: 100%;
+    border-collapse: collapse;
+    table-layout: auto; /* ✅ 自動レイアウト */
+}
+
+.resume-matrix-table th,
+.resume-matrix-table td {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    text-align: left;
+    white-space: nowrap; /* ✅ セル内改行を防止 */
+    min-width: 80px; /* ✅ 最小幅を設定 */
+}
+
+/* ✅ 特定の列に幅を設定 */
+.resume-matrix-table th:nth-child(1), /* チェックボックス */
+.resume-matrix-table td:nth-child(1) {
+    width: 40px;
+    min-width: 40px;
+}
+
+.resume-matrix-table th:nth-child(2), /* 名前 */
+.resume-matrix-table td:nth-child(2) {
+    min-width: 120px;
+}
+
+.resume-matrix-table th:nth-child(3), /* ID */
+.resume-matrix-table td:nth-child(3) {
+    min-width: 150px;
+}
+
+.resume-matrix-table thead {
+    background-color: #f9f9f9;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* ✅ 長いテキストの場合のみ改行を許可する列 */
+.resume-matrix-table td.allow-wrap {
+    white-space: normal;
+    max-width: 300px;
+}
+
+/* ✅ テーブルラッパー全体を横スクロール可能に */
+.resume-matrix-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.status-group {
+    margin-bottom: 20px;
+    border: none; /* ラッパーに境界線があるので不要 */
+    border-radius: 0;
+    overflow: visible;
+}
+
+.status-group:first-child .status-group-header {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.status-group:last-child {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.status-group-header {
+    user-select: none;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    min-width: fit-content; /* ✅ ヘッダーも横幅に合わせる */
+}
+
+.status-group-header:hover {
+    background-color: #e8e8e8 !important;
+}
+
+/* ✅ テーブルを広く表示 */
+.resume-matrix-table {
+    width: max-content; /* 内容に合わせて幅を自動拡張 */
+    min-width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.resume-matrix-table th,
+.resume-matrix-table td {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    text-align: left;
+    white-space: nowrap;
+    min-width: 100px; /* ✅ 最小幅を広げる */
+}
+
+/* チェックボックス列は狭く */
+.resume-matrix-table th:nth-child(1),
+.resume-matrix-table td:nth-child(1) {
+    width: 40px;
+    min-width: 40px;
+}
+
+/* 名前列 */
+.resume-matrix-table th:nth-child(2),
+.resume-matrix-table td:nth-child(2) {
+    min-width: 120px;
+}
+
+/* ID列 */
+.resume-matrix-table th:nth-child(3),
+.resume-matrix-table td:nth-child(3) {
+    min-width: 150px;
+}
+
+/* 日付列 */
+.resume-matrix-table th:nth-child(5),
+.resume-matrix-table td:nth-child(5),
+.resume-matrix-table th:nth-child(6),
+.resume-matrix-table td:nth-child(6) {
+    min-width: 110px;
+}
+
+.resume-matrix-table thead {
+    background-color: #f9f9f9;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* 長いテキスト用の列 */
+.resume-matrix-table td.allow-wrap {
+    white-space: normal;
+    max-width: 300px;
+    min-width: 200px;
+}
+
+/* CandidateScoreMatrix.css */
+
+.resume-matrix-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    margin-bottom: 20px;
+}
+
+.status-group {
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.status-group-header {
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.status-group-header:hover {
+    background-color: #e8e8e8 !important;
+}
+
+.resume-matrix-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.resume-matrix-table th,
+.resume-matrix-table td {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    text-align: left;
+    white-space: nowrap;
+    min-width: 100px;
+}
+
+.resume-matrix-table th:nth-child(1),
+.resume-matrix-table td:nth-child(1) {
+    width: 40px;
+    min-width: 40px;
+}
+
+.resume-matrix-table th:nth-child(2),
+.resume-matrix-table td:nth-child(2) {
+    min-width: 120px;
+}
+
+.resume-matrix-table th:nth-child(3),
+.resume-matrix-table td:nth-child(3) {
+    min-width: 150px;
+}
+
+.resume-matrix-table thead {
+    background-color: #f9f9f9;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.resume-matrix-table td.allow-wrap {
+    white-space: normal;
+    max-width: 300px;
+    min-width: 200px;
+}
+
+/* ✅ テーブル横幅対応 */
+.resume-matrix-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    margin-bottom: 20px;
+}
+
+.status-group {
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.status-group-header {
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.status-group-header:hover {
+    background-color: #e8e8e8 !important;
+}
+
+.resume-matrix-table {
+    width: max-content !important;
+    min-width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.resume-matrix-table th,
+.resume-matrix-table td {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    text-align: left;
+    white-space: nowrap;
+    min-width: 100px;
+}
+
+.resume-matrix-table th:nth-child(1),
+.resume-matrix-table td:nth-child(1) {
+    width: 40px;
+    min-width: 40px;
+}
+
+.resume-matrix-table th:nth-child(2),
+.resume-matrix-table td:nth-child(2) {
+    min-width: 120px;
+}
+
+.resume-matrix-table th:nth-child(3),
+.resume-matrix-table td:nth-child(3) {
+    min-width: 150px;
+}
+
+.resume-matrix-table thead {
+    background-color: #f9f9f9;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.resume-matrix-table td.allow-wrap {
+    white-space: normal;
+    max-width: 300px;
+    min-width: 200px;
+}
+

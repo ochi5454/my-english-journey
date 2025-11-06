@@ -90,7 +90,7 @@ def review_with_interview_checksheet(
 
         if histories:
             score_history_text = "\n".join([
-                f"🕓 {h.reviewed_at.strftime('%Y-%m-%d') if h.reviewed_at else '不明日付'} | "
+                f"🕓 {h.reviewed_at.strftime('%Y-%m-%d') if h.reviewed_at is not None else '不明日付'} | "
                 f"{h.division}: {h.score if h.score is not None else 'N/A'}点 "
                 f"({h.source or 'unknown'})"
                 for h in histories

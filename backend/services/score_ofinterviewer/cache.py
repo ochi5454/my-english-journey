@@ -21,7 +21,7 @@ def load_evals_for_interviewer(iid: str) -> dict:
 
             breakdown = {}
             for r in rubrics:
-                if r.key:
+                if r.key is not None:
                     breakdown[r.key] = r.score
 
             total_score = e.total_score
@@ -33,14 +33,14 @@ def load_evals_for_interviewer(iid: str) -> dict:
                 "stage": e.stage,
                 "total": total_score,
                 "breakdown": breakdown, 
-                "evaluated_at": e.evaluated_at.isoformat() if e.evaluated_at else None,
+                "evaluated_at": e.evaluated_at.isoformat() if e.evaluated_at is not None else None,
                 "rubrics": [r.__dict__ for r in rubrics],
                 "comments": [c.__dict__ for c in comments],
                 "role_expectation": role_exp.__dict__ if role_exp else None,
                 "note": e.note or "",
                 "comments": [c.__dict__ for c in comments],
-                "display_comment": e.note if e.note else (
-                    next((c.text for c in comments if c.type == "reason"), "")
+                "display_comment": e.note if e.note is not None else (
+                    next((c.text for c in comments if c.type.is_("reason")), "")
                 ),
             })
 
@@ -144,7 +144,7 @@ def save_evals_cache_for(iid: str, rows: list[dict]) -> None:
                     matched_semantic_json=json.dumps(role_exp.get("matched_semantic", []), ensure_ascii=False),
                     missing_json=json.dumps(role_exp.get("missing", []), ensure_ascii=False),
                     violated_json=json.dumps(role_exp.get("violated", []), ensure_ascii=False),
-                    score=float(role_exp.get("score")) if role_exp.get("score") is not None else None,
+                    score=float(role_exp["score"]) if isinstance(role_exp.get("score"), (int, float)) else None,
                     comment=role_exp.get("comment") or ""
                 ))
 

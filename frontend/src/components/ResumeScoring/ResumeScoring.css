@@ -1,3 +1,4 @@
+/* 元の設定 */
 .resume-container {
     padding: 1.5rem;
     max-width: 1000px;
@@ -5,6 +6,13 @@
     font-family: sans-serif;
 }
 
+/* ✅ 候補者一覧の時だけ横幅いっぱいに */
+.resume-container.wide-view {
+    max-width: 100%;
+    padding: 1.5rem 2rem;
+}
+
+/* その他のCSSは変更なし */
 .resume-tabs {
   display: flex;
   border-bottom: 2px solid #ccc;
@@ -222,4 +230,92 @@
   color: #333;
   border-left: 4px solid #0077cc;
   padding-left: 8px;
+}
+
+/* ✅ ChatModeと同じスタイル */
+.chat-input-container {
+    max-width: 800px;
+    margin: 20px auto;
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.chat-division-select {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.chat-candidate-id-input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+}
+
+.chat-file-drop-zone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    background-color: #fafafa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 10px;
+}
+
+.chat-file-drop-zone:hover {
+    border-color: #999;
+    background-color: #f0f0f0;
+}
+
+.chat-file-drop-label {
+    display: block;
+    cursor: pointer;
+}
+
+.chat-file-placeholder {
+    color: #666;
+    font-size: 14px;
+}
+
+.chat-files-selected {
+    text-align: left;
+}
+
+.chat-file-item {
+    padding: 5px 0;
+    font-size: 14px;
+    color: #333;
+}
+
+.chat-upload-button {
+    width: 100%;
+    padding: 12px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.chat-upload-button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.chat-upload-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
 }

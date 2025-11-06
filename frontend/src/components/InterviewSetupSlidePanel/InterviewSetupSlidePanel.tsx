@@ -35,6 +35,7 @@ const InterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, isOpen,
   const [selectedTodos, setSelectedTodos] = useState<string[]>([]);
   const [candidateMail, setCandidateMail] = useState('');
   const [interviewerMail, setInterviewerMail] = useState('');
+  const [candidateName, setCandidateName] = useState(candidateId);  // ✅ 追加
 
   useEffect(() => {
     fetch(`${appConfig.API_BASE_URL}/interview/config`)
@@ -47,9 +48,29 @@ const InterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, isOpen,
       });
   }, []);
 
+  // ✅ 候補者名を取得
+  useEffect(() => {
+    const fetchCandidateName = async () => {
+      try {
+        const res = await fetch(`${appConfig.API_BASE_URL}/resume-result/${candidateId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const name = data.user_name || data.name || candidateId;
+          setCandidateName(name);
+        }
+      } catch (err) {
+        console.error('候補者名の取得に失敗:', err);
+      }
+    };
+
+    if (candidateId) {
+      fetchCandidateName();
+    }
+  }, [candidateId]);
+
   const renderTemplate = (template: string): string => {
     const mapping: Record<string, string> = {
-      candidate_name: candidateId,
+      candidate_name: candidateName,  // ✅ candidateId → candidateName
       interview_date: interviewDate || '',
       interviewer_name: selectedInterviewer || '',
     };
@@ -57,30 +78,30 @@ const InterviewSetupSlidePanel: React.FC<Props> = ({ candidateId, stage, isOpen,
     return template.replace(/{{\s*(\w+)\s*}}/g, (_, key) => mapping[key] || '');
   };
 
-    const handleSubmit = () => {
-      if (!interviewDate || !selectedInterviewer) {
-        alert('日程と担当者は必須です');
-        return;
-      }
+  const handleSubmit = () => {
+    if (!interviewDate || !selectedInterviewer) {
+      alert('日程と担当者は必須です');
+      return;
+    }
 
-      onSubmit({
-        interviewDate,
-        interviewer: selectedInterviewer,
-        todo: selectedTodos.join(', '),
-        candidateMail: renderTemplate(candidateMail),
-        interviewerMail: renderTemplate(interviewerMail),
-        stage 
-      });
+    onSubmit({
+      interviewDate,
+      interviewer: selectedInterviewer,
+      todo: selectedTodos.join(', '),
+      candidateMail: renderTemplate(candidateMail),
+      interviewerMail: renderTemplate(interviewerMail),
+      stage 
+    });
 
-      onClose();
-    };
+    onClose();
+  };
 
   return (
     <>
       <div className="slide-overlay" onClick={onClose}></div>
       <div className={`slide-panel ${isOpen ? 'open' : ''}`}>
         <div className="slide-panel-header">
-          <h3>{stage} の面談設定: {candidateId}</h3>
+          <h3>{stage} の面談設定: {candidateName}</h3>  {/* ✅ candidateId → candidateName */}
           <button className="slide-close" onClick={onClose}>✖</button>
         </div>
 

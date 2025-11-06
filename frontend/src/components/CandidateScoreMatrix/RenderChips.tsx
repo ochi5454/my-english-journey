@@ -2,7 +2,9 @@ export const renderGenderChip = (gender?: string) => {
     let label = 'その他';
     let className = 'gender-chip other';
     if (gender === '男') { label = '男性'; className = 'gender-chip male'; }
+    else if (gender === '男性') { label = '男性'; className = 'gender-chip male'; }
     else if (gender === '女') { label = '女性'; className = 'gender-chip female'; }
+    else if (gender === '女性') { label = '女性'; className = 'gender-chip female'; }
     return <span className={className}>{label}</span>;
 };
 
