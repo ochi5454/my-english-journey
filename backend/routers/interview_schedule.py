@@ -25,7 +25,10 @@ def post_setup(req: InterviewSetupRequest):
 
         req_for_lib: InterviewSetupRequest = InterviewSetupRequest.model_validate(req.model_dump())
 
-        send_interview_emails(req_for_lib)
+        # ✅ テスト用: メール送信をスキップ（本番では有効化）
+        # send_interview_emails(req_for_lib)
+        print(f"📧 [TEST MODE] メール送信をスキップしました: {req_for_lib.candidate_id}")
+
         result = save_interview_schedule(req_for_lib)
 
         return {

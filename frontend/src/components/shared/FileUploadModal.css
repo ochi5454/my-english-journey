@@ -1,0 +1,399 @@
+/* ファイルアップロードモーダル */
+.file-upload-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    transition: background-color 0.3s;
+}
+
+.file-upload-modal-overlay.locked {
+    background-color: rgba(0, 0, 0, 0.7);
+    cursor: not-allowed;
+}
+
+.file-upload-modal-content {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ヘッダー */
+.file-upload-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e0e0e0;
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+}
+
+.file-upload-modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.file-upload-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: white;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.file-upload-modal-close:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.file-upload-modal-close:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* ボディ */
+.file-upload-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.file-upload-description {
+    margin-bottom: 24px;
+    padding: 16px;
+    background-color: #e3f2fd;
+    border-left: 4px solid #007bff;
+    border-radius: 4px;
+    color: #1565c0;
+    line-height: 1.6;
+}
+
+/* ドロップゾーン */
+.file-upload-dropzone {
+    border: 3px dashed #d0d0d0;
+    border-radius: 12px;
+    padding: 60px 40px;
+    text-align: center;
+    background-color: #fafafa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 24px;
+    min-height: 250px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.file-upload-dropzone:hover:not(.has-files) {
+    border-color: #007bff;
+    background-color: #f0f7ff;
+}
+
+.file-upload-dropzone.dragging {
+    border-color: #007bff;
+    background-color: #e3f2fd;
+    transform: scale(1.02);
+}
+
+.file-upload-dropzone.has-files {
+    padding: 20px;
+    text-align: left;
+}
+
+.upload-icon {
+    display: block;
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.upload-text {
+    font-size: 16px;
+    color: #333;
+    margin: 0 0 8px 0;
+    font-weight: 500;
+}
+
+.upload-hint {
+    font-size: 14px;
+    color: #666;
+    margin: 0;
+}
+
+/* 選択済みファイルリスト */
+.selected-files-list {
+    width: 100%;
+}
+
+.selected-files-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.selected-files-header strong {
+    font-size: 16px;
+    color: #333;
+}
+
+.clear-files-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clear-files-btn:hover {
+    background-color: #c82333;
+}
+
+.files-scroll-area {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 8px;
+    background-color: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.file-item:hover {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.file-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.file-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden;
+}
+
+.file-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-size {
+    font-size: 12px;
+    color: #666;
+}
+
+.remove-file-btn {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    color: #6c757d;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.remove-file-btn:hover {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+/* アクションボタン */
+.file-upload-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.file-upload-button {
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.file-upload-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.file-upload-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.file-upload-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.file-upload-button.cancel {
+    background-color: #6c757d;
+    color: white;
+}
+
+.file-upload-button.cancel:hover:not(:disabled) {
+    background-color: #545b62;
+}
+
+.file-upload-button.submit {
+    background-color: #007bff;
+    color: white;
+}
+
+.file-upload-button.submit:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+/* アップロード中オーバーレイ */
+.upload-progress-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.upload-progress-content {
+    text-align: center;
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 6px solid #f3f3f3;
+    border-top: 6px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.upload-progress-content p {
+    margin: 8px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.upload-progress-hint {
+    font-size: 14px;
+    color: #666;
+    font-weight: 400;
+}
+
+/* スクロールバーのスタイル */
+.files-scroll-area::-webkit-scrollbar {
+    width: 8px;
+}
+
+.files-scroll-area::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.files-scroll-area::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.files-scroll-area::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .file-upload-modal-content {
+        width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .file-upload-modal-body {
+        padding: 20px;
+    }
+
+    .file-upload-dropzone {
+        padding: 40px 20px;
+        min-height: 200px;
+    }
+
+    .file-upload-actions {
+        flex-direction: column;
+    }
+
+    .file-upload-button {
+        width: 100%;
+    }
+}

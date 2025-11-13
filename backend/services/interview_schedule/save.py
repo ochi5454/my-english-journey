@@ -9,9 +9,9 @@ from backend.schemas.interviewsheet import InterviewSetupRequest
 
 def save_interview_schedule(req: InterviewSetupRequest) -> dict:
     key_map = {
-        "面談・1次": "interview_1",
-        "面談・2次": "interview_2",
-        "最終面談": "interview_final"
+        "web面談": "interview_1",
+        "1次面談": "interview_2",
+        "2次面談": "interview_final"
     }
 
     interview_stage = key_map.get(req.stage, "interview_other")

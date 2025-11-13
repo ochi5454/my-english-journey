@@ -48,6 +48,15 @@ class Candidate(Base):
     hr_pay_type = Column(String, nullable=True)
     hr_employment_type = Column(String, nullable=True)
 
+    # ステータス管理
+    status = Column(String, nullable=True)  # "アップロード", "書類選考", "web面談", "1次面談", "2次面談", "待遇検討", "内定通知", "内定受諾", "内定辞退", "不合格"
+    recommended_division = Column(String, nullable=True)  # AI推奨部門
+
+    # 書類選考関連
+    document_review_date = Column(DateTime, nullable=True)
+    document_review_reviewer = Column(String, nullable=True)
+    document_review_result = Column(String, nullable=True)  # "合格" or "不合格"
+
 class CandidateMustCheckItem(Base):
     __tablename__ = "candidates_must_check_items"
     id = Column(String, primary_key=True)
@@ -88,7 +97,7 @@ class CandidateStatus(Base):
     __tablename__ = "candidates_status"
     id = Column(String, primary_key=True)
     user_id = Column(String, nullable=False)
-    stage = Column(String)  # 例: "アップロード", "書類選考", "面談・1次"
+    stage = Column(String)  # 例: "アップロード", "書類選考", "web面談", "1次面談", "2次面談"
     chat_reviewer = Column(String)
     reviewed_at = Column(DateTime)
     reviewed_resume = Column(Boolean)
