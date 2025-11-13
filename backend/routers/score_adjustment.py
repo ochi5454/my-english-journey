@@ -1,4 +1,5 @@
 import uuid
+import re
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException, APIRouter
 from fastapi.responses import JSONResponse
@@ -63,12 +64,26 @@ async def chat_score_review(payload: ScoreChatRequest):
     # ユーザーに返す文面からは削除
     clean_reply = reply.replace("###FINAL", "").strip()
 
+    # === 推奨部門の抽出 ===
+    recommended_div = None
+    rec_match = re.search(r"\[推奨部門\]\s*:\s*部門\s*=\s*(.+?)(?:\n|$)", reply)
+    if rec_match:
+        recommended_div = rec_match.group(1).strip()
+
+    # === 合格・不合格の判定 ===
+    decision = None
+    decision_match = re.search(r"\[判定\]\s*:\s*結果\s*=\s*(合格|不合格)", reply)
+    if decision_match:
+        decision = decision_match.group(1).strip()
+
     # === 通常会話 ===
     if not is_final_phase:
         return {
             "reply": reply,
             "shouldUpdateScore": False,
-            "adjusted_scores": None
+            "adjusted_scores": None,
+            "recommended_division": recommended_div,
+            "decision": decision
         }
 
     # === 最終確定 ===
@@ -76,7 +91,9 @@ async def chat_score_review(payload: ScoreChatRequest):
     return {
         "reply": clean_reply,
         "shouldUpdateScore": True,
-        "adjusted_scores": adjusted_scores
+        "adjusted_scores": adjusted_scores,
+        "recommended_division": recommended_div,
+        "decision": decision
     }
 
 @router.post("/update-score")
@@ -84,11 +101,13 @@ async def update_score(payload: ScoreUpdateRequest):
     candidate_id = payload.candidate_id
     reviewer_id = payload.reviewer_id
     stage = payload.stage
+    recommended_division = payload.recommended_division
 
     now = datetime.now(JST)
 
-    if not payload.adjustments:
-        raise HTTPException(status_code=400, detail="調整内容がありません")
+    # スコア調整がない場合でも、推奨部門があれば処理を続行
+    if not payload.adjustments and not recommended_division:
+        raise HTTPException(status_code=400, detail="調整内容または推奨部門が必要です")
 
     # JSON形式に変換（save_score_to_history の仕様に合わせる）
     new_scores = [
@@ -98,20 +117,21 @@ async def update_score(payload: ScoreUpdateRequest):
             "reason": adj.reason
         }
         for adj in payload.adjustments
-    ]
+    ] if payload.adjustments else []
 
-    # スコア保存（DivisionScore 更新 ＋ ScoreHistory に記録 ＋ 推薦部門更新）
-    try:
-        save_score_to_history(
-            candidate_id=candidate_id,
-            new_scores=new_scores,
-            updated_by=reviewer_id,
-            source="chat_review"
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"保存エラー: {str(e)}")
+    # スコア保存（DivisionScore 更新 ＋ ScoreHistory に記録）
+    if new_scores:
+        try:
+            save_score_to_history(
+                candidate_id=candidate_id,
+                new_scores=new_scores,
+                updated_by=reviewer_id,
+                source="chat_review"
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"保存エラー: {str(e)}")
 
     # ステージ別レビュー履歴を CandidateStatus に保存（履歴形式なので毎回INSERT）
     with SessionLocal() as db:
@@ -131,6 +151,12 @@ async def update_score(payload: ScoreUpdateRequest):
 
         candidate.updated_by = reviewer_id
         candidate.updated_at = now
+
+        # 推奨部門の更新
+        if recommended_division:
+            recommended_div_prefix = convert_division_to_prefix(recommended_division)
+            candidate.recommended_div = recommended_div_prefix
+            print(f"✅ 推奨部門を更新: {recommended_division} -> {recommended_div_prefix}")
 
         db.commit()
 

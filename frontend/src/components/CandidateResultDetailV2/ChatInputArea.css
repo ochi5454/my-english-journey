@@ -1,0 +1,193 @@
+/* === チャット入力欄全体 === */
+.chat-input-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.second-row {
+  justify-content: space-between;
+}
+
+/* === セレクト・インプット === */
+.chat-select {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  transition: border-color 0.2s;
+}
+
+.chat-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.candidate-id-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.chat-candidate-input {
+  flex: 1;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #1e293b;
+  transition: border-color 0.2s;
+}
+
+.chat-candidate-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.chat-candidate-input.auto-generated {
+  background-color: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+  font-style: italic;
+}
+
+.chat-candidate-input:disabled {
+  opacity: 0.6;
+}
+
+.generate-id-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #f1f5f9;
+  color: #334155;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.generate-id-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.generate-id-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* === ドラッグ&ドロップエリア === */
+.file-upload-container {
+  flex: 1;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #f8f9fa;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-upload-container:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+
+.file-upload-container.dragging {
+  border-color: #667eea;
+  background: #e0e7ff;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.file-upload-container.has-files {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+
+.custom-file-upload {
+  cursor: pointer;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* === ファイルリスト === */
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.file-list strong {
+  color: #667eea;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.file-name {
+  font-size: 13px;
+  color: #334155;
+  padding: 4px 8px;
+  background: white;
+  border-radius: 4px;
+  border-left: 3px solid #667eea;
+  display: block;
+}
+
+/* === 送信ボタン === */
+.send-btn-container {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 80px;
+}
+
+.send-btn {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.send-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.send-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}

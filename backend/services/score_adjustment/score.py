@@ -7,6 +7,7 @@ from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
 )
 from backend.core.openai_config import get_openai_client
+from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, MessagesPlaceholder
 
 # ============================================
 # ✅ GPT呼び出し
@@ -15,32 +16,67 @@ from backend.core.openai_config import get_openai_client
 client = get_openai_client()
 
 # ============================================
-# 🧠 スコア調整用AIプロンプト・呼び出し系
+# 🧠 LangChainプロンプトテンプレート
 # ============================================
 
+SYSTEM_TEMPLATE = """あなたは経験豊富な人事評価の専門家です。
+候補者の履歴書を詳細に分析し、各部門への適合度を評価してスコアを調整します。
+
+【評価の原則】
+1. **具体的な根拠**: 履歴書の具体的な記述に基づいて評価する
+2. **多角的な分析**: スキル、経験年数、プロジェクト規模、責任範囲を総合的に判断
+3. **部門特性**: 各部門が求める専門性・適性を考慮
+4. **公平性**: 主観を排除し、客観的な事実に基づく
+
+【評価基準の詳細】
+- **営業部門**: コミュニケーション力、交渉力、目標達成経験、顧客折衝経験
+- **経理部門**: 数値処理能力、正確性、会計知識、システム運用経験
+- **法務部門**: 法的知識、リスク管理、コンプライアンス経験、規程整備
+- **人事部門**: 組織理解、人材育成経験、労務管理、採用経験
+- **ファシリティ部門**: 施設管理、コスト管理、業者折衝、安全管理
+- **監理技術者部門**: 技術力、プロジェクト管理、品質管理、安全管理
+- **SE部門**: プログラミング能力、システム設計、技術文書作成、問題解決力
+
+【利用可能な部門】
+{divisions}
+
+【出力形式】
+1. **スコア提案時**: 必ずマークダウンテーブルで見やすく表示
+
+   | 部門 | 現在 | 変更後 | 調整幅 | 詳細な理由 |
+   |------|------|--------|--------|-----------|
+   | 営業部門 | 65点 | 70点 | +5点 | 履歴書の「大手法人向け提案営業で年間目標120%達成」という実績から、目標達成能力が高く評価できる。ただし顧客折衝の具体的な困難事例の記載が少ないため、+5点が妥当 |
+
+2. **技術的記述**: パース用に以下の形式も併記
+   [スコア調整]: 部門=営業部門, 変更後スコア=70, 理由=大手法人向け提案営業で年間目標120%達成の実績あり
+
+3. **確定時**: 文末に「###FINAL」を付ける
+
+4. **推奨部門の質問**: ユーザーから「推奨部門は？」「どの部門がいい？」などの質問があった場合:
+   [推奨部門]: 部門=最もスコアが高い部門名
+
+5. **合格・不合格の判定**: ユーザーから「合格にして」「不合格にして」などの指示があった場合:
+   [判定]: 結果=合格 または [判定]: 結果=不合格
+
+【会話の流れ】
+- 提案フェーズ: 詳細な根拠を示してスコア調整を提案
+- 議論フェーズ: ユーザーの質問に詳細に回答
+- 確定フェーズ: ユーザーが了承したら「###FINAL」で確定
+- 推奨部門: ユーザーから質問があればスコアに基づいて推奨
+- 判定: ユーザーから指示があれば合格・不合格を判定
+"""
+
 def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str]) -> list[dict]:
+    """LangChainのプロンプトテンプレートを使用して、より構造化されたプロンプトを生成"""
+
+    # システムプロンプトを部門リストでフォーマット
+    system_content = SYSTEM_TEMPLATE.format(divisions=", ".join(valid_divisions))
+
     system_prompt = {
         "role": "system",
-        "content": (
-            "あなたは人事部のスコア精査アシスタントです。\n"
-            "人事担当者と会話しながら、候補者の部門別スコアを調整します。\n\n"
-            "【目的】\n"
-            "- ユーザーの指示に応じてスコアを上げ下げします。\n"
-            "- ユーザーが了承・同意・確定を示したら、すぐにスコアを確定してください。\n"
-            "- スコア確定時のみ、文末に「###FINAL」を付けてください。\n\n"
-            "【利用できる部門】\n"
-            f"{', '.join(valid_divisions)}\n\n"
-            "【出力ルール】\n"
-            "- スコア提案はこの形式で出してください：\n"
-            "  [スコア調整]: 部門=◯◯, 変更後スコア=◯, 理由=◯◯\n"
-            "- 通常会話では自然な文章で返答。\n"
-            "- スコアを確定したら、文末に必ず「###FINAL」を付けてください。\n\n"
-            "【例】\n"
-            "👥 通常会話 → 「了解しました。どの観点を見直しますか？」\n"
-            "🎯 提案 → 「営業部は経験値が高いため+5点を提案します。」\n"
-            "🏁 確定 → 「営業部を+5点で確定します。###FINAL」"
-        ),
+        "content": system_content
     }
+
     return [system_prompt] + messages[-5:]
 
 def _coerce_messages(prompt: List[Dict[str, Any]]) -> List[ChatCompletionMessageParam]:
@@ -60,13 +96,18 @@ def _coerce_messages(prompt: List[Dict[str, Any]]) -> List[ChatCompletionMessage
             out.append(cast(ChatCompletionUserMessageParam, {"role": "user", "content": content}))
     return out
 
-def call_openai_chat(prompt: List[Dict[str, Any]], model: str = "gpt-3.5-turbo") -> str:
+def call_openai_chat(prompt: List[Dict[str, Any]], model: str = "gpt-4o-mini") -> str:
+    """
+    OpenAI APIを呼び出してチャット応答を取得
+    デフォルトでgpt-4o-miniを使用し、より詳細で質の高い分析を提供
+    """
     try:
         messages: List[ChatCompletionMessageParam] = _coerce_messages(prompt)
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=0.3,
+            temperature=0.3,  # 一貫性のある評価のため低めに設定
+            max_tokens=2000,  # 詳細な分析のため十分なトークン数を確保
         )
         return (response.choices[0].message.content or "")
     except Exception as e:
