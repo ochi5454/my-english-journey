@@ -64,12 +64,23 @@ def get_expected_focus_items(department_prefix: str, role: str, db: Session) -> 
 # 🧠 部門の和名→プレフィックスへ変換
 # ============================================
 
-def convert_division_to_prefix(division_name: str) -> str:
+def convert_division_to_prefix(division_name: str | None) -> str | None:
+    """
+    部門和名 → prefix に変換
+    例: "ファシリティ" → "fac"
+    """
+    if not division_name:
+        return None
+
     with SessionLocal() as db:
-        row = db.query(CandidateExpectations)\
-                .filter(CandidateExpectations.division == division_name)\
-                .first()
-        return row.division_prefix.value if row and row.division_prefix is not None else division_name
+        row = db.query(CandidateExpectations).filter(
+            CandidateExpectations.division == division_name
+        ).first()
+
+        # ✅ 修正: 明示的に文字列としてキャストして返す
+        if row and row.division_prefix is not None:
+            return str(row.division_prefix)
+        return division_name
 
 # ============================================
 # 🧠 プレフィックス→和名の変換
