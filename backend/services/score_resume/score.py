@@ -306,6 +306,8 @@ async def _check_must_requirements_by_division_llm_async(
     division_names = []
     
     for division, traits in division_map.items():
+        print(f"🟦 [DEBUG] Division: {division}")
+        print(f"🟦 [DEBUG] Traits sent to GPT: {traits}")
         joined_traits = ', '.join(f'"{t}"' for t in traits)
         
         task = must_check_division_chain.ainvoke({
@@ -317,6 +319,7 @@ async def _check_must_requirements_by_division_llm_async(
         division_names.append((division, traits))
 
     responses = await asyncio.gather(*tasks, return_exceptions=True)
+    print("🟦 [DEBUG] Raw must-check GPT responses:", responses)
     
     results = {}
     for (division, traits), response in zip(division_names, responses):
