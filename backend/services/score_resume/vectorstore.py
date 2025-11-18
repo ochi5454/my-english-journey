@@ -5,8 +5,7 @@ import chromadb
 from backend.core.config import CHROMA_PATH
 from backend.core.embedding_config import get_sentence_transformer_model
 
-def get_model():
-    return get_sentence_transformer_model()
+model = get_sentence_transformer_model()
 
 def save_masked_resume_embedding_local(candidate_id: str, text: str):
     os.makedirs(str(CHROMA_PATH), exist_ok=True)
@@ -23,7 +22,6 @@ def save_masked_resume_embedding_local(candidate_id: str, text: str):
 
     chunks = [chunk.strip() for chunk in text.split("\n\n") if chunk.strip()]
 
-    model = get_model()   # ← 必要なときに初回ロード（1回だけ）
     embeddings = model.encode(chunks)
     embeddings = [e.tolist() for e in embeddings]
 

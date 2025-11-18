@@ -4,8 +4,7 @@ import numpy as np
 from backend.core.config import CHROMA_PATH
 from backend.core.embedding_config import get_sentence_transformer_model
 
-def get_model():
-    return get_sentence_transformer_model()
+model = get_sentence_transformer_model()
 
 @lru_cache(maxsize=128)
 def search_resume_snippets(candidate_id: str, query: str, top_k: int = 3, min_score: float = 0.35):
@@ -16,7 +15,6 @@ def search_resume_snippets(candidate_id: str, query: str, top_k: int = 3, min_sc
     collection = chroma_client.get_or_create_collection("resumes_local")
 
     # クエリをEmbedding
-    model = get_model()   # ← ここで初回1回だけロード
     query_vec = model.encode([query])
 
     # 検索実行
