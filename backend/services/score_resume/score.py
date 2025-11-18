@@ -1,22 +1,19 @@
-import re
-import hashlib
 import asyncio
-from datetime import datetime, timedelta
-from backend.models.score_resume import CandidateExpectations
-from backend.core.database import SessionLocal
+from datetime import datetime
 from typing import List, Dict, Any, Callable, Optional, Union
-from pydantic import BaseModel, Field
 from collections import OrderedDict
-
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnableLambda
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_community.cache import InMemoryCache
 from langchain_core.globals import set_llm_cache
+from langchain_community.cache import InMemoryCache
 
+from backend.core.database import SessionLocal
+from backend.models.score_resume import CandidateExpectations
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
 from backend.services.score_adjustment.save import save_score_to_history
+from backend.services.score_resume.parser import safe_parse_division_scores, safe_parse_motivation, safe_parse_workexp
+from backend.schemas.score import DivisionScore
 
 # ============================================
 # ✅ LangChain設定
@@ -28,41 +25,6 @@ set_llm_cache(InMemoryCache())
 # LLMインスタンス
 llm_gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.2)
 llm_gpt35 = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.2)
-
-# ============================================
-# 📦 Pydanticモデル定義（構造化出力用）
-# ============================================
-
-class MustCheckResult(BaseModel):
-    """マストチェック結果"""
-    result: bool = Field(description="条件を満たしているか")
-    reason: str = Field(description="判定理由")
-
-class DivisionScore(BaseModel):
-    """部門スコア"""
-    division: str = Field(description="部門名")
-    score: int = Field(ge=0, le=100, description="適合度スコア（0-100）")
-    reason: str = Field(description="評価理由")
-
-class DivisionScoreList(BaseModel):
-    """部門スコアのリスト（Listをラップ）"""
-    scores: List[DivisionScore] = Field(description="各部門のスコアリスト")
-
-class MotivationScore(BaseModel):
-    """志望動機スコア"""
-    理念共感度: int = Field(ge=0, le=25, description="企業理念への共感度（25点満点）")
-    経験接続度: int = Field(ge=0, le=25, description="経験との接続度（25点満点）")
-    具体性: int = Field(ge=0, le=25, description="具体性（25点満点）")
-    成長貢献意欲: int = Field(ge=0, le=25, description="成長・貢献意欲（25点満点）")
-    合計スコア: int = Field(ge=0, le=100, description="合計スコア（100点満点）")
-
-class WorkExperienceScore(BaseModel):
-    """職務経歴スコア"""
-    経験の深さ: int = Field(ge=0, le=25, description="経験の深さ（25点満点）")
-    スキルの幅: int = Field(ge=0, le=25, description="スキルの幅（25点満点）")
-    成果の具体性: int = Field(ge=0, le=25, description="成果の具体性（25点満点）")
-    一貫性成長性: int = Field(ge=0, le=25, description="一貫性・成長性（25点満点）")
-    合計スコア: int = Field(ge=0, le=100, description="合計スコア（100点満点）")
 
 # ============================================
 # 🛠️ ユーティリティ関数
@@ -258,22 +220,25 @@ work_experience_template = ChatPromptTemplate.from_messages([
 # JSONパーサー
 json_parser = JsonOutputParser()
 
-# 部門スコアリングチェーン
+# 部門スコアリングチェーン（LLM → JSON → safe_parse）
 division_scoring_chain = (
-    division_scoring_template 
-    | llm_gpt4.with_structured_output(DivisionScoreList)
+    division_scoring_template
+    | llm_gpt4
+    | json_parser
 )
 
 # 志望動機スコアリングチェーン
 motivation_scoring_chain = (
-    motivation_scoring_template 
-    | llm_gpt35.with_structured_output(MotivationScore, method="function_calling")
+    motivation_scoring_template
+    | llm_gpt35
+    | json_parser
 )
 
 # 職務経歴スコアリングチェーン
 work_experience_chain = (
-    work_experience_template 
-    | llm_gpt35.with_structured_output(WorkExperienceScore, method="function_calling")
+    work_experience_template
+    | llm_gpt35
+    | json_parser
 )
 
 # マストチェック用
@@ -436,18 +401,13 @@ async def score_resume_from_text_async(
     log("division_request", "🤖 LLM呼び出し開始")
     
     try:
-        # ✅ 型アノテーションを明示的に指定
-        result_response: Union[DivisionScoreList, Dict[str, Any]] = await division_scoring_chain.ainvoke({
+        raw = await division_scoring_chain.ainvoke({
             "division_descriptions": division_descriptions,
             "content": optimized_text
         })
-        
-        # ✅ 型チェックして安全に扱う
-        if isinstance(result_response, dict):
-            result_obj = DivisionScoreList(**result_response)
-        else:
-            result_obj = result_response
-        
+
+        # 🛡 ここで安全に吸収
+        result_obj = safe_parse_division_scores(raw)
         scores = result_obj.scores
         
         print("✅ GPT応答 パース成功。件数: %d", len(scores))
@@ -530,14 +490,8 @@ async def score_motivation_statement_async(text: str) -> int:
     text = _truncate_text_smart(text, max_chars=800)
     
     try:
-        # ✅ 型アノテーションを明示的に指定
-        result_response: Union[MotivationScore, Dict[str, Any]] = await motivation_scoring_chain.ainvoke({"text": text})
-        
-        # ✅ 型チェック
-        if isinstance(result_response, dict):
-            result = MotivationScore(**result_response)
-        else:
-            result = result_response
+        raw = await motivation_scoring_chain.ainvoke({"text": text})
+        result = safe_parse_motivation(raw)
             
         print("📝 志望動機スコア:", result)
         return min(result.合計スコア, 100)
@@ -558,14 +512,8 @@ async def score_work_experience_async(text: str) -> int:
     text = _truncate_text_smart(text, max_chars=1000)
     
     try:
-        # ✅ 型アノテーションを明示的に指定
-        result_response: Union[WorkExperienceScore, Dict[str, Any]] = await work_experience_chain.ainvoke({"text": text})
-        
-        # ✅ 型チェック
-        if isinstance(result_response, dict):
-            result = WorkExperienceScore(**result_response)
-        else:
-            result = result_response
+        raw = await work_experience_chain.ainvoke({"text": text})
+        result = safe_parse_workexp(raw)
             
         print("🧾 職務経歴スコア:", result)
         return min(result.合計スコア, 100)
