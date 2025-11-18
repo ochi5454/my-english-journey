@@ -16,9 +16,9 @@ from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.resume import Resume, ResumeWorkHistory
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus, CandidateDocumentReview
 from backend.models.interview_schedule import InterviewSchedule
-from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
 from backend.services.score_resume.score import score_resume_from_text_async, score_motivation_statement_async, score_work_experience_async
-from backend.services.score_resume.sanitizer import mask_personal_info
+from backend.services.score_resume.sanitizer import mask_personal_info, mask_and_extract_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
 from backend.services.score_resume.streaming import _sse, log_step
@@ -71,6 +71,8 @@ async def resume_score_save(
             merged_texts = []
 
             # === 各ファイルを順に処理 ===
+            last_filename = None # 安全策
+
             for f in safe_files:
             
                 # === ① 拡張子チェックと読み込み ===
@@ -110,6 +112,8 @@ async def resume_score_save(
                 merged_texts.append(f"## {raw_filename}\n{extracted_text}")
                 yield log_step("extract_done", f"🧾 テキスト抽出完了 ({len(extracted_text)} 文字)")
                 await asyncio.sleep(0)
+
+                last_filename = raw_filename # 最後に処理したファイル名を保存し氏名抽出のフォールバックに利用
             # === ③ 全ファイルを1つのテキストに結合 ===
             yield log_step("normalize_start", f"📎 {len(merged_texts)} ファイルの結合を開始")
             await asyncio.sleep(0)
@@ -122,9 +126,11 @@ async def resume_score_save(
             # === ④ マスキング処理 ＆ 氏名性別抽出 ===
             yield log_step("mask_start", "🙈 個人情報マスキングを開始")
             await asyncio.sleep(0)
-            masked_text, extracted_name = mask_personal_info(merged_text)
-            extracted_gender = extract_gender_from_text(merged_text)
-            extracted_birth_date = extract_birth_date(merged_text)  # ✅ 追加
+            masked_text, info = mask_and_extract_personal_info(merged_text, filename=last_filename)
+
+            extracted_name = info.get("name")
+            extracted_gender = info.get("gender")
+            extracted_birth_date = extract_birth_date(merged_text)
 
             print(f"🔍 extracted_name: '{extracted_name}'")
             print(f"🔍 extracted_gender: '{extracted_gender}'")
@@ -503,6 +509,7 @@ async def candidate_ai_evaluation(request: Request):
 
             target_file = RESUME_PATH / matching_files[0]
             ext = Path(target_file).suffix.lower()
+            raw_filename = target_file.name # ✅ 元のファイル名を保存
 
             print(f"📄 ファイル発見: {target_file.name}")
 
@@ -519,7 +526,7 @@ async def candidate_ai_evaluation(request: Request):
                 raise HTTPException(status_code=400, detail=f"未対応形式: {ext}")
 
             extracted_text = normalize_pdf_text(extracted_text)
-            masked_text, _ = mask_personal_info(extracted_text)
+            masked_text, _ = mask_personal_info(extracted_text, filename=raw_filename) # ✅ filenameを渡す
 
             print(f"✅ ファイルからテキスト抽出完了: {len(masked_text)} 文字")
 
@@ -679,6 +686,7 @@ async def resume_score_rescore(candidate_id: str):
                 
                 target_file = RESUME_PATH / matching_files[0]
                 ext = Path(target_file).suffix.lower()
+                raw_filename = target_file.name # ファイル名取得
                 
                 print(f"📄 ファイル発見: {target_file.name}")
                 
@@ -695,7 +703,7 @@ async def resume_score_rescore(candidate_id: str):
                     raise HTTPException(status_code=400, detail=f"未対応形式: {ext}")
                 
                 extracted_text = normalize_pdf_text(extracted_text)
-                masked_text, _ = mask_personal_info(extracted_text)
+                masked_text, _ = mask_personal_info(extracted_text, filename=raw_filename)  # ✅  filenameを渡す
                 
                 print(f"✅ ファイルからテキスト抽出完了: {len(masked_text)} 文字")
 

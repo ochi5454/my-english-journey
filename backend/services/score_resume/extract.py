@@ -1,7 +1,6 @@
 # backend/services/score_resume/extract.py
 import io
 import re
-import docx
 import openpyxl
 import pdfplumber
 import hashlib
@@ -309,26 +308,6 @@ def extract_person_info(text: str) -> tuple[Optional[str], str]:
             return loop.run_until_complete(extract_person_info_async(text))
     except RuntimeError:
         return asyncio.run(extract_person_info_async(text))
-
-# ============================================
-# 🧠 後方互換性のための旧関数（LangChainにリダイレクト）
-# ============================================
-
-def extract_name_from_table(text: str) -> Optional[str]:
-    """
-    ⚠️ 非推奨: 後方互換性のため残す
-    代わりに extract_person_info() を使用してください
-    """
-    name, _ = extract_person_info(text)
-    return name
-
-def extract_gender_from_text(text: str) -> str:
-    """
-    ⚠️ 非推奨: 後方互換性のため残す
-    代わりに extract_person_info() を使用してください
-    """
-    _, gender = extract_person_info(text)
-    return gender
 
 # ============================================
 # 🧠 履歴書から志望動機の抽出（最適化版）
