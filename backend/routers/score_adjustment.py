@@ -57,9 +57,13 @@ async def chat_score_review(payload: ScoreChatRequest):
 
     # === 🧠 AI呼び出し ===
     reply = call_openai_chat(base_prompt)
+    print("💬 AI reply =======================")
+    print(reply)
+    print("💬 =================================")
+
 
     # === フェーズ判定 ===
-    is_final_phase = "###FINAL" in reply
+    is_final_phase = ("###FINAL" in reply) or ("[スコア調整]" in reply)
 
     # ユーザーに返す文面からは削除
     clean_reply = reply.replace("###FINAL", "").strip()
@@ -87,11 +91,35 @@ async def chat_score_review(payload: ScoreChatRequest):
         }
 
     # === 最終確定 ===
-    adjusted_scores = parse_score_adjustments(reply, original_scores)
+    raw_adjusted_scores = parse_score_adjustments(reply, original_scores)
+    print("🟦 raw_adjusted_scores (before normalize):", raw_adjusted_scores)
+
+    # 🔽 dict → 配列に変換
+    adjusted_scores_list = []
+    if isinstance(raw_adjusted_scores, dict):
+        for div, info in raw_adjusted_scores.items():
+            if not info:
+                continue
+            adjusted_scores_list.append({
+                "division": div,
+                "score": info.get("score"),
+                "reason": info.get("reason") or ""
+            })
+    elif isinstance(raw_adjusted_scores, list):
+        print("🔵 raw_adjusted_scores はすでに list 形式:", raw_adjusted_scores)
+        # もし既に配列形式で返ってくるケースがあるなら一応そのまま使う
+        adjusted_scores_list = raw_adjusted_scores
+    else:
+        print("⚠️ raw_adjusted_scores が dict でも list でもありません:", type(raw_adjusted_scores))
+        adjusted_scores_list = []
+
+    print("🟩 adjusted_scores_list (after normalize):", adjusted_scores_list)
+    print("🟪 shouldUpdateScore:", len(adjusted_scores_list) > 0)
+
     return {
         "reply": clean_reply,
-        "shouldUpdateScore": True,
-        "adjusted_scores": adjusted_scores,
+        "shouldUpdateScore": len(adjusted_scores_list) > 0,
+        "adjusted_scores": adjusted_scores_list,
         "recommended_division": recommended_div,
         "decision": decision
     }
