@@ -287,10 +287,10 @@ export default function CandidateMatrixTable({
                 ))}
             </td>
             <td>-</td>
+            <td>-</td>
+            <td>-</td>
             <td>{r.document_review_result || '-'}</td>
             <td>{formatDateOnly(r.document_review_date) || '-'}</td>
-            <td>-</td>
-            <td>-</td>
             <td>-</td>            
             <td>{formatDateOnly(r.interview_1_date) || '-'}</td>
             <td>{r.interview_1_result || '-'}</td>
@@ -307,8 +307,6 @@ export default function CandidateMatrixTable({
             <td>-</td>
             <td>{r.hr_employment_type || '-'}</td>
             <td>{r.hr_pay_type || '-'}</td>
-            <td>-</td>
-            <td>-</td>
             <td>-</td>
             <td>-</td>
             <td>-</td>
@@ -425,8 +423,6 @@ export default function CandidateMatrixTable({
                                             <th>採用G見解結果</th>
                                             <th>採用G見解日</th>
                                             <th>採用G見解理由</th>
-                                            <th>採用応募判断</th>
-                                            <th>採用応募使用</th>
                                             <th>Web面接日時</th>
                                             <th>Web面接合否</th>
                                             <th>二次面接日時</th>

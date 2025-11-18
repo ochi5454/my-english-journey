@@ -14,7 +14,7 @@ import sqlalchemy
 from backend.core.database import SessionLocal
 from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.resume import Resume, ResumeWorkHistory
-from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus
+from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus, CandidateDocumentReview
 from backend.models.interview_schedule import InterviewSchedule
 from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
 from backend.services.score_resume.score import score_resume_from_text_async, score_motivation_statement_async, score_work_experience_async
@@ -678,6 +678,17 @@ async def get_resume_results():
                     recommended_div_score = rec_score.score
                     recommended_div_reason = rec_score.reason
 
+            # ✅ 書類選考結果を取得
+            doc_review = db.query(CandidateDocumentReview).filter_by(user_id=user_id).first()
+            document_review_result = None
+            document_review_date = None
+            document_review_reviewer = None
+            
+            if doc_review:
+                document_review_result = "合格" if doc_review.is_passed is True else "不合格"
+                document_review_date = to_jst_iso(doc_review.reviewed_at)
+                document_review_reviewer = doc_review.reviewer_id
+
             result = {
                 "user_id": user_id,
                 "user_name": c.name,
@@ -715,6 +726,9 @@ async def get_resume_results():
                     for s in scores
                 ],
                 "division_scores": division_score_map,
+                "document_review_result": document_review_result,
+                "document_review_date": document_review_date,
+                "document_review_reviewer": document_review_reviewer,
             }
             results.append(result)
 
@@ -723,6 +737,8 @@ async def get_resume_results():
 @router.get("/resume-result/{candidate_id}")
 async def get_result_by_candidate_id(candidate_id: str):
     with SessionLocal() as db:
+        from backend.models.score_resume import CandidateDocumentReview
+        
         c = db.query(Candidate).filter_by(user_id=candidate_id).first()
         if not c:
             return JSONResponse(content={"error": "候補者が見つかりません"}, status_code=404)
@@ -737,7 +753,7 @@ async def get_result_by_candidate_id(candidate_id: str):
                 "score": h.score,
                 "reason": h.reason,
                 "reviewer": h.reviewer,
-                "reviewed_at": to_jst_iso(h.reviewed_at),  # ✅ 修正
+                "reviewed_at": to_jst_iso(h.reviewed_at),
                 "source": h.source
             })
 
@@ -748,6 +764,23 @@ async def get_result_by_candidate_id(candidate_id: str):
             .first()
         )
         latest_reviewed_at = latest_status.reviewed_at if latest_status else None
+
+        # ✅ 書類選考結果を取得
+        doc_review = db.query(CandidateDocumentReview).filter_by(user_id=candidate_id).first()
+        
+        # ✅ 面談日程情報
+        schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
+        interview_1_date = None
+        interview_2_date = None
+        interview_final_date = None
+        
+        for s in schedules:
+            if s.interview_stage._is("interview_1"):
+                interview_1_date = to_jst_iso(s.scheduled_at)
+            elif s.interview_stage._is("interview_2"):
+                interview_2_date = to_jst_iso(s.scheduled_at)
+            elif s.interview_stage._is("interview_final"):
+                interview_final_date = to_jst_iso(s.scheduled_at)
 
         result_data = {
             "user_id": candidate_id,
@@ -762,7 +795,7 @@ async def get_result_by_candidate_id(candidate_id: str):
             "experience": c.experience,
             "recommended_division": c.recommended_div,
             "uploader_id": c.uploader_id,
-            "timestamp": to_jst_iso(latest_reviewed_at),  # ✅ 修正
+            "timestamp": to_jst_iso(latest_reviewed_at),
             "hr_decision": c.hr_decision,
             "must_check": {
                 m.item_name: {"result": m.result, "reason": m.reason}
@@ -776,30 +809,28 @@ async def get_result_by_candidate_id(candidate_id: str):
                     "score_history": history_map.get(s.division, [])
                 }
                 for s in scores
-            ]
+            ],
+            # ✅ 書類選考結果
+            "document_review_result": "合格" if (doc_review and doc_review.is_passed.is_(True)) else ("不合格" if doc_review else None),
+            "document_review_date": to_jst_iso(doc_review.reviewed_at) if doc_review else None,
+            "document_review_reviewer": doc_review.reviewer_id if doc_review else None,
+            # ✅ 面談日程
+            "interview_1_date": interview_1_date,
+            "interview_2_date": interview_2_date,
+            "interview_final_date": interview_final_date,
         }
-
-        # ✅ 面談日程情報
-        schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
-        for s in schedules:
-            if s.interview_stage._is("interview_1"):
-                result_data["interview_1_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
-            elif s.interview_stage._is("interview_2"):
-                result_data["interview_2_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
-            elif s.interview_stage._is("interview_final"):
-                result_data["interview_final_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
         
-        if schedules:
-            last_updated = max(s.last_updated for s in schedules)
-            result_data["last_updated"] = to_jst_iso(last_updated)  # ✅ 修正
-
         # ✅ ステージごとの最終レビュー者情報
         status_rows = db.query(CandidateStatus).filter_by(user_id=candidate_id).all()
         for status in status_rows:
             stage = status.stage
             if stage is not None:
-                result_data[f"chat_review_{stage}_at"] = to_jst_iso(status.reviewed_at)  # ✅ 修正
+                result_data[f"chat_review_{stage}_at"] = to_jst_iso(status.reviewed_at)
                 result_data[f"chat_reviewer_{stage}"] = status.chat_reviewer
+
+        if schedules:
+            last_updated = max(s.last_updated for s in schedules)
+            result_data["last_updated"] = to_jst_iso(last_updated)
 
         return JSONResponse(content=result_data)
 
@@ -832,25 +863,48 @@ async def candidate_document_review(request: Request):
     reviewer_id = data.get("reviewer_id")
     is_passed = data.get("is_passed")
     
-    if not candidate_id or reviewer_id is None:
+    if not candidate_id or reviewer_id is None or is_passed is None:
         raise HTTPException(status_code=400, detail="必須パラメータが不足しています")
     
     now = datetime.now(JST)
     
     with SessionLocal() as db:
+        from backend.models.score_resume import CandidateDocumentReview
+        
+        db.query(CandidateDocumentReview).filter_by(user_id=candidate_id).delete()
+        
+        new_review = CandidateDocumentReview(
+            id=str(uuid4()),
+            user_id=candidate_id,
+            reviewer_id=reviewer_id,
+            is_passed=is_passed,
+            reviewed_at=now
+        )
+        db.add(new_review)
+        
+        # ✅ 変更: 合格なら「web面談」へ
         new_status = CandidateStatus(
             id=str(uuid4()),
             user_id=candidate_id,
-            stage="書類選考" if is_passed else "内定辞退",
+            stage="web面談" if is_passed else "内定辞退",  # ✅ 変更
             chat_reviewer=reviewer_id,
             reviewed_at=now,
             reviewed_resume=True
         )
         db.add(new_status)
+        
+        if not is_passed:
+            candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+            if candidate:
+                candidate.hr_decision = "不採用"
+                candidate.updated_at = now
+                candidate.updated_by = reviewer_id
+        
         db.commit()
     
     return JSONResponse(content={
         "success": True,
         "is_passed": is_passed,
-        "reviewed_at": to_jst_iso(now)  # ✅ 修正
+        "status": "web面談" if is_passed else "内定辞退",  # ✅ 変更
+        "reviewed_at": to_jst_iso(now)
     })

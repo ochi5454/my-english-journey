@@ -48,6 +48,17 @@ class Candidate(Base):
     hr_pay_type = Column(String, nullable=True)
     hr_employment_type = Column(String, nullable=True)
 
+class CandidateDocumentReview(Base):
+    """書類選考結果を保存するテーブル"""
+    __tablename__ = "candidate_document_reviews"
+    
+    id = Column(String, primary_key=True)
+    user_id = Column(String, nullable=False)
+    reviewer_id = Column(String, nullable=False)
+    is_passed = Column(Boolean, nullable=False)  # True: 合格, False: 不合格
+    reviewed_at = Column(DateTime, nullable=False)
+    reason = Column(Text, nullable=True)  # 理由（オプション）
+
 class CandidateMustCheckItem(Base):
     __tablename__ = "candidates_must_check_items"
     id = Column(String, primary_key=True)

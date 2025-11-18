@@ -471,9 +471,16 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                             const updated = await refreshed.json();
                             setLocalResult(updated);
                             onResultUpdate?.(updated);
+                            
+                            // ✅ 不合格（内定辞退）なら画面を閉じる
+                            if (updated.status === '内定辞退') {
+                                setTimeout(() => {
+                                    onClose();
+                                }, 1000); // 1秒後に自動で閉じる
+                            }
                         }
                     }}
-                    onOpenReupload={() => setShowReuploadModal(true)}  // ✅ 追加
+                    onOpenReupload={() => setShowReuploadModal(true)}
                     onOpenInterviewFlow={openInterviewFlow}
                     onOpenInterviewPrep={(stage) => {
                         setInterviewStage(stage);

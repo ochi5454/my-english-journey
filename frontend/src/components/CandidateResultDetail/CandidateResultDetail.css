@@ -819,3 +819,9 @@
     color: #ff9800;
     font-weight: 600;
 }
+
+.status-disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    pointer-events: none;
+}

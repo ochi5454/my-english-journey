@@ -40,6 +40,9 @@ const StatusBar: React.FC<Props> = ({
     const interviewStages = ["web面談", "1次面談", "2次面談"];
     const [processingStage, setProcessingStage] = useState<string | null>(null);
 
+    // ✅ 不採用かどうかをチェック
+    const isRejected = localResult.status === "内定辞退" || localResult.hr_decision === "不採用";
+
     const isInterviewScheduled = (stage: string): boolean => {
         const keyMap: Record<string, string> = {
             "web面談": "interview_1_date",
@@ -67,7 +70,12 @@ const StatusBar: React.FC<Props> = ({
 
             if (!res.ok) throw new Error('書類選考の更新に失敗しました');
 
-            alert(isPassed ? '書類選考を合格にしました' : '書類選考を不合格にしました');
+            if (isPassed) {
+                alert('書類選考を合格にしました');
+            } else {
+                alert('書類選考を不合格にしました。候補者を不採用として処理します。');
+            }
+            
             onStatusUpdate();
         } catch (err: any) {
             alert(`エラー: ${err.message}`);
@@ -76,7 +84,6 @@ const StatusBar: React.FC<Props> = ({
         }
     };
 
-    // ✅ 各ステージの情報を取得する関数
     const getStageInfo = (step: string) => {
         if (step === "アップロード") {
             return {
@@ -96,24 +103,24 @@ const StatusBar: React.FC<Props> = ({
         
         if (step === "web面談") {
             return {
-                date: localResult.interview_1_date || localResult.chat_review_面談・1次_at,
-                reviewer: localResult.interview_1_interviewer || localResult.chat_reviewer_面談・1次,
+                date: localResult.interview_1_date || localResult.chat_review_web面談_at,
+                reviewer: localResult.interview_1_interviewer || localResult.chat_reviewer_web面談,
                 result: localResult.interview_1_result
             };
         }
         
         if (step === "1次面談") {
             return {
-                date: localResult.interview_2_date || localResult.chat_review_面談・2次_at,
-                reviewer: localResult.interview_2_interviewer || localResult.chat_reviewer_面談・2次,
+                date: localResult.interview_2_date || localResult.chat_review_1次面談_at,
+                reviewer: localResult.interview_2_interviewer || localResult.chat_reviewer_1次面談,
                 result: localResult.interview_2_result
             };
         }
         
         if (step === "2次面談") {
             return {
-                date: localResult.interview_final_date || localResult.chat_review_最終面談_at,
-                reviewer: localResult.interview_final_interviewer || localResult.chat_reviewer_最終面談,
+                date: localResult.interview_final_date || localResult.chat_review_2次面談_at,
+                reviewer: localResult.interview_final_interviewer || localResult.chat_reviewer_2次面談,
                 result: localResult.interview_final_result
             };
         }
@@ -132,6 +139,23 @@ const StatusBar: React.FC<Props> = ({
     return (
         <div className="result-d-status-header">
             <h3>選考ステータス</h3>
+            
+            {/* ✅ 不採用の場合は警告表示 */}
+            {isRejected && (
+                <div style={{
+                    padding: '12px',
+                    marginBottom: '12px',
+                    backgroundColor: '#ffebee',
+                    border: '1px solid #f44336',
+                    borderRadius: '4px',
+                    color: '#c62828',
+                    fontWeight: 'bold',
+                    textAlign: 'center'
+                }}>
+                    ⚠️ この候補者は不採用として処理されています
+                </div>
+            )}
+            
             <div className="status-bar-horizontal-with-info">
                 {statusSteps.map((step, idx) => {
                     const isActive = localResult.status === step;
@@ -147,12 +171,16 @@ const StatusBar: React.FC<Props> = ({
                             isInterviewScheduled(step) &&
                             !stageInfo.date) ||
                         (step === "待遇検討" &&
-                            !!localResult.chat_review_最終面談_at &&
+                            !!localResult.chat_review_2次面談_at &&
                             !localResult.hr_review?.updated_at);
 
-                    const showDocumentButtons = step === "書類選考" && !stageInfo.date;
+                    // ✅ 不採用の場合はボタンを表示しない
+                    const showDocumentButtons = step === "書類選考" && !stageInfo.date && !isRejected;
 
                     const handleClick = () => {
+                        // ✅ 不採用の場合はクリック無効
+                        if (isRejected) return;
+                        
                         if (step === "アップロード") {
                             onOpenReupload();
                             return;
@@ -160,7 +188,7 @@ const StatusBar: React.FC<Props> = ({
                         
                         if (interviewStages.includes(step)) {
                             onOpenInterviewFlow(step);
-                        } else if (step === "待遇検討" && !!localResult.chat_review_最終面談_at) {
+                        } else if (step === "待遇検討" && !!localResult.chat_review_2次面談_at) {
                             window.open(`/hr-final-review?filter=${localResult.user_id}`, "_blank");
                         }
                     };
@@ -219,17 +247,24 @@ const StatusBar: React.FC<Props> = ({
                                 className={`status-step-horizontal 
                                     ${isActive ? "active" : ""} 
                                     ${isStepDone ? "status-done" : ""} 
-                                    ${isScheduled ? "interview-scheduled" : ""}`}
+                                    ${isScheduled ? "interview-scheduled" : ""}
+                                    ${isRejected ? "status-disabled" : ""}`}
                                 onClick={handleClick}
                                 style={{ 
                                     position: "relative",
-                                    cursor: step === "アップロード" || interviewStages.includes(step) || (step === "待遇検討" && localResult.chat_review_最終面談_at) ? "pointer" : "default"
+                                    cursor: isRejected 
+                                        ? "not-allowed" 
+                                        : (step === "アップロード" || interviewStages.includes(step) || (step === "待遇検討" && localResult.chat_review_2次面談_at) 
+                                            ? "pointer" 
+                                            : "default"),
+                                    opacity: isRejected ? 0.5 : 1,
+                                    pointerEvents: isRejected ? "none" : "auto"
                                 }}
-                                title={step === "アップロード" ? "クリックして再アップロード" : ""}
+                                title={isRejected ? "不採用のため操作できません" : (step === "アップロード" ? "クリックして再アップロード" : "")}
                             >
                                 {step}
 
-                                {interviewStages.includes(step) && isInterviewScheduled(step) && (
+                                {interviewStages.includes(step) && isInterviewScheduled(step) && !isRejected && (
                                     <button
                                         className="interview-prep-check-button"
                                         title="面談シート"
