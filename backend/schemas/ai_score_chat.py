@@ -26,3 +26,4 @@ class ScoreUpdateRequest(BaseModel):
     reviewer_id: str
     stage: Optional[str]
     adjustments: List[ScoreAdjustment]
+    recommended_division: Optional[str] = None

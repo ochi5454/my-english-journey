@@ -173,6 +173,7 @@ async def resume_score_save(
                         experience=experience_years,
                         uploader_id=uploader_id,
                         preferred_div=prefix,
+                        status="書類選考",  # 初回アップロード時のステータス
                         updated_by="system",
                         updated_at=now
                     )
@@ -185,6 +186,8 @@ async def resume_score_save(
                     candidate.updated_at = now
                     candidate.experience = experience_years
                     candidate.preferred_div = prefix
+                    if not candidate.status:  # ステータスが未設定の場合のみ設定
+                        candidate.status = "書類選考"
                 db.commit()
 
                 new_status = CandidateStatus(
@@ -256,7 +259,9 @@ async def resume_score_save(
                         score_notes=score_motivation,       # 志望動機スコア
                         work_summary=summarized_work,       # 職務経歴サマリ（新規）
                         score_work=score_work,              # 職務経歴スコア（新規）
-                        recommended_div=scoring_result.get("recommended_division"),
+                        recommended_div=recommended_div_prefix,
+                        recommended_division=recommended_div_prefix,  # 推奨部門も設定
+                        status="書類選考",  # 初回アップロード時のステータス
                         uploader_id=uploader_id,
                         updated_by="system",
                         updated_at=now
@@ -267,7 +272,10 @@ async def resume_score_save(
                     candidate.score_notes = score_motivation
                     candidate.work_summary = summarized_work
                     candidate.score_work = score_work
-                    candidate.recommended_div = scoring_result.get("recommended_division")
+                    candidate.recommended_div = recommended_div_prefix
+                    candidate.recommended_division = recommended_div_prefix  # 推奨部門も設定
+                    if not candidate.status:  # ステータスが未設定の場合のみ設定
+                        candidate.status = "書類選考"
                     candidate.updated_by = "system"
                     candidate.updated_at = now
 
@@ -428,6 +436,197 @@ async def resume_score_save(
         }
     )
 
+@router.post("/candidate-ai-evaluation")
+async def candidate_ai_evaluation(request: Request):
+    """
+    既存候補者のAI評価を実行（希望部門を指定して再スコアリング）
+    """
+    data = await request.json()
+    candidate_id = data.get("candidate_id")
+    preferred_division = data.get("preferred_division")
+    reviewer_id = data.get("reviewer_id")
+
+    if not candidate_id:
+        raise HTTPException(status_code=400, detail="candidate_idが必要です")
+
+    with SessionLocal() as db:
+        candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="候補者が見つかりません")
+
+        # 希望部門を更新
+        if preferred_division:
+            prefix = convert_division_to_prefix(preferred_division)
+            candidate.preferred_div = prefix
+            candidate.updated_by = reviewer_id or "system"
+            candidate.updated_at = datetime.now(JST)
+            db.commit()
+
+        masked_text = None
+
+        # ① まずvectorstoreから取得を試みる
+        print(f"🔍 候補者 {candidate_id} のテキストを取得中...")
+        try:
+            from backend.services.score_resume.vectorstore import get_masked_resume_text_local
+            masked_text = get_masked_resume_text_local(candidate_id)
+            print(f"✅ vectorstoreからテキスト取得成功: {len(masked_text)} 文字")
+        except Exception as e:
+            print(f"⚠️ vectorstore取得失敗: {str(e)}")
+
+        # ② vectorstoreで失敗した場合、ファイルから取得
+        if not masked_text:
+            print(f"🔍 RESUME_PATH: {RESUME_PATH}")
+
+            if not os.path.exists(RESUME_PATH):
+                print(f"❌ ディレクトリが存在しません: {RESUME_PATH}")
+                return JSONResponse(content={
+                    "needs_reupload": True,
+                    "message": "履歴書が見つかりません。ファイルを再アップロードしてください。"
+                })
+
+            matching_files = [
+                f for f in os.listdir(RESUME_PATH)
+                if f.startswith(f"cand_{candidate_id}_") or candidate_id in f
+            ]
+
+            print(f"📂 検索結果: {matching_files}")
+
+            if not matching_files:
+                all_files = os.listdir(RESUME_PATH)
+                print(f"📋 全ファイル数: {len(all_files)}")
+                print(f"📋 最初の5件: {all_files[:5]}")
+
+                return JSONResponse(content={
+                    "needs_reupload": True,
+                    "message": "履歴書が見つかりません。ファイルを再アップロードしてください。"
+                })
+
+            target_file = RESUME_PATH / matching_files[0]
+            ext = Path(target_file).suffix.lower()
+
+            print(f"📄 ファイル発見: {target_file.name}")
+
+            with open(target_file, 'rb') as f:
+                file_stream = io.BytesIO(f.read())
+
+            if ext == ".pdf":
+                extracted_text = extract_resume_text_from_pdf(file_stream)
+            elif ext in (".doc", ".docx"):
+                extracted_text = extract_resume_text_from_docx(file_stream)
+            elif ext in (".xls", ".xlsx"):
+                extracted_text = extract_resume_text_from_xlsx(file_stream)
+            else:
+                raise HTTPException(status_code=400, detail=f"未対応形式: {ext}")
+
+            extracted_text = normalize_pdf_text(extracted_text)
+            masked_text, _ = mask_personal_info(extracted_text)
+
+            print(f"✅ ファイルからテキスト抽出完了: {len(masked_text)} 文字")
+
+        # ③ 職務経歴重視のフィルタリング
+        filtered_text = re.sub(
+            r"志望動機[:：]?\s*.*?(?=(?:\n\S{2,3}|##|職務経歴|$))",
+            "",
+            masked_text,
+            flags=re.DOTALL
+        )
+
+        # ④ LLMスコアリング実行
+        scoring_result = await score_resume_from_text_async(filtered_text, candidate_id)
+
+        # ⑤ 推薦部門をprefix化
+        raw_recommended = scoring_result.get("recommended_division")
+        recommended_div_prefix = (
+            convert_division_to_prefix(raw_recommended) if raw_recommended else None
+        )
+        scoring_result["recommended_division"] = recommended_div_prefix
+
+        # ⑥ DBを更新
+        now = datetime.now(JST)
+
+        motivation_text = extract_motivation(masked_text)
+        work_experience_text = extract_work_experience(masked_text)
+
+        summarized_motivation = summarize_motivation(motivation_text) if motivation_text else None
+        score_motivation = await score_motivation_statement_async(motivation_text) if motivation_text else None
+        summarized_work = summarize_work_experience(work_experience_text) if work_experience_text else None
+        score_work = await score_work_experience_async(work_experience_text) if work_experience_text else None
+
+        candidate.notes = summarized_motivation
+        candidate.score_notes = score_motivation
+        candidate.work_summary = summarized_work
+        candidate.score_work = score_work
+        candidate.recommended_div = recommended_div_prefix
+        candidate.updated_by = reviewer_id or "system"
+        candidate.updated_at = now
+
+        db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).delete()
+        for name, info in scoring_result.get("must_check", {}).items():
+            db.add(CandidateMustCheckItem(
+                id=str(uuid4()),
+                user_id=candidate_id,
+                item_name=name,
+                result=info.get("result", False),
+                reason=info.get("reason", "")
+            ))
+
+        db.query(CandidateDivisionMustCheckItem).filter_by(user_id=candidate_id).delete()
+        for division, checks in scoring_result.get("must_check_by_division", {}).items():
+            division_prefix = convert_division_to_prefix(division)
+            for name, info in checks.items():
+                db.add(CandidateDivisionMustCheckItem(
+                    id=str(uuid4()),
+                    user_id=candidate_id,
+                    division=division_prefix,
+                    item_name=name,
+                    result=info.get("result", False),
+                    reason=info.get("reason", "")
+                ))
+
+        db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).delete()
+        for s in scoring_result.get("scores", []):
+            division_prefix = convert_division_to_prefix(s["division"])
+            db.add(CandidateDivisionScore(
+                id=str(uuid4()),
+                user_id=candidate_id,
+                division=division_prefix,
+                score=s["score"],
+                reason=s["reason"]
+            ))
+
+        for s in scoring_result.get("scores", []):
+            division_prefix = convert_division_to_prefix(s["division"])
+            db.add(CandidateScoreHistory(
+                id=str(uuid4()),
+                user_id=candidate_id,
+                division=division_prefix,
+                score=s["score"],
+                reason=s["reason"],
+                reviewer=reviewer_id or "system",
+                reviewed_at=now,
+                source="ai_evaluation"
+            ))
+
+        # ステータスを「書類選考」に更新
+        new_status = CandidateStatus(
+            id=str(uuid4()),
+            user_id=candidate_id,
+            stage="書類選考",
+            chat_reviewer=reviewer_id,
+            reviewed_at=now,
+            reviewed_resume=False
+        )
+        db.add(new_status)
+
+        db.commit()
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "AI評価が完了しました",
+            "recommended_division": recommended_div_prefix,
+            "scores": scoring_result.get("scores", [])
+        })
+
 @router.post("/resume-score-rescore/{candidate_id}")
 async def resume_score_rescore(candidate_id: str):
     """
@@ -534,6 +733,8 @@ async def resume_score_rescore(candidate_id: str):
             candidate.work_summary = summarized_work
             candidate.score_work = score_work
             candidate.recommended_div = recommended_div_prefix
+            candidate.recommended_division = recommended_div_prefix  # 新フィールドにも設定
+            candidate.status = "書類選考"  # 再評価後は書類選考ステータスに設定
             candidate.updated_by = "system"
             candidate.updated_at = now
 
@@ -624,6 +825,46 @@ async def candidate_gender_update(request: Request):
         db.commit()
     
     return JSONResponse(content={"success": True, "gender": gender})
+
+@router.post("/candidate-preferred-div-update")
+async def candidate_preferred_div_update(request: Request):
+    data = await request.json()
+    candidate_id = data.get("candidate_id")
+    preferred_division = data.get("preferred_division")
+
+    if not candidate_id or not preferred_division:
+        raise HTTPException(status_code=400, detail="候補者IDと希望部門が必要です")
+
+    with SessionLocal() as db:
+        candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="候補者が見つかりません")
+
+        candidate.preferred_div = preferred_division
+        candidate.updated_at = now = datetime.now(JST)
+        db.commit()
+
+    return JSONResponse(content={"success": True, "preferred_division": preferred_division})
+
+@router.post("/candidate-recommended-div-update")
+async def candidate_recommended_div_update(request: Request):
+    data = await request.json()
+    candidate_id = data.get("candidate_id")
+    recommended_division = data.get("recommended_division")
+
+    if not candidate_id or not recommended_division:
+        raise HTTPException(status_code=400, detail="候補者IDと推奨部門が必要です")
+
+    with SessionLocal() as db:
+        candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="候補者が見つかりません")
+
+        candidate.recommended_division = recommended_division
+        candidate.updated_at = now = datetime.now(JST)
+        db.commit()
+
+    return JSONResponse(content={"success": True, "recommended_division": recommended_division})
 
 @router.get("/resume-results")
 async def get_resume_results():
@@ -785,18 +1026,25 @@ async def get_result_by_candidate_id(candidate_id: str):
         result_data = {
             "user_id": candidate_id,
             "user_name": c.name,
+            "name": c.name,  # 候補者名（互換性のため両方）
             "gender": c.gender,
             "birth_date": c.birth_date,
-            "status": latest_status.stage if latest_status else None,
+            "status": c.status or (latest_status.stage if latest_status else None),  # Candidateテーブルのstatusを優先
             "notes": c.notes,
             "work_summary": c.work_summary,
             "score_notes": c.score_notes,
             "score_work": c.score_work,
             "experience": c.experience,
-            "recommended_division": c.recommended_div,
+            "recommended_division": c.recommended_division,  # 新フィールド名に修正
+            "recommended_div": c.recommended_div,  # 後方互換性のため残す
+            "preferred_div": c.preferred_div,  # 希望部門
             "uploader_id": c.uploader_id,
             "timestamp": to_jst_iso(latest_reviewed_at),
             "hr_decision": c.hr_decision,
+            # 書類選考情報
+            "document_review_date": to_jst_iso(c.document_review_date) if c.document_review_date else None,
+            "document_review_reviewer": c.document_review_reviewer,
+            "document_review_result": c.document_review_result,
             "must_check": {
                 m.item_name: {"result": m.result, "reason": m.reason}
                 for m in must_checks
@@ -809,17 +1057,23 @@ async def get_result_by_candidate_id(candidate_id: str):
                     "score_history": history_map.get(s.division, [])
                 }
                 for s in scores
-            ],
-            # ✅ 書類選考結果
-            "document_review_result": "合格" if (doc_review and doc_review.is_passed.is_(True)) else ("不合格" if doc_review else None),
-            "document_review_date": to_jst_iso(doc_review.reviewed_at) if doc_review else None,
-            "document_review_reviewer": doc_review.reviewer_id if doc_review else None,
-            # ✅ 面談日程
-            "interview_1_date": interview_1_date,
-            "interview_2_date": interview_2_date,
-            "interview_final_date": interview_final_date,
+            ]
         }
+
+        # ✅ 面談日程情報
+        schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
+        for s in schedules:
+            if s.interview_stage == "interview_1":
+                result_data["interview_1_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
+            elif s.interview_stage == "interview_2":
+                result_data["interview_2_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
+            elif s.interview_stage == "interview_final":
+                result_data["interview_final_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
         
+        if schedules:
+            last_updated = max(s.last_updated for s in schedules)
+            result_data["last_updated"] = to_jst_iso(last_updated)  # ✅ 修正
+
         # ✅ ステージごとの最終レビュー者情報
         status_rows = db.query(CandidateStatus).filter_by(user_id=candidate_id).all()
         for status in status_rows:
@@ -867,44 +1121,32 @@ async def candidate_document_review(request: Request):
         raise HTTPException(status_code=400, detail="必須パラメータが不足しています")
     
     now = datetime.now(JST)
-    
+
     with SessionLocal() as db:
-        from backend.models.score_resume import CandidateDocumentReview
-        
-        db.query(CandidateDocumentReview).filter_by(user_id=candidate_id).delete()
-        
-        new_review = CandidateDocumentReview(
-            id=str(uuid4()),
-            user_id=candidate_id,
-            reviewer_id=reviewer_id,
-            is_passed=is_passed,
-            reviewed_at=now
-        )
-        db.add(new_review)
-        
-        # ✅ 変更: 合格なら「web面談」へ
+        # ステータスを追加（合格ならweb面談に進める）
         new_status = CandidateStatus(
             id=str(uuid4()),
             user_id=candidate_id,
-            stage="web面談" if is_passed else "内定辞退",  # ✅ 変更
+            stage="web面談" if is_passed else "不合格",
             chat_reviewer=reviewer_id,
             reviewed_at=now,
             reviewed_resume=True
         )
         db.add(new_status)
-        
-        if not is_passed:
-            candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
-            if candidate:
-                candidate.hr_decision = "不採用"
-                candidate.updated_at = now
-                candidate.updated_by = reviewer_id
-        
+
+        # 候補者情報を更新（document_review_date, document_review_reviewer, document_review_resultを設定）
+        candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
+        if candidate:
+            candidate.document_review_date = now
+            candidate.document_review_reviewer = reviewer_id
+            candidate.document_review_result = "合格" if is_passed else "不合格"
+            candidate.status = "web面談" if is_passed else "不合格"
+            candidate.updated_at = now
+
         db.commit()
-    
+
     return JSONResponse(content={
         "success": True,
         "is_passed": is_passed,
-        "status": "web面談" if is_passed else "内定辞退",  # ✅ 変更
         "reviewed_at": to_jst_iso(now)
     })

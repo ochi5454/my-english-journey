@@ -115,18 +115,19 @@ class BatchResumeProcessor:
                         work_summary=info.get("work_experience", "")[:500] if info.get("work_experience") else None,
                         uploader_id=uploader_id,
                         updated_by="batch_upload",
-                        updated_at=now
+                        updated_at=now,
+                        status="アップロード"  # ステータスはアップロードに設定
                     )
                     db.add(candidate)
-                    
-                    # ステータス登録
+
+                    # ステータス登録（アップロード完了状態）
                     status = CandidateStatus(
                         id=str(uuid4()),
                         user_id=candidate_id,
-                        stage="一括アップロード",
+                        stage="アップロード",  # 一括アップロード → アップロードに変更
                         chat_reviewer=uploader_id,
                         reviewed_at=now,
-                        reviewed_resume=False
+                        reviewed_resume=False  # 書類選考は未実施
                     )
                     db.add(status)
                     db.commit()

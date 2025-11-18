@@ -91,7 +91,53 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
     with SessionLocal() as db:
         upsert_checksheet(db, iid, cid, stage, block)
 
+        # ステータスを次の段階に進める
+        from backend.models import Candidate
+        candidate = db.query(Candidate).filter_by(user_id=cid).first()
+        if candidate:
+            # 面談完了後、次のステータスに進める
+            stage_progression = {
+                "web面談": "1次面談",
+                "1次面談": "2次面談",
+                "2次面談": "待遇検討"
+            }
+            next_stage = stage_progression.get(stage)
+            if next_stage:
+                candidate.status = next_stage
+                db.commit()
+
     return {"ok": True}
+
+@router.post("/interview/skip")
+def skip_interview(payload: Dict[str, Any]):
+    """面談省略エンドポイント - 面談をスキップして次のステージに進める"""
+    cid = _as_non_empty_str(payload.get("candidate_id"))
+    stage = _as_non_empty_str(payload.get("stage"))
+
+    if not (cid and stage):
+        raise HTTPException(status_code=400, detail="candidate_id, stage は必須です")
+
+    # 1次面談と2次面談のみスキップ可能
+    if stage not in ["1次面談", "2次面談"]:
+        raise HTTPException(status_code=400, detail="1次面談または2次面談のみスキップ可能です")
+
+    with SessionLocal() as db:
+        from backend.models import Candidate
+        candidate = db.query(Candidate).filter_by(user_id=cid).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="候補者が見つかりません")
+
+        # 次のステージに進める
+        stage_progression = {
+            "1次面談": "2次面談",
+            "2次面談": "待遇検討"
+        }
+        next_stage = stage_progression.get(stage)
+        if next_stage:
+            candidate.status = next_stage
+            db.commit()
+
+    return {"ok": True, "next_stage": next_stage}
 
 @router.get("/checksheet/role-focus-summary")
 def get_role_focus_summary():

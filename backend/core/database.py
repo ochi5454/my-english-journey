@@ -32,6 +32,43 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     print("✅ メインDB テーブル初期化完了")
 
+    # マイグレーション: 新しいカラムを追加
+    migrate_candidates_table()
+
+def migrate_candidates_table():
+    """候補者テーブルに新しいカラムを追加（既存データを保持）"""
+    from sqlalchemy import inspect
+
+    try:
+        inspector = inspect(engine)
+        existing_columns = [col['name'] for col in inspector.get_columns('candidates')]
+
+        # 新しいカラムの定義
+        new_columns = {
+            'status': 'VARCHAR',
+            'recommended_division': 'VARCHAR',
+            'document_review_date': 'DATETIME',
+            'document_review_reviewer': 'VARCHAR',
+            'document_review_result': 'VARCHAR'
+        }
+
+        added_columns = []
+        with engine.connect() as conn:
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing_columns:
+                    sql = f'ALTER TABLE candidates ADD COLUMN {col_name} {col_type}'
+                    conn.execute(text(sql))
+                    conn.commit()
+                    added_columns.append(col_name)
+
+        if added_columns:
+            print(f"✅ 候補者テーブルに新しいカラムを追加しました: {', '.join(added_columns)}")
+        else:
+            print("⏭️ 候補者テーブルのカラムは最新です")
+
+    except Exception as e:
+        print(f"⚠️ 候補者テーブルマイグレーションエラー: {e}")
+
 def reset_db():
     """全テーブルを削除して再作成（データが消える！）"""
     from backend.models import score_resume  # noqa

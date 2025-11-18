@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } f
 import Login from './components/Login/Login'
 import ResumeScoringChatMode from './components/ResumeScoringChatMode/ResumeScoringChatMode'
 import ResumeScoring from './components/ResumeScoring/ResumeScoring'
+import ResumeScoringV2 from './components/CandidateResultDetailV2/ResumeScoringV2'
 import InterviewerOverview from './components/InterviewerOverview/InterviewerOverview'
 import HRFinalReviewDashboard from './components/HRFinalReviewDashboard/HRFinalReviewDashboard'
 import AdminPanel from './components/AdminPanel/AdminPanel'
@@ -42,9 +43,10 @@ const AppContent: React.FC<{ userId: string; onLogout: () => void }> = ({ userId
         <div className="navbar-bottom">
           <div className="nav-links">
             <Link to="/resume-scoring-chatmode">候補者判定（簡易）</Link>
-            <Link to="/resume-scoring">候補者判定（詳細）</Link>
+            <Link to="/resume-scoring-v2">候補者判定（詳細）</Link>
             <Link to="/interviewer-overview">面接官判定</Link>
             <Link to="/admin">管理</Link>
+            <Link to="/resume-scoring">候補者判定（旧詳細）</Link>
             <Link to="/resume-batch-upload">候補者判定（一括）</Link>
           </div>
         </div>
@@ -55,6 +57,7 @@ const AppContent: React.FC<{ userId: string; onLogout: () => void }> = ({ userId
           <Route path="/" element={<ResumeScoringChatMode userId={userId} />} />
           <Route path="/resume-scoring-chatmode" element={<ResumeScoringChatMode userId={userId} />} />
           <Route path="/resume-scoring" element={<ResumeScoring userId={userId} />} />
+          <Route path="/resume-scoring-v2" element={<ResumeScoringV2 userId={userId} />} />
           <Route path="/interviewer-overview" element={<InterviewerOverview />} />
           <Route path="/hr-final-review" element={<HRFinalReviewDashboard interviewerId={userId} />} />
           <Route path="/admin" element={<AdminPanel />} />

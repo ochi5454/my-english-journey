@@ -12,13 +12,14 @@ JST = timezone(timedelta(hours=9))
 ALL_STATUSES = [
     "アップロード",
     "書類選考",
-    "面談・1次",
-    "面談・2次",
-    "最終面談",
+    "web面談",
+    "1次面談",
+    "2次面談",
     "待遇検討",
     "内定通知",
     "内定受諾",
     "内定辞退",
+    "不合格"
 ]
 
 #  ============================================
@@ -62,6 +63,42 @@ async def update_hr_review(
 
     return {"status": "success", "user_id": data.candidate_id}
 
+@router.post("/update-status")
+async def update_status(payload: dict, db: Session = Depends(get_db)):
+    """単一候補者のステータスを更新"""
+    user_id = payload.get("user_id")
+    new_stage = payload.get("stage")
+    reviewer_id = payload.get("reviewer_id", "system")
+
+    if not user_id or not new_stage:
+        raise HTTPException(status_code=400, detail="user_id and stage are required")
+
+    candidate = db.query(Candidate).filter_by(user_id=user_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    now = datetime.now(JST)
+
+    # CandidateStatusに新規行を追加
+    new_status = CandidateStatus(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        stage=new_stage,
+        chat_reviewer=reviewer_id,
+        reviewed_at=now,
+        reviewed_resume=False,
+    )
+    db.add(new_status)
+
+    # Candidateテーブルのstatus（表示用）も更新
+    candidate.status = new_stage
+    candidate.updated_at = now
+    candidate.updated_by = reviewer_id
+
+    db.commit()
+
+    return {"status": "ok", "user_id": user_id, "new_stage": new_stage}
+
 @router.post("/hr/candidates/advance-status")
 def advance_candidate_status(payload: dict, db: Session = Depends(get_db)):
     user_ids = payload.get("user_ids", [])
@@ -102,7 +139,8 @@ def advance_candidate_status(payload: dict, db: Session = Depends(get_db)):
         )
         db.add(new_status)
 
-        # Candidateテーブルも更新（任意）
+        # Candidateテーブルのstatusも更新
+        candidate.status = next_stage
         candidate.updated_at = datetime.now(JST)
         candidate.updated_by = advanced_by
 
