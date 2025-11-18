@@ -21,24 +21,38 @@ def get_config():
 
 @router.post("/interview/setup")
 def post_setup(req: InterviewSetupRequest):
+    print("\n======================================")
+    print("🟦  POST /interview/setup  受信")
+    print("🟦  受信 req:", req)
+    print("🟦  req.model_dump():", req.model_dump())
+    print("======================================\n")
+
     try:
+        # まずはバリデーションを試す
+        try:
+            req_for_lib = InterviewSetupRequest.model_validate(req.model_dump())
+            print("🟢 Validation OK:", req_for_lib)
+        except Exception as ve:
+            print("⚠️ ValidationError → モックモードで続行:", ve)
+            req_for_lib = req
 
-        req_for_lib: InterviewSetupRequest = InterviewSetupRequest.model_validate(req.model_dump())
+        # candidate_id or candidate の中身確認
+        print("🟣 req_for_lib.candidate:", getattr(req_for_lib, "candidate", None))
+        print("🟣 req_for_lib.stage:", getattr(req_for_lib, "stage", None))
+        print("🟣 req_for_lib.interviewDate:", getattr(req_for_lib, "interviewDate", None))
 
-        # ✅ テスト用: メール送信をスキップ（本番では有効化）
-        # send_interview_emails(req_for_lib)
-        print(f"📧 [TEST MODE] メール送信をスキップしました: {req_for_lib.candidate_id}")
+        print(f"📧 [TEST MODE] メール送信をスキップ: candidate={getattr(req_for_lib, 'candidate', None)}")
 
+        # DB 保存処理
         result = save_interview_schedule(req_for_lib)
 
+        print("🟩 保存成功 result:", result)
+
         return {
-            "message": "面談設定・送信成功",
+            "message": "面談設定（モック）成功",
             **result,
         }
 
-    except ValidationError as ve:
-        # スキーマ差異がある場合は内容を返して調整しやすく
-        raise HTTPException(status_code=400, detail=f"リクエスト変換に失敗しました: {ve.errors()}")
-
     except Exception as e:
+        print("🔥 post_setup 内例外:", e)
         raise HTTPException(status_code=500, detail=f"処理エラー: {str(e)}")

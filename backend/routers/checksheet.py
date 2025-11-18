@@ -5,6 +5,7 @@ from fastapi.exceptions import HTTPException
 from typing import Dict, Any, Mapping
 from backend.core.config import INTERVIEWER_META_PATH
 from backend.core.database import SessionLocal
+from backend.models.score_resume import Candidate
 from backend.utils.checksheet import load_hiring_decisions, load_employment_types, load_role_titles, load_qualitative_items, load_quantitative_items
 from backend.utils.load_json import _load_json, _safe_load_json
 from backend.utils.division import load_division_names, get_expected_focus_items, convert_division_to_prefix
@@ -92,7 +93,6 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
         upsert_checksheet(db, iid, cid, stage, block)
 
         # ステータスを次の段階に進める
-        from backend.models import Candidate
         candidate = db.query(Candidate).filter_by(user_id=cid).first()
         if candidate:
             # 面談完了後、次のステータスに進める
@@ -122,7 +122,6 @@ def skip_interview(payload: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="1次面談または2次面談のみスキップ可能です")
 
     with SessionLocal() as db:
-        from backend.models import Candidate
         candidate = db.query(Candidate).filter_by(user_id=cid).first()
         if not candidate:
             raise HTTPException(status_code=404, detail="候補者が見つかりません")

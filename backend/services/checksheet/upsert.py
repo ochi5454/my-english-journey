@@ -87,17 +87,33 @@ def upsert_checksheet(
 ) -> None:
     print("📥 payload inside upsert_checksheet:", payload)
 
-    # 1. 既存の ResultByInterview を取得 or 新規作成
+    # 日本語 → 英語キーへ変換
+    STAGE_KEY_MAP = {
+        "web面談": "interview_1",
+        "1次面談": "interview_2",
+        "2次面談": "interview_final",
+        "interview_1": "interview_1",
+        "interview_2": "interview_2",
+        "interview_final": "interview_final",
+    }
+    normalized_stage = STAGE_KEY_MAP.get(stage, stage)
+
+    # 既存検索
     result = (
         db.query(ResultByInterview)
-        .filter_by(interviewer_id=interviewer_id, candidate_id=candidate_id, stage_name=stage)
+        .filter_by(
+            interviewer_id=interviewer_id,
+            candidate_id=candidate_id,
+            stage_name=normalized_stage
+        )
         .first()
     )
+
     if not result:
         result = ResultByInterview(
             interviewer_id=interviewer_id,
             candidate_id=candidate_id,
-            stage_name=stage
+            stage_name=normalized_stage
         )
         db.add(result)
         db.flush()

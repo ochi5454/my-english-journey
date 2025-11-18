@@ -1011,37 +1011,25 @@ async def get_result_by_candidate_id(candidate_id: str):
         
         # ✅ 面談日程情報
         schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
-        interview_1_date = None
-        interview_2_date = None
-        interview_final_date = None
         
-        for s in schedules:
-            if s.interview_stage._is("interview_1"):
-                interview_1_date = to_jst_iso(s.scheduled_at)
-            elif s.interview_stage._is("interview_2"):
-                interview_2_date = to_jst_iso(s.scheduled_at)
-            elif s.interview_stage._is("interview_final"):
-                interview_final_date = to_jst_iso(s.scheduled_at)
-
         result_data = {
             "user_id": candidate_id,
             "user_name": c.name,
             "name": c.name,  # 候補者名（互換性のため両方）
             "gender": c.gender,
             "birth_date": c.birth_date,
-            "status": c.status or (latest_status.stage if latest_status else None),  # Candidateテーブルのstatusを優先
+            "status": c.status or (latest_status.stage if latest_status else None),
             "notes": c.notes,
             "work_summary": c.work_summary,
             "score_notes": c.score_notes,
             "score_work": c.score_work,
             "experience": c.experience,
-            "recommended_division": c.recommended_division,  # 新フィールド名に修正
-            "recommended_div": c.recommended_div,  # 後方互換性のため残す
-            "preferred_div": c.preferred_div,  # 希望部門
+            "recommended_division": c.recommended_division,
+            "recommended_div": c.recommended_div, 
+            "preferred_div": c.preferred_div,
             "uploader_id": c.uploader_id,
             "timestamp": to_jst_iso(latest_reviewed_at),
             "hr_decision": c.hr_decision,
-            # 書類選考情報
             "document_review_date": to_jst_iso(c.document_review_date) if c.document_review_date else None,
             "document_review_reviewer": c.document_review_reviewer,
             "document_review_result": c.document_review_result,
@@ -1060,19 +1048,22 @@ async def get_result_by_candidate_id(candidate_id: str):
             ]
         }
 
-        # ✅ 面談日程情報
+        # -------------------------------
+        # 🎉 正しい面談日程のセット処理
+        # -------------------------------
         schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
+
         for s in schedules:
             if s.interview_stage == "interview_1":
-                result_data["interview_1_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
+                result_data["interview_1_date"] = to_jst_iso(s.scheduled_at)
             elif s.interview_stage == "interview_2":
-                result_data["interview_2_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
+                result_data["interview_2_date"] = to_jst_iso(s.scheduled_at)
             elif s.interview_stage == "interview_final":
-                result_data["interview_final_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
-        
+                result_data["interview_final_date"] = to_jst_iso(s.scheduled_at)
+
         if schedules:
             last_updated = max(s.last_updated for s in schedules)
-            result_data["last_updated"] = to_jst_iso(last_updated)  # ✅ 修正
+            result_data["last_updated"] = to_jst_iso(last_updated)
 
         # ✅ ステージごとの最終レビュー者情報
         status_rows = db.query(CandidateStatus).filter_by(user_id=candidate_id).all()
