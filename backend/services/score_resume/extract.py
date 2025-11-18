@@ -51,11 +51,10 @@ class PersonInfo(BaseModel):
 # 🚀 LangChainモデルのセットアップ
 # ============================================
 
-# 高速化のためgpt-3.5-turboを使用
+# LangChainモデルのセットアップ（APIキーは自動読み込み）
 llm = ChatOpenAI(
     model="gpt-3.5-turbo",
-    temperature=0,
-    api_key=SecretStr(client.api_key)
+    temperature=0
 )
 
 # 構造化出力用のLLM

@@ -120,3 +120,17 @@ class AIFormulaConfig(Base):
     __table_args__ = (
         UniqueConstraint("key", "division", name="uq_ai_formula_key_division"),
     )
+
+# ============================================
+# ✅ 書類選考レビュー（CandidateDocumentReview）
+# ============================================
+
+class CandidateDocumentReview(Base):
+    __tablename__ = "candidate_document_reviews"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, nullable=False)         # 候補者ID
+    reviewer_id = Column(String, nullable=False)     # レビュワー（メールアドレスなど）
+    is_passed = Column(Boolean, nullable=False)      # 合格(1) / 不合格(0)
+    reviewed_at = Column(DateTime, nullable=False)   # レビュー日時
+    reason = Column(Text, nullable=True)             # 任意：理由
