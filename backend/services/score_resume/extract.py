@@ -498,21 +498,53 @@ def extract_motivation_and_experience(text: str) -> tuple[str, str]:
 # 🧠 履歴書から社会人歴の抽出
 # ============================================
 
-# 🚀 最適化: 正規表現を事前コンパイル
-_DATE_PATTERN = re.compile(r"(\d{4})年(\d{1,2})月")
+# 正規表現の事前コンパイル
+PATTERN_YM_JP     = re.compile(r"(\d{4})年\s*(\d{1,2})月")
+PATTERN_YM_DASH   = re.compile(r"(\d{4})-(\d{1,2})")
+PATTERN_YM_SLASH  = re.compile(r"(\d{4})/(\d{1,2})")
+PATTERN_YM_DOT    = re.compile(r"(\d{4})\.(\d{1,2})")
+PATTERN_YM_SPACE  = re.compile(r"(\d{4})\s+(\d{1,2})")
 
 def parse_date(date_str):
-    """
-    🚀 最適化: 事前コンパイル済みの正規表現を使用
-    """
-    if date_str in ["現在", "今"]:
+    if not date_str:
+        return None
+
+    s = date_str.strip()
+
+    # 軽い正規化（全角 → 半角・余計な文字除去）
+    s = s.replace("（", "(").replace("）", ")")
+    s = re.sub(r"[^\d年月Present今現在至今/.\-\s]", "", s)
+    s = re.sub(r"\s+", " ", s)
+
+    # 現在扱い
+    if s in ["現在", "今", "現職", "至今", "Present", "present", "PRESENT"]:
         return datetime.today()
-    try:
-        match = _DATE_PATTERN.match(date_str)
-        if match:
-            return datetime(year=int(match.group(1)), month=int(match.group(2)), day=1)
-    except Exception:
-        pass
+
+    # YYYY年MM月
+    m = PATTERN_YM_JP.match(s)
+    if m:
+        return datetime(int(m.group(1)), int(m.group(2)), 1)
+
+    # YYYY-MM
+    m = PATTERN_YM_DASH.match(s)
+    if m:
+        return datetime(int(m.group(1)), int(m.group(2)), 1)
+
+    # YYYY/MM
+    m = PATTERN_YM_SLASH.match(s)
+    if m:
+        return datetime(int(m.group(1)), int(m.group(2)), 1)
+
+    # YYYY.MM
+    m = PATTERN_YM_DOT.match(s)
+    if m:
+        return datetime(int(m.group(1)), int(m.group(2)), 1)
+
+    # YYYY MM
+    m = PATTERN_YM_SPACE.match(s)
+    if m:
+        return datetime(int(m.group(1)), int(m.group(2)), 1)
+
     return None
 
 def calculate_total_experience(work_histories):
