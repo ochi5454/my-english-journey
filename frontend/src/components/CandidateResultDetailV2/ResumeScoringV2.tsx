@@ -21,7 +21,7 @@ interface Props {
 const ResumeScoringV2: React.FC<Props> = ({ userId }) => {
     const location = useLocation();
     const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
-    const [selectedStage, setSelectedStage] = useState<string>('アップロード');
+    const [selectedStage, setSelectedStage] = useState<string>('書類選考');
     const [showCandidateList, setShowCandidateList] = useState(false);
     const [uploadDivision, setUploadDivision] = useState<string>('');
     const [candidateId, setCandidateId] = useState<string>('');
@@ -140,7 +140,7 @@ const ResumeScoringV2: React.FC<Props> = ({ userId }) => {
             const data = await res.json();
             if (!data.error) {
                 setSelectedCandidate(data);
-                setSelectedStage('アップロード');
+                setSelectedStage('書類選考');
                 setShowCandidateList(false);
 
                 // 希望部門を同期（新規アップロード、再アップロード、候補者情報で連動）
