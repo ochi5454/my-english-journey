@@ -548,12 +548,37 @@ const StatusContentPanel: React.FC<Props> = ({
 
             // 合格・不合格の判定処理
             if (decision && localResult?.user_id) {
+
+                // 🌟 書類選考だけは専用の candidate-document-review を呼ぶ
+                if (selectedStage === "書類選考") {
+                    try {
+                        const res = await fetch(`${appConfig.API_BASE_URL}/candidate-document-review`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                candidate_id: localResult.user_id,
+                                reviewer_id: interviewerId,
+                                is_passed: decision === '合格'
+                            })
+                        });
+
+                        if (!res.ok) throw new Error('書類選考の更新に失敗しました');
+
+                        console.log(`📄 書類選考: ${decision} を反映しました`);
+                        onResultUpdate();
+                    } catch (err) {
+                        console.error('⚠ 書類選考のステータス更新失敗:', err);
+                    }
+
+                    return; // ← 書類選考はここで終わり。他の処理を続けない
+                }
+
+                // 🌟 ここから先は書類選考以外 → /update-status を使う
                 let newStage: string;
 
                 if (decision === '不合格') {
                     newStage = '不合格';
                 } else {
-                    // 合格の場合、現在のステージから次のステージを決定
                     const currentStageIndex = statusSteps.indexOf(selectedStage);
                     if (currentStageIndex !== -1 && currentStageIndex + 1 < statusSteps.length) {
                         newStage = statusSteps[currentStageIndex + 1];

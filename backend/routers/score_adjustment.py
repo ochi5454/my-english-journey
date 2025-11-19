@@ -63,7 +63,7 @@ async def chat_score_review(payload: ScoreChatRequest):
 
 
     # === フェーズ判定 ===
-    is_final_phase = ("###FINAL" in reply) or ("[スコア調整]" in reply)
+    is_final_phase = ("[スコア調整]" in reply)
 
     # ユーザーに返す文面からは削除
     clean_reply = reply.replace("###FINAL", "").strip()
