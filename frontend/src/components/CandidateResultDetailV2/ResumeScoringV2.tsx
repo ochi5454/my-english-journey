@@ -8,7 +8,7 @@ import DivisionSelect from './DivisionSelect';
 import ResumeReuploadModal from './ResumeReuploadModal';
 import InterviewSetupSlidePanel from '../InterviewSetupSlidePanel/InterviewSetupSlidePanel';
 import AIProcessingScreenV2 from './AIProcessingScreenV2';
-import { progressSteps, masterDefinitions } from './progressStepsV2';
+import { progressSteps, masterDefinitions, resolveStepId } from './progressStepsV2';
 import DummyAILogGenerator from './DummyAILogGenerator';
 import JsonDataDisplay from './JsonDataDisplay';
 import appConfig from '../../config';
@@ -501,7 +501,7 @@ const ResumeScoringV2: React.FC<Props> = ({ userId }) => {
                         <div className={`v2-left-panel-content ${isLeftPanelOpen ? 'visible' : 'hidden'}`}>
                             {isProcessing ? (
                                 <AIProcessingScreenV2
-                                    currentStatus={currentStatus}
+                                    currentStatus={resolveStepId(currentStatus)}
                                     progressSteps={progressSteps}
                                     masterDefinitions={masterDefinitions}
                                 />
