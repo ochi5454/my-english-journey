@@ -1,4 +1,3 @@
-import uuid
 import json
 from datetime import datetime
 from pydantic import BaseModel
@@ -8,8 +7,9 @@ from backend.core.database import SessionLocal, get_db
 from backend.models.score_resume import Candidate, CandidateStatus, CandidateExpectations
 from backend.models.checksheet import ChecksheetQualitativeItem
 from backend.schemas.custom_qa import PrepItemDict
-from backend.utils.division import load_division_profiles, convert_division_to_prefix, convert_prefix_to_division
+from backend.utils.division import convert_division_to_prefix, convert_prefix_to_division
 from backend.utils.checksheet import load_qualitative_items
+from backend.utils.candidate_status import update_candidate_status
 from backend.services.checksheet.upsert import upsert_checksheet, get_checksheet_one
 from backend.services.score_adjustment.save import save_score_to_history, load_single_result
 from backend.services.score_adjustment.score import call_openai_chat
@@ -363,16 +363,7 @@ def review_with_interview_checksheet(
             payload=incoming_block,
         )
 
-        db.add(
-            CandidateStatus(
-                id=str(uuid.uuid4()),
-                user_id=candidate_id,
-                stage=stage,
-                chat_reviewer=reviewer_id,
-                reviewed_at=datetime.utcnow(),
-                reviewed_resume=reviewed_resume,
-            )
-        )
+        update_candidate_status(db, candidate_id, stage, reviewer_id)
 
         candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
         if candidate:

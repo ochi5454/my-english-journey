@@ -10,10 +10,9 @@ from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 import asyncio
 from fastapi.exceptions import HTTPException
 from pathlib import Path
-import sqlalchemy
 from backend.core.database import SessionLocal
 from backend.core.config import RESUME_PATH, MIME_TO_EXT
-from backend.models.resume import Resume, ResumeWorkHistory
+from backend.models.resume import ResumeWorkHistory
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus, CandidateDocumentReview
 from backend.models.interview_schedule import InterviewSchedule
 from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
@@ -23,6 +22,7 @@ from backend.services.score_resume.vectorstore import save_masked_resume_embeddi
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
 from backend.services.score_resume.streaming import _sse, log_step
 from backend.utils.division import convert_division_to_prefix
+from backend.utils.candidate_status import update_candidate_status
 
 router = APIRouter()
 JST = timezone(timedelta(hours=9))
@@ -175,11 +175,11 @@ async def resume_score_save(
                         user_id=candidate_id,
                         name=extracted_name,
                         gender=extracted_gender,
-                        birth_date=extracted_birth_date,  # ✅ 追加
+                        birth_date=extracted_birth_date,
                         experience=experience_years,
                         uploader_id=uploader_id,
                         preferred_div=prefix,
-                        status="書類選考",  # 初回アップロード時のステータス
+                        status="アップロード",
                         updated_by="system",
                         updated_at=now
                     )
@@ -187,15 +187,19 @@ async def resume_score_save(
                 else:
                     candidate.name = extracted_name
                     candidate.gender = extracted_gender
-                    candidate.birth_date = extracted_birth_date  # ✅ 追加
+                    candidate.birth_date = extracted_birth_date
                     candidate.updated_by = "system"
                     candidate.updated_at = now
                     candidate.experience = experience_years
                     candidate.preferred_div = prefix
-                    if not candidate.status:  # ステータスが未設定の場合のみ設定
-                        candidate.status = "書類選考"
+
+                    # 既存候補のステータスが空なら「アップロード」を設定
+                    if not candidate.status:
+                        candidate.status = "アップロード"
+
                 db.commit()
 
+                # === CandidateStatus 履歴追加（こちらもアップロード）===
                 new_status = CandidateStatus(
                     id=str(uuid4()),
                     user_id=candidate_id,
@@ -614,16 +618,9 @@ async def candidate_ai_evaluation(request: Request):
                 source="ai_evaluation"
             ))
 
-        # ステータスを「書類選考」に更新
-        new_status = CandidateStatus(
-            id=str(uuid4()),
-            user_id=candidate_id,
-            stage="書類選考",
-            chat_reviewer=reviewer_id,
-            reviewed_at=now,
-            reviewed_resume=False
-        )
-        db.add(new_status)
+        # ★★★ ステータスは進めない ★★★
+        # candidate-ai-evaluation は AI評価だけの用途なので
+        # CandidateStatus は追加しない
 
         db.commit()
 
@@ -742,7 +739,7 @@ async def resume_score_rescore(candidate_id: str):
             candidate.score_work = score_work
             candidate.recommended_div = recommended_div_prefix
             candidate.recommended_division = recommended_div_prefix  # 新フィールドにも設定
-            candidate.status = "書類選考"  # 再評価後は書類選考ステータスに設定
+            # ★ ステータスは変更しない
             candidate.updated_by = "system"
             candidate.updated_at = now
 
@@ -883,13 +880,18 @@ async def get_resume_results():
         for c in candidates:
             user_id = c.user_id
 
-            latest_status = (
-                db.query(CandidateStatus)
-                .filter_by(user_id=user_id)
-                .order_by(CandidateStatus.reviewed_at.desc())
-                .first()
-            )
-            status_value = latest_status.stage if latest_status else "アップロード"
+            # 最優先は Candidate.status
+            status_value = c.status
+
+            # 万が一、古いデータで status が NULL のときだけ CandidateStatus で補完
+            if not status_value:
+                latest_status = (
+                    db.query(CandidateStatus)
+                    .filter_by(user_id=user_id)
+                    .order_by(CandidateStatus.reviewed_at.desc())
+                    .first()
+                )
+                status_value = latest_status.stage if latest_status else "アップロード"
 
             must_checks = db.query(CandidateMustCheckItem).filter_by(user_id=user_id).all()
             division_must_checks = db.query(CandidateDivisionMustCheckItem).filter_by(user_id=user_id).all()
@@ -1012,6 +1014,14 @@ async def get_result_by_candidate_id(candidate_id: str):
             .order_by(CandidateStatus.reviewed_at.desc())
             .first()
         )
+
+        # 🔥 Candidate.status を最優先
+        status_value = c.status
+
+        # 🔥 古い候補者で status が NULL の場合だけ補完
+        if not status_value:
+            status_value = latest_status.stage if latest_status else "アップロード"
+
         latest_reviewed_at = latest_status.reviewed_at if latest_status else None
 
         # ✅ 書類選考結果を取得
@@ -1026,7 +1036,7 @@ async def get_result_by_candidate_id(candidate_id: str):
             "name": c.name,  # 候補者名（互換性のため両方）
             "gender": c.gender,
             "birth_date": c.birth_date,
-            "status": c.status or (latest_status.stage if latest_status else None),
+            "status": status_value,
             "notes": c.notes,
             "work_summary": c.work_summary,
             "score_notes": c.score_notes,
@@ -1120,27 +1130,22 @@ async def candidate_document_review(request: Request):
         raise HTTPException(status_code=400, detail="必須パラメータが不足しています")
     
     now = datetime.now(JST)
+    new_stage = "web面談" if is_passed else "不合格"
 
     with SessionLocal() as db:
-        # ステータスを追加（合格ならweb面談に進める）
-        new_status = CandidateStatus(
-            id=str(uuid4()),
-            user_id=candidate_id,
-            stage="web面談" if is_passed else "不合格",
-            chat_reviewer=reviewer_id,
-            reviewed_at=now,
-            reviewed_resume=True
-        )
-        db.add(new_status)
-
-        # 候補者情報を更新（document_review_date, document_review_reviewer, document_review_resultを設定）
         candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
-        if candidate:
-            candidate.document_review_date = now
-            candidate.document_review_reviewer = reviewer_id
-            candidate.document_review_result = "合格" if is_passed else "不合格"
-            candidate.status = "web面談" if is_passed else "不合格"
-            candidate.updated_at = now
+        if not candidate:
+            raise HTTPException(status_code=404, detail="候補者が見つかりません")
+
+        # ① Candidate.status を最新に
+        candidate.status = new_stage
+        candidate.document_review_date = now
+        candidate.document_review_reviewer = reviewer_id
+        candidate.document_review_result = "合格" if is_passed else "不合格"
+        candidate.updated_at = now
+
+        # ② 履歴を追加（共通関数に統一）
+        update_candidate_status(db, candidate_id, new_stage, reviewer_id)
 
         db.commit()
 

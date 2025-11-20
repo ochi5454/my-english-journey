@@ -1,13 +1,14 @@
-import uuid
 import re
 from datetime import datetime, timezone, timedelta
-from fastapi import HTTPException, APIRouter
+from fastapi import HTTPException, APIRouter, Depends
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
-from backend.core.database import SessionLocal
-from backend.models.score_resume import Candidate, CandidateStatus
+from backend.core.database import get_db
+from sqlalchemy.orm import Session
+from backend.models.score_resume import Candidate
 from backend.schemas.ai_score_chat import ScoreChatRequest, ScoreUpdateRequest
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
+from backend.utils.candidate_status import update_candidate_status
 from backend.services.score_adjustment.optimized import search_resume_snippets
 from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments
 from backend.services.score_adjustment.save import save_score_to_history
@@ -125,7 +126,7 @@ async def chat_score_review(payload: ScoreChatRequest):
     }
 
 @router.post("/update-score")
-async def update_score(payload: ScoreUpdateRequest):
+async def update_score(payload: ScoreUpdateRequest, db: Session = Depends(get_db)):
     candidate_id = payload.candidate_id
     reviewer_id = payload.reviewer_id
     stage = payload.stage
@@ -161,31 +162,21 @@ async def update_score(payload: ScoreUpdateRequest):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"保存エラー: {str(e)}")
 
-    # ステージ別レビュー履歴を CandidateStatus に保存（履歴形式なので毎回INSERT）
-    with SessionLocal() as db:
-        db.add(CandidateStatus(
-            id=str(uuid.uuid4()),
-            user_id=candidate_id,
-            stage=stage,
-            chat_reviewer=reviewer_id,
-            reviewed_at=now,
-            reviewed_resume=False  # 必要なら受け取って反映
-        ))
+    # ★ ステータス更新（履歴＋Candidate.status）
+    update_candidate_status(
+        db=db,
+        user_id=candidate_id,
+        new_stage=stage,
+        reviewer_id=reviewer_id,
+        reviewed_resume=False
+    )
 
-        # 最終更新者も Candidate テーブルに反映
+    # 推奨部門の更新だけ別処理
+    if recommended_division:
+        recommended_div_prefix = convert_division_to_prefix(recommended_division)
         candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
-        if not candidate:
-            raise HTTPException(status_code=404, detail="候補者が見つかりません")
+        candidate.recommended_div = recommended_div_prefix
 
-        candidate.updated_by = reviewer_id
-        candidate.updated_at = now
-
-        # 推奨部門の更新
-        if recommended_division:
-            recommended_div_prefix = convert_division_to_prefix(recommended_division)
-            candidate.recommended_div = recommended_div_prefix
-            print(f"✅ 推奨部門を更新: {recommended_division} -> {recommended_div_prefix}")
-
-        db.commit()
+    db.commit()
 
     return JSONResponse(content={"status": "ok", "candidate_id": candidate_id})
