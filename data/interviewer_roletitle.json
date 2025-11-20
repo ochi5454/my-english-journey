@@ -1,18 +1,14 @@
 {
-  "user123": {
+  "test123": {
     "department": "hr",
     "role": "D+"
   },
-  "user456": {
+  "test456": {
     "department": "law",
     "role": "SM"
   },
-  "user789": {
+  "test789": {
     "department": "acc",
     "role": "M"
-  },
-  "user666": {
-    "department": "fac",
-    "role": "SC"
   }
 }

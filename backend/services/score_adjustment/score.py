@@ -7,7 +7,8 @@ from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
 )
 from backend.core.openai_config import get_openai_client
-from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, MessagesPlaceholder
+from backend.models.score_resume import CandidateExpectations
+from sqlalchemy.orm import Session
 
 # ============================================
 # ✅ GPT呼び出し
@@ -29,13 +30,7 @@ SYSTEM_TEMPLATE = """あなたは経験豊富な人事評価の専門家です�
 4. **公平性**: 主観を排除し、客観的な事実に基づく
 
 【評価基準の詳細】
-- **営業部門**: コミュニケーション力、交渉力、目標達成経験、顧客折衝経験
-- **経理部門**: 数値処理能力、正確性、会計知識、システム運用経験
-- **法務部門**: 法的知識、リスク管理、コンプライアンス経験、規程整備
-- **人事部門**: 組織理解、人材育成経験、労務管理、採用経験
-- **ファシリティ部門**: 施設管理、コスト管理、業者折衝、安全管理
-- **監理技術者部門**: 技術力、プロジェクト管理、品質管理、安全管理
-- **SE部門**: プログラミング能力、システム設計、技術文書作成、問題解決力
+{division_trait_details}
 
 【利用可能な部門】
 {divisions}
@@ -77,12 +72,43 @@ SYSTEM_TEMPLATE = """あなたは経験豊富な人事評価の専門家です�
 - 判定: ユーザーから指示があれば合格・不合格を判定
 """
 
-def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str]) -> list[dict]:
+def get_division_traits_map(db: Session) -> dict[str, list[str]]:
+    """
+    candidate_expectations テーブルから部門ごとの trait_label を取得
+    """
+    rows = (
+        db.query(
+            CandidateExpectations.division,
+            CandidateExpectations.trait_label
+        )
+        .order_by(CandidateExpectations.division)
+        .all()
+    )
+
+    division_map: dict[str, list[str]] = {}
+
+    for division, trait in rows:
+        if not division:
+            continue
+        division_map.setdefault(division, []).append(trait)
+
+    return division_map
+
+def format_division_traits_for_prompt(div_map: dict[str, list[str]]) -> str:
+    """
+    SYSTEM_TEMPLATE に埋め込む Markdown を生成する
+    """
+    lines = ["【評価基準の詳細】"]
+    for division, traits in div_map.items():
+        trait_joined = "、".join(traits)
+        lines.append(f"- **{division}**: {trait_joined}")
+    return "\n".join(lines)
+
+def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str], division_trait_details: str) -> list[dict]:
     """LangChainのプロンプトテンプレートを使用して、より構造化されたプロンプトを生成"""
 
     # システムプロンプトを部門リストでフォーマット
-    system_content = SYSTEM_TEMPLATE.format(divisions=", ".join(valid_divisions))
-
+    system_content = SYSTEM_TEMPLATE.format(divisions=", ".join(valid_divisions), division_trait_details=division_trait_details)
     system_prompt = {
         "role": "system",
         "content": system_content

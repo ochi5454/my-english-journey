@@ -2,6 +2,7 @@ from datetime import datetime
 from backend.core.database import SessionLocal
 from backend.models.interview_schedule import InterviewSchedule
 from backend.schemas.interviewsheet import InterviewSetupRequest
+from backend.utils.status import get_key_by_label
 
 # ============================================
 # 🧠 面談日程の保存
@@ -16,22 +17,22 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
     print("🟦 req.interviewDate:", getattr(req, "interviewDate", None))
     print("--------------------------------------\n")
 
-    key_map = {
-        "web面談": "interview_1",
-        "1次面談": "interview_2",
-        "2次面談": "interview_final"
-    }
-
-    interview_stage = key_map.get(req.stage, "interview_other")
-    print("🟣 変換後 interview_stage:", interview_stage)
-
     with SessionLocal() as db:
+        # 🔄 DBベースで label → key に変換
+        interview_stage = get_key_by_label(db, req.stage)
+
+        print("🟣 変換後 interview_stage:", interview_stage)
+
         # 既存確認
         try:
-            existing = db.query(InterviewSchedule).filter_by(
-                candidate_id=req.candidate,
-                interview_stage=interview_stage
-            ).first()
+            existing = (
+                db.query(InterviewSchedule)
+                .filter_by(
+                    candidate_id=req.candidate,
+                    interview_stage=interview_stage
+                )
+                .first()
+            )
             print("🟧 existing:", existing)
         except Exception as e:
             print("🔥 DB 検索エラー:", e)
@@ -65,7 +66,6 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
                     scheduled_at=scheduled_at,
                     last_updated=now
                 )
-                print("🟩 new_schedule:", new_schedule)
                 db.add(new_schedule)
 
             db.commit()
@@ -76,6 +76,6 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
             raise
 
     return {
-        "saved_stage": req.stage,
+        "saved_stage": req.stage,         # ← label を返す（フロントは label が期待値）
         "saved_date": scheduled_at
     }

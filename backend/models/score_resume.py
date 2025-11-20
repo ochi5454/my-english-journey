@@ -134,3 +134,19 @@ class CandidateDocumentReview(Base):
     is_passed = Column(Boolean, nullable=False)      # 合格(1) / 不合格(0)
     reviewed_at = Column(DateTime, nullable=False)   # レビュー日時
     reason = Column(Text, nullable=True)             # 任意：理由
+
+# ============================================
+# ✅ ステータスマスター（StatusMaster）
+# ============================================
+class StatusMaster(Base):
+    __tablename__ = "candidate_status_master"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True)
+    label = Column(String)
+    order = Column(Integer)
+    next_key = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    is_skippable = Column(Boolean, default=False)

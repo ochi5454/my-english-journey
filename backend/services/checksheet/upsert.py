@@ -1,8 +1,8 @@
-from backend.models.results_byinterview import ResultByInterview
+from datetime import datetime
 from sqlalchemy.orm import Session
 from backend.models.results_byinterview import ResultByInterview, ResultByInterviewQualitativeValue, ResultByInterviewQuantitative, ResultByInterviewQATag
 from backend.models.checksheet import ChecksheetQualitativeItem
-from datetime import datetime
+from backend.utils.status import get_key_by_label
 
 # ============================================
 # 🧠 面談シート抽出・更新
@@ -87,16 +87,7 @@ def upsert_checksheet(
 ) -> None:
     print("📥 payload inside upsert_checksheet:", payload)
 
-    # 日本語 → 英語キーへ変換
-    STAGE_KEY_MAP = {
-        "web面談": "interview_1",
-        "1次面談": "interview_2",
-        "2次面談": "interview_final",
-        "interview_1": "interview_1",
-        "interview_2": "interview_2",
-        "interview_final": "interview_final",
-    }
-    normalized_stage = STAGE_KEY_MAP.get(stage, stage)
+    normalized_stage = get_key_by_label(db, stage)
 
     # 既存検索
     result = (

@@ -53,6 +53,8 @@ const VerticalStatusBar: React.FC<Props> = ({
 
     // ✅ 各ステージの情報を取得する関数
     const getStageInfo = (step: string): StageInfo => {
+
+        // アップロードは固定
         if (step === "アップロード") {
             return {
                 date: localResult.timestamp,
@@ -61,6 +63,7 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
+        // 書類選考だけ特別扱い（元のロジックを残す）
         if (step === "書類選考") {
             return {
                 date: localResult.document_review_date || localResult.chat_review_書類選考_at,
@@ -69,39 +72,17 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
-        if (step === "web面談") {
-            return {
-                date: localResult.interview_1_date || localResult.chat_review_面談・1次_at,
-                reviewer: localResult.interview_1_interviewer || localResult.chat_reviewer_面談・1次,
-                result: localResult.interview_1_result
-            };
-        }
+        // ---------------------------
+        // それ以外は動的キーで処理
+        // ---------------------------
+        const dateKey = `chat_review_${step}_at`;
+        const reviewerKey = `chat_reviewer_${step}`;
 
-        if (step === "1次面談") {
-            return {
-                date: localResult.interview_2_date || localResult.chat_review_面談・2次_at,
-                reviewer: localResult.interview_2_interviewer || localResult.chat_reviewer_面談・2次,
-                result: localResult.interview_2_result
-            };
-        }
-
-        if (step === "2次面談") {
-            return {
-                date: localResult.interview_final_date || localResult.chat_review_最終面談_at,
-                reviewer: localResult.interview_final_interviewer || localResult.chat_reviewer_最終面談,
-                result: localResult.interview_final_result
-            };
-        }
-
-        if (step === "待遇検討") {
-            return {
-                date: localResult.hr_review?.updated_at,
-                reviewer: localResult.hr_review?.updated_by,
-                result: null
-            };
-        }
-
-        return { date: null, reviewer: null, result: null };
+        return {
+            date: localResult[dateKey] || null,
+            reviewer: localResult[reviewerKey] || null,
+            result: null
+        };
     };
 
     return (

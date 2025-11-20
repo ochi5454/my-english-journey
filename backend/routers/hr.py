@@ -1,27 +1,13 @@
-import uuid
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.models.score_resume import Candidate, CandidateStatus
 from backend.schemas.hr_review import HRReviewUpdate
-from backend.utils.candidate_status import update_candidate_status
+from backend.utils.status import update_candidate_status, get_all_status_labels
 
 router = APIRouter()
 JST = timezone(timedelta(hours=9))
-
-ALL_STATUSES = [
-    "アップロード",
-    "書類選考",
-    "web面談",
-    "1次面談",
-    "2次面談",
-    "待遇検討",
-    "内定通知",
-    "内定受諾",
-    "内定辞退",
-    "不合格"
-]
 
 #  ============================================
 #  📮 最終HR判定
@@ -98,23 +84,26 @@ def advance_candidate_status(payload: dict, db: Session = Depends(get_db)):
             .order_by(CandidateStatus.reviewed_at.desc())
             .first()
         )
-        current_stage = str(latest_status.stage) if latest_status else "アップロード"
+        # すべてのステータス（label）を順序付きで取得
+        all_labels = get_all_status_labels(db)
+
+        current_label = str(latest_status.stage) if latest_status else all_labels[0]
 
         try:
-            next_stage = ALL_STATUSES[ALL_STATUSES.index(current_stage) + 1]
+            next_label = all_labels[all_labels.index(current_label) + 1]
         except (ValueError, IndexError):
-            next_stage = current_stage
+            next_label = current_label
 
         update_candidate_status(
             db=db,
             user_id=user_id,
-            new_stage=next_stage,
+            new_stage=next_label,
             reviewer_id=advanced_by
         )
 
         updated.append({
             "user_id": user_id,
-            "new_stage": next_stage,
+            "new_stage": next_label,
         })
 
     return {"updated": updated, "count": len(updated)}

@@ -253,14 +253,16 @@ const InterviewPrepPanelV2: React.FC<InterviewPrepPanelV2Props> = ({
                             />
                         </div>
 
-                        <div className="interview-prep-v2-field">
+                        <div className="interview-prep-v2-field division-block">
                             <label>部門</label>
-                            <RatingBar
-                                items={divisionItems}
-                                value={qualitative['recommendedDivision'] || null}
-                                onChange={v => setQualitative(s => ({ ...s, recommendedDivision: v }))}
-                                variant="single"
-                            />
+                            <div className="division-rating-bar">
+                                <RatingBar
+                                    items={divisionItems}
+                                    value={qualitative['recommendedDivision'] || null}
+                                    onChange={v => setQualitative(s => ({ ...s, recommendedDivision: v }))}
+                                    variant="single"
+                                />
+                            </div>
                         </div>
 
                         <div className="interview-prep-v2-field">
@@ -533,6 +535,12 @@ const InterviewPrepPanelV2: React.FC<InterviewPrepPanelV2Props> = ({
                         ))}
                     </div>
                 </Accordion>
+                {/* 注釈 */}
+                {!aiScoreReviewed && (
+                    <div className="interview-prep-v2-note-subtle">
+                        面談完了後は、面談シートの「保存」内容を元に「AIスコア精査」を実施してから、次のステージへ進むことができます。
+                    </div>
+                )}
             </div>
         </div>
     );

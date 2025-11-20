@@ -4,12 +4,12 @@ from pydantic import BaseModel
 from fastapi import HTTPException
 from typing import List, Dict, Any, Optional, Sequence, Mapping
 from backend.core.database import SessionLocal, get_db
-from backend.models.score_resume import Candidate, CandidateStatus, CandidateExpectations
+from backend.models.score_resume import Candidate, CandidateExpectations
 from backend.models.checksheet import ChecksheetQualitativeItem
 from backend.schemas.custom_qa import PrepItemDict
 from backend.utils.division import convert_division_to_prefix, convert_prefix_to_division
 from backend.utils.checksheet import load_qualitative_items
-from backend.utils.candidate_status import update_candidate_status
+from backend.utils.status import update_candidate_status, get_next_stage_key_by_label, get_label_by_key
 from backend.services.checksheet.upsert import upsert_checksheet, get_checksheet_one
 from backend.services.score_adjustment.save import save_score_to_history, load_single_result
 from backend.services.score_adjustment.score import call_openai_chat
@@ -363,7 +363,21 @@ def review_with_interview_checksheet(
             payload=incoming_block,
         )
 
-        update_candidate_status(db, candidate_id, stage, reviewer_id)
+        # stage（フロントが送る）は label（例： "1次面談"）
+        next_stage_key = get_next_stage_key_by_label(db, stage)
+        next_stage_label = get_label_by_key(db, next_stage_key) if next_stage_key else None
+
+        print(f"🔄 現在のステージ(label): {stage} → 次ステージ(key): {next_stage_key}, label={next_stage_label}")
+
+        if next_stage_key:
+            update_candidate_status(
+                db=db,
+                user_id=candidate_id,
+                new_stage=next_stage_label,   # ← ここが重要！
+                reviewer_id=reviewer_id
+            )
+        else:
+            print("⚠ next_stage_key が取れなかったためステータスを進めません")
 
         candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
         if candidate:

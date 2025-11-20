@@ -70,7 +70,6 @@ async def resume_batch_score(candidate_id: str):
     処理内容:
     - 既存の詳細スコアリング処理を実行
     - マストチェック + 全部門スコアリング
-    - ステータスを「一括アップロード」→「アップロード」に変更
     
     Returns:
         既存の /resume-score-save と同じ形式
@@ -114,12 +113,12 @@ async def get_batch_status():
     with SessionLocal() as db:
         from backend.models.score_resume import CandidateStatus
         
-        # 最新ステータスが「一括アップロード」の候補を取得
+        # 最新ステータスが「アップロード」の候補を取得
         candidates = db.query(Candidate).join(
             CandidateStatus,
             Candidate.user_id == CandidateStatus.user_id
         ).filter(
-            CandidateStatus.stage == "一括アップロード"
+            CandidateStatus.stage == "アップロード"
         ).all()
         
         results = []

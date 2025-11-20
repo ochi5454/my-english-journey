@@ -22,7 +22,7 @@ from backend.services.score_resume.vectorstore import save_masked_resume_embeddi
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
 from backend.services.score_resume.streaming import _sse, log_step
 from backend.utils.division import convert_division_to_prefix
-from backend.utils.candidate_status import update_candidate_status
+from backend.utils.status import update_candidate_status
 
 router = APIRouter()
 JST = timezone(timedelta(hours=9))

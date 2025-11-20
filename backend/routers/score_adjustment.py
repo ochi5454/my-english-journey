@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from backend.models.score_resume import Candidate
 from backend.schemas.ai_score_chat import ScoreChatRequest, ScoreUpdateRequest
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
-from backend.utils.candidate_status import update_candidate_status
+from backend.utils.status import update_candidate_status
 from backend.services.score_adjustment.optimized import search_resume_snippets
-from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments
+from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments, get_division_traits_map, format_division_traits_for_prompt
 from backend.services.score_adjustment.save import save_score_to_history
 
 router = APIRouter()
@@ -20,10 +20,18 @@ JST = timezone(timedelta(hours=9))
 #  ============================================
 
 @router.post("/chat-score-review")
-async def chat_score_review(payload: ScoreChatRequest):
+async def chat_score_review(payload: ScoreChatRequest, db: Session = Depends(get_db)):
     messages = [m.dict() for m in payload.messages]
+
+    # === DB から部門一覧を取得 ===
     division_profiles = load_division_profiles()
     valid_divisions = [p["division"] for p in division_profiles]
+
+    # === DB から部門 → trait のマップ取得 ===
+    div_map = get_division_traits_map(db)
+
+    # === SYSTEM_TEMPLATE に埋め込む用テキスト生成 ===
+    division_trait_details = format_division_traits_for_prompt(div_map)
 
     # === 🔍 candidate_id とユーザーの発話を取得 ===
     candidate_id = getattr(payload, "candidate_id", None)
@@ -46,7 +54,7 @@ async def chat_score_review(payload: ScoreChatRequest):
     original_scores = extract_original_scores_from_message(last_content) if last_content else {}
 
     # === ベースプロンプト作成 ===
-    base_prompt = generate_score_review_prompt(messages, valid_divisions)
+    base_prompt = generate_score_review_prompt(messages, valid_divisions, division_trait_details)
 
     # === 履歴書抜粋をsystemメッセージとして追加 ===
     if context_text:
