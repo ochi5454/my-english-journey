@@ -15,6 +15,7 @@ from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.resume import ResumeWorkHistory
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus, CandidateDocumentReview
 from backend.models.interview_schedule import InterviewSchedule
+from backend.models.results_byinterview import ResultByInterview
 from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
 from backend.services.score_resume.score import score_resume_from_text_async, score_motivation_statement_async, score_work_experience_async
 from backend.services.score_resume.sanitizer import mask_personal_info, mask_and_extract_personal_info
@@ -1047,7 +1048,16 @@ async def get_result_by_candidate_id(candidate_id: str):
             "preferred_div": c.preferred_div,
             "uploader_id": c.uploader_id,
             "timestamp": to_jst_iso(latest_reviewed_at),
+            # 待遇検討関連
             "hr_decision": c.hr_decision,
+            "hr_saved_at": to_jst_iso(c.hr_saved_at) if c.hr_saved_at else None,
+            "hr_saved_by": c.hr_saved_by,
+            "hr_pay_type": c.hr_pay_type,
+            "hr_employment_type": c.hr_employment_type,
+            "hr_division": c.hr_division,
+            "hr_title": c.hr_title,
+            "hr_income": c.hr_income,
+            # 書類選考関連
             "document_review_date": to_jst_iso(c.document_review_date) if c.document_review_date else None,
             "document_review_reviewer": c.document_review_reviewer,
             "document_review_result": c.document_review_result,
@@ -1094,6 +1104,19 @@ async def get_result_by_candidate_id(candidate_id: str):
         if schedules:
             last_updated = max(s.last_updated for s in schedules)
             result_data["last_updated"] = to_jst_iso(last_updated)
+
+        # 追加: 面談結果（実際の面談担当者）を取得
+        interview_rows = db.query(ResultByInterview).filter_by(candidate_id=candidate_id).all()
+
+        result_data["interview_results"] = [
+            {
+                "stage": r.stage_name,          # interview_1 / interview_2 / interview_final
+                "interviewer": r.interviewer_id,
+                "decision": r.hiring_decision,
+                "updated_at": to_jst_iso(r.updated_at)
+            }
+            for r in interview_rows
+        ]
 
         return JSONResponse(content=result_data)
 

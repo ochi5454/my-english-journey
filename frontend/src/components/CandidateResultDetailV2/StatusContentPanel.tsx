@@ -151,6 +151,18 @@ const StatusContentPanel: React.FC<Props> = ({
             .catch(err => console.error('待遇検討設定取得エラー:', err));
     }, [interviewerId]);
 
+    // 待遇検討フォームの初期化
+    useEffect(() => {
+        if (!localResult) return;
+
+        setHrDecision(localResult.hr_decision || "");
+        setRecommendedDivision(localResult.hr_division || "");
+        setRecommendedTitle(localResult.hr_title || "");
+        setPayType(localResult.hr_pay_type || "");
+        setEmploymentType(localResult.hr_employment_type || "");
+
+    }, [localResult]);
+
     // 候補者名を取得
     useEffect(() => {
         if (localResult?.user_id) {
@@ -354,8 +366,8 @@ const StatusContentPanel: React.FC<Props> = ({
                     candidate_id: localResult.user_id,
                     review: {
                         decision: hrDecision,
-                        recommended_division: recommendedDivision,
-                        recommended_title: recommendedTitle,
+                        division: recommendedDivision, 
+                        title: recommendedTitle,
                         pay_type: payType,
                         employment_type: employmentType,
                     }
