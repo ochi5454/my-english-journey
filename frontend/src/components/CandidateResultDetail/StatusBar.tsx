@@ -29,6 +29,12 @@ const reviewStages = [
     "2次面談"
 ];
 
+const interviewStageMap: Record<string, string> = {
+    "web面談": "interview_1",
+    "1次面談": "interview_2",
+    "2次面談": "interview_final",
+};
+
 const StatusBar: React.FC<Props> = ({
     localResult,
     interviewerId,
@@ -39,6 +45,22 @@ const StatusBar: React.FC<Props> = ({
 }) => {
     const interviewStages = ["web面談", "1次面談", "2次面談"];
     const [processingStage, setProcessingStage] = useState<string | null>(null);
+    const [decisionMap, setDecisionMap] = React.useState<Record<string, string>>({});
+
+    React.useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/checksheet/config`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.hiringDecisions) {
+                    const map: Record<string, string> = {};
+                    data.hiringDecisions.forEach((d: any) => {
+                        map[d.id] = d.value;  // hire_ok → 採用しても良い
+                    });
+                    setDecisionMap(map);
+                }
+            })
+            .catch(err => console.error("待遇検討マスタ取得エラー:", err));
+    }, []);
 
     // ✅ 不採用かどうかをチェック
     const isRejected = localResult.status === "内定辞退" || localResult.hr_decision === "不採用";
@@ -84,6 +106,18 @@ const StatusBar: React.FC<Props> = ({
         }
     };
 
+    const getInterviewInterviewer = (step: string): string | null => {
+        if (!localResult.interview_results) return null;
+
+        const backendStage = interviewStageMap[step];
+        if (!backendStage) return null;
+
+        const match = localResult.interview_results.find(
+            (res: any) => res.stage === backendStage
+        );
+        return match?.interviewer ?? null;
+    };
+
     const getStageInfo = (step: string) => {
         if (step === "アップロード") {
             return {
@@ -104,32 +138,35 @@ const StatusBar: React.FC<Props> = ({
         if (step === "web面談") {
             return {
                 date: localResult.interview_1_date || localResult.chat_review_web面談_at,
-                reviewer: localResult.interview_1_interviewer || localResult.chat_reviewer_web面談,
-                result: localResult.interview_1_result
+                reviewer: getInterviewInterviewer(step),
+                result: null
             };
         }
         
         if (step === "1次面談") {
             return {
                 date: localResult.interview_2_date || localResult.chat_review_1次面談_at,
-                reviewer: localResult.interview_2_interviewer || localResult.chat_reviewer_1次面談,
-                result: localResult.interview_2_result
+                reviewer: getInterviewInterviewer(step),
+                result: null
             };
         }
         
         if (step === "2次面談") {
             return {
                 date: localResult.interview_final_date || localResult.chat_review_2次面談_at,
-                reviewer: localResult.interview_final_interviewer || localResult.chat_reviewer_2次面談,
-                result: localResult.interview_final_result
+                reviewer: getInterviewInterviewer(step),
+                result: null
             };
         }
         
         if (step === "待遇検討") {
+            const raw = localResult.hr_decision;
+            const label = decisionMap[raw] || raw;
+
             return {
-                date: localResult.hr_review?.updated_at,
-                reviewer: localResult.hr_review?.updated_by,
-                result: null
+                date: localResult.hr_saved_at || null,
+                reviewer: localResult.hr_saved_by || null,
+                result: label   // ← 和名！
             };
         }
         
@@ -270,7 +307,9 @@ const StatusBar: React.FC<Props> = ({
                                         title="面談シート"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onOpenInterviewPrep(step);
+                                            //ここでAPI用ステージに変換
+                                            const apiStage = interviewStageMap[step];
+                                            onOpenInterviewPrep(apiStage);
                                         }}
                                     >
                                         ✅
