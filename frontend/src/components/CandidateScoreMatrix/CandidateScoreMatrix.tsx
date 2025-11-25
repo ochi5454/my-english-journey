@@ -40,10 +40,16 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         initialValues: AIWeights;
     }>>({});
 
-    const allStatuses = [
-        "アップロード", "書類選考", "面談・1次", "面談・2次",
-        "最終面談", "待遇検討", "内定通知", "内定受諾", "内定辞退"
-    ];
+    const [allStatuses, setAllStatuses] = useState<string[]>([]);
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then((rows: any[]) => {
+                // rows は [{ key, label, is_interview, ... }]
+                setAllStatuses(rows.map(r => r.label));   // ← 和名のステータス一覧
+            })
+            .catch(err => console.error("StatusMaster 読込エラー:", err));
+    }, []);
 
     // useEffect の外に移動（useCallbackで囲む）
     const fetchConfigAndResults = useCallback(async () => {

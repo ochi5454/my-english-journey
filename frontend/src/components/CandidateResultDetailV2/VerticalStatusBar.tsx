@@ -29,6 +29,8 @@ const VerticalStatusBar: React.FC<Props> = ({
     const [interviewStages, setInterviewStages] = React.useState<string[]>([]);
     const [interviewStageMap, setInterviewStageMap] =
         React.useState<Record<string, string>>({});
+    const finalInterviewLabel = interviewStages[interviewStages.length - 1];
+    const finalInterviewKey = interviewStageMap[finalInterviewLabel]; // e.g. "interview_final"
 
     const [decisionMap, setDecisionMap] = React.useState<Record<string, string>>({});
 
@@ -190,7 +192,7 @@ const VerticalStatusBar: React.FC<Props> = ({
                             isInterviewScheduled(step) &&
                             !stageInfo.date) ||
                         (step === "待遇検討" &&
-                            !!localResult.chat_review_最終面談_at &&
+                            !!localResult[`chat_review_${finalInterviewKey}_at`] &&
                             !localResult.hr_review?.updated_at);
 
                     return (

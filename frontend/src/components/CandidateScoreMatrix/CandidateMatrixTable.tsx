@@ -37,17 +37,16 @@ export default function CandidateMatrixTable({
     const [dragStartX, setDragStartX] = useState(0);
     const [dragStartScrollLeft, setDragStartScrollLeft] = useState(0);
 
-    const allStatuses = [
-        'アップロード',
-        '書類選考',
-        '面談・1次',
-        '面談・2次',
-        '最終面談',
-        '待遇検討',
-        '内定通知',
-        '内定受諾',
-        '内定辞退'
-    ];
+    const [allStatuses, setAllStatuses] = useState<string[]>([]);
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then((rows: any[]) => {
+                // rows = [{key, label, ...}]
+                setAllStatuses(rows.map(r => r.label));  // ← 和名ステータスを配列化
+            })
+            .catch(err => console.error("StatusMaster読込エラー:", err));
+    }, []);
 
     useEffect(() => {
         const wrapper = wrapperRef.current;
