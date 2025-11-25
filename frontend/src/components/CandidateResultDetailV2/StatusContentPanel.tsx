@@ -4,7 +4,6 @@ import DivisionSelect from "./DivisionSelect";
 import ResumeReuploadModal from "./ResumeReuploadModal";
 import InterviewPrepPanelV2 from "./InterviewPrepPanelV2";
 import ScoreReviewChatV2 from "./ScoreReviewChatV2";
-import { statusSteps } from "./VerticalStatusBar";
 import "./StatusContentPanel.css";
 
 type ChatMessage = {
@@ -82,6 +81,46 @@ const StatusContentPanel: React.FC<Props> = ({
     // 最後にロードした候補者IDを追跡（useRefで管理して再レンダリングを防ぐ）
     const lastLoadedCandidateIdRef = useRef<string | null>(null);
 
+    // ステータスマスタ
+    const [statusMaster, setStatusMaster] = useState<any[]>([]);
+    const [statusSteps, setStatusSteps] = useState<string[]>([]);
+    const [interviewStages, setInterviewStages] = useState<string[]>([]);
+    const [stageMap, setStageMap] = useState<Record<string, string>>({});
+    const [dateKeyMap, setDateKeyMap] = useState<Record<string, string>>({});
+
+    // ステータスマスタの取得
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then(rows => {
+                setStatusMaster(rows);
+
+                // ステップ順
+                setStatusSteps(rows.map((r: any) => r.label));
+
+                // 面談ステージ
+                const iStages = rows
+                    .filter((r: any) => r.is_interview)
+                    .map((r: any) => r.label);
+                setInterviewStages(iStages);
+
+                // 日本語 → key
+                const sm: Record<string, string> = {};
+                rows.forEach((r: any) => sm[r.label] = r.key);
+                setStageMap(sm);
+
+                // 日本語 → dateフィールド名 (interview_1 → interview_1_date)
+                const dm: Record<string, string> = {};
+                rows.forEach((r: any) => {
+                    if (r.is_interview) {
+                        dm[r.label] = `${r.key}_date`;
+                    }
+                });
+                setDateKeyMap(dm);
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
+
     // 部門マッピングを取得
     useEffect(() => {
         fetch(`${appConfig.API_BASE_URL}/admin/skills`)
@@ -123,8 +162,6 @@ const StatusContentPanel: React.FC<Props> = ({
     const getDivisionName = (prefix: string): string => {
         return divisionMap[prefix] || prefix;
     };
-
-    const interviewStages = ["web面談", "1次面談", "2次面談"];
 
     // 面接設定の設定データを取得
     useEffect(() => {
@@ -204,11 +241,6 @@ const StatusContentPanel: React.FC<Props> = ({
         setIsLoadingInterviewData(true);
 
         // 日本語ステージ → API用ステージへ変換
-        const stageMap: Record<string, string> = {
-            "web面談": "interview_1",
-            "1次面談": "interview_2",
-            "2次面談": "interview_final",
-        };
         const apiStage = stageMap[stage] || stage;
 
         try {
@@ -334,13 +366,7 @@ const StatusContentPanel: React.FC<Props> = ({
             alert("メール送信は未実装のため保存できませんが、面談準備画面に進みます。");
 
             // モックとして localResult に面談日時を差し込む
-            const key =
-                selectedStage === "web面談"
-                    ? "interview_1_date"
-                    : selectedStage === "1次面談"
-                    ? "interview_2_date"
-                    : "interview_final_date";
-
+            const key = dateKeyMap[selectedStage];
             localResult[key] = interviewDate || "mock";
 
             await fetchInterviewData(selectedStage);
@@ -389,14 +415,8 @@ const StatusContentPanel: React.FC<Props> = ({
     };
 
     const isInterviewScheduled = (stage: string): boolean => {
-        const keyMap: Record<string, string> = {
-            "web面談": "interview_1_date",
-            "1次面談": "interview_2_date",
-            "2次面談": "interview_final_date",
-        };
-        const key = keyMap[stage];
-        if (!key) return false;
-        return !!localResult[key];
+        const key = dateKeyMap[stage];
+        return key ? !!localResult[key] : false;
     };
 
     const handleAIEvaluation = async () => {
@@ -891,7 +911,7 @@ const StatusContentPanel: React.FC<Props> = ({
                                                                 entry.score === latestEntry?.score &&
                                                                 entry.reason === latestEntry?.reason &&
                                                                 (entry.reviewed_at === latestEntry?.reviewed_at ||
-                                                                 entry.updated_at === latestEntry?.updated_at)
+                                                                entry.updated_at === latestEntry?.updated_at)
                                                             )
                                                         )
                                                         .map((entry: any, idx: number) => (

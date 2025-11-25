@@ -149,4 +149,6 @@ class StatusMaster(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
-    is_skippable = Column(Boolean, default=False)
+    is_skippable = Column(Boolean, default=False) # スキップ可能かどうか
+    is_interview = Column(Boolean, default=False) # 面談ステータスかどうか
+    is_review_target = Column(Boolean, default=False) # レビュー対象ステータスかどうか

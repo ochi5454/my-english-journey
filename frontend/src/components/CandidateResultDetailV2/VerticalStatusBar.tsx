@@ -14,40 +14,60 @@ interface Props {
     onStageSelect: (stage: string) => void;
 }
 
-export const statusSteps = [
-    "アップロード",
-    "書類選考",
-    "web面談",
-    "1次面談",
-    "2次面談",
-    "待遇検討",
-    "内定通知",
-    "内定受諾",
-    "内定辞退",
-    "不合格"
-];
-
-export const reviewStages = [
-    "書類選考",
-    "web面談",
-    "1次面談",
-    "2次面談"
-];
-
 const VerticalStatusBar: React.FC<Props> = ({
     localResult,
     selectedStage,
     onStageSelect,
 }) => {
-    const interviewStages = ["web面談", "1次面談", "2次面談"];
 
-    const interviewStageMap: Record<string, string> = {
-        "web面談": "interview_1",
-        "1次面談": "interview_2",
-        "2次面談": "interview_final",
-    };
+    // ---------------------------
+    // 🔽 DB から取得したマスタ
+    // ---------------------------
+    const [statusMaster, setStatusMaster] = React.useState<any[]>([]);
+    const [statusSteps, setStatusSteps] = React.useState<string[]>([]);
+    const [reviewStages, setReviewStages] = React.useState<string[]>([]);
+    const [interviewStages, setInterviewStages] = React.useState<string[]>([]);
+    const [interviewStageMap, setInterviewStageMap] =
+        React.useState<Record<string, string>>({});
+
     const [decisionMap, setDecisionMap] = React.useState<Record<string, string>>({});
 
+    // ---------------------------
+    // 🔽 ステータスマスタの取得
+    // ---------------------------
+    React.useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then(rows => {
+                setStatusMaster(rows);
+
+                // 全ステージ順番
+                setStatusSteps(rows.map((r: any) => r.label));
+
+                // レビュー対象
+                setReviewStages(
+                    rows.filter((r: any) => r.is_review_target).map((r: any) => r.label)
+                );
+
+                // 面談ステージ（DBの is_interview）
+                const iStages = rows
+                    .filter((r: any) => r.is_interview)
+                    .map((r: any) => r.label);
+                setInterviewStages(iStages);
+
+                // 面談ステージ → key のマッピング
+                const map: Record<string, string> = {};
+                rows.filter((r: any) => r.is_interview).forEach((r: any) => {
+                    map[r.label] = r.key;
+                });
+                setInterviewStageMap(map);
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
+
+    // ---------------------------
+    // 🔽 待遇検討マスタ取得
+    // ---------------------------
     React.useEffect(() => {
         fetch(`${appConfig.API_BASE_URL}/checksheet/config`)
             .then(res => res.json())
@@ -55,7 +75,7 @@ const VerticalStatusBar: React.FC<Props> = ({
                 if (data.hiringDecisions) {
                     const map: Record<string, string> = {};
                     data.hiringDecisions.forEach((d: any) => {
-                        map[d.id] = d.value;  // hire_ok → 採用しても良い
+                        map[d.id] = d.value;
                     });
                     setDecisionMap(map);
                 }
@@ -63,22 +83,26 @@ const VerticalStatusBar: React.FC<Props> = ({
             .catch(err => console.error("待遇検討マスタ取得エラー:", err));
     }, []);
 
-    const isInterviewScheduled = (stage: string): boolean => {
-        const keyMap: Record<string, string> = {
-            "web面談": "interview_1_date",
-            "1次面談": "interview_2_date",
-            "2次面談": "interview_final_date",
-        };
-        const key = keyMap[stage];
-        if (!key) return false;
-        return !!localResult[key];
+    // ---------------------------
+    // 🔽 面談日程が入っているか？
+    // ---------------------------
+    const isInterviewScheduled = (step: string): boolean => {
+        const backendKey = interviewStageMap[step];
+        if (!backendKey) return false;
+
+        const dateField = `${backendKey}_date`; // interview_1_date など
+        return !!localResult[dateField];
     };
 
-    // ✅ 各ステージの情報を取得する関数
+    // ---------------------------
+    // 🔽 各ステージの情報取得
+    // ---------------------------
     const getStageInfo = (step: string): StageInfo => {
+        const row = statusMaster.find(r => r.label === step);
+        if (!row) return { date: null, reviewer: null, result: null };
 
-        // アップロードは固定
-        if (step === "アップロード") {
+        // アップロード
+        if (row.key === "upload") {
             return {
                 date: localResult.timestamp,
                 reviewer: localResult.uploader_id,
@@ -86,8 +110,8 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
-        // 書類選考（Candidateテーブルより取得）
-        if (step === "書類選考") {
+        // 書類選考
+        if (row.key === "screening") {
             return {
                 date: localResult.document_review_date || null,
                 reviewer: localResult.document_review_reviewer || null,
@@ -95,10 +119,10 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
-        // 待遇検討（Candidateテーブルより取得）
-        if (step === "待遇検討") {
+        // 待遇検討
+        if (row.key === "treatment") {
             const raw = localResult.hr_decision;
-            const label = decisionMap[raw] || raw;  // ← 日本語変換！
+            const label = decisionMap[raw] || raw;
             return {
                 date: localResult.hr_saved_at || null,
                 reviewer: localResult.hr_saved_by || null,
@@ -106,11 +130,19 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
-        // ---------------------------
-        // それ以外は動的キーで処理
-        // ---------------------------
-        const dateKey = `chat_review_${step}_at`;
-        const reviewerKey = `chat_reviewer_${step}`;
+        // 🔥 面談ステージは特別な形式：interview_x_date
+        if (row.is_interview) {
+            const dateField = `${row.key}_date`;
+            return {
+                date: localResult[dateField] || null,
+                reviewer: getInterviewInterviewer(step),
+                result: null
+            };
+        }
+
+        // 🔽 その他のステージ：従来通りの chat_review_xx_at
+        const dateKey = `chat_review_${row.key}_at`;
+        const reviewerKey = `chat_reviewer_${row.key}`;
 
         return {
             date: localResult[dateKey] || null,
@@ -119,26 +151,34 @@ const VerticalStatusBar: React.FC<Props> = ({
         };
     };
 
+    // ---------------------------
+    // 🔽 面談の担当者取得
+    // ---------------------------
     const getInterviewInterviewer = (step: string): string | null => {
         if (!localResult.interview_results) return null;
 
-        const backendStage = interviewStageMap[step];
-        if (!backendStage) return null;
+        const backendKey = interviewStageMap[step];
+        if (!backendKey) return null;
 
         const match = localResult.interview_results.find(
-            (res: any) => res.stage === backendStage
+            (res: any) => res.stage === backendKey
         );
         return match?.interviewer ?? null;
     };
 
+    // ===============================
+    // 🔽 レンダリング
+    // ===============================
     return (
         <div className="vertical-status-bar">
             <h3 className="vertical-status-title">選考ステータス</h3>
             <div className="vertical-status-steps">
+
                 {statusSteps.map((step, idx) => {
+                    const stageInfo = getStageInfo(step);
+
                     const isActive = localResult.status === step;
                     const isSelected = selectedStage === step;
-                    const stageInfo = getStageInfo(step);
 
                     const isStepDone =
                         (step === "アップロード" && !!localResult.timestamp) ||
@@ -164,9 +204,7 @@ const VerticalStatusBar: React.FC<Props> = ({
                             onClick={() => onStageSelect(step)}
                         >
                             <div className="status-bookmark">
-                                <div className="bookmark-label">
-                                    {step}
-                                </div>
+                                <div className="bookmark-label">{step}</div>
                                 <div className="bookmark-triangle"></div>
                             </div>
 
@@ -198,6 +236,7 @@ const VerticalStatusBar: React.FC<Props> = ({
                         </div>
                     );
                 })}
+
             </div>
         </div>
     );

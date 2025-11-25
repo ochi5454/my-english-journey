@@ -9,7 +9,6 @@ import CandidateMatrixSummary from './CandidateMatrixSummaryV2';
 import type { Result } from './types';
 import appConfig from '../../config';
 import { useHRFinalReviewData } from "./useHRFinalReviewData";
-import { statusSteps } from './VerticalStatusBar';
 import './CandidateScoreMatrixForModal.css';
 
 interface Props {
@@ -48,6 +47,16 @@ const CandidateScoreMatrixForModal: React.FC<Props> = ({ interviewerId, onCandid
         initialValues: AIWeights;
     }>>({});
 
+    // ステータスマスタから取得
+    const [statusSteps, setStatusSteps] = useState<string[]>([]);
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then(rows => {
+                setStatusSteps(rows.map((r: any) => r.label));
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
     const allStatuses = statusSteps;
 
     const fetchConfigAndResults = useCallback(async () => {
