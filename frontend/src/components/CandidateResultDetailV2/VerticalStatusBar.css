@@ -91,6 +91,16 @@
     font-weight: 700;
 }
 
+/* 完了している場合は active よりも完了色を優先 */
+.vertical-status-item.done.active .status-bookmark {
+    background-color: #28a745;
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.vertical-status-item.done.active .bookmark-label {
+    color: white;
+}
+
 /* 選択中 */
 .vertical-status-item.selected .status-bookmark {
     background-color: #007bff;
@@ -107,6 +117,15 @@
 }
 
 .vertical-status-item.scheduled .bookmark-label {
+    color: white;
+}
+
+/* 完了とスケジュール済みが両方付いた場合も完了色を優先 */
+.vertical-status-item.done.scheduled .status-bookmark {
+    background-color: #28a745;
+}
+
+.vertical-status-item.done.scheduled .bookmark-label {
     color: white;
 }
 

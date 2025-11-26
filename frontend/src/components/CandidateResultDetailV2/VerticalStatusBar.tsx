@@ -180,7 +180,7 @@ const VerticalStatusBar: React.FC<Props> = ({
                     const isStepDone =
                         (step === "アップロード" && !!localResult.timestamp) ||
                         (reviewStages.includes(step) && !!stageInfo.date) ||
-                        (step === "待遇検討" && !!localResult.hr_review?.updated_at);
+                        (step === "待遇検討" && (!!localResult.hr_saved_at || !!localResult.hr_review?.updated_at));
 
                     const finalInterviewDate = localResult.interview_final_date;
 
@@ -190,7 +190,8 @@ const VerticalStatusBar: React.FC<Props> = ({
                             !stageInfo.date) ||
                         (step === "待遇検討" &&
                             finalInterviewDate &&
-                            !localResult.hr_saved_at);
+                            !localResult.hr_saved_at &&
+                            !localResult.hr_review?.updated_at);
 
                     return (
                         <div

@@ -219,7 +219,7 @@ const StatusBar: React.FC<Props> = ({
                     const isStepDone =
                         (label === "アップロード" && !!localResult.timestamp) ||
                         (reviewStages.includes(label) && !!info.date) ||
-                        (label === "待遇検討" && !!localResult.hr_review?.updated_at);
+                        (label === "待遇検討" && (!!localResult.hr_saved_at || !!localResult.hr_review?.updated_at));
 
                     const finalInterviewDate =
                         localResult.interview_final_date ||
