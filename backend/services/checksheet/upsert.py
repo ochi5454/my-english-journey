@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from backend.models.results_byinterview import ResultByInterview, ResultByInterviewQualitativeValue, ResultByInterviewQuantitative, ResultByInterviewQATag
 from backend.models.checksheet import ChecksheetQualitativeItem
 from backend.utils.status import get_key_by_label
+from backend.utils.timezone import to_jst_iso
 
 # ============================================
 # 🧠 面談シート抽出・更新
@@ -73,7 +74,8 @@ def get_checksheet_one(db: Session, interviewer_id: str, candidate_id: str, stag
         "recommendedTitle": result.recommended_title,
         "payType": result.pay_type,
         "employmentType": result.employment_type,
-        "updatedAt": result.updated_at.isoformat() if result.updated_at is not None else None,
+        # 保存時刻を JST で返す
+        "updatedAt": to_jst_iso(result.updated_at),
         "aiScoreReviewed": result.ai_score_reviewed or False,
         "evalRequired": result.eval_required or False,
     }

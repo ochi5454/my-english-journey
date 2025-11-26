@@ -16,6 +16,7 @@ from backend.services.score_adjustment.score import call_openai_chat
 from backend.services.score_byinterview.vectorstore import load_resume_text_by_candidate
 from backend.services.score_byinterview.load import load_full_score_context
 from backend.services.score_byinterview.parser import parse_interview_score_adjustment
+from backend.utils.timezone import now_jst_iso
 
 # ============================================
 # 🧠 面談シート評価・スコア補正ロジック
@@ -35,7 +36,7 @@ def review_with_interview_checksheet(
     pay_type: Optional[str] = None,
     employment_type: Optional[str] = None,
 ) -> dict:
-    now_str = datetime.now().isoformat()
+    now_str = now_jst_iso()
 
     # ============================================
     # 候補者の存在チェック

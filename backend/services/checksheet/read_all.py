@@ -2,6 +2,7 @@ from typing import Dict, Optional, Any
 from sqlalchemy.orm import Session, joinedload
 from backend.models.results_byinterview import ResultByInterview, ResultByInterviewQualitativeValue
 from backend.models.checksheet import ChecksheetQualitativeItem
+from backend.utils.timezone import to_jst_iso
 
 # ============================================
 # 🧠 面接シートの読み取り・一覧取得
@@ -59,7 +60,7 @@ def list_all_checksheet_blocks(db: Session) -> list[dict]:
             "reviewedResume": row.reviewed_resume or False,
             "ai_score_reviewed": row.ai_score_reviewed or False,
             "eval_required": row.eval_required or False,
-            "updated_at": row.updated_at.isoformat() if row.updated_at is not None else None,
+            "updated_at": to_jst_iso(row.updated_at),
 
             "prepItems": prep_items,
             "qualitative": qualitative_map,

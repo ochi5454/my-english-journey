@@ -14,6 +14,7 @@ from backend.utils.division import load_division_profiles, convert_division_to_p
 from backend.services.score_adjustment.save import save_score_to_history
 from backend.services.score_resume.parser import safe_parse_division_scores, safe_parse_motivation, safe_parse_workexp
 from backend.schemas.score import DivisionScore
+from backend.utils.timezone import now_jst_iso
 
 # ============================================
 # ✅ LangChain設定
@@ -379,7 +380,7 @@ async def score_resume_from_text_async(
         print("❌ must_check NGのためスコアリング中断 → 候補者ID: %s", candidate_id)
         result = {
             "user_id": candidate_id,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": now_jst_iso(),
             "must_check": must_results,
             "scores": [],
             "recommended_division": None,
@@ -463,7 +464,7 @@ async def score_resume_from_text_async(
 
     result = {
         "user_id": candidate_id,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": now_jst_iso(),
         "must_check": must_results,
         "must_check_by_division": must_results_by_division,
         "scores": normalized_scores,

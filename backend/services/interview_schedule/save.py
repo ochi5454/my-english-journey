@@ -3,6 +3,7 @@ from backend.core.database import SessionLocal
 from backend.models.interview_schedule import InterviewSchedule
 from backend.schemas.interviewsheet import InterviewSetupRequest
 from backend.utils.status import get_key_by_label
+from backend.utils.timezone import JST, now_jst
 
 # ============================================
 # 🧠 面談日程の保存
@@ -38,7 +39,7 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
             print("🔥 DB 検索エラー:", e)
             raise
 
-        now = datetime.now()
+        now = now_jst()
 
         # datetime 型確認
         scheduled_at = req.interviewDate
@@ -51,6 +52,10 @@ def save_interview_schedule(req: InterviewSetupRequest) -> dict:
             except ValueError as ve:
                 print("🔥 datetime 変換エラー:", ve)
                 raise ValueError(f"interviewDate が不正形式: {scheduled_at}")
+
+        # タイムゾーン情報が無い場合は JST とみなす
+        if isinstance(scheduled_at, datetime) and scheduled_at.tzinfo is None:
+            scheduled_at = scheduled_at.replace(tzinfo=JST)
 
         # 保存処理
         try:

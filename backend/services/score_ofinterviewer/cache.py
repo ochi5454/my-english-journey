@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from backend.core.database import SessionLocal
 from backend.models.score_ofinterviewer import InterviewerEvaluation, EvaluationRubricScore, EvaluationComment, EvaluationRoleExpectation
+from backend.utils.timezone import to_jst_iso, now_jst_iso
 
 # ============================================
 # 🧠 キャッシュファイルの読込
@@ -33,7 +34,7 @@ def load_evals_for_interviewer(iid: str) -> dict:
                 "stage": e.stage,
                 "total": total_score,
                 "breakdown": breakdown, 
-                "evaluated_at": e.evaluated_at.isoformat() if e.evaluated_at is not None else None,
+                "evaluated_at": to_jst_iso(e.evaluated_at),
                 "rubrics": [r.__dict__ for r in rubrics],
                 "comments": [c.__dict__ for c in comments],
                 "role_expectation": role_exp.__dict__ if role_exp else None,
@@ -46,7 +47,7 @@ def load_evals_for_interviewer(iid: str) -> dict:
 
         return {
             "version": "1",
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": now_jst_iso(),
             "interviewer_id": iid,
             "rows": rows
         }
@@ -166,7 +167,7 @@ def load_all_evals() -> dict:
 
         return {
             "version": "1",
-            "generated_at": datetime.now().isoformat(),
+        "generated_at": now_jst_iso(),
             "rows": rows
         }
 

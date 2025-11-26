@@ -2,6 +2,7 @@ from typing import List, Dict, Optional, Iterable
 from sqlalchemy.orm import Session, joinedload
 from backend.models.results_byinterview import ResultByInterview, ResultByInterviewQualitativeValue
 from backend.models.checksheet import ChecksheetQualitativeItem
+from backend.utils.timezone import to_jst_iso
 
 # ============================================
 # 🧠 面接シートの読込
@@ -78,7 +79,7 @@ def load_prep_map_with_owner(db: Session) -> Dict[str, Dict[str, List[dict]]]:
             "payType": r.pay_type,
             "employmentType": r.employment_type,
             # 🔧 Fix: Properly handle datetime conditional
-            "updated_at": r.updated_at.isoformat() if r.updated_at is not None else None,
+            "updated_at": to_jst_iso(r.updated_at),
         }
 
         # 🔧 Fix: Use converted string values for dict keys

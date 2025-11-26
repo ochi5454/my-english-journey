@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from backend.core.database import SessionLocal
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem
+from backend.utils.timezone import to_jst_iso, now_jst
 
 # ============================================
 # 🧠 スコア更新・履歴保存ロジック
@@ -24,7 +25,7 @@ def load_single_result(candidate_id: str) -> Optional[dict]:
             "user_id": candidate.user_id,
             "recommended_division": candidate.recommended_div,
             "uploader_id": candidate.uploader_id,
-            "timestamp": candidate.updated_at.isoformat() if candidate.updated_at is not None else None,
+            "timestamp": to_jst_iso(candidate.updated_at),
             "must_check": {
                 m.item_name: {"result": m.result, "reason": m.reason}
                 for m in must_items
@@ -67,7 +68,7 @@ def update_recommended_division_from_history(result: dict):
     result["recommended_division"] = recommended.get("division")
 
 def save_score_to_history(candidate_id: str, new_scores: List[dict], updated_by: str, source: str):
-    now = datetime.utcnow()
+    now = now_jst()
 
     with SessionLocal() as db:
         # 🎯 該当候補者取得

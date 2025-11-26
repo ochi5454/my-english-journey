@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from typing import List
 import asyncio
 import json
+from backend.utils.timezone import to_jst_iso
 
 from backend.services.score_resume.batch_processor import BatchResumeProcessor
 from backend.services.score_resume.score import score_resume_from_text_async
@@ -129,7 +130,7 @@ async def get_batch_status():
                 "gender": c.gender,
                 "has_notes": bool(c.notes),
                 "has_work_summary": bool(c.work_summary),
-                "uploaded_at": c.updated_at.isoformat() if c.updated_at else None,
+                "uploaded_at": to_jst_iso(c.updated_at),
                 "uploader_id": c.uploader_id
             })
         
