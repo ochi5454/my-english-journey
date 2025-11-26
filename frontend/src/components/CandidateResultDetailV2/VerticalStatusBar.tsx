@@ -103,16 +103,18 @@ const VerticalStatusBar: React.FC<Props> = ({
         const row = statusMaster.find(r => r.label === step);
         if (!row) return { date: null, reviewer: null, result: null };
 
-        // アップロード
+        // アップロード(＊CandidateStatusから取得)
         if (row.key === "upload") {
+            const info = localResult.status_map?.["アップロード"];
+
             return {
-                date: localResult.timestamp,
-                reviewer: localResult.uploader_id,
+                date: info?.date || null,
+                reviewer: info?.reviewer || null,
                 result: null
             };
         }
 
-        // 書類選考
+        // 書類選考(＊Candidateから取得)
         if (row.key === "screening") {
             return {
                 date: localResult.document_review_date || null,
@@ -121,7 +123,7 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
-        // 待遇検討
+        // 待遇検討(＊Candidateから取得)
         if (row.key === "treatment") {
             const raw = localResult.hr_decision;
             const label = decisionMap[raw] || raw;
@@ -132,7 +134,7 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
-        // 面談ステージは特別な形式：interview_x_date
+        // 面談ステージは特別な形式：interview_x_date(＊InterviewSchedule、ResultByInterviewから取得)
         if (row.is_interview) {
             const dateField = `${row.key}_date`;
             return {

@@ -120,16 +120,17 @@ const StatusBar: React.FC<Props> = ({
         const row = statusMaster.find(r => r.label === label);
         if (!row) return { date: null, reviewer: null, result: null };
 
-        // upload
+        // アップロード(＊CandidateStatusから取得)
         if (row.key === "upload") {
+            const info = localResult.status_map?.["アップロード"];
             return {
-                date: localResult.timestamp,
-                reviewer: localResult.uploader_id,
+                date: info?.date || null,
+                reviewer: info?.reviewer || null,
                 result: null
             };
         }
 
-        // screening
+        // 書類選考(＊Candidateから取得)
         if (row.key === "screening") {
             return {
                 date: localResult.document_review_date,
@@ -138,7 +139,7 @@ const StatusBar: React.FC<Props> = ({
             };
         }
 
-        // treatment
+        // 待遇検討(＊Candidateから取得)
         if (row.key === "treatment") {
             const raw = localResult.hr_decision;
             const label = decisionMap[raw] || raw;
@@ -149,7 +150,7 @@ const StatusBar: React.FC<Props> = ({
             };
         }
 
-        // interview_x
+        // 面談ステージは特別な形式：interview_x_date(＊InterviewSchedule、ResultByInterviewから取得)
         if (row.is_interview) {
             return {
                 date: localResult[`${row.key}_date`] || null,
@@ -158,7 +159,7 @@ const StatusBar: React.FC<Props> = ({
             };
         }
 
-        // その他のステージは特別扱い無し（date, reviewer, result はない）
+        // それ以外はデータなし
         return { date: null, reviewer: null, result: null };
     };
 

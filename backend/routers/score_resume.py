@@ -989,16 +989,47 @@ async def get_resume_results():
 @router.get("/resume-result/{candidate_id}")
 async def get_result_by_candidate_id(candidate_id: str):
     with SessionLocal() as db:
-        from backend.models.score_resume import CandidateDocumentReview
-        
+
+        # -------------------------------
+        # 🎉 候補者取得
+        # -------------------------------
         c = db.query(Candidate).filter_by(user_id=candidate_id).first()
         if not c:
-            return JSONResponse(content={"error": "候補者が見つかりません"}, status_code=404)
-
+            return JSONResponse({"error": "候補者が見つかりません"}, status_code=404)
+        
+        # -------------------------------
+        # 🎉 必要テーブル取得
+        # -------------------------------
         must_checks = db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).all()
         scores = db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).all()
-        histories = db.query(CandidateScoreHistory).filter_by(user_id=candidate_id).order_by(CandidateScoreHistory.reviewed_at.desc()).all()
+        histories = (
+            db.query(CandidateScoreHistory)
+            .filter_by(user_id=candidate_id)
+            .order_by(CandidateScoreHistory.reviewed_at.desc())
+            .all()
+        )
+        schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
+        interview_rows = db.query(ResultByInterview).filter_by(candidate_id=candidate_id).all()
+        status_rows = (
+            db.query(CandidateStatus)
+            .filter_by(user_id=candidate_id)
+            .order_by(CandidateStatus.reviewed_at.asc())
+            .all()
+        )
+        # -------------------------------
+        # 🎉 ステータス補完
+        # -------------------------------
+        latest_status = (
+            db.query(CandidateStatus)
+            .filter_by(user_id=candidate_id)
+            .order_by(CandidateStatus.reviewed_at.desc())
+            .first()
+        )
+        status_value = c.status or (latest_status.stage if latest_status else "アップロード")
 
+        # -------------------------------
+        # 🎉 スコア履歴マッピング
+        # -------------------------------
         history_map = {}
         for h in histories:
             history_map.setdefault(h.division, []).append({
@@ -1009,32 +1040,48 @@ async def get_result_by_candidate_id(candidate_id: str):
                 "source": h.source
             })
 
-        latest_status = (
-            db.query(CandidateStatus)
-            .filter(CandidateStatus.user_id == candidate_id)
-            .order_by(CandidateStatus.reviewed_at.desc())
-            .first()
-        )
+        # -------------------------------
+        # 🎉 ステータスマッピング
+        # -------------------------------
+        status_map = {
+            s.stage: {
+                "date": to_jst_iso(s.reviewed_at),
+                "reviewer": s.chat_reviewer,
+                "reviewed_resume": s.reviewed_resume,
+            }
+            for s in status_rows
+        }
 
-        # 🔥 Candidate.status を最優先
-        status_value = c.status
+        # -------------------------------
+        # 🎉 面談日時マッピング
+        # -------------------------------
+        interview_dates = {}
+        for s in schedules:
+            interview_dates[f"{s.interview_stage}_date"] = to_jst_iso(s.scheduled_at)
 
-        # 🔥 古い候補者で status が NULL の場合だけ補完
-        if not status_value:
-            status_value = latest_status.stage if latest_status else "アップロード"
+        if schedules:
+            interview_dates["last_updated"] = to_jst_iso(max(s.last_updated for s in schedules))
 
-        latest_reviewed_at = latest_status.reviewed_at if latest_status else None
+        # -------------------------------
+        # 🎉 面談結果マッピング
+        # -------------------------------
+        interview_results = [
+            {
+                "stage": r.stage_name,
+                "interviewer": r.interviewer_id,
+                "decision": r.hiring_decision,
+                "updated_at": to_jst_iso(r.updated_at)
+            }
+            for r in interview_rows
+        ]
 
-        # ✅ 書類選考結果を取得
-        doc_review = db.query(CandidateDocumentReview).filter_by(user_id=candidate_id).first()
-        
-        # ✅ 面談日程情報
-        schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
-        
+        # -------------------------------
+        # 🎉 最終返却値
+        # -------------------------------
         result_data = {
             "user_id": candidate_id,
             "user_name": c.name,
-            "name": c.name,  # 候補者名（互換性のため両方）
+            "name": c.name,
             "gender": c.gender,
             "birth_date": c.birth_date,
             "status": status_value,
@@ -1044,11 +1091,12 @@ async def get_result_by_candidate_id(candidate_id: str):
             "score_work": c.score_work,
             "experience": c.experience,
             "recommended_division": c.recommended_division,
-            "recommended_div": c.recommended_div, 
+            "recommended_div": c.recommended_div,
             "preferred_div": c.preferred_div,
             "uploader_id": c.uploader_id,
-            "timestamp": to_jst_iso(latest_reviewed_at),
-            # 待遇検討関連
+            "timestamp": to_jst_iso(latest_status.reviewed_at) if latest_status else None,
+
+            # HR 関連
             "hr_decision": c.hr_decision,
             "hr_saved_at": to_jst_iso(c.hr_saved_at) if c.hr_saved_at else None,
             "hr_saved_by": c.hr_saved_by,
@@ -1057,54 +1105,36 @@ async def get_result_by_candidate_id(candidate_id: str):
             "hr_division": c.hr_division,
             "hr_title": c.hr_title,
             "hr_income": c.hr_income,
-            # 書類選考関連
+
+            # 書類選考
             "document_review_date": to_jst_iso(c.document_review_date) if c.document_review_date else None,
             "document_review_reviewer": c.document_review_reviewer,
             "document_review_result": c.document_review_result,
+
+            # 必須チェック
             "must_check": {
                 m.item_name: {"result": m.result, "reason": m.reason}
                 for m in must_checks
             },
+
+            # スコア
             "scores": [
                 {
                     "division": s.division,
                     "score": s.score,
                     "reason": s.reason,
-                    "score_history": history_map.get(s.division, [])
+                    "score_history": history_map.get(s.division, []),
                 }
                 for s in scores
-            ]
+            ],
+
+            # 面談情報
+            **interview_dates,
+            "interview_results": interview_results,
+
+            # ステータス一覧
+            "status_map": status_map,
         }
-
-        # -------------------------------
-        # 🎉 正しい面談日程のセット処理
-        # -------------------------------
-        schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
-
-        for s in schedules:
-            if s.interview_stage == "interview_1":
-                result_data["interview_1_date"] = to_jst_iso(s.scheduled_at)
-            elif s.interview_stage == "interview_2":
-                result_data["interview_2_date"] = to_jst_iso(s.scheduled_at)
-            elif s.interview_stage == "interview_final":
-                result_data["interview_final_date"] = to_jst_iso(s.scheduled_at)
-
-        if schedules:
-            last_updated = max(s.last_updated for s in schedules)
-            result_data["last_updated"] = to_jst_iso(last_updated)
-
-        # 面談結果（実際の面談担当者）を取得
-        interview_rows = db.query(ResultByInterview).filter_by(candidate_id=candidate_id).all()
-
-        result_data["interview_results"] = [
-            {
-                "stage": r.stage_name,          # interview_1 / interview_2 / interview_final
-                "interviewer": r.interviewer_id,
-                "decision": r.hiring_decision,
-                "updated_at": to_jst_iso(r.updated_at)
-            }
-            for r in interview_rows
-        ]
 
         return JSONResponse(content=result_data)
 
