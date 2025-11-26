@@ -13,7 +13,7 @@ from pathlib import Path
 from backend.core.database import SessionLocal
 from backend.core.config import RESUME_PATH, MIME_TO_EXT
 from backend.models.resume import ResumeWorkHistory
-from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus, CandidateDocumentReview
+from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
 from backend.models.results_byinterview import ResultByInterview
 from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
@@ -930,16 +930,10 @@ async def get_resume_results():
                     recommended_div_score = rec_score.score
                     recommended_div_reason = rec_score.reason
 
-            # ✅ 書類選考結果を取得
-            doc_review = db.query(CandidateDocumentReview).filter_by(user_id=user_id).first()
-            document_review_result = None
-            document_review_date = None
-            document_review_reviewer = None
-            
-            if doc_review:
-                document_review_result = "合格" if doc_review.is_passed is True else "不合格"
-                document_review_date = to_jst_iso(doc_review.reviewed_at)
-                document_review_reviewer = doc_review.reviewer_id
+            # ✅ 書類選考結果（Candidate テーブルから取得）
+            document_review_result = c.document_review_result
+            document_review_date = to_jst_iso(c.document_review_date) if c.document_review_date else None
+            document_review_reviewer = c.document_review_reviewer
 
             result = {
                 "user_id": user_id,
