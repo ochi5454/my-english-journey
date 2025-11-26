@@ -132,7 +132,7 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
-        // 🔥 面談ステージは特別な形式：interview_x_date
+        // 面談ステージは特別な形式：interview_x_date
         if (row.is_interview) {
             const dateField = `${row.key}_date`;
             return {
@@ -142,15 +142,8 @@ const VerticalStatusBar: React.FC<Props> = ({
             };
         }
 
-        // 🔽 その他のステージ：従来通りの chat_review_xx_at
-        const dateKey = `chat_review_${row.key}_at`;
-        const reviewerKey = `chat_reviewer_${row.key}`;
-
-        return {
-            date: localResult[dateKey] || null,
-            reviewer: localResult[reviewerKey] || null,
-            result: null
-        };
+        // それ以外はデータなし
+        return { date: null, reviewer: null, result: null };
     };
 
     // ---------------------------
@@ -187,13 +180,15 @@ const VerticalStatusBar: React.FC<Props> = ({
                         (reviewStages.includes(step) && !!stageInfo.date) ||
                         (step === "待遇検討" && !!localResult.hr_review?.updated_at);
 
+                    const finalInterviewDate = localResult.interview_final_date;
+
                     const isScheduled =
                         (interviewStages.includes(step) &&
                             isInterviewScheduled(step) &&
                             !stageInfo.date) ||
                         (step === "待遇検討" &&
-                            !!localResult[`chat_review_${finalInterviewKey}_at`] &&
-                            !localResult.hr_review?.updated_at);
+                            finalInterviewDate &&
+                            !localResult.hr_saved_at);
 
                     return (
                         <div

@@ -62,8 +62,8 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
                 // 🔥 日本語 → 英語 の変換マップを生成
                 const map: Record<string, string> = {};
-                rows.filter(r => r.is_interview).forEach(r => {
-                    map[r.label] = r.key;      // 例: "1次面談" → "interview_2"
+                rows.forEach(r => {
+                    map[r.label] = r.key;   // label → key を全部対応付ける
                 });
                 setStageMap(map);
             })
@@ -218,20 +218,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             : [];
 
             setChatLog(prev => [...prev, { role: 'assistant', content: aiReply }]);
-
-            const now = new Date().toISOString();
-            const newChatReviewKey = `chat_review_${chatStage}_at`;
-            const newChatReviewerKey = `chat_reviewer_${chatStage}`;
-            setLocalResult((prev: any) => ({
-            ...prev,
-            [newChatReviewKey]: now,
-            [newChatReviewerKey]: interviewerId,
-            }));
-            onResultUpdate?.({
-            ...(localResult || {}),
-            [newChatReviewKey]: now,
-            [newChatReviewerKey]: interviewerId,
-            });
 
             if (shouldUpdate && scoreChangesArray.length > 0) {
             const updateRes = await fetch(`${appConfig.API_BASE_URL}/update-score`, {
@@ -630,24 +616,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             } finally {
                 setShowInterviewPrepModal(false);
             }
-            }}
-
-            onAiReviewed={(updated: any) => {
-            const stage = interviewStage!;
-
-            setLocalResult((prev: Record<string, any>) => ({
-                ...prev,
-                ...updated,
-                [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
-                [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
-            }));
-
-            onResultUpdate?.({
-                ...(localResult || {}),
-                ...updated,
-                [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
-                [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
-            });
             }}
             prefixToName={prefixToName}
         />

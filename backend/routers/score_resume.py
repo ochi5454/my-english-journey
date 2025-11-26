@@ -1093,19 +1093,7 @@ async def get_result_by_candidate_id(candidate_id: str):
             last_updated = max(s.last_updated for s in schedules)
             result_data["last_updated"] = to_jst_iso(last_updated)
 
-        # ✅ ステージごとの最終レビュー者情報
-        status_rows = db.query(CandidateStatus).filter_by(user_id=candidate_id).all()
-        for status in status_rows:
-            stage = status.stage
-            if stage is not None:
-                result_data[f"chat_review_{stage}_at"] = to_jst_iso(status.reviewed_at)
-                result_data[f"chat_reviewer_{stage}"] = status.chat_reviewer
-
-        if schedules:
-            last_updated = max(s.last_updated for s in schedules)
-            result_data["last_updated"] = to_jst_iso(last_updated)
-
-        # 追加: 面談結果（実際の面談担当者）を取得
+        # 面談結果（実際の面談担当者）を取得
         interview_rows = db.query(ResultByInterview).filter_by(candidate_id=candidate_id).all()
 
         result_data["interview_results"] = [

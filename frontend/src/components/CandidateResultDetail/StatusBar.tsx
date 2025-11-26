@@ -158,12 +158,8 @@ const StatusBar: React.FC<Props> = ({
             };
         }
 
-        // その他（chat_review_xxx_at）
-        return {
-            date: localResult[`chat_review_${row.key}_at`] || null,
-            reviewer: localResult[`chat_reviewer_${row.key}`] || null,
-            result: null
-        };
+        // その他のステージは特別扱い無し（date, reviewer, result はない）
+        return { date: null, reviewer: null, result: null };
     };
 
     // ---------------------------------------------
@@ -224,10 +220,19 @@ const StatusBar: React.FC<Props> = ({
                         (reviewStages.includes(label) && !!info.date) ||
                         (label === "待遇検討" && !!localResult.hr_review?.updated_at);
 
+                    const finalInterviewDate =
+                        localResult.interview_final_date ||
+                        localResult["interview_final_date"]; // 念のため両方
+
                     const isScheduled =
-                        interviewStages.includes(label) &&
-                        isInterviewScheduled(label) &&
-                        !info.date;
+                        (interviewStages.includes(label) &&
+                            isInterviewScheduled(label) &&
+                            !info.date) ||
+
+                        // 待遇検討の scheduled 条件を復活
+                        (label === "待遇検討" &&
+                            finalInterviewDate &&
+                            !localResult.hr_saved_at);
 
                     // 書類選考ボタン
                     const showDocumentButtons =
