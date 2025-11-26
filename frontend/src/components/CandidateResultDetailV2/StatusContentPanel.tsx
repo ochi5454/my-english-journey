@@ -850,22 +850,6 @@ const StatusContentPanel: React.FC<Props> = ({
                                 </div>
                             </div>
 
-                            {/* 必須チェック項目 */}
-                            {localResult.must_check && Object.keys(localResult.must_check).length > 0 && (
-                                <div className="must-check-section">
-                                    <h5>☑️ 必須要件</h5>
-                                    {Object.entries(localResult.must_check).map(([item, data]: [string, any]) => (
-                                        <div key={item} className={`check-item ${data.result ? 'pass' : 'fail'}`}>
-                                            <span className="check-icon">{data.result ? '✅' : '❌'}</span>
-                                            <div className="check-content">
-                                                <div className="check-name">{item}</div>
-                                                <div className="check-reason">{data.reason}</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
                             {/* 部門別スコア（履歴付き） */}
                             <div className="division-scores-section">
                                 <h5>🎯 部門別スコア</h5>
@@ -931,6 +915,43 @@ const StatusContentPanel: React.FC<Props> = ({
                                     );
                                 })}
                             </div>
+
+                            {/* 必須チェック項目（下部に配置） */}
+                            {localResult.must_check && Object.keys(localResult.must_check).length > 0 && (
+                                <div className="must-check-section">
+                                    <h5>☑️ 必須要件</h5>
+                                    {Object.entries(localResult.must_check).map(([item, data]: [string, any]) => (
+                                        <div key={item} className={`check-item ${data.result ? 'pass' : 'fail'}`}>
+                                            <span className="check-icon">{data.result ? '✅' : '❌'}</span>
+                                            <div className="check-content">
+                                                <div className="check-name">{item}</div>
+                                                <div className="check-reason">{data.reason}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* 部門別必須チェック項目（控えめに、スコアの下に表示） */}
+                            {localResult.division_must_check && Object.keys(localResult.division_must_check).length > 0 && (
+                                <div className="must-check-section division-must-check-section">
+                                    <h5>📂 部門別必須要件</h5>
+                                    {Object.entries(localResult.division_must_check).map(([division, checks]: [string, any]) => (
+                                    <div key={division} className="division-must-check-group">
+                                        <div className="division-must-check-title">{getDivisionName(division)}</div>
+                                        {Object.entries(checks as Record<string, any>).map(([item, data]) => (
+                                            <div key={`${division}-${item}`} className={`check-item ${data.result ? 'pass' : 'fail'}`}>
+                                                <span className="check-icon">{data.result ? '✅' : '❌'}</span>
+                                                <div className="check-content">
+                                                    <div className="check-name">{item}</div>
+                                                    <div className="check-reason">{data.reason}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                     </div>

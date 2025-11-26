@@ -1001,6 +1001,7 @@ async def get_result_by_candidate_id(candidate_id: str):
         # 🎉 必要テーブル取得
         # -------------------------------
         must_checks = db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).all()
+        division_must_checks = db.query(CandidateDivisionMustCheckItem).filter_by(user_id=candidate_id).all()
         scores = db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).all()
         histories = (
             db.query(CandidateScoreHistory)
@@ -1078,6 +1079,16 @@ async def get_result_by_candidate_id(candidate_id: str):
         # -------------------------------
         # 🎉 最終返却値
         # -------------------------------
+        division_must_check_dict = {}
+        for d in division_must_checks:
+            division = d.division
+            if division not in division_must_check_dict:
+                division_must_check_dict[division] = {}
+            division_must_check_dict[division][d.item_name] = {
+                "result": d.result,
+                "reason": d.reason,
+            }
+
         result_data = {
             "user_id": candidate_id,
             "user_name": c.name,
@@ -1116,6 +1127,7 @@ async def get_result_by_candidate_id(candidate_id: str):
                 m.item_name: {"result": m.result, "reason": m.reason}
                 for m in must_checks
             },
+            "division_must_check": division_must_check_dict,
 
             # スコア
             "scores": [

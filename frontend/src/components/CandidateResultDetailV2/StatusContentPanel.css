@@ -367,6 +367,24 @@
     line-height: 1.5;
 }
 
+.division-must-check-section {
+    margin-top: 12px;
+}
+
+.division-must-check-group {
+    background: #f9fafb;
+    border: 1px dashed #d6d6d6;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.division-must-check-title {
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 6px;
+}
+
 /* 部門別スコア */
 .division-scores-section {
     margin-bottom: 20px;

@@ -559,6 +559,64 @@
   color: #dc3545;
 }
 
+.division-must-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.division-must-check-group {
+  background: #f9fafb;
+  border: 1px dashed #d6d6d6;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.division-must-check-title {
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 6px;
+}
+
+.division-check-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  border-left: 4px solid;
+  margin-bottom: 6px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+}
+
+.division-check-item.pass {
+  border-left-color: #22c55e;
+}
+
+.division-check-item.fail {
+  border-left-color: #ef4444;
+}
+
+.division-check-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.division-check-content {
+  flex: 1;
+}
+
+.division-check-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.division-check-reason {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 2px;
+}
+
 /* --- Department Scores --- */
 .result-d-score-item {
   border: 1px solid #eee;
