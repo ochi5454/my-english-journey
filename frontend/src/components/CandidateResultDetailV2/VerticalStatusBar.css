@@ -144,6 +144,35 @@
     background-color: #1e7e34;
 }
 
+.vertical-status-item.skipped .status-bookmark {
+    background-color: #6c757d;
+    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+}
+
+.vertical-status-item.skipped .bookmark-label {
+    color: white;
+}
+
+.bookmark-skip-label {
+    margin-left: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.vertical-status-item.skipped .bookmark-triangle {
+    border-left-color: #f8f9fa;
+}
+
+.vertical-status-item.skipped.selected .status-bookmark,
+.vertical-status-item.skipped.active .status-bookmark {
+    background-color: #6c757d;
+    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+}
+
+.status-info.skipped-info {
+    border-left: 3px solid #6c757d;
+}
+
 /* ステータス詳細情報 */
 .status-info {
     margin-top: 8px;

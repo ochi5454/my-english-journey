@@ -41,25 +41,26 @@ const VerticalStatusBar: React.FC<Props> = ({
         fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
             .then(res => res.json())
             .then(rows => {
-                setStatusMaster(rows);
+                const ordered = [...rows].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+                setStatusMaster(ordered);
 
                 // 全ステージ順番
-                setStatusSteps(rows.map((r: any) => r.label));
+                setStatusSteps(ordered.map((r: any) => r.label));
 
                 // レビュー対象
                 setReviewStages(
-                    rows.filter((r: any) => r.is_review_target).map((r: any) => r.label)
+                    ordered.filter((r: any) => r.is_review_target).map((r: any) => r.label)
                 );
 
                 // 面談ステージ（DBの is_interview）
-                const iStages = rows
+                const iStages = ordered
                     .filter((r: any) => r.is_interview)
                     .map((r: any) => r.label);
                 setInterviewStages(iStages);
 
                 // 面談ステージ → key のマッピング
                 const map: Record<string, string> = {};
-                rows.filter((r: any) => r.is_interview).forEach((r: any) => {
+                ordered.filter((r: any) => r.is_interview).forEach((r: any) => {
                     map[r.label] = r.key;
                 });
                 setInterviewStageMap(map);
@@ -94,6 +95,20 @@ const VerticalStatusBar: React.FC<Props> = ({
 
         const dateField = `${backendKey}_date`; // interview_1_date など
         return !!localResult[dateField];
+    };
+
+    // ---------------------------
+    // 🔽 面談結果が存在するか？
+    // ---------------------------
+    const hasInterviewResult = (step: string): boolean => {
+        const backendKey = interviewStageMap[step];
+        if (!backendKey) return false;
+
+        if (localResult[`${backendKey}_result`]) return true;
+
+        return (localResult.interview_results || []).some(
+            (r: any) => r.stage === backendKey
+        );
     };
 
     // ---------------------------
@@ -137,10 +152,16 @@ const VerticalStatusBar: React.FC<Props> = ({
         // 面談ステージは特別な形式：interview_x_date(＊InterviewSchedule、ResultByInterviewから取得)
         if (row.is_interview) {
             const dateField = `${row.key}_date`;
+            const rawResult = localResult[`${row.key}_result`];
+            const resultFromList = (localResult.interview_results || []).find(
+                (r: any) => r.stage === row.key
+            )?.decision;
+            const decision = rawResult ?? resultFromList;
+            const decisionLabel = decisionMap[decision] || decision || null;
             return {
                 date: localResult[dateField] || null,
                 reviewer: getInterviewInterviewer(step),
-                result: null
+                result: decisionLabel
             };
         }
 
@@ -173,6 +194,7 @@ const VerticalStatusBar: React.FC<Props> = ({
 
                 {statusSteps.map((step, idx) => {
                     const stageInfo = getStageInfo(step);
+                    const row = statusMaster.find(r => r.label === step);
 
                     const isActive = localResult.status === step;
                     const isSelected = selectedStage === step;
@@ -183,11 +205,23 @@ const VerticalStatusBar: React.FC<Props> = ({
                         (step === "待遇検討" && (!!localResult.hr_saved_at || !!localResult.hr_review?.updated_at));
 
                     const finalInterviewDate = localResult.interview_final_date;
+                    const currentStatusIndex = statusSteps.indexOf(localResult.status);
+                    const stepIndex = statusSteps.indexOf(step);
+                    const isPastStage =
+                        currentStatusIndex !== -1 &&
+                        stepIndex !== -1 &&
+                        stepIndex < currentStatusIndex;
+
+                    const isSkipped =
+                        isPastStage &&
+                        row?.is_interview &&
+                        !hasInterviewResult(step);
 
                     const isScheduled =
                         (interviewStages.includes(step) &&
                             isInterviewScheduled(step) &&
-                            !stageInfo.date) ||
+                            !stageInfo.date &&
+                            !isSkipped) ||
                         (step === "待遇検討" &&
                             finalInterviewDate &&
                             !localResult.hr_saved_at &&
@@ -200,35 +234,53 @@ const VerticalStatusBar: React.FC<Props> = ({
                                 ${isActive ? "active" : ""}
                                 ${isSelected ? "selected" : ""}
                                 ${isStepDone ? "done" : ""}
-                                ${isScheduled ? "scheduled" : ""}`}
+                                ${isScheduled ? "scheduled" : ""}
+                                ${isSkipped ? "skipped" : ""}`}
                             onClick={() => onStageSelect(step)}
                         >
                             <div className="status-bookmark">
-                                <div className="bookmark-label">{step}</div>
+                                <div className="bookmark-label">
+                                    {step}
+                                    {isSkipped && <span className="bookmark-skip-label">（省略）</span>}
+                                </div>
                                 <div className="bookmark-triangle"></div>
                             </div>
 
-                            {stageInfo.date && (
-                                <div className="status-info">
-                                    <div className="info-line">
-                                        <span className="info-icon">🗓️</span>
-                                        <span className="info-text">
-                                            {new Date(stageInfo.date).toLocaleDateString('ja-JP')}
-                                        </span>
-                                    </div>
-                                    <div className="info-line">
-                                        <span className="info-icon">🧑</span>
-                                        <span className="info-text">
-                                            {interviewStages.includes(step)
-                                                ? getInterviewInterviewer(step) || "-"
-                                                : stageInfo.reviewer || "-"
-                                            }
-                                        </span>
-                                    </div>
+                            {(stageInfo.date || stageInfo.reviewer || stageInfo.result || isSkipped) && (
+                                <div className={`status-info ${isSkipped ? "skipped-info" : ""}`}>
+                                    {(stageInfo.date || isSkipped) && (
+                                        <div className="info-line">
+                                            <span className="info-icon">🗓️</span>
+                                            <span className="info-text">
+                                                {isSkipped
+                                                    ? "-"
+                                                    : stageInfo.date
+                                                        ? new Date(stageInfo.date).toLocaleDateString('ja-JP')
+                                                        : "-"}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {(stageInfo.reviewer || interviewStages.includes(step)) && (
+                                        <div className="info-line">
+                                            <span className="info-icon">🧑</span>
+                                            <span className="info-text">
+                                                {interviewStages.includes(step)
+                                                    ? getInterviewInterviewer(step) || "-"
+                                                    : stageInfo.reviewer || "-"
+                                                }
+                                            </span>
+                                        </div>
+                                    )}
                                     {stageInfo.result && (
                                         <div className="info-line">
                                             <span className="info-icon">📋</span>
                                             <span className="info-text">{stageInfo.result}</span>
+                                        </div>
+                                    )}
+                                    {isSkipped && (
+                                        <div className="info-line">
+                                            <span className="info-icon">⏭️</span>
+                                            <span className="info-text">面談を省略しました</span>
                                         </div>
                                     )}
                                 </div>
