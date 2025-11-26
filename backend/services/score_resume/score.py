@@ -433,11 +433,11 @@ async def score_resume_from_text_async(
         base_score = score_obj.score
 
         checks = must_results_by_division.get(score_obj.division) or \
-                 must_results_by_division.get(div_prefix)
+                must_results_by_division.get(div_prefix)
         
         if checks:
             ng_count = sum(1 for c in checks.values() if not c.get("result"))
-            PENALTY_PER_NG = 10
+            PENALTY_PER_NG = 30  # 必須スキル不合格のペナルティ 厳しめに30
             adjusted_score = max(base_score - (ng_count * PENALTY_PER_NG), 0)
         else:
             ng_count = 0
