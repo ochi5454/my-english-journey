@@ -175,8 +175,7 @@ async def update_score(payload: ScoreUpdateRequest, db: Session = Depends(get_db
         db=db,
         user_id=candidate_id,
         new_stage=stage,
-        reviewer_id=reviewer_id,
-        reviewed_resume=False
+        reviewer_id=reviewer_id
     )
 
     # 推奨部門の更新だけ別処理

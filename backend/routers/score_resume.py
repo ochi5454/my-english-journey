@@ -207,7 +207,6 @@ async def resume_score_save(
                     stage="アップロード",
                     chat_reviewer=uploader_id,
                     reviewed_at=now,
-                    reviewed_resume=False
                 )
                 db.add(new_status)
                 db.commit()
@@ -1042,7 +1041,6 @@ async def get_result_by_candidate_id(candidate_id: str):
             s.stage: {
                 "date": to_jst_iso(s.reviewed_at),
                 "reviewer": s.chat_reviewer,
-                "reviewed_resume": s.reviewed_resume,
             }
             for s in status_rows
         }

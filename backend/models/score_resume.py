@@ -100,7 +100,6 @@ class CandidateStatus(Base):
     stage = Column(String)  # 例: "アップロード", "書類選考", "web面談", "1次面談", "2次面談"
     chat_reviewer = Column(String)
     reviewed_at = Column(DateTime)
-    reviewed_resume = Column(Boolean)
 
 # ============================================
 # ✅ 推薦度の数式

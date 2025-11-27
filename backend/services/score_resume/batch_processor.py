@@ -127,7 +127,7 @@ class BatchResumeProcessor:
                         stage="アップロード",
                         chat_reviewer=uploader_id,
                         reviewed_at=now,
-                        reviewed_resume=False  # 書類選考は未実施
+                        # reviewed_resume は使用しない
                     )
                     db.add(status)
                     db.commit()
