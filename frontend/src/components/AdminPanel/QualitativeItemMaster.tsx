@@ -20,6 +20,7 @@ const QualitativeItemMaster: React.FC = () => {
     const [newOrder, setNewOrder] = useState<number | ''>('');
     const [newPayType, setNewPayType] = useState<'daily_monthly' | 'hourly'>('daily_monthly');
     const [loading, setLoading] = useState(false);
+    const [recentlyActivatedIds, setRecentlyActivatedIds] = useState<string[]>([]);
 
     // --- 編集対象管理（ラベル／プレースホルダー別） ---
     const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
@@ -103,6 +104,11 @@ const QualitativeItemMaster: React.FC = () => {
                 body: JSON.stringify(body),
             });
             if (!res.ok) throw new Error('更新失敗');
+            if (field === 'is_active' && value === true) {
+                setRecentlyActivatedIds((prev) =>
+                    prev.includes(id) ? prev : [...prev, id]
+                );
+            }
             await fetchItems();
             setEditingLabelId(null);
             setEditingPlaceholderId(null);
@@ -204,7 +210,13 @@ const QualitativeItemMaster: React.FC = () => {
                             return orderA - orderB;
                         })
                         .map((item) => (
-                        <tr key={item.id} className={!item.is_active ? 'inactive' : ''}>
+                        <tr
+                            key={item.id}
+                            className={[
+                                !item.is_active ? 'inactive' : '',
+                                recentlyActivatedIds.includes(item.id) ? 'reactivated' : '',
+                            ].join(' ').trim()}
+                        >
                             <td>{item.id}</td>
                             <td><code>{item.key}</code></td>
 
