@@ -151,13 +151,24 @@ export default function CandidateMatrixTable({
 
     if (loading) return <p>読み込み中...</p>;
 
-    const groupedByStatus = allStatuses.reduce((acc, status) => {
+    // ステータスマスターが未取得の場合、候補者のステータスから動的に生成
+    const effectiveStatuses = allStatuses.length > 0
+        ? allStatuses
+        : [...new Set(filteredResults.map(r => r.status || 'アップロード'))];
+
+    console.log('[DEBUG] filteredResults:', filteredResults.length);
+    console.log('[DEBUG] allStatuses:', allStatuses);
+    console.log('[DEBUG] effectiveStatuses:', effectiveStatuses);
+
+    const groupedByStatus = effectiveStatuses.reduce((acc, status) => {
         acc[status] = filteredResults.filter(r => {
             const rStatus = r.status || 'アップロード';
             return rStatus === status || (status === 'アップロード' && rStatus.includes('アップロード'));
         });
         return acc;
     }, {} as Record<string, Result[]>);
+
+    console.log('[DEBUG] groupedByStatus:', groupedByStatus);
 
     const toggleStage = (stage: string) => {
         setCollapsedStages(prev => {
@@ -331,7 +342,7 @@ export default function CandidateMatrixTable({
                 ref={wrapperRef}
                 style={{ paddingBottom: isFullscreen ? '0' : '40px' }}
             >
-                {allStatuses.map(status => {
+                {effectiveStatuses.map(status => {
                     const group = groupedByStatus[status];
                     const count = group?.length || 0;
                     

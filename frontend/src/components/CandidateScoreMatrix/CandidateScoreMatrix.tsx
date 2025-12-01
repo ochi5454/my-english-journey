@@ -158,6 +158,8 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
             });
     }, []);
 
+    console.log('[DEBUG Parent] results count:', results.length);
+
     // フィルタリング処理
     const filteredResults = results.filter((r) => {
         const {
@@ -176,11 +178,13 @@ const CandidateScoreMatrix: React.FC<{ interviewerId: string }> = ({ interviewer
         const p = r.ai_score_percentile ?? 0;
         const min = Number(aiScoreMinPercentile) || 0;
         const max = Number(aiScoreMaxPercentile) || 100;
-        const aiScoreMatch = p >= min && p < max;
-        const hrPendingMatch = onlyPending ? !r.hr_decision : true;
+        const aiScoreMatch = p >= min && p <= max;
+        const hrPendingMatch = onlyPending ? (!r.hr_decision || r.hr_decision === '') : true;
 
         return idMatch && nameMatch && genderMatch && statusMatch && preferredDivisionMatch && recommendedDivisionMatch && mustPassed && aiScoreMatch && hrPendingMatch;
     });
+
+    console.log('[DEBUG Parent] filteredResults count:', filteredResults.length);
 
     // 必須項目抽出
     const allMustKeys = Object.keys(results[0]?.must_check || {});
