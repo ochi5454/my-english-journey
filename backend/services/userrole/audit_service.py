@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from backend.core.database import UserRoleDB
 from backend.models.userrole import AuditLog
+from backend.utils.timezone import to_jst_iso
 
 # ============================================
 # 監査ログサービス
@@ -281,7 +282,7 @@ class AuditService:
             "changes": changes,
             "ip_address": log.ip_address,
             "user_agent": log.user_agent,
-            "created_at": log.created_at.isoformat() if log.created_at is not None else None
+            "created_at": to_jst_iso(log.created_at)
         }
     
     @staticmethod

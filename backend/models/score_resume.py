@@ -100,7 +100,6 @@ class CandidateStatus(Base):
     stage = Column(String)  # 例: "アップロード", "書類選考", "web面談", "1次面談", "2次面談"
     chat_reviewer = Column(String)
     reviewed_at = Column(DateTime)
-    reviewed_resume = Column(Boolean)
 
 # ============================================
 # ✅ 推薦度の数式
@@ -120,3 +119,21 @@ class AIFormulaConfig(Base):
     __table_args__ = (
         UniqueConstraint("key", "division", name="uq_ai_formula_key_division"),
     )
+
+# ============================================
+# ✅ ステータスマスター（StatusMaster）
+# ============================================
+class StatusMaster(Base):
+    __tablename__ = "candidate_status_master"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True)
+    label = Column(String)
+    order = Column(Integer)
+    next_key = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    is_skippable = Column(Boolean, default=False) # スキップ可能かどうか
+    is_interview = Column(Boolean, default=False) # 面談ステータスかどうか
+    is_review_target = Column(Boolean, default=False) # レビュー対象ステータスかどうか

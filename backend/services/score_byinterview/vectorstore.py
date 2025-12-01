@@ -1,13 +1,11 @@
-from backend.core.config import CHROMA_PATH
-import chromadb
+from backend.core.chroma_client import get_resume_collection
 
 def load_resume_text_by_candidate(candidate_id: str) -> str:
     """
     候補者IDに紐づく履歴書テキストをChromaから復元
     """
     try:
-        chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-        collection = chroma_client.get_or_create_collection("resumes_local")
+        collection = get_resume_collection()
 
         results = collection.get(
             where={"candidate_id": candidate_id},

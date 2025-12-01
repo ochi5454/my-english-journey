@@ -124,10 +124,10 @@ class BatchResumeProcessor:
                     status = CandidateStatus(
                         id=str(uuid4()),
                         user_id=candidate_id,
-                        stage="アップロード",  # 一括アップロード → アップロードに変更
+                        stage="アップロード",
                         chat_reviewer=uploader_id,
                         reviewed_at=now,
-                        reviewed_resume=False  # 書類選考は未実施
+                        # reviewed_resume は使用しない
                     )
                     db.add(status)
                     db.commit()

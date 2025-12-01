@@ -5,6 +5,7 @@ import type { AIRawResult, InterviewEval } from './hrReviewTypes';
 import { useHRFinalReviewData } from './useHRFinalReviewData';
 import CandidateReviewBlock from './CandidateReviewBlock';
 import CandidateFilterPanel from './CandidateFilterPanel';
+import type { StatusMasterRow } from '../CandidateResultDetail/StatusBar';
 
 const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interviewerId }) => {
     const {
@@ -20,6 +21,24 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
         userName: '',
     });
     const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
+    const [interviewStageOrder, setInterviewStageOrder] = useState<Record<string, number>>({});
+
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then((rows: StatusMasterRow[]) => {
+                const map: Record<string, number> = {};
+
+                rows
+                    .filter((r) => r.is_interview)
+                    .forEach((r) => {
+                        map[r.key] = r.order ?? 999;
+                    });
+
+                setInterviewStageOrder(map);
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
 
     // detail画面からの遷移
     useEffect(() => {
@@ -129,10 +148,13 @@ const HRFinalReviewDashboard: React.FC<{ interviewerId: string }> = ({ interview
             {/* 候補者単位のブロック */}
             {filteredCandidateIds.map((candidateId) => {
                 const ai = groupedAI[candidateId];
-                const evals = (groupedInterview[candidateId] || []).slice().sort((a, b) => {
-                    const order = ["面談・1次", "面談・2次", "最終面談"];
-                    return order.indexOf(a.stage) - order.indexOf(b.stage);
-                });
+                const evals = (groupedInterview[candidateId] || [])
+                    .slice()
+                    .sort((a, b) => {
+                        const orderA = interviewStageOrder[a.stage] ?? 999;
+                        const orderB = interviewStageOrder[b.stage] ?? 999;
+                        return orderA - orderB;
+                    });
 
                 return (
                     <CandidateReviewBlock

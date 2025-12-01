@@ -5,9 +5,11 @@ from fastapi.exceptions import HTTPException
 from typing import Dict, Any, Mapping
 from backend.core.config import INTERVIEWER_META_PATH
 from backend.core.database import SessionLocal
+from backend.models.score_resume import Candidate
 from backend.utils.checksheet import load_hiring_decisions, load_employment_types, load_role_titles, load_qualitative_items, load_quantitative_items
 from backend.utils.load_json import _load_json, _safe_load_json
 from backend.utils.division import load_division_names, get_expected_focus_items, convert_division_to_prefix
+from backend.utils.status import get_status_by_label, get_status_by_key, is_stage_skippable
 from backend.services.checksheet.upsert import upsert_checksheet, get_checksheet_one
 from backend.services.checksheet.read_all import _as_non_empty_str, list_all_checksheet_blocks
 from backend.services.score_ofinterviewer.tag import load_role_focus_dict, load_all_prepitem_tags_by_role, extract_ids_and_labels
@@ -91,53 +93,53 @@ def api_upsert_checksheet(payload: Dict[str, Any]):
     with SessionLocal() as db:
         upsert_checksheet(db, iid, cid, stage, block)
 
-        # ステータスを次の段階に進める
-        from backend.models import Candidate
-        candidate = db.query(Candidate).filter_by(user_id=cid).first()
-        if candidate:
-            # 面談完了後、次のステータスに進める
-            stage_progression = {
-                "web面談": "1次面談",
-                "1次面談": "2次面談",
-                "2次面談": "待遇検討"
-            }
-            next_stage = stage_progression.get(stage)
-            if next_stage:
-                candidate.status = next_stage
-                db.commit()
+        # 保存するだけではステータスは進めない。（１次保存もできるように）
+        # AIスコア精査ボタン・APIの方でステータスを更新とする。
 
     return {"ok": True}
 
 @router.post("/interview/skip")
 def skip_interview(payload: Dict[str, Any]):
     """面談省略エンドポイント - 面談をスキップして次のステージに進める"""
-    cid = _as_non_empty_str(payload.get("candidate_id"))
-    stage = _as_non_empty_str(payload.get("stage"))
 
-    if not (cid and stage):
+    cid = _as_non_empty_str(payload.get("candidate_id"))
+    stage_label = _as_non_empty_str(payload.get("stage"))  # ← label（例: "1次面談"）
+
+    if not (cid and stage_label):
         raise HTTPException(status_code=400, detail="candidate_id, stage は必須です")
 
-    # 1次面談と2次面談のみスキップ可能
-    if stage not in ["1次面談", "2次面談"]:
-        raise HTTPException(status_code=400, detail="1次面談または2次面談のみスキップ可能です")
-
     with SessionLocal() as db:
-        from backend.models import Candidate
+
+        # --- 現ステージのマスタ行を取得（label→row） ---
+        row = get_status_by_label(db, stage_label)
+        if not row:
+            raise HTTPException(status_code=400, detail=f"不正なステージです: {stage_label}")
+
+        # --- スキップ可能か？（DBの is_skippable） ---
+        if not is_stage_skippable(db, stage_label):
+            raise HTTPException(status_code=400, detail=f"{stage_label} はスキップできません")
+
+        # --- 次ステージ（next_key）を取得 ---
+        next_key = row.next_key
+        if not next_key:
+            raise HTTPException(status_code=400, detail=f"{stage_label} は最終ステージのためスキップ不可です")
+
+        # --- 次ステージの label を取得（表示用） ---
+        next_row = get_status_by_key(db, next_key)
+        if not next_row:
+            raise HTTPException(status_code=500, detail="次ステージがステータスマスタに存在しません")
+
+        next_label = next_row.label  # ← フロントへ返す値
+
+        # --- 候補者更新（label を保存） ---
         candidate = db.query(Candidate).filter_by(user_id=cid).first()
         if not candidate:
             raise HTTPException(status_code=404, detail="候補者が見つかりません")
 
-        # 次のステージに進める
-        stage_progression = {
-            "1次面談": "2次面談",
-            "2次面談": "待遇検討"
-        }
-        next_stage = stage_progression.get(stage)
-        if next_stage:
-            candidate.status = next_stage
-            db.commit()
+        candidate.status = next_label
+        db.commit()
 
-    return {"ok": True, "next_stage": next_stage}
+    return {"ok": True, "next_stage": next_label}
 
 @router.get("/checksheet/role-focus-summary")
 def get_role_focus_summary():

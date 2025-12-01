@@ -1,26 +1,13 @@
-import uuid
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.models.score_resume import Candidate, CandidateStatus
 from backend.schemas.hr_review import HRReviewUpdate
+from backend.utils.status import update_candidate_status, get_all_status_labels
 
 router = APIRouter()
 JST = timezone(timedelta(hours=9))
-
-ALL_STATUSES = [
-    "アップロード",
-    "書類選考",
-    "web面談",
-    "1次面談",
-    "2次面談",
-    "待遇検討",
-    "内定通知",
-    "内定受諾",
-    "内定辞退",
-    "不合格"
-]
 
 #  ============================================
 #  📮 最終HR判定
@@ -65,7 +52,6 @@ async def update_hr_review(
 
 @router.post("/update-status")
 async def update_status(payload: dict, db: Session = Depends(get_db)):
-    """単一候補者のステータスを更新"""
     user_id = payload.get("user_id")
     new_stage = payload.get("stage")
     reviewer_id = payload.get("reviewer_id", "system")
@@ -73,29 +59,12 @@ async def update_status(payload: dict, db: Session = Depends(get_db)):
     if not user_id or not new_stage:
         raise HTTPException(status_code=400, detail="user_id and stage are required")
 
-    candidate = db.query(Candidate).filter_by(user_id=user_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail="Candidate not found")
-
-    now = datetime.now(JST)
-
-    # CandidateStatusに新規行を追加
-    new_status = CandidateStatus(
-        id=str(uuid.uuid4()),
+    update_candidate_status(
+        db=db,
         user_id=user_id,
-        stage=new_stage,
-        chat_reviewer=reviewer_id,
-        reviewed_at=now,
-        reviewed_resume=False,
+        new_stage=new_stage,
+        reviewer_id=reviewer_id
     )
-    db.add(new_status)
-
-    # Candidateテーブルのstatus（表示用）も更新
-    candidate.status = new_stage
-    candidate.updated_at = now
-    candidate.updated_by = reviewer_id
-
-    db.commit()
 
     return {"status": "ok", "user_id": user_id, "new_stage": new_stage}
 
@@ -107,47 +76,34 @@ def advance_candidate_status(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="user_ids is required")
 
     updated = []
-    for user_id in user_ids:
-        candidate = db.query(Candidate).filter_by(user_id=user_id).first()
-        if not candidate:
-            continue
 
-        # 現在ステージを取得
+    for user_id in user_ids:
         latest_status = (
             db.query(CandidateStatus)
             .filter_by(user_id=user_id)
             .order_by(CandidateStatus.reviewed_at.desc())
             .first()
         )
-        current_stage = str(latest_status.stage) if latest_status else "アップロード"
+        # すべてのステータス（label）を順序付きで取得
+        all_labels = get_all_status_labels(db)
 
-        # 次ステージを決定
+        current_label = str(latest_status.stage) if latest_status else all_labels[0]
+
         try:
-            next_stage = ALL_STATUSES[ALL_STATUSES.index(current_stage) + 1]
+            next_label = all_labels[all_labels.index(current_label) + 1]
         except (ValueError, IndexError):
-            # すでに最終ステージなど
-            next_stage = current_stage
+            next_label = current_label
 
-        # CandidateStatusに新規行を追加
-        new_status = CandidateStatus(
-            id=str(uuid.uuid4()),
+        update_candidate_status(
+            db=db,
             user_id=user_id,
-            stage=next_stage,
-            chat_reviewer=advanced_by,
-            reviewed_at=datetime.now(JST),
-            reviewed_resume=False,
+            new_stage=next_label,
+            reviewer_id=advanced_by
         )
-        db.add(new_status)
-
-        # Candidateテーブルのstatusも更新
-        candidate.status = next_stage
-        candidate.updated_at = datetime.now(JST)
-        candidate.updated_by = advanced_by
 
         updated.append({
             "user_id": user_id,
-            "new_stage": next_stage,
+            "new_stage": next_label,
         })
 
-    db.commit()
     return {"updated": updated, "count": len(updated)}

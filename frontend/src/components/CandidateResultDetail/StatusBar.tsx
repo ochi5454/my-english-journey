@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import appConfig from "../../config";
 
 interface Props {
@@ -10,24 +10,15 @@ interface Props {
     onOpenReupload: () => void;
 }
 
-const statusSteps = [
-    "アップロード",
-    "書類選考",
-    "web面談",
-    "1次面談",
-    "2次面談",
-    "待遇検討",
-    "内定通知",
-    "内定受諾",
-    "内定辞退"
-];
-
-const reviewStages = [
-    "書類選考",
-    "web面談",
-    "1次面談",
-    "2次面談"
-];
+export　interface StatusMasterRow {
+    key: string;
+    label: string;
+    order: number;
+    next_key: string | null;
+    is_skippable: boolean;
+    is_interview: boolean;
+    is_review_target: boolean;
+}
 
 const StatusBar: React.FC<Props> = ({
     localResult,
@@ -37,205 +28,285 @@ const StatusBar: React.FC<Props> = ({
     onOpenInterviewPrep,
     onOpenReupload,
 }) => {
-    const interviewStages = ["web面談", "1次面談", "2次面談"];
+
+    // 🔽 DB のステータスマスタ
+    const [statusMaster, setStatusMaster] = useState<any[]>([]);
+    const [statusSteps, setStatusSteps] = useState<string[]>([]);
+    const [reviewStages, setReviewStages] = useState<string[]>([]);
+    const [interviewStages, setInterviewStages] = useState<string[]>([]);
+    const [interviewMap, setInterviewMap] = useState<Record<string, string>>({});
+    const usedInterviewStages = interviewStages;        // ← そのまま DB の値
+    const usedInterviewStageMap = interviewMap;         // ← そのまま DB の値
+
+    const [decisionMap, setDecisionMap] = useState<Record<string, string>>({});
     const [processingStage, setProcessingStage] = useState<string | null>(null);
 
-    const isInterviewScheduled = (stage: string): boolean => {
-        const keyMap: Record<string, string> = {
-            "web面談": "interview_1_date",
-            "1次面談": "interview_2_date",
-            "2次面談": "interview_final_date",
-        };
-        const key = keyMap[stage];
-        if (!key) return false;
-        return !!localResult[key];
+    // ---------------------------------------------
+    // 🔽 StatusMaster を DB から取得
+    // ---------------------------------------------
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then((rows: StatusMasterRow[]) => {
+                setStatusMaster(rows);
+
+                // 1) 全ステップ（順番通り）
+                setStatusSteps(rows.map(r => r.label));
+
+                // 2) レビュー対象（書類/Web/1次/最終）
+                setReviewStages(rows.filter(r => r.is_review_target).map(r => r.label));
+
+                // 3) 面談ステージ
+                const interviews = rows.filter(r => r.is_interview);
+                setInterviewStages(interviews.map(r => r.label));
+
+                // 4) 日本語 → backend key（interview_1 など）
+                const map: Record<string, string> = {};
+                interviews.forEach(r => {
+                    map[r.label] = r.key;
+                });
+                setInterviewMap(map);
+            });
+    }, []);
+
+    // ---------------------------------------------
+    // 🔽 待遇検討マスタ
+    // ---------------------------------------------
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/checksheet/config`)
+            .then(res => res.json())
+            .then(data => {
+                const map: Record<string, string> = {};
+                (data.hiringDecisions || []).forEach((d: any) => {
+                    map[d.id] = d.value;
+                });
+                setDecisionMap(map);
+            });
+    }, []);
+
+    // ---------------------------------------------
+    // 🔽 不採用判定
+    // ---------------------------------------------
+    const isRejected =
+        localResult.status === "内定辞退" ||
+        localResult.hr_decision === "不採用";
+
+    // ---------------------------------------------
+    // 🔽 面談の日程が入っているか？
+    // ---------------------------------------------
+    const isInterviewScheduled = (label: string): boolean => {
+        const backendKey = interviewMap[label];
+        if (!backendKey) return false;
+        return !!localResult[`${backendKey}_date`];
     };
 
+    // ---------------------------------------------
+    // 🔽 面談担当者を取得
+    // ---------------------------------------------
+    const getInterviewInterviewer = (label: string): string | null => {
+        if (!localResult.interview_results) return null;
+
+        const backendKey = interviewMap[label];
+        if (!backendKey) return null;
+
+        const res = localResult.interview_results.find((r: any) => r.stage === backendKey);
+        return res?.interviewer ?? null;
+    };
+
+    // ---------------------------------------------
+    // 🔽 ステージ情報（date, reviewer, result）
+    // ---------------------------------------------
+    const getStageInfo = (label: string) => {
+        const row = statusMaster.find(r => r.label === label);
+        if (!row) return { date: null, reviewer: null, result: null };
+
+        // アップロード(＊CandidateStatusから取得)
+        if (row.key === "upload") {
+            const info = localResult.status_map?.["アップロード"];
+            return {
+                date: info?.date || null,
+                reviewer: info?.reviewer || null,
+                result: null
+            };
+        }
+
+        // 書類選考(＊Candidateから取得)
+        if (row.key === "screening") {
+            return {
+                date: localResult.document_review_date,
+                reviewer: localResult.document_review_reviewer,
+                result: localResult.document_review_result
+            };
+        }
+
+        // 待遇検討(＊Candidateから取得)
+        if (row.key === "treatment") {
+            const raw = localResult.hr_decision;
+            const label = decisionMap[raw] || raw;
+            return {
+                date: localResult.hr_saved_at || null,
+                reviewer: localResult.hr_saved_by || null,
+                result: label
+            };
+        }
+
+        // 面談ステージは特別な形式：interview_x_date(＊InterviewSchedule、ResultByInterviewから取得)
+        if (row.is_interview) {
+            return {
+                date: localResult[`${row.key}_date`] || null,
+                reviewer: getInterviewInterviewer(label),
+                result: localResult[`${row.key}_result`] || null
+            };
+        }
+
+        // それ以外はデータなし
+        return { date: null, reviewer: null, result: null };
+    };
+
+    // ---------------------------------------------
+    // 🔽 書類選考の更新
+    // ---------------------------------------------
     const handleDocumentReview = async (isPassed: boolean) => {
-        setProcessingStage('書類選考');
-        
+        setProcessingStage("書類選考");
+
         try {
             const res = await fetch(`${appConfig.API_BASE_URL}/candidate-document-review`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     candidate_id: localResult.user_id,
                     reviewer_id: interviewerId,
-                    is_passed: isPassed,
-                }),
+                    is_passed: isPassed
+                })
             });
 
-            if (!res.ok) throw new Error('書類選考の更新に失敗しました');
+            if (!res.ok) throw new Error("書類選考の更新に失敗しました");
 
-            alert(isPassed ? '書類選考を合格にしました' : '書類選考を不合格にしました');
+            alert(isPassed ? "書類選考を合格にしました" : "書類選考を不合格にしました");
             onStatusUpdate();
-        } catch (err: any) {
-            alert(`エラー: ${err.message}`);
         } finally {
             setProcessingStage(null);
         }
     };
 
-    // ✅ 各ステージの情報を取得する関数
-    const getStageInfo = (step: string) => {
-        if (step === "アップロード") {
-            return {
-                date: localResult.timestamp,
-                reviewer: localResult.uploader_id,
-                result: null
-            };
-        }
-        
-        if (step === "書類選考") {
-            return {
-                date: localResult.document_review_date || localResult.chat_review_書類選考_at,
-                reviewer: localResult.document_review_reviewer || localResult.chat_reviewer_書類選考,
-                result: localResult.document_review_result
-            };
-        }
-        
-        if (step === "web面談") {
-            return {
-                date: localResult.interview_1_date || localResult.chat_review_面談・1次_at,
-                reviewer: localResult.interview_1_interviewer || localResult.chat_reviewer_面談・1次,
-                result: localResult.interview_1_result
-            };
-        }
-        
-        if (step === "1次面談") {
-            return {
-                date: localResult.interview_2_date || localResult.chat_review_面談・2次_at,
-                reviewer: localResult.interview_2_interviewer || localResult.chat_reviewer_面談・2次,
-                result: localResult.interview_2_result
-            };
-        }
-        
-        if (step === "2次面談") {
-            return {
-                date: localResult.interview_final_date || localResult.chat_review_最終面談_at,
-                reviewer: localResult.interview_final_interviewer || localResult.chat_reviewer_最終面談,
-                result: localResult.interview_final_result
-            };
-        }
-        
-        if (step === "待遇検討") {
-            return {
-                date: localResult.hr_review?.updated_at,
-                reviewer: localResult.hr_review?.updated_by,
-                result: null
-            };
-        }
-        
-        return { date: null, reviewer: null, result: null };
-    };
-
+    // ---------------------------------------------
+    // 🔽 レンダリング
+    // ---------------------------------------------
     return (
         <div className="result-d-status-header">
             <h3>選考ステータス</h3>
+
+            {isRejected && (
+                <div style={{
+                    padding: "12px",
+                    backgroundColor: "#ffebee",
+                    border: "1px solid #f44336",
+                    color: "#c62828",
+                    borderRadius: "4px",
+                    fontWeight: "bold",
+                    textAlign: "center",
+                    marginBottom: "12px"
+                }}>
+                    ⚠️ この候補者は不採用として処理されています
+                </div>
+            )}
+
             <div className="status-bar-horizontal-with-info">
-                {statusSteps.map((step, idx) => {
-                    const isActive = localResult.status === step;
-                    const stageInfo = getStageInfo(step);
+                {statusSteps.map((label) => {
+                    const info = getStageInfo(label);
+                    const isActive = localResult.status === label;
 
                     const isStepDone =
-                        (step === "アップロード" && !!localResult.timestamp) ||
-                        (reviewStages.includes(step) && !!stageInfo.date) ||
-                        (step === "待遇検討" && !!localResult.hr_review?.updated_at);
+                        (label === "アップロード" && !!localResult.timestamp) ||
+                        (reviewStages.includes(label) && !!info.date) ||
+                        (label === "待遇検討" && (!!localResult.hr_saved_at || !!localResult.hr_review?.updated_at));
+
+                    const finalInterviewDate =
+                        localResult.interview_final_date ||
+                        localResult["interview_final_date"]; // 念のため両方
 
                     const isScheduled =
-                        (interviewStages.includes(step) &&
-                            isInterviewScheduled(step) &&
-                            !stageInfo.date) ||
-                        (step === "待遇検討" &&
-                            !!localResult.chat_review_最終面談_at &&
-                            !localResult.hr_review?.updated_at);
+                        (interviewStages.includes(label) &&
+                            isInterviewScheduled(label) &&
+                            !info.date) ||
 
-                    const showDocumentButtons = step === "書類選考" && !stageInfo.date;
+                        // 待遇検討の scheduled 条件を復活
+                        (label === "待遇検討" &&
+                            finalInterviewDate &&
+                            !localResult.hr_saved_at);
+
+                    // 書類選考ボタン
+                    const showDocumentButtons =
+                        label === "書類選考" &&
+                        !info.date &&
+                        !isRejected;
 
                     const handleClick = () => {
-                        if (step === "アップロード") {
+                        if (isRejected) return;
+
+                        // アップロード → 再アップ
+                        if (label === "アップロード") {
                             onOpenReupload();
                             return;
                         }
-                        
-                        if (interviewStages.includes(step)) {
-                            onOpenInterviewFlow(step);
-                        } else if (step === "待遇検討" && !!localResult.chat_review_最終面談_at) {
+
+                        // 面談フロー
+                        if (interviewStages.includes(label)) {
+                            onOpenInterviewFlow(label);
+                            return;
+                        }
+
+                        // 待遇検討
+                        if (label === "待遇検討") {
                             window.open(`/hr-final-review?filter=${localResult.user_id}`, "_blank");
                         }
                     };
 
                     return (
-                        <div key={idx} className="status-step-container">
+                        <div key={label} className="status-step-container">
                             {showDocumentButtons && (
-                                <div style={{
-                                    display: 'flex',
-                                    gap: '6px',
-                                    marginBottom: '4px',
-                                    justifyContent: 'center',
-                                }}>
+                                <div style={{ display: "flex", gap: "8px", marginBottom: "4px" }}>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDocumentReview(true);
                                         }}
-                                        disabled={processingStage === '書類選考'}
-                                        style={{
-                                            padding: '4px 12px',
-                                            fontSize: '12px',
-                                            backgroundColor: '#4caf50',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontWeight: '600',
-                                        }}
+                                        disabled={processingStage === "書類選考"}
+                                        style={{ background: "#4caf50", color: "white" }}
                                     >
-                                        ✅ 合格
+                                        合格
                                     </button>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDocumentReview(false);
                                         }}
-                                        disabled={processingStage === '書類選考'}
-                                        style={{
-                                            padding: '4px 12px',
-                                            fontSize: '12px',
-                                            backgroundColor: '#f44336',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontWeight: '600',
-                                        }}
+                                        disabled={processingStage === "書類選考"}
+                                        style={{ background: "#f44336", color: "white" }}
                                     >
-                                        ❌ 不合格
+                                        不合格
                                     </button>
                                 </div>
                             )}
 
                             <div
-                                className={`status-step-horizontal 
-                                    ${isActive ? "active" : ""} 
-                                    ${isStepDone ? "status-done" : ""} 
-                                    ${isScheduled ? "interview-scheduled" : ""}`}
+                                className={`status-step-horizontal
+                                    ${isActive ? "active" : ""}
+                                    ${isStepDone ? "status-done" : ""}
+                                    ${isScheduled ? "interview-scheduled" : ""}
+                                `}
                                 onClick={handleClick}
-                                style={{ 
-                                    position: "relative",
-                                    cursor: step === "アップロード" || interviewStages.includes(step) || (step === "待遇検討" && localResult.chat_review_最終面談_at) ? "pointer" : "default"
-                                }}
-                                title={step === "アップロード" ? "クリックして再アップロード" : ""}
                             >
-                                {step}
+                                {label}
 
-                                {interviewStages.includes(step) && isInterviewScheduled(step) && (
+                                {usedInterviewStages.includes(label) &&
+                                isInterviewScheduled(label) &&
+                                !isRejected && (
                                     <button
                                         className="interview-prep-check-button"
-                                        title="面談シート"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onOpenInterviewPrep(step);
+                                            onOpenInterviewPrep(label);
                                         }}
                                     >
                                         ✅
@@ -243,28 +314,25 @@ const StatusBar: React.FC<Props> = ({
                                 )}
                             </div>
 
-                            <div className="status-extra-info-item-inline">
-                                {stageInfo.date && (
-                                    <>
+                            {/* 日付 + 担当者 + 結果 */}
+                            {info.date && (
+                                <div className="status-extra-info-item-inline">
+                                    <div className="line">
+                                        <span>🗓️</span>
+                                        {new Date(info.date).toLocaleDateString("ja-JP")}
+                                    </div>
+                                    <div className="line">
+                                        <span>🧑</span>
+                                        {info.reviewer || "-"}
+                                    </div>
+                                    {info.result && (
                                         <div className="line">
-                                            <span className="label">🗓️</span>
-                                            <span className="value">
-                                                {new Date(stageInfo.date).toLocaleDateString('ja-JP')}
-                                            </span>
+                                            <span>📋</span>
+                                            {info.result}
                                         </div>
-                                        <div className="line">
-                                            <span className="label">🧑</span>
-                                            <span className="value">{stageInfo.reviewer || "-"}</span>
-                                        </div>
-                                        {stageInfo.result && (
-                                            <div className="line">
-                                                <span className="label">📋</span>
-                                                <span className="value">{stageInfo.result}</span>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     );
                 })}

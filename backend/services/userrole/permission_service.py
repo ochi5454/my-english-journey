@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.core.database import UserRoleDB
 from backend.models.userrole import Permission
 from backend.services.userrole.audit_service import AuditService
+from backend.utils.timezone import to_jst_iso
 
 # ============================================
 # カスタム例外
@@ -374,7 +375,7 @@ class PermissionService:
             "description": permission.description,
             "is_system_permission": permission.is_system_permission,
             # 🔧 Fix: Proper datetime check
-            "created_at": permission.created_at.isoformat() if permission.created_at is not None else None,
-            "updated_at": permission.updated_at.isoformat() if permission.updated_at is not None else None,
+            "created_at": to_jst_iso(permission.created_at),
+            "updated_at": to_jst_iso(permission.updated_at),
             "created_by": permission.created_by
         }

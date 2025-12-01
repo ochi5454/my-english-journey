@@ -17,6 +17,7 @@ from backend.routers.admin import (
     tag,
     ai_formula,
     candidates,
+    status,
 )
 
 from contextlib import asynccontextmanager
@@ -70,3 +71,4 @@ app.include_router(qualitative.router)
 app.include_router(tag.router)
 app.include_router(ai_formula.router)
 app.include_router(candidates.router)
+app.include_router(status.router)

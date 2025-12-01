@@ -1,15 +1,16 @@
-import uuid
 import re
 from datetime import datetime, timezone, timedelta
-from fastapi import HTTPException, APIRouter
+from fastapi import HTTPException, APIRouter, Depends
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
-from backend.core.database import SessionLocal
-from backend.models.score_resume import Candidate, CandidateStatus
+from backend.core.database import get_db
+from sqlalchemy.orm import Session
+from backend.models.score_resume import Candidate
 from backend.schemas.ai_score_chat import ScoreChatRequest, ScoreUpdateRequest
 from backend.utils.division import load_division_profiles, convert_division_to_prefix
+from backend.utils.status import update_candidate_status
 from backend.services.score_adjustment.optimized import search_resume_snippets
-from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments
+from backend.services.score_adjustment.score import extract_original_scores_from_message, generate_score_review_prompt, call_openai_chat, parse_score_adjustments, get_division_traits_map, format_division_traits_for_prompt
 from backend.services.score_adjustment.save import save_score_to_history
 
 router = APIRouter()
@@ -19,10 +20,18 @@ JST = timezone(timedelta(hours=9))
 #  ============================================
 
 @router.post("/chat-score-review")
-async def chat_score_review(payload: ScoreChatRequest):
+async def chat_score_review(payload: ScoreChatRequest, db: Session = Depends(get_db)):
     messages = [m.dict() for m in payload.messages]
+
+    # === DB から部門一覧を取得 ===
     division_profiles = load_division_profiles()
     valid_divisions = [p["division"] for p in division_profiles]
+
+    # === DB から部門 → trait のマップ取得 ===
+    div_map = get_division_traits_map(db)
+
+    # === SYSTEM_TEMPLATE に埋め込む用テキスト生成 ===
+    division_trait_details = format_division_traits_for_prompt(div_map)
 
     # === 🔍 candidate_id とユーザーの発話を取得 ===
     candidate_id = getattr(payload, "candidate_id", None)
@@ -45,7 +54,7 @@ async def chat_score_review(payload: ScoreChatRequest):
     original_scores = extract_original_scores_from_message(last_content) if last_content else {}
 
     # === ベースプロンプト作成 ===
-    base_prompt = generate_score_review_prompt(messages, valid_divisions)
+    base_prompt = generate_score_review_prompt(messages, valid_divisions, division_trait_details)
 
     # === 履歴書抜粋をsystemメッセージとして追加 ===
     if context_text:
@@ -57,9 +66,13 @@ async def chat_score_review(payload: ScoreChatRequest):
 
     # === 🧠 AI呼び出し ===
     reply = call_openai_chat(base_prompt)
+    print("💬 AI reply =======================")
+    print(reply)
+    print("💬 =================================")
+
 
     # === フェーズ判定 ===
-    is_final_phase = "###FINAL" in reply
+    is_final_phase = ("[スコア調整]" in reply)
 
     # ユーザーに返す文面からは削除
     clean_reply = reply.replace("###FINAL", "").strip()
@@ -87,17 +100,41 @@ async def chat_score_review(payload: ScoreChatRequest):
         }
 
     # === 最終確定 ===
-    adjusted_scores = parse_score_adjustments(reply, original_scores)
+    raw_adjusted_scores = parse_score_adjustments(reply, original_scores)
+    print("🟦 raw_adjusted_scores (before normalize):", raw_adjusted_scores)
+
+    # 🔽 dict → 配列に変換
+    adjusted_scores_list = []
+    if isinstance(raw_adjusted_scores, dict):
+        for div, info in raw_adjusted_scores.items():
+            if not info:
+                continue
+            adjusted_scores_list.append({
+                "division": div,
+                "score": info.get("score"),
+                "reason": info.get("reason") or ""
+            })
+    elif isinstance(raw_adjusted_scores, list):
+        print("🔵 raw_adjusted_scores はすでに list 形式:", raw_adjusted_scores)
+        # もし既に配列形式で返ってくるケースがあるなら一応そのまま使う
+        adjusted_scores_list = raw_adjusted_scores
+    else:
+        print("⚠️ raw_adjusted_scores が dict でも list でもありません:", type(raw_adjusted_scores))
+        adjusted_scores_list = []
+
+    print("🟩 adjusted_scores_list (after normalize):", adjusted_scores_list)
+    print("🟪 shouldUpdateScore:", len(adjusted_scores_list) > 0)
+
     return {
         "reply": clean_reply,
-        "shouldUpdateScore": True,
-        "adjusted_scores": adjusted_scores,
+        "shouldUpdateScore": len(adjusted_scores_list) > 0,
+        "adjusted_scores": adjusted_scores_list,
         "recommended_division": recommended_div,
         "decision": decision
     }
 
 @router.post("/update-score")
-async def update_score(payload: ScoreUpdateRequest):
+async def update_score(payload: ScoreUpdateRequest, db: Session = Depends(get_db)):
     candidate_id = payload.candidate_id
     reviewer_id = payload.reviewer_id
     stage = payload.stage
@@ -133,31 +170,20 @@ async def update_score(payload: ScoreUpdateRequest):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"保存エラー: {str(e)}")
 
-    # ステージ別レビュー履歴を CandidateStatus に保存（履歴形式なので毎回INSERT）
-    with SessionLocal() as db:
-        db.add(CandidateStatus(
-            id=str(uuid.uuid4()),
-            user_id=candidate_id,
-            stage=stage,
-            chat_reviewer=reviewer_id,
-            reviewed_at=now,
-            reviewed_resume=False  # 必要なら受け取って反映
-        ))
+    # ★ ステータス更新（履歴＋Candidate.status）
+    update_candidate_status(
+        db=db,
+        user_id=candidate_id,
+        new_stage=stage,
+        reviewer_id=reviewer_id
+    )
 
-        # 最終更新者も Candidate テーブルに反映
+    # 推奨部門の更新だけ別処理
+    if recommended_division:
+        recommended_div_prefix = convert_division_to_prefix(recommended_division)
         candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
-        if not candidate:
-            raise HTTPException(status_code=404, detail="候補者が見つかりません")
+        candidate.recommended_div = recommended_div_prefix
 
-        candidate.updated_by = reviewer_id
-        candidate.updated_at = now
-
-        # 推奨部門の更新
-        if recommended_division:
-            recommended_div_prefix = convert_division_to_prefix(recommended_division)
-            candidate.recommended_div = recommended_div_prefix
-            print(f"✅ 推奨部門を更新: {recommended_division} -> {recommended_div_prefix}")
-
-        db.commit()
+    db.commit()
 
     return JSONResponse(content={"status": "ok", "candidate_id": candidate_id})

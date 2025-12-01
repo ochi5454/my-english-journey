@@ -1,9 +1,9 @@
 from uuid import uuid4
 import os
-from pathlib import Path  # ← 追加
-import chromadb
+from pathlib import Path
 from backend.core.config import CHROMA_PATH
 from backend.core.embedding_config import get_sentence_transformer_model
+from backend.core.chroma_client import get_resume_collection
 
 model = get_sentence_transformer_model()
 
@@ -16,11 +16,11 @@ def save_masked_resume_embedding_local(candidate_id: str, text: str):
     text_file = text_dir / f"{candidate_id}.txt"
     text_file.write_text(text, encoding="utf-8")
     
-    # ChromaDB保存（既存コード）
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-    collection = chroma_client.get_or_create_collection("resumes_local")
+    # ChromaDB保存
+    collection = get_resume_collection()
 
     chunks = [chunk.strip() for chunk in text.split("\n\n") if chunk.strip()]
+
     embeddings = model.encode(chunks)
     embeddings = [e.tolist() for e in embeddings]
 
@@ -51,8 +51,7 @@ def get_masked_resume_text_local(candidate_id: str) -> str:
         return text_file.read_text(encoding="utf-8")
     
     # ② ChromaDBから取得を試みる
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-    collection = chroma_client.get_or_create_collection("resumes_local")
+    collection = get_resume_collection()
     
     results = collection.get(
         where={"candidate_id": candidate_id},

@@ -4,7 +4,6 @@ import DivisionSelect from "./DivisionSelect";
 import ResumeReuploadModal from "./ResumeReuploadModal";
 import InterviewPrepPanelV2 from "./InterviewPrepPanelV2";
 import ScoreReviewChatV2 from "./ScoreReviewChatV2";
-import { statusSteps } from "./VerticalStatusBar";
 import "./StatusContentPanel.css";
 
 type ChatMessage = {
@@ -82,6 +81,46 @@ const StatusContentPanel: React.FC<Props> = ({
     // 最後にロードした候補者IDを追跡（useRefで管理して再レンダリングを防ぐ）
     const lastLoadedCandidateIdRef = useRef<string | null>(null);
 
+    // ステータスマスタ
+    const [statusMaster, setStatusMaster] = useState<any[]>([]);
+    const [statusSteps, setStatusSteps] = useState<string[]>([]);
+    const [interviewStages, setInterviewStages] = useState<string[]>([]);
+    const [stageMap, setStageMap] = useState<Record<string, string>>({});
+    const [dateKeyMap, setDateKeyMap] = useState<Record<string, string>>({});
+
+    // ステータスマスタの取得
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then(rows => {
+                setStatusMaster(rows);
+
+                // ステップ順
+                setStatusSteps(rows.map((r: any) => r.label));
+
+                // 面談ステージ
+                const iStages = rows
+                    .filter((r: any) => r.is_interview)
+                    .map((r: any) => r.label);
+                setInterviewStages(iStages);
+
+                // 日本語 → key
+                const sm: Record<string, string> = {};
+                rows.forEach((r: any) => sm[r.label] = r.key);
+                setStageMap(sm);
+
+                // 日本語 → dateフィールド名 (interview_1 → interview_1_date)
+                const dm: Record<string, string> = {};
+                rows.forEach((r: any) => {
+                    if (r.is_interview) {
+                        dm[r.label] = `${r.key}_date`;
+                    }
+                });
+                setDateKeyMap(dm);
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
+
     // 部門マッピングを取得
     useEffect(() => {
         fetch(`${appConfig.API_BASE_URL}/admin/skills`)
@@ -124,8 +163,6 @@ const StatusContentPanel: React.FC<Props> = ({
         return divisionMap[prefix] || prefix;
     };
 
-    const interviewStages = ["web面談", "1次面談", "2次面談"];
-
     // 面接設定の設定データを取得
     useEffect(() => {
         fetch(`${appConfig.API_BASE_URL}/interview/config`)
@@ -150,6 +187,18 @@ const StatusContentPanel: React.FC<Props> = ({
             })
             .catch(err => console.error('待遇検討設定取得エラー:', err));
     }, [interviewerId]);
+
+    // 待遇検討フォームの初期化
+    useEffect(() => {
+        if (!localResult) return;
+
+        setHrDecision(localResult.hr_decision || "");
+        setRecommendedDivision(localResult.hr_division || "");
+        setRecommendedTitle(localResult.hr_title || "");
+        setPayType(localResult.hr_pay_type || "");
+        setEmploymentType(localResult.hr_employment_type || "");
+
+    }, [localResult]);
 
     // 候補者名を取得
     useEffect(() => {
@@ -190,19 +239,22 @@ const StatusContentPanel: React.FC<Props> = ({
     // 面接準備データの取得
     const fetchInterviewData = async (stage: string) => {
         setIsLoadingInterviewData(true);
+
+        // 日本語ステージ → API用ステージへ変換
+        const apiStage = stageMap[stage] || stage;
+
         try {
             const res = await fetch(
-                `${appConfig.API_BASE_URL}/checksheet/${interviewerId}/${localResult.user_id}/${stage}`
+                `${appConfig.API_BASE_URL}/checksheet/one?interviewer_id=${interviewerId}&candidate_id=${localResult.user_id}&stage=${apiStage}`
             );
             if (res.ok) {
                 const data = await res.json();
                 setInterviewPrepData(data);
             } else {
-                // データがない場合は空のデータをセット
                 setInterviewPrepData({});
             }
         } catch (err) {
-            console.error('面接データ取得エラー:', err);
+            console.error("面接データ取得エラー:", err);
             setInterviewPrepData({});
         } finally {
             setIsLoadingInterviewData(false);
@@ -283,7 +335,8 @@ const StatusContentPanel: React.FC<Props> = ({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    candidate_id: localResult.user_id,
+                    candidate: localResult.user_id,
+                    candidateName: candidateName,
                     interviewDate,
                     interviewer: selectedInterviewer,
                     todo: selectedTodos.join(', '),
@@ -295,16 +348,29 @@ const StatusContentPanel: React.FC<Props> = ({
 
             if (!res.ok) throw new Error('面談設定の保存に失敗しました');
 
-            console.log('✅ 面談設定を保存しました');
-            // データを再取得して面接準備画面を表示
+            console.log('面談設定を保存しました');
+
+            // ---- 面談シートを表示させる処理 ----
             await fetchInterviewData(selectedStage);
             onResultUpdate();
-            // フォームをクリア
+
+            // ---- フォーム初期化 ----
             setInterviewDate('');
             setSelectedInterviewer('');
             setSelectedTodos([]);
-        } catch (err: any) {
-            alert(`エラー: ${err.message}`);
+
+        } catch (err) {
+            console.error(err);
+
+            // 🔥 テストモードのため保存失敗しても面談準備画面へ進める
+            alert("メール送信は未実装のため保存できませんが、面談準備画面に進みます。");
+
+            // モックとして localResult に面談日時を差し込む
+            const key = dateKeyMap[selectedStage];
+            localResult[key] = interviewDate || "mock";
+
+            await fetchInterviewData(selectedStage);
+            onResultUpdate();
         }
     };
 
@@ -326,8 +392,8 @@ const StatusContentPanel: React.FC<Props> = ({
                     candidate_id: localResult.user_id,
                     review: {
                         decision: hrDecision,
-                        recommended_division: recommendedDivision,
-                        recommended_title: recommendedTitle,
+                        division: recommendedDivision, 
+                        title: recommendedTitle,
                         pay_type: payType,
                         employment_type: employmentType,
                     }
@@ -349,14 +415,8 @@ const StatusContentPanel: React.FC<Props> = ({
     };
 
     const isInterviewScheduled = (stage: string): boolean => {
-        const keyMap: Record<string, string> = {
-            "web面談": "interview_1_date",
-            "1次面談": "interview_2_date",
-            "2次面談": "interview_final_date",
-        };
-        const key = keyMap[stage];
-        if (!key) return false;
-        return !!localResult[key];
+        const key = dateKeyMap[stage];
+        return key ? !!localResult[key] : false;
     };
 
     const handleAIEvaluation = async () => {
@@ -520,12 +580,37 @@ const StatusContentPanel: React.FC<Props> = ({
 
             // 合格・不合格の判定処理
             if (decision && localResult?.user_id) {
+
+                // 🌟 書類選考だけは専用の candidate-document-review を呼ぶ
+                if (selectedStage === "書類選考") {
+                    try {
+                        const res = await fetch(`${appConfig.API_BASE_URL}/candidate-document-review`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                candidate_id: localResult.user_id,
+                                reviewer_id: interviewerId,
+                                is_passed: decision === '合格'
+                            })
+                        });
+
+                        if (!res.ok) throw new Error('書類選考の更新に失敗しました');
+
+                        console.log(`📄 書類選考: ${decision} を反映しました`);
+                        onResultUpdate();
+                    } catch (err) {
+                        console.error('⚠ 書類選考のステータス更新失敗:', err);
+                    }
+
+                    return; // ← 書類選考はここで終わり。他の処理を続けない
+                }
+
+                // 🌟 ここから先は書類選考以外 → /update-status を使う
                 let newStage: string;
 
                 if (decision === '不合格') {
                     newStage = '不合格';
                 } else {
-                    // 合格の場合、現在のステージから次のステージを決定
                     const currentStageIndex = statusSteps.indexOf(selectedStage);
                     if (currentStageIndex !== -1 && currentStageIndex + 1 < statusSteps.length) {
                         newStage = statusSteps[currentStageIndex + 1];
@@ -765,22 +850,6 @@ const StatusContentPanel: React.FC<Props> = ({
                                 </div>
                             </div>
 
-                            {/* 必須チェック項目 */}
-                            {localResult.must_check && Object.keys(localResult.must_check).length > 0 && (
-                                <div className="must-check-section">
-                                    <h5>☑️ 必須要件</h5>
-                                    {Object.entries(localResult.must_check).map(([item, data]: [string, any]) => (
-                                        <div key={item} className={`check-item ${data.result ? 'pass' : 'fail'}`}>
-                                            <span className="check-icon">{data.result ? '✅' : '❌'}</span>
-                                            <div className="check-content">
-                                                <div className="check-name">{item}</div>
-                                                <div className="check-reason">{data.reason}</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
                             {/* 部門別スコア（履歴付き） */}
                             <div className="division-scores-section">
                                 <h5>🎯 部門別スコア</h5>
@@ -826,7 +895,7 @@ const StatusContentPanel: React.FC<Props> = ({
                                                                 entry.score === latestEntry?.score &&
                                                                 entry.reason === latestEntry?.reason &&
                                                                 (entry.reviewed_at === latestEntry?.reviewed_at ||
-                                                                 entry.updated_at === latestEntry?.updated_at)
+                                                                entry.updated_at === latestEntry?.updated_at)
                                                             )
                                                         )
                                                         .map((entry: any, idx: number) => (
@@ -846,6 +915,43 @@ const StatusContentPanel: React.FC<Props> = ({
                                     );
                                 })}
                             </div>
+
+                            {/* 必須チェック項目（下部に配置） */}
+                            {localResult.must_check && Object.keys(localResult.must_check).length > 0 && (
+                                <div className="must-check-section">
+                                    <h5>☑️ 必須要件</h5>
+                                    {Object.entries(localResult.must_check).map(([item, data]: [string, any]) => (
+                                        <div key={item} className={`check-item ${data.result ? 'pass' : 'fail'}`}>
+                                            <span className="check-icon">{data.result ? '✅' : '❌'}</span>
+                                            <div className="check-content">
+                                                <div className="check-name">{item}</div>
+                                                <div className="check-reason">{data.reason}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* 部門別必須チェック項目（控えめに、スコアの下に表示） */}
+                            {localResult.division_must_check && Object.keys(localResult.division_must_check).length > 0 && (
+                                <div className="must-check-section division-must-check-section">
+                                    <h5>📂 部門別必須要件</h5>
+                                    {Object.entries(localResult.division_must_check).map(([division, checks]: [string, any]) => (
+                                    <div key={division} className="division-must-check-group">
+                                        <div className="division-must-check-title">{getDivisionName(division)}</div>
+                                        {Object.entries(checks as Record<string, any>).map(([item, data]) => (
+                                            <div key={`${division}-${item}`} className={`check-item ${data.result ? 'pass' : 'fail'}`}>
+                                                <span className="check-icon">{data.result ? '✅' : '❌'}</span>
+                                                <div className="check-content">
+                                                    <div className="check-name">{item}</div>
+                                                    <div className="check-reason">{data.reason}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                     </div>

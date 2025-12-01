@@ -8,6 +8,7 @@ from backend.core.database import get_db
 from backend.services.score_ofinterviewer.score_rubric import load_rubric_for_http
 from backend.services.score_ofinterviewer.cache import load_all_evals, load_evals_for_interviewer, filter_cache_rows_in_memory
 from backend.services.score_ofinterviewer.diffcheck import list_diff_targets, refresh_targets_and_upsert
+from backend.utils.timezone import now_jst_iso
 
 router = APIRouter()
 
@@ -40,7 +41,7 @@ async def interviewer_evals_cache_ep(
     if interviewer_id:
         result = load_evals_for_interviewer(interviewer_id)
         src_rows = result.get("rows") or []
-        cached_at = datetime.now().isoformat()
+        cached_at = now_jst_iso()
     else:
         result = load_all_evals()
         src_rows = result.get("rows") or []

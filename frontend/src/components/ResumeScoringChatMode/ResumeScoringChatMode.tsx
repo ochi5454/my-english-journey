@@ -42,6 +42,9 @@ const ResumeScoringChatMode: React.FC<{ userId: string }> = ({ userId }) => {
     const MSG_JSON_DATA = '__JSON_DATA__';
 
     const [candidateName, setCandidateName] = useState('');
+    const [interviewStages, setInterviewStages] = useState<
+    { key: string; label: string }[]
+    >([]);
 
     // ✅ 初回マウント時に候補者IDを自動生成
     useEffect(() => {
@@ -66,6 +69,25 @@ const ResumeScoringChatMode: React.FC<{ userId: string }> = ({ userId }) => {
         setShouldShowDummy(false);
     }, [location.pathname]);
 
+    // ステータス取得
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then(rows => {
+                const list = rows
+                    .filter((r: any) => r.is_interview)
+                    .sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999))
+                    .map((r: any) => ({
+                        key: r.key,        // → 英語 key
+                        label: r.label,    // → 表示用
+                    }));
+
+                setInterviewStages(list);
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
+
+    // 部門取得
     useEffect(() => {
         const fetchDivisions = async () => {
             try {
@@ -316,10 +338,10 @@ const ResumeScoringChatMode: React.FC<{ userId: string }> = ({ userId }) => {
                                     showSaved={showSaved}
                                     onSave={handleSaveHrDecision}
                                 />
-                            ) : m.text === MSG_INTERVIEW ? (
+                            ) : m.text === MSG_INTERVIEW && interviewStages.length > 0 ? (
                                 <InterviewSetupInline
                                     candidateId={candidateId}
-                                    stage="面談・1次"
+                                    stage={interviewStages[0].key}
                                     userId={userId}
                                     onMessage={(msg) => setMessages((prev) => [...prev, msg])}
                                     onFinish={() => {

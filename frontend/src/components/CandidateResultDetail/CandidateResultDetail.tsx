@@ -4,7 +4,8 @@ import InterviewSetupSlidePanel from '../InterviewSetupSlidePanel/InterviewSetup
 import InterviewCheckSheetSlidePanel from '../InterviewCheckSheetSlidePanel/InterviewCheckSheetSlidePanel.tsx';
 import appConfig from '../../config.ts';
 import HrDecisionEditor from './HrDecisionEditor';
-import StatusBar from './StatusBar';
+import StatusBar from './StatusBar'
+import type { StatusMasterRow } from './StatusBar';
 import ScoreDetail from './ScoreDetail';
 import ScoreReviewChat from './ScoreReviewChat';
 
@@ -45,12 +46,30 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
     const [isProcessing, setIsProcessing] = useState(false);
     const [isEditingGender, setIsEditingGender] = useState(false);
     const [genderDraft, setGenderDraft] = useState(localResult.gender || 'その他');
+    const [statusMaster, setStatusMaster] = useState<StatusMasterRow[]>([]);
+    const [stageMap, setStageMap] = useState<Record<string, string>>({});
 
     const hasMustCheckFailure = (): boolean => {
         const mustCheck = localResult.must_check || {};
         return Object.values(mustCheck).some((item: any) => item.result === false);
     };
     
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then((rows: StatusMasterRow[]) => {
+                setStatusMaster(rows);
+
+                // 🔥 日本語 → 英語 の変換マップを生成
+                const map: Record<string, string> = {};
+                rows.forEach(r => {
+                    map[r.label] = r.key;   // label → key を全部対応付ける
+                });
+                setStageMap(map);
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
+
     useEffect(() => {
         setLocalResult(result);
     }, [result]);
@@ -62,7 +81,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         new URLSearchParams({
             interviewer_id: interviewerId,
             candidate_id: result.user_id,
-            stage: interviewStage,
+            stage: stageMap[interviewStage] ?? interviewStage,
         }).toString();
 
         fetch(encodeURI(url))
@@ -200,20 +219,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
 
             setChatLog(prev => [...prev, { role: 'assistant', content: aiReply }]);
 
-            const now = new Date().toISOString();
-            const newChatReviewKey = `chat_review_${chatStage}_at`;
-            const newChatReviewerKey = `chat_reviewer_${chatStage}`;
-            setLocalResult((prev: any) => ({
-            ...prev,
-            [newChatReviewKey]: now,
-            [newChatReviewerKey]: interviewerId,
-            }));
-            onResultUpdate?.({
-            ...(localResult || {}),
-            [newChatReviewKey]: now,
-            [newChatReviewerKey]: interviewerId,
-            });
-
             if (shouldUpdate && scoreChangesArray.length > 0) {
             const updateRes = await fetch(`${appConfig.API_BASE_URL}/update-score`, {
                 method: 'POST',
@@ -253,15 +258,19 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
         }
     };
 
-    const isInterviewScheduled = (stage: string): boolean => {
-        const keyMap: Record<string, string> = {
-        '面談・1次': 'interview_1_date',
-        '面談・2次': 'interview_2_date',
-        '最終面談': 'interview_final_date',
-        };
-        const key = keyMap[stage];
-        if (!key) return false;
-        return !!localResult[key];
+    const isInterviewScheduled = (label: string): boolean => {
+        // 日本語ラベル → 英語 key を取得
+        const backendKey = stageMap[label];    // 例: "1次面談" → "interview_1"
+        if (!backendKey) return false;
+
+        // StatusMaster から面談ステージを確認
+        const row = statusMaster.find(r => r.key === backendKey);
+        if (!row || !row.is_interview) return false;
+
+        // date カラムは必ず `{key}_date`
+        const dateKey = `${backendKey}_date`;  // interview_1_date など
+
+        return Boolean(localResult[dateKey]);
     };
 
     const openInterviewFlow = (stage: string) => {
@@ -471,9 +480,16 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                             const updated = await refreshed.json();
                             setLocalResult(updated);
                             onResultUpdate?.(updated);
+                            
+                            // ✅ 不合格（内定辞退）なら画面を閉じる
+                            if (updated.status === '内定辞退') {
+                                setTimeout(() => {
+                                    onClose();
+                                }, 1000); // 1秒後に自動で閉じる
+                            }
                         }
                     }}
-                    onOpenReupload={() => setShowReuploadModal(true)}  // ✅ 追加
+                    onOpenReupload={() => setShowReuploadModal(true)}
                     onOpenInterviewFlow={openInterviewFlow}
                     onOpenInterviewPrep={(stage) => {
                         setInterviewStage(stage);
@@ -580,7 +596,7 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
                 body: JSON.stringify({
                     interviewer_id: interviewerId,
                     candidate_id: localResult.user_id,
-                    stage: interviewStage,
+                    stage: stageMap[interviewStage] ?? interviewStage,
                     ...data
                 })
                 });
@@ -600,24 +616,6 @@ const CandidateResultDetail: React.FC<Props> = ({ result, onClose, onResultUpdat
             } finally {
                 setShowInterviewPrepModal(false);
             }
-            }}
-
-            onAiReviewed={(updated: any) => {
-            const stage = interviewStage!;
-
-            setLocalResult((prev: Record<string, any>) => ({
-                ...prev,
-                ...updated,
-                [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
-                [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
-            }));
-
-            onResultUpdate?.({
-                ...(localResult || {}),
-                ...updated,
-                [`chat_review_${stage}_at`]: updated[`chat_review_${stage}_at`] ?? new Date().toISOString(),
-                [`chat_reviewer_${stage}`]: updated[`chat_reviewer_${stage}`] ?? interviewerId,
-            });
             }}
             prefixToName={prefixToName}
         />

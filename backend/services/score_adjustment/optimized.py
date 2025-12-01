@@ -1,8 +1,6 @@
 from functools import lru_cache
-import chromadb
-import numpy as np
-from backend.core.config import CHROMA_PATH
 from backend.core.embedding_config import get_sentence_transformer_model
+from backend.core.chroma_client import get_resume_collection
 
 model = get_sentence_transformer_model()
 
@@ -11,8 +9,7 @@ def search_resume_snippets(candidate_id: str, query: str, top_k: int = 3, min_sc
     """
     履歴書ベクトルDBから、質問内容に関連するチャンクを検索
     """
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-    collection = chroma_client.get_or_create_collection("resumes_local")
+    collection = get_resume_collection()
 
     # クエリをEmbedding
     query_vec = model.encode([query])
@@ -47,8 +44,7 @@ def search_resume_snippets(candidate_id: str, query: str, top_k: int = 3, min_sc
 
 def debug_search(candidate_id: str, query: str):
     """開発者向け: 類似度と距離をそのまま出力"""
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-    collection = chroma_client.get_or_create_collection("resumes_local")
+    collection = get_resume_collection()
     model = get_sentence_transformer_model()
 
     query_vec = model.encode([query])

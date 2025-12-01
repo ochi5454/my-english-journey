@@ -91,6 +91,16 @@
     font-weight: 700;
 }
 
+/* 完了している場合は active よりも完了色を優先 */
+.vertical-status-item.done.active .status-bookmark {
+    background-color: #28a745;
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.vertical-status-item.done.active .bookmark-label {
+    color: white;
+}
+
 /* 選択中 */
 .vertical-status-item.selected .status-bookmark {
     background-color: #007bff;
@@ -110,6 +120,15 @@
     color: white;
 }
 
+/* 完了とスケジュール済みが両方付いた場合も完了色を優先 */
+.vertical-status-item.done.scheduled .status-bookmark {
+    background-color: #28a745;
+}
+
+.vertical-status-item.done.scheduled .bookmark-label {
+    color: white;
+}
+
 /* activeかつselected（両方該当する場合） */
 .vertical-status-item.active.selected .status-bookmark {
     background: linear-gradient(135deg, #ffc107 0%, #007bff 100%);
@@ -123,6 +142,35 @@
 /* 完了かつ選択中 */
 .vertical-status-item.done.selected .status-bookmark {
     background-color: #1e7e34;
+}
+
+.vertical-status-item.skipped .status-bookmark {
+    background-color: #6c757d;
+    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+}
+
+.vertical-status-item.skipped .bookmark-label {
+    color: white;
+}
+
+.bookmark-skip-label {
+    margin-left: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.vertical-status-item.skipped .bookmark-triangle {
+    border-left-color: #f8f9fa;
+}
+
+.vertical-status-item.skipped.selected .status-bookmark,
+.vertical-status-item.skipped.active .status-bookmark {
+    background-color: #6c757d;
+    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+}
+
+.status-info.skipped-info {
+    border-left: 3px solid #6c757d;
 }
 
 /* ステータス詳細情報 */

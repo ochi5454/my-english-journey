@@ -74,7 +74,40 @@ const CandidateFullEvaluationModal: React.FC<Props> = ({ candidateId, onClose })
         fetch(`${appConfig.API_BASE_URL}/resume-result/${candidateId}`)
             .then(res => res.json())
             .then(data => {
-                setCandidate(data);
+                // must_check がオブジェクト形式で返るケースに対応して配列へ正規化
+                const normalizeMustChecks = (): CandidateDetail["must_checks"] => {
+                    if (Array.isArray((data as any).must_checks)) return (data as any).must_checks;
+                    if (data.must_check && typeof data.must_check === "object") {
+                        return Object.entries(data.must_check).map(([item_name, info]: any) => ({
+                            item_name,
+                            result: info.result,
+                            reason: info.reason,
+                        }));
+                    }
+                    return [];
+                };
+
+                const normalizeDivisionMustChecks = (): CandidateDetail["division_must_checks"] => {
+                    if (Array.isArray((data as any).division_must_checks)) return (data as any).division_must_checks;
+                    if (data.division_must_check && typeof data.division_must_check === "object") {
+                        return Object.entries(data.division_must_check).flatMap(
+                            ([division, checks]: [string, any]) =>
+                                Object.entries(checks || {}).map(([item_name, info]: any) => ({
+                                    division,
+                                    item_name,
+                                    result: info.result,
+                                    reason: info.reason,
+                                }))
+                        );
+                    }
+                    return [];
+                };
+
+                setCandidate({
+                    ...data,
+                    must_checks: normalizeMustChecks(),
+                    division_must_checks: normalizeDivisionMustChecks(),
+                });
                 setLoading(false);
             })
             .catch(err => {
@@ -233,59 +266,63 @@ const CandidateFullEvaluationModal: React.FC<Props> = ({ candidateId, onClose })
                     </div>
                 )}
 
-                {/* 必須要件チェック項目 */}
-                {candidate.must_checks && candidate.must_checks.length > 0 && (
+                {/* 必須要件チェック項目（部門別スコアの下にまとめて表示） */}
+                {(candidate.must_checks && candidate.must_checks.length > 0) ||
+                 (candidate.division_must_checks && candidate.division_must_checks.length > 0) ? (
                     <div className="full-eval-section">
-                        <h3>✅ 必須要件</h3>
-                        <div className="must-check-list">
-                            {candidate.must_checks.map((check, idx) => (
-                                <div key={idx} className={`must-check-item ${check.result ? 'pass' : 'fail'}`}>
-                                    <div className="check-header">
-                                        <span className="check-icon">{check.result ? '✓' : '✗'}</span>
-                                        <span className="check-name">{check.item_name}</span>
-                                    </div>
-                                    {check.reason && (
-                                        <div className="check-reason">{check.reason}</div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* 部門別必須要件 */}
-                {candidate.division_must_checks && candidate.division_must_checks.length > 0 && (
-                    <div className="full-eval-section">
-                        <h3>📂 部門別必須要件</h3>
-                        <div className="division-must-check-list">
-                            {Object.entries(
-                                candidate.division_must_checks.reduce((acc: Record<string, any[]>, check) => {
-                                    const div = check.division || '共通';
-                                    if (!acc[div]) acc[div] = [];
-                                    acc[div].push(check);
-                                    return acc;
-                                }, {})
-                            ).map(([division, checks]) => (
-                                <div key={division} className="division-must-check-group">
-                                    <h4>{getDivisionName(division)}</h4>
-                                    <div className="must-check-list">
-                                        {checks.map((check: any, idx: number) => (
-                                            <div key={idx} className={`must-check-item ${check.result ? 'pass' : 'fail'}`}>
-                                                <div className="check-header">
-                                                    <span className="check-icon">{check.result ? '✓' : '✗'}</span>
-                                                    <span className="check-name">{check.item_name}</span>
-                                                </div>
-                                                {check.reason && (
-                                                    <div className="check-reason">{check.reason}</div>
-                                                )}
+                        {candidate.must_checks && candidate.must_checks.length > 0 && (
+                            <>
+                                <h3>✅ 必須要件</h3>
+                                <div className="must-check-list">
+                                    {candidate.must_checks.map((check, idx) => (
+                                        <div key={idx} className={`must-check-item ${check.result ? 'pass' : 'fail'}`}>
+                                            <div className="check-header">
+                                                <span className="check-icon">{check.result ? '✓' : '✗'}</span>
+                                                <span className="check-name">{check.item_name}</span>
                                             </div>
-                                        ))}
-                                    </div>
+                                            {check.reason && (
+                                                <div className="check-reason">{check.reason}</div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
+                            </>
+                        )}
+
+                        {candidate.division_must_checks && candidate.division_must_checks.length > 0 && (
+                            <>
+                                <h3>📂 部門別必須要件</h3>
+                                <div className="division-must-check-list">
+                                    {Object.entries(
+                                        candidate.division_must_checks.reduce((acc: Record<string, any[]>, check) => {
+                                            const div = check.division || '共通';
+                                            if (!acc[div]) acc[div] = [];
+                                            acc[div].push(check);
+                                            return acc;
+                                        }, {})
+                                    ).map(([division, checks]) => (
+                                        <div key={division} className="division-must-check-group">
+                                            <h4>{getDivisionName(division)}</h4>
+                                            <div className="must-check-list">
+                                                {checks.map((check: any, idx: number) => (
+                                                    <div key={idx} className={`must-check-item ${check.result ? 'pass' : 'fail'}`}>
+                                                        <div className="check-header">
+                                                            <span className="check-icon">{check.result ? '✓' : '✗'}</span>
+                                                            <span className="check-name">{check.item_name}</span>
+                                                        </div>
+                                                        {check.reason && (
+                                                            <div className="check-reason">{check.reason}</div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
-                )}
+                ) : null}
 
                 {/* 評価履歴 */}
                 {candidate.histories && Object.keys(candidate.histories).length > 0 && (

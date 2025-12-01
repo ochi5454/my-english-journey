@@ -27,7 +27,6 @@ export interface InterviewEval {
     qualitative?: Record<string, string>;
     quantitative?: Record<string, { level: number; comment: string }>;
     prepItems?: { question: string; answer: string; tags?: string[] }[];
-    reviewed_resume?: boolean;
     ai_score_reviewed?: boolean;
     timestamp?: string;
 

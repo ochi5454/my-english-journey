@@ -462,7 +462,7 @@ const InterviewerOverview: React.FC = () => {
             </div>
 
             <div className="diff-modal-footer">
-              <button className="diff-modal-btn cancel-btn" onClick={() => setIsModalOpen(false)}>
+              <button className="diff-modal-btn diff-cancel-btn" onClick={() => setIsModalOpen(false)}>
                 キャンセル
               </button>
               <button
@@ -551,14 +551,14 @@ const InterviewerOverview: React.FC = () => {
 
             <div className="diff-modal-footer">
               <button
-                className="diff-modal-btn cancel-btn"
+                className="diff-modal-btn diff-cancel-btn"
                 onClick={() => setShowReliabilityModal(false)}
               >
                 キャンセル
               </button>
 
               <button
-                className="diff-modal-btn cancel-btn"
+                className="diff-modal-btn diff-cancel-btn"
                 onClick={() => setReliabilityConfig(defaultReliabilityConfig)}
               >
                 クリア

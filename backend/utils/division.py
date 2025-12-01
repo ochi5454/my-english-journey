@@ -66,17 +66,36 @@ def get_expected_focus_items(department_prefix: str, role: str, db: Session) -> 
 
 def convert_division_to_prefix(division_name: str | None) -> str | None:
     """
-    部門和名 → prefix に変換
-    例: "ファシリティ" → "fac"
+    部門和名 → prefix に変換（「人事部門」などの余計な語尾も処理）
     """
     if not division_name:
         return None
 
+    clean_name = division_name.strip()
+
+    # 「人事部門」→「人事」
+    if clean_name.endswith("部門"):
+        clean_name = clean_name[:-2]
+
     with SessionLocal() as db:
+        # 完全一致検索（例: 人事 → hr）
         row = db.query(CandidateExpectations)\
-                .filter(CandidateExpectations.division == division_name)\
+                .filter(CandidateExpectations.division == clean_name)\
                 .first()
-        return row.division_prefix if row and row.division_prefix is not None else division_name
+
+        if row and row.division_prefix:
+            return row.division_prefix
+
+        # 部分一致（念のため、"人事部" → "人事" のようなケース）
+        row = db.query(CandidateExpectations)\
+                .filter(CandidateExpectations.division.like(f"%{clean_name}%"))\
+                .first()
+
+        if row and row.division_prefix:
+            return row.division_prefix
+
+    # 変換できなかった場合は元の文字列を返す（安全対策）
+    return clean_name
 
 # ============================================
 # 🧠 プレフィックス→和名の変換

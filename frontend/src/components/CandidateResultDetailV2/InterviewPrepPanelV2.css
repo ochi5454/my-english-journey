@@ -426,6 +426,24 @@
     padding: 8px 14px;
 }
 
+/* 部門ブロックを強制的に1段落ちさせる */
+.division-block {
+    flex-basis: 100% !important;
+}
+
+/* RatingBar を包んだラッパーに対して */
+.division-rating-bar .rbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* 個々のボタン（部門アイテム） */
+.division-rating-bar .rbar-seg {
+    flex: 0 1 calc(33% - 8px); /* 3列表示 */
+    min-width: 160px;
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 768px) {
     .interview-prep-panel-v2 {
@@ -452,4 +470,14 @@
     .iq-table {
         min-width: 600px;
     }
+}
+
+.interview-prep-v2-note-subtle {
+    margin-top: 12px;         /* カスタムQAとの隙間 */
+    margin-bottom: 24px;      /* 下にも少し余裕 */
+    font-size: 13px;          /* 小さめに */
+    color: #999;              /* 地味な薄いグレー */
+    text-align: right;        /* 右寄せ */
+    padding-right: 4px;       /* 右に少し余裕 */
+    font-style: italic;       /* 注釈っぽく */
 }

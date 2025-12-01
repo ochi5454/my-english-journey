@@ -253,19 +253,25 @@ th.clickable-header:hover {
 .diff-modal-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 1rem;
   margin-top: 2rem;
 }
 
 .diff-modal-btn {
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1.2rem;
   border-radius: 6px;
   font-size: 1rem;
   cursor: pointer;
-  min-width: 80px;
+  min-width: 110px;   /* ← 横幅を固定 or 最低幅を大きめにする */
+  height: 40px;       /* ← 高さを固定（重要） */
+  display: flex;      
+  justify-content: center;
+  align-items: center; /* ← 中央揃え */
+  white-space: nowrap;
 }
 
-.cancel-btn {
+.diff-cancel-btn {
   background-color: #ffffff;
   border: 1px solid #ccc;
   color: #333;

@@ -33,19 +33,6 @@ const ScoreDetail: React.FC<Props> = ({ localResult, prefixToName }) => {
                 </p>
             </div>
 
-            {/* ✅ マスト要件チェック */}
-            <div className="detail-section-box">
-                <h4>☑️ マスト要件</h4>
-                <ul className="must-check-list">
-                    {localResult.must_check &&
-                        Object.entries(localResult.must_check).map(([key, val]: any) => (
-                        <li key={key} className={val.result ? "green" : "red"}>
-                            {val.result ? "✅" : "❌"} <strong>{key}</strong>: {val.reason}
-                        </li>
-                    ))}
-                </ul>
-            </div>
-
             {/* ✅ 部門別スコア */}
             <div className="detail-section-box">
                 <h4>🎯 部門別スコア</h4>
@@ -139,6 +126,43 @@ const ScoreDetail: React.FC<Props> = ({ localResult, prefixToName }) => {
                     );
                 })}
             </div>
+
+            {/* ✅ マスト要件チェック（下部に配置） */}
+            {localResult.must_check && Object.keys(localResult.must_check).length > 0 && (
+                <div className="detail-section-box">
+                    <h4>☑️ マスト要件</h4>
+                    <ul className="must-check-list">
+                        {Object.entries(localResult.must_check).map(([key, val]: any) => (
+                            <li key={key} className={val.result ? "green" : "red"}>
+                                {val.result ? "✅" : "❌"} <strong>{key}</strong>: {val.reason}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {/* ✅ 部門別マスト要件 */}
+            {localResult.division_must_check && Object.keys(localResult.division_must_check).length > 0 && (
+                <div className="detail-section-box">
+                    <h4>📂 部門別マスト要件</h4>
+                    <div className="division-must-check-list">
+                        {Object.entries(localResult.division_must_check).map(([division, checks]: [string, any]) => (
+                            <div key={division} className="division-must-check-group">
+                                <div className="division-must-check-title">{prefixToName[division] || division}</div>
+                                {Object.entries(checks as Record<string, any>).map(([item, data]) => (
+                                    <div key={`${division}-${item}`} className={`division-check-item ${data.result ? "pass" : "fail"}`}>
+                                        <span className="division-check-icon">{data.result ? "✅" : "❌"}</span>
+                                        <div className="division-check-content">
+                                            <div className="division-check-name">{item}</div>
+                                            <div className="division-check-reason">{data.reason}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

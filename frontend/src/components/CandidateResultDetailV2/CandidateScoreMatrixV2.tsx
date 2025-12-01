@@ -10,7 +10,6 @@ import CandidateMatrixSummary from './CandidateMatrixSummaryV2';
 import type { Result } from './types';
 import appConfig from '../../config';
 import { useHRFinalReviewData } from "./useHRFinalReviewData";
-import { statusSteps } from './VerticalStatusBar';
 
 const CandidateScoreMatrixV2: React.FC<{ interviewerId: string }> = ({ interviewerId }) => {
     const [results, setResults] = useState<Result[]>([]);
@@ -41,6 +40,17 @@ const CandidateScoreMatrixV2: React.FC<{ interviewerId: string }> = ({ interview
         initialValues: AIWeights;
     }>>({});
 
+    // ステータスマスタから取得
+    const [statusSteps, setStatusSteps] = useState<string[]>([]);
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then(rows => {
+                // 並び順どおりに label を並べる
+                setStatusSteps(rows.map((r: any) => r.label));
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
     const allStatuses = statusSteps;
 
     const fetchConfigAndResults = useCallback(async () => {

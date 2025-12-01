@@ -10,19 +10,20 @@ from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 import asyncio
 from fastapi.exceptions import HTTPException
 from pathlib import Path
-import sqlalchemy
 from backend.core.database import SessionLocal
 from backend.core.config import RESUME_PATH, MIME_TO_EXT
-from backend.models.resume import Resume, ResumeWorkHistory
+from backend.models.resume import ResumeWorkHistory
 from backend.models.score_resume import Candidate, CandidateDivisionScore, CandidateScoreHistory, CandidateMustCheckItem, CandidateDivisionMustCheckItem, CandidateStatus
 from backend.models.interview_schedule import InterviewSchedule
-from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text,  extract_gender_from_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
+from backend.models.results_byinterview import ResultByInterview
+from backend.services.score_resume.extract import extract_resume_text_from_pdf, extract_resume_text_from_docx, extract_resume_text_from_xlsx, normalize_pdf_text, extract_motivation, summarize_motivation, extract_work_experience, summarize_work_experience, calculate_total_experience, extract_birth_date
 from backend.services.score_resume.score import score_resume_from_text_async, score_motivation_statement_async, score_work_experience_async
-from backend.services.score_resume.sanitizer import mask_personal_info
+from backend.services.score_resume.sanitizer import mask_personal_info, mask_and_extract_personal_info
 from backend.services.score_resume.vectorstore import save_masked_resume_embedding_local
 from backend.services.score_resume.sql import generate_resume_sql, save_sql_to_sqlite
 from backend.services.score_resume.streaming import _sse, log_step
 from backend.utils.division import convert_division_to_prefix
+from backend.utils.status import update_candidate_status
 
 router = APIRouter()
 JST = timezone(timedelta(hours=9))
@@ -71,6 +72,8 @@ async def resume_score_save(
             merged_texts = []
 
             # === 各ファイルを順に処理 ===
+            last_filename = None # 安全策
+
             for f in safe_files:
             
                 # === ① 拡張子チェックと読み込み ===
@@ -110,6 +113,8 @@ async def resume_score_save(
                 merged_texts.append(f"## {raw_filename}\n{extracted_text}")
                 yield log_step("extract_done", f"🧾 テキスト抽出完了 ({len(extracted_text)} 文字)")
                 await asyncio.sleep(0)
+
+                last_filename = raw_filename # 最後に処理したファイル名を保存し氏名抽出のフォールバックに利用
             # === ③ 全ファイルを1つのテキストに結合 ===
             yield log_step("normalize_start", f"📎 {len(merged_texts)} ファイルの結合を開始")
             await asyncio.sleep(0)
@@ -122,9 +127,11 @@ async def resume_score_save(
             # === ④ マスキング処理 ＆ 氏名性別抽出 ===
             yield log_step("mask_start", "🙈 個人情報マスキングを開始")
             await asyncio.sleep(0)
-            masked_text, extracted_name = mask_personal_info(merged_text)
-            extracted_gender = extract_gender_from_text(merged_text)
-            extracted_birth_date = extract_birth_date(merged_text)  # ✅ 追加
+            masked_text, info = mask_and_extract_personal_info(merged_text, filename=last_filename)
+
+            extracted_name = info.get("name")
+            extracted_gender = info.get("gender")
+            extracted_birth_date = extract_birth_date(merged_text)
 
             print(f"🔍 extracted_name: '{extracted_name}'")
             print(f"🔍 extracted_gender: '{extracted_gender}'")
@@ -169,11 +176,11 @@ async def resume_score_save(
                         user_id=candidate_id,
                         name=extracted_name,
                         gender=extracted_gender,
-                        birth_date=extracted_birth_date,  # ✅ 追加
+                        birth_date=extracted_birth_date,
                         experience=experience_years,
                         uploader_id=uploader_id,
                         preferred_div=prefix,
-                        status="書類選考",  # 初回アップロード時のステータス
+                        status="アップロード",
                         updated_by="system",
                         updated_at=now
                     )
@@ -181,22 +188,25 @@ async def resume_score_save(
                 else:
                     candidate.name = extracted_name
                     candidate.gender = extracted_gender
-                    candidate.birth_date = extracted_birth_date  # ✅ 追加
+                    candidate.birth_date = extracted_birth_date
                     candidate.updated_by = "system"
                     candidate.updated_at = now
                     candidate.experience = experience_years
                     candidate.preferred_div = prefix
-                    if not candidate.status:  # ステータスが未設定の場合のみ設定
-                        candidate.status = "書類選考"
+
+                    # 既存候補のステータスが空なら「アップロード」を設定
+                    if not candidate.status:
+                        candidate.status = "アップロード"
+
                 db.commit()
 
+                # === CandidateStatus 履歴追加（こちらもアップロード）===
                 new_status = CandidateStatus(
                     id=str(uuid4()),
                     user_id=candidate_id,
                     stage="アップロード",
                     chat_reviewer=uploader_id,
                     reviewed_at=now,
-                    reviewed_resume=False
                 )
                 db.add(new_status)
                 db.commit()
@@ -503,6 +513,7 @@ async def candidate_ai_evaluation(request: Request):
 
             target_file = RESUME_PATH / matching_files[0]
             ext = Path(target_file).suffix.lower()
+            raw_filename = target_file.name # ✅ 元のファイル名を保存
 
             print(f"📄 ファイル発見: {target_file.name}")
 
@@ -519,7 +530,7 @@ async def candidate_ai_evaluation(request: Request):
                 raise HTTPException(status_code=400, detail=f"未対応形式: {ext}")
 
             extracted_text = normalize_pdf_text(extracted_text)
-            masked_text, _ = mask_personal_info(extracted_text)
+            masked_text, _ = mask_personal_info(extracted_text, filename=raw_filename) # ✅ filenameを渡す
 
             print(f"✅ ファイルからテキスト抽出完了: {len(masked_text)} 文字")
 
@@ -607,16 +618,9 @@ async def candidate_ai_evaluation(request: Request):
                 source="ai_evaluation"
             ))
 
-        # ステータスを「書類選考」に更新
-        new_status = CandidateStatus(
-            id=str(uuid4()),
-            user_id=candidate_id,
-            stage="書類選考",
-            chat_reviewer=reviewer_id,
-            reviewed_at=now,
-            reviewed_resume=False
-        )
-        db.add(new_status)
+        # ★★★ ステータスは進めない ★★★
+        # candidate-ai-evaluation は AI評価だけの用途なので
+        # CandidateStatus は追加しない
 
         db.commit()
 
@@ -679,6 +683,7 @@ async def resume_score_rescore(candidate_id: str):
                 
                 target_file = RESUME_PATH / matching_files[0]
                 ext = Path(target_file).suffix.lower()
+                raw_filename = target_file.name # ファイル名取得
                 
                 print(f"📄 ファイル発見: {target_file.name}")
                 
@@ -695,7 +700,7 @@ async def resume_score_rescore(candidate_id: str):
                     raise HTTPException(status_code=400, detail=f"未対応形式: {ext}")
                 
                 extracted_text = normalize_pdf_text(extracted_text)
-                masked_text, _ = mask_personal_info(extracted_text)
+                masked_text, _ = mask_personal_info(extracted_text, filename=raw_filename)  # ✅  filenameを渡す
                 
                 print(f"✅ ファイルからテキスト抽出完了: {len(masked_text)} 文字")
 
@@ -734,7 +739,7 @@ async def resume_score_rescore(candidate_id: str):
             candidate.score_work = score_work
             candidate.recommended_div = recommended_div_prefix
             candidate.recommended_division = recommended_div_prefix  # 新フィールドにも設定
-            candidate.status = "書類選考"  # 再評価後は書類選考ステータスに設定
+            # ★ ステータスは変更しない
             candidate.updated_by = "system"
             candidate.updated_at = now
 
@@ -875,13 +880,18 @@ async def get_resume_results():
         for c in candidates:
             user_id = c.user_id
 
-            latest_status = (
-                db.query(CandidateStatus)
-                .filter_by(user_id=user_id)
-                .order_by(CandidateStatus.reviewed_at.desc())
-                .first()
-            )
-            status_value = latest_status.stage if latest_status else "アップロード"
+            # 最優先は Candidate.status
+            status_value = c.status
+
+            # 万が一、古いデータで status が NULL のときだけ CandidateStatus で補完
+            if not status_value:
+                latest_status = (
+                    db.query(CandidateStatus)
+                    .filter_by(user_id=user_id)
+                    .order_by(CandidateStatus.reviewed_at.desc())
+                    .first()
+                )
+                status_value = latest_status.stage if latest_status else "アップロード"
 
             must_checks = db.query(CandidateMustCheckItem).filter_by(user_id=user_id).all()
             division_must_checks = db.query(CandidateDivisionMustCheckItem).filter_by(user_id=user_id).all()
@@ -918,6 +928,11 @@ async def get_resume_results():
                 if rec_score:
                     recommended_div_score = rec_score.score
                     recommended_div_reason = rec_score.reason
+
+            # ✅ 書類選考結果（Candidate テーブルから取得）
+            document_review_result = c.document_review_result
+            document_review_date = to_jst_iso(c.document_review_date) if c.document_review_date else None
+            document_review_reviewer = c.document_review_reviewer
 
             result = {
                 "user_id": user_id,
@@ -956,6 +971,9 @@ async def get_resume_results():
                     for s in scores
                 ],
                 "division_scores": division_score_map,
+                "document_review_result": document_review_result,
+                "document_review_date": document_review_date,
+                "document_review_reviewer": document_review_reviewer,
             }
             results.append(result)
 
@@ -964,90 +982,163 @@ async def get_resume_results():
 @router.get("/resume-result/{candidate_id}")
 async def get_result_by_candidate_id(candidate_id: str):
     with SessionLocal() as db:
+
+        # -------------------------------
+        # 🎉 候補者取得
+        # -------------------------------
         c = db.query(Candidate).filter_by(user_id=candidate_id).first()
         if not c:
-            return JSONResponse(content={"error": "候補者が見つかりません"}, status_code=404)
-
+            return JSONResponse({"error": "候補者が見つかりません"}, status_code=404)
+        
+        # -------------------------------
+        # 🎉 必要テーブル取得
+        # -------------------------------
         must_checks = db.query(CandidateMustCheckItem).filter_by(user_id=candidate_id).all()
+        division_must_checks = db.query(CandidateDivisionMustCheckItem).filter_by(user_id=candidate_id).all()
         scores = db.query(CandidateDivisionScore).filter_by(user_id=candidate_id).all()
-        histories = db.query(CandidateScoreHistory).filter_by(user_id=candidate_id).order_by(CandidateScoreHistory.reviewed_at.desc()).all()
+        histories = (
+            db.query(CandidateScoreHistory)
+            .filter_by(user_id=candidate_id)
+            .order_by(CandidateScoreHistory.reviewed_at.desc())
+            .all()
+        )
+        schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
+        interview_rows = db.query(ResultByInterview).filter_by(candidate_id=candidate_id).all()
+        status_rows = (
+            db.query(CandidateStatus)
+            .filter_by(user_id=candidate_id)
+            .order_by(CandidateStatus.reviewed_at.asc())
+            .all()
+        )
+        # -------------------------------
+        # 🎉 ステータス補完
+        # -------------------------------
+        latest_status = (
+            db.query(CandidateStatus)
+            .filter_by(user_id=candidate_id)
+            .order_by(CandidateStatus.reviewed_at.desc())
+            .first()
+        )
+        status_value = c.status or (latest_status.stage if latest_status else "アップロード")
 
+        # -------------------------------
+        # 🎉 スコア履歴マッピング
+        # -------------------------------
         history_map = {}
         for h in histories:
             history_map.setdefault(h.division, []).append({
                 "score": h.score,
                 "reason": h.reason,
                 "reviewer": h.reviewer,
-                "reviewed_at": to_jst_iso(h.reviewed_at),  # ✅ 修正
+                "reviewed_at": to_jst_iso(h.reviewed_at),
                 "source": h.source
             })
 
-        latest_status = (
-            db.query(CandidateStatus)
-            .filter(CandidateStatus.user_id == candidate_id)
-            .order_by(CandidateStatus.reviewed_at.desc())
-            .first()
-        )
-        latest_reviewed_at = latest_status.reviewed_at if latest_status else None
+        # -------------------------------
+        # 🎉 ステータスマッピング
+        # -------------------------------
+        status_map = {
+            s.stage: {
+                "date": to_jst_iso(s.reviewed_at),
+                "reviewer": s.chat_reviewer,
+            }
+            for s in status_rows
+        }
+
+        # -------------------------------
+        # 🎉 面談日時マッピング
+        # -------------------------------
+        interview_dates = {}
+        for s in schedules:
+            interview_dates[f"{s.interview_stage}_date"] = to_jst_iso(s.scheduled_at)
+
+        if schedules:
+            interview_dates["last_updated"] = to_jst_iso(max(s.last_updated for s in schedules))
+
+        # -------------------------------
+        # 🎉 面談結果マッピング
+        # -------------------------------
+        interview_results = [
+            {
+                "stage": r.stage_name,
+                "interviewer": r.interviewer_id,
+                "decision": r.hiring_decision,
+                "updated_at": to_jst_iso(r.updated_at)
+            }
+            for r in interview_rows
+        ]
+
+        # -------------------------------
+        # 🎉 最終返却値
+        # -------------------------------
+        division_must_check_dict = {}
+        for d in division_must_checks:
+            division = d.division
+            if division not in division_must_check_dict:
+                division_must_check_dict[division] = {}
+            division_must_check_dict[division][d.item_name] = {
+                "result": d.result,
+                "reason": d.reason,
+            }
 
         result_data = {
             "user_id": candidate_id,
             "user_name": c.name,
-            "name": c.name,  # 候補者名（互換性のため両方）
+            "name": c.name,
             "gender": c.gender,
             "birth_date": c.birth_date,
-            "status": c.status or (latest_status.stage if latest_status else None),  # Candidateテーブルのstatusを優先
+            "status": status_value,
             "notes": c.notes,
             "work_summary": c.work_summary,
             "score_notes": c.score_notes,
             "score_work": c.score_work,
             "experience": c.experience,
-            "recommended_division": c.recommended_division,  # 新フィールド名に修正
-            "recommended_div": c.recommended_div,  # 後方互換性のため残す
-            "preferred_div": c.preferred_div,  # 希望部門
+            "recommended_division": c.recommended_division,
+            "recommended_div": c.recommended_div,
+            "preferred_div": c.preferred_div,
             "uploader_id": c.uploader_id,
-            "timestamp": to_jst_iso(latest_reviewed_at),  # ✅ 修正
+            "timestamp": to_jst_iso(latest_status.reviewed_at) if latest_status else None,
+
+            # HR 関連
             "hr_decision": c.hr_decision,
-            # 書類選考情報
+            "hr_saved_at": to_jst_iso(c.hr_saved_at) if c.hr_saved_at else None,
+            "hr_saved_by": c.hr_saved_by,
+            "hr_pay_type": c.hr_pay_type,
+            "hr_employment_type": c.hr_employment_type,
+            "hr_division": c.hr_division,
+            "hr_title": c.hr_title,
+            "hr_income": c.hr_income,
+
+            # 書類選考
             "document_review_date": to_jst_iso(c.document_review_date) if c.document_review_date else None,
             "document_review_reviewer": c.document_review_reviewer,
             "document_review_result": c.document_review_result,
+
+            # 必須チェック
             "must_check": {
                 m.item_name: {"result": m.result, "reason": m.reason}
                 for m in must_checks
             },
+            "division_must_check": division_must_check_dict,
+
+            # スコア
             "scores": [
                 {
                     "division": s.division,
                     "score": s.score,
                     "reason": s.reason,
-                    "score_history": history_map.get(s.division, [])
+                    "score_history": history_map.get(s.division, []),
                 }
                 for s in scores
-            ]
+            ],
+
+            # 面談情報
+            **interview_dates,
+            "interview_results": interview_results,
+
+            # ステータス一覧
+            "status_map": status_map,
         }
-
-        # ✅ 面談日程情報
-        schedules = db.query(InterviewSchedule).filter_by(candidate_id=candidate_id).all()
-        for s in schedules:
-            if s.interview_stage == "interview_1":
-                result_data["interview_1_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
-            elif s.interview_stage == "interview_2":
-                result_data["interview_2_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
-            elif s.interview_stage == "interview_final":
-                result_data["interview_final_date"] = to_jst_iso(s.scheduled_at)  # ✅ 修正
-        
-        if schedules:
-            last_updated = max(s.last_updated for s in schedules)
-            result_data["last_updated"] = to_jst_iso(last_updated)  # ✅ 修正
-
-        # ✅ ステージごとの最終レビュー者情報
-        status_rows = db.query(CandidateStatus).filter_by(user_id=candidate_id).all()
-        for status in status_rows:
-            stage = status.stage
-            if stage is not None:
-                result_data[f"chat_review_{stage}_at"] = to_jst_iso(status.reviewed_at)  # ✅ 修正
-                result_data[f"chat_reviewer_{stage}"] = status.chat_reviewer
 
         return JSONResponse(content=result_data)
 
@@ -1080,31 +1171,26 @@ async def candidate_document_review(request: Request):
     reviewer_id = data.get("reviewer_id")
     is_passed = data.get("is_passed")
     
-    if not candidate_id or reviewer_id is None:
+    if not candidate_id or reviewer_id is None or is_passed is None:
         raise HTTPException(status_code=400, detail="必須パラメータが不足しています")
     
     now = datetime.now(JST)
+    new_stage = "web面談" if is_passed else "不合格"
 
     with SessionLocal() as db:
-        # ステータスを追加（合格ならweb面談に進める）
-        new_status = CandidateStatus(
-            id=str(uuid4()),
-            user_id=candidate_id,
-            stage="web面談" if is_passed else "不合格",
-            chat_reviewer=reviewer_id,
-            reviewed_at=now,
-            reviewed_resume=True
-        )
-        db.add(new_status)
-
-        # 候補者情報を更新（document_review_date, document_review_reviewer, document_review_resultを設定）
         candidate = db.query(Candidate).filter_by(user_id=candidate_id).first()
-        if candidate:
-            candidate.document_review_date = now
-            candidate.document_review_reviewer = reviewer_id
-            candidate.document_review_result = "合格" if is_passed else "不合格"
-            candidate.status = "web面談" if is_passed else "不合格"
-            candidate.updated_at = now
+        if not candidate:
+            raise HTTPException(status_code=404, detail="候補者が見つかりません")
+
+        # ① Candidate.status を最新に
+        candidate.status = new_stage
+        candidate.document_review_date = now
+        candidate.document_review_reviewer = reviewer_id
+        candidate.document_review_result = "合格" if is_passed else "不合格"
+        candidate.updated_at = now
+
+        # ② 履歴を追加（共通関数に統一）
+        update_candidate_status(db, candidate_id, new_stage, reviewer_id)
 
         db.commit()
 

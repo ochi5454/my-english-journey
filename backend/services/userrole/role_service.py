@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.core.database import UserRoleDB
 from backend.models.userrole import Role, RolePermission, Permission
 from backend.services.userrole.audit_service import AuditService
+from backend.utils.timezone import to_jst_iso
 from backend.services.userrole.permission_service import PermissionNotFoundException
 
 # ============================================
@@ -498,7 +499,7 @@ class RoleService:
             "description": role.description,
             "is_system_role": role.is_system_role,
             # 🔧 Fix: Proper datetime check
-            "created_at": role.created_at.isoformat() if role.created_at is not None else None,
-            "updated_at": role.updated_at.isoformat() if role.updated_at is not None else None,
+            "created_at": to_jst_iso(role.created_at),
+            "updated_at": to_jst_iso(role.updated_at),
             "created_by": role.created_by
         }

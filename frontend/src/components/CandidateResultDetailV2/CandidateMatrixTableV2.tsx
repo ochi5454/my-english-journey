@@ -4,7 +4,6 @@ import { renderGenderChip, renderStatusChip, renderHrDecisionChip, renderMustChe
 import type { Result } from './types';
 import appConfig from '../../config';
 import { formatDateOnly } from '../Utils/dateFormat';
-import { statusSteps } from './VerticalStatusBar';
 import '../CandidateScoreMatrix/CandidateMatrixTable.css';
 
 export default function CandidateMatrixTable({
@@ -38,6 +37,16 @@ export default function CandidateMatrixTable({
     const [dragStartX, setDragStartX] = useState(0);
     const [dragStartScrollLeft, setDragStartScrollLeft] = useState(0);
 
+    // ステータスマスタから取得
+    const [statusSteps, setStatusSteps] = useState<string[]>([]);
+    useEffect(() => {
+        fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+            .then(res => res.json())
+            .then(rows => {
+                setStatusSteps(rows.map((r: any) => r.label));
+            })
+            .catch(err => console.error("StatusMaster取得エラー:", err));
+    }, []);
     const allStatuses = statusSteps;
 
     useEffect(() => {

@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
-import { reviewStages } from "../Utils/candidateStatus";
+import appConfig from '../../config';
+import type { StatusMasterRow } from "./StatusBar";
+
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -29,6 +31,24 @@ const ScoreReviewChat: React.FC<Props> = ({
 }) => {
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const [isUserInteracting, setIsUserInteracting] = useState(false);
+  const [reviewStageOptions, setReviewStageOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
+      .then(res => res.json())
+      .then((rows: StatusMasterRow[]) => {
+        const stages = rows
+          .filter((r: StatusMasterRow) => r.is_review_target)
+          .sort(
+            (a: StatusMasterRow, b: StatusMasterRow) =>
+              (a.order ?? 999) - (b.order ?? 999)
+          )
+          .map((r: StatusMasterRow) => r.label);
+
+        setReviewStageOptions(stages);
+      })
+      .catch(err => console.error("StatusMaster取得エラー:", err));
+  }, []);
 
   // 📜 自動スクロール制御（入力中は止める）
   useEffect(() => {
@@ -82,13 +102,11 @@ const ScoreReviewChat: React.FC<Props> = ({
         className="result-d-chat-stage-selector"
         disabled={hasMustCheckFailure || isSending}
       >
-        {reviewStages
-          .filter((stage) => stage !== "アップロード")
-          .map((stage) => (
-            <option key={stage} value={stage}>
-              {stage}
-            </option>
-          ))}
+        {reviewStageOptions.map(stage => (
+          <option key={stage} value={stage}>
+            {stage}
+          </option>
+        ))}
       </select>
 
       {/* ✍ 入力欄 */}

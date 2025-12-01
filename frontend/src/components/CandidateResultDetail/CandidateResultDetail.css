@@ -209,6 +209,7 @@
   transition: background-color 0.3s;
   gap: 4px;
   border-radius: 9999px;
+  position: relative; 
 }
 
 .status-step-horizontal:last-child {
@@ -240,23 +241,29 @@
 
 .interview-prep-check-button {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  background: white;
-  color: #28a745;
-  border: 1px solid #ccc;
+  top: -4px;
+  right: -4px;
+
+  /* ⬇ 視認性アップの改善 */
+  background: #d4f8d0; /* 柔らかい薄緑の背景 */
+  color: #1e7e34; /* 濃い緑（見やすい） */
+  border: none; /* 枠なしでシンプルに */
+
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 12px;
-  line-height: 16px;
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+  line-height: 22px; /* ボタンのちょうど中央に配置 */
   text-align: center;
-  padding: 0;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2); /* 軽い立体感 */
+  transition: transform 0.1s ease-in-out;
 }
+
 .interview-prep-check-button:hover {
-  background-color: #e6ffe6;
+  background-color: #bdf2c1; /* hover時に少し明るく */
+  transform: scale(1.15); /* ちょっと大きくしてクリック誘導 */
 }
 
 .status-extra-info-item-inline {
@@ -552,6 +559,64 @@
   color: #dc3545;
 }
 
+.division-must-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.division-must-check-group {
+  background: #f9fafb;
+  border: 1px dashed #d6d6d6;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.division-must-check-title {
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 6px;
+}
+
+.division-check-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  border-left: 4px solid;
+  margin-bottom: 6px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+}
+
+.division-check-item.pass {
+  border-left-color: #22c55e;
+}
+
+.division-check-item.fail {
+  border-left-color: #ef4444;
+}
+
+.division-check-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.division-check-content {
+  flex: 1;
+}
+
+.division-check-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.division-check-reason {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 2px;
+}
+
 /* --- Department Scores --- */
 .result-d-score-item {
   border: 1px solid #eee;
@@ -818,4 +883,10 @@
 .gender-unknown {
     color: #ff9800;
     font-weight: 600;
+}
+
+.status-disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    pointer-events: none;
 }

@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from typing import List
+from backend.utils.timezone import now_jst_iso
 from backend.services.score_adjustment.score import call_openai_chat
 from backend.utils.checksheet import load_qualitative_items
 
@@ -54,7 +55,7 @@ def normalize_interviewer_eval_output(
         "reasons": raw_json.get("reasons", []),
         "suggestions": raw_json.get("suggestions", []),
         "rubric": labeled,
-        "evaluated_at": datetime.now().isoformat(),
+        "evaluated_at": now_jst_iso(),
         "evaluated_by": interviewer_id,
         "candidate_id": candidate_id,
         "stage": stage,

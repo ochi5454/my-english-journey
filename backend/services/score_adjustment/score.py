@@ -7,7 +7,8 @@ from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
 )
 from backend.core.openai_config import get_openai_client
-from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, MessagesPlaceholder
+from backend.models.score_resume import CandidateExpectations
+from sqlalchemy.orm import Session
 
 # ============================================
 # ✅ GPT呼び出し
@@ -29,13 +30,7 @@ SYSTEM_TEMPLATE = """あなたは経験豊富な人事評価の専門家です�
 4. **公平性**: 主観を排除し、客観的な事実に基づく
 
 【評価基準の詳細】
-- **営業部門**: コミュニケーション力、交渉力、目標達成経験、顧客折衝経験
-- **経理部門**: 数値処理能力、正確性、会計知識、システム運用経験
-- **法務部門**: 法的知識、リスク管理、コンプライアンス経験、規程整備
-- **人事部門**: 組織理解、人材育成経験、労務管理、採用経験
-- **ファシリティ部門**: 施設管理、コスト管理、業者折衝、安全管理
-- **監理技術者部門**: 技術力、プロジェクト管理、品質管理、安全管理
-- **SE部門**: プログラミング能力、システム設計、技術文書作成、問題解決力
+{division_trait_details}
 
 【利用可能な部門】
 {divisions}
@@ -47,10 +42,21 @@ SYSTEM_TEMPLATE = """あなたは経験豊富な人事評価の専門家です�
    |------|------|--------|--------|-----------|
    | 営業部門 | 65点 | 70点 | +5点 | 履歴書の「大手法人向け提案営業で年間目標120%達成」という実績から、目標達成能力が高く評価できる。ただし顧客折衝の具体的な困難事例の記載が少ないため、+5点が妥当 |
 
-2. **技術的記述**: パース用に以下の形式も併記
-   [スコア調整]: 部門=営業部門, 変更後スコア=70, 理由=大手法人向け提案営業で年間目標120%達成の実績あり
+2. **技術的記述（パース用。絶対に省略しない）**:
+   スコアを変更する場合は、**変更した部門ごとに必ず次の形式の行を出力**してください。
 
-3. **確定時**: 文末に「###FINAL」を付ける
+   [スコア調整]: 部門=人事部門, 変更後スコア=30, 理由=人事関連の経験が不足しているため
+
+   - 行頭からそのまま書くこと（箇条書きの「- 」や「* 」は付けない）
+   - 「部門=」「変更後スコア=」「理由=」というキー名と順番を必ず守る
+   - 変更後スコアは半角数字のみ（例: 30, 25, 80）
+   - 各部門ごとに1行ずつ出力し、複数部門あれば複数行書く
+   - ユーザーが「理由を教えて」「分析して」など**説明のみを求めている場合は、スコアを変更せず [スコア調整] 行を出力しないこと**
+
+3. **確定処理について（重要）**:
+   - あなたが **[スコア調整] 行を出力した時点で、システム側ではスコアが即座に保存されます。**
+   - そのため、ユーザーに「この内容で確定しますか？」「確定してもよいですか？」などと**確認の質問をしてはいけません。**
+   - [スコア調整] 行を出力した場合は、最後に「以上のスコア調整を反映しました。」のように、**すでに反映済みであることを伝える**文章で締めてください。
 
 4. **推奨部門の質問**: ユーザーから「推奨部門は？」「どの部門がいい？」などの質問があった場合:
    [推奨部門]: 部門=最もスコアが高い部門名
@@ -61,17 +67,48 @@ SYSTEM_TEMPLATE = """あなたは経験豊富な人事評価の専門家です�
 【会話の流れ】
 - 提案フェーズ: 詳細な根拠を示してスコア調整を提案
 - 議論フェーズ: ユーザーの質問に詳細に回答
-- 確定フェーズ: ユーザーが了承したら「###FINAL」で確定
+- 確定フェーズ: ユーザーが了承したら、[スコア調整] 行を出力し、その直後に「###FINAL」を付けて確定
 - 推奨部門: ユーザーから質問があればスコアに基づいて推奨
 - 判定: ユーザーから指示があれば合格・不合格を判定
 """
 
-def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str]) -> list[dict]:
+def get_division_traits_map(db: Session) -> dict[str, list[str]]:
+    """
+    candidate_expectations テーブルから部門ごとの trait_label を取得
+    """
+    rows = (
+        db.query(
+            CandidateExpectations.division,
+            CandidateExpectations.trait_label
+        )
+        .order_by(CandidateExpectations.division)
+        .all()
+    )
+
+    division_map: dict[str, list[str]] = {}
+
+    for division, trait in rows:
+        if not division:
+            continue
+        division_map.setdefault(division, []).append(trait)
+
+    return division_map
+
+def format_division_traits_for_prompt(div_map: dict[str, list[str]]) -> str:
+    """
+    SYSTEM_TEMPLATE に埋め込む Markdown を生成する
+    """
+    lines = ["【評価基準の詳細】"]
+    for division, traits in div_map.items():
+        trait_joined = "、".join(traits)
+        lines.append(f"- **{division}**: {trait_joined}")
+    return "\n".join(lines)
+
+def generate_score_review_prompt(messages: list[dict], valid_divisions: list[str], division_trait_details: str) -> list[dict]:
     """LangChainのプロンプトテンプレートを使用して、より構造化されたプロンプトを生成"""
 
     # システムプロンプトを部門リストでフォーマット
-    system_content = SYSTEM_TEMPLATE.format(divisions=", ".join(valid_divisions))
-
+    system_content = SYSTEM_TEMPLATE.format(divisions=", ".join(valid_divisions), division_trait_details=division_trait_details)
     system_prompt = {
         "role": "system",
         "content": system_content
