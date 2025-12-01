@@ -41,7 +41,9 @@ const VerticalStatusBar: React.FC<Props> = ({
         fetch(`${appConfig.API_BASE_URL}/admin/status/master`)
             .then(res => res.json())
             .then(rows => {
+                console.log('[DEBUG VerticalStatusBar] raw rows:', rows);
                 const ordered = [...rows].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+                console.log('[DEBUG VerticalStatusBar] ordered:', ordered);
                 setStatusMaster(ordered);
 
                 // 全ステージ順番
@@ -192,11 +194,15 @@ const VerticalStatusBar: React.FC<Props> = ({
             <h3 className="vertical-status-title">選考ステータス</h3>
             <div className="vertical-status-steps">
 
-                {statusSteps.map((step, idx) => {
+                {statusSteps.filter(s => s !== '一括アップロード').map((step, idx) => {
                     const stageInfo = getStageInfo(step);
                     const row = statusMaster.find(r => r.label === step);
 
-                    const isActive = localResult.status === step;
+                    // 「一括アップロード」も「アップロード」として扱う
+                    const normalizedStatus = (localResult.status || '').includes('アップロード')
+                        ? 'アップロード'
+                        : localResult.status;
+                    const isActive = normalizedStatus === step;
                     const isSelected = selectedStage === step;
 
                     const isStepDone =

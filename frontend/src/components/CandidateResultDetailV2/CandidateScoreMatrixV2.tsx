@@ -175,8 +175,8 @@ const CandidateScoreMatrixV2: React.FC<{ interviewerId: string }> = ({ interview
         const p = r.ai_score_percentile ?? 0;
         const min = Number(aiScoreMinPercentile) || 0;
         const max = Number(aiScoreMaxPercentile) || 100;
-        const aiScoreMatch = p >= min && p < max;
-        const hrPendingMatch = onlyPending ? !r.hr_decision : true;
+        const aiScoreMatch = p >= min && p <= max;
+        const hrPendingMatch = onlyPending ? (!r.hr_decision || r.hr_decision === '') : true;
 
         return idMatch && nameMatch && genderMatch && statusMatch && preferredDivisionMatch && recommendedDivisionMatch && mustPassed && aiScoreMatch && hrPendingMatch;
     });

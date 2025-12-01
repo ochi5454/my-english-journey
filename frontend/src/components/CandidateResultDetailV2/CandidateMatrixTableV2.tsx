@@ -152,10 +152,34 @@ export default function CandidateMatrixTable({
 
     if (loading) return <p>読み込み中...</p>;
 
-    const groupedByStatus = allStatuses.reduce((acc, status) => {
+    // ステータスマスターが未取得の場合、候補者のステータスから動的に生成
+    // 「アップロード」と「一括アップロード」は「アップロード」として統合
+    const normalizeStatus = (status: string | undefined) => {
+        if (!status || status.includes('アップロード')) return 'アップロード';
+        return status;
+    };
+
+    // 正しいステータス順序（アップロード→書類選考→...）
+    const STATUS_ORDER = [
+        'アップロード', '書類選考', 'web面談', '1次面談', '2次面談',
+        '待遇検討', '内定通知', '内定受諾', '内定辞退', '不合格'
+    ];
+
+    const rawStatuses = allStatuses.length > 0
+        ? allStatuses.filter(s => s !== '一括アップロード')
+        : [...new Set(filteredResults.map(r => normalizeStatus(r.status)))];
+
+    // STATUS_ORDERの順番でソート
+    const effectiveStatuses = rawStatuses.sort((a, b) => {
+        const indexA = STATUS_ORDER.indexOf(a);
+        const indexB = STATUS_ORDER.indexOf(b);
+        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+    });
+
+    const groupedByStatus = effectiveStatuses.reduce((acc, status) => {
         acc[status] = filteredResults.filter(r => {
-            const rStatus = r.status || 'アップロード';
-            return rStatus === status || (status === 'アップロード' && rStatus.includes('アップロード'));
+            const rStatus = normalizeStatus(r.status);
+            return rStatus === status;
         });
         return acc;
     }, {} as Record<string, Result[]>);
@@ -334,7 +358,7 @@ export default function CandidateMatrixTable({
                 ref={wrapperRef}
                 style={{ paddingBottom: isFullscreen ? '0' : '40px' }}
             >
-                {allStatuses.map(status => {
+                {effectiveStatuses.map(status => {
                     const group = groupedByStatus[status];
                     const count = group?.length || 0;
                     
