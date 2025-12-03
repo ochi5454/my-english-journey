@@ -23,5 +23,10 @@
     "expr-eval": "^2.0.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
-  }
+  },
+  "description": "",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
