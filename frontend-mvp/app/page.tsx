@@ -1,6 +1,77 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+type FileDef = { display_name: string; expected_headers: string[] }
+type SheetPayload = {
+  file_key: string
+  file_name: string
+  version: number
+  sheets: { name: string; headers: string[]; rows: string[][]; grid?: string[][] }[]
+  expected_headers: string[]
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:8001'
+
+const FILE_ORDER = ['schedule_input', 'punches', 'days_items', 'tim_daily', 'person_progress'] as const
+
+const FALLBACK_DEFS: Record<string, FileDef> = {
+  schedule_input: {
+    display_name: '勤務予定入力 (11_TIM_勤務予定入力.xlsx)',
+    expected_headers: [
+      '従業員番号',
+      '勤務予定日',
+      '出勤休日区分',
+      '出勤休日区分名',
+      '就業時間パターンコード',
+      '就業時間パターン名',
+      '就業開始時刻',
+      '就業終了時刻',
+      '休憩時間',
+    ],
+  },
+  punches: {
+    display_name: '出退社時刻 (12_TIM_出退社時刻.xlsx)',
+    expected_headers: ['従業員番号', '勤務日付', '出社時刻', '退社時刻'],
+  },
+  days_items: {
+    display_name: '日数項目 (13_日数項目.csv)',
+    expected_headers: ['従業員番号', '勤務日', '出社時刻', '退社時刻', '日数項目', '日数項目名'],
+  },
+  tim_daily: {
+    display_name: '日次実績 (14_TIM.xlsx)',
+    expected_headers: [
+      '従業員番号',
+      '勤務日付',
+      '(時間)定時開始時刻',
+      '(時間)定時終了時刻',
+      '(時間)呼出出勤',
+      '(時間)呼出退勤',
+      '(時間)呼出勤務',
+      '(時間)実所定外時間',
+      '(時間)出社日数',
+      '(時間)在宅勤務時間',
+      '(時間)在宅勤務日数',
+      '(時間)終日在宅フラグ',
+      '(時間)実労働時間',
+      '(時間)休憩Ｈ',
+      '(時間)休憩勤務開始',
+      '(時間)休憩勤務終了',
+      '(時間)休憩1開始時刻',
+      '(時間)休憩1終了時刻',
+      '(時間)休憩2開始時刻',
+      '(時間)休憩2終了時刻',
+      '(時間)休憩3開始時刻',
+      '(時間)休憩3終了時刻',
+      '(時間)休憩4開始時刻',
+      '(時間)休憩4終了時刻',
+    ],
+  },
+  person_progress: {
+    display_name: '勤務予定進捗一覧 (15_勤務予定進捗一覧.csv)',
+    expected_headers: ['社員番号', '氏名', 'カナ氏名', '勤怠年月', '勤務開始日', '進捗状況', '打刻実績', '勤務実績登録', '所属名称', 'メールアドレス'],
+  },
+}
 
 const LEGEND = [
   { label: '80h超', desc: '長時間労働', bg: '#6b4f00', color: '#f7f2e2' },
@@ -11,46 +82,98 @@ const LEGEND = [
   { label: '15h〜20h', desc: '', bg: '#5f86c6', color: '#fdfdfd' },
 ]
 
-const HEADER = [
-  '従業員番号',
-  '氏名',
-  '勤務予定',
-  '実所定外時間',
-  '残業時間',
-  '呼出出勤時間',
-  'グレード',
-  '職制',
-  '所属名称2',
-  '所属名称3',
-  '所属名称4',
-  '所属名称5',
-  '所属名称6',
-  '所属名称7',
-  '所属名称8',
-]
-
-const SAMPLE_ROW = [
-  '291218',
-  '上田　聖也',
-  '承認済み',
-  '9:55',
-  '9:55',
-  '0:00',
-  'G3',
-  '一般',
-  'IT責任者',
-  '',
-  '',
-  '',
-  'AI・データマネジメントグループ',
-  '',
-  '',
-]
-
-const SHEET_NAMES = ['A部', 'B部', 'C部', 'D部', 'E部', 'F部', 'G部', 'H部']
-
 export default function Home() {
   const [activeSheet, setActiveSheet] = useState(0)
+  const [defs, setDefs] = useState<Record<string, FileDef>>(FALLBACK_DEFS)
+  const [sheetData, setSheetData] = useState<Record<string, SheetPayload | null>>({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadedName, setUploadedName] = useState<string | null>(null)
+
+  const activeKey = FILE_ORDER[activeSheet]
+  const activeDef = defs[activeKey] ?? { display_name: activeKey, expected_headers: [] }
+
+  useEffect(() => {
+    const loadDefs = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/excel/config`)
+        if (!res.ok) throw new Error('config load failed')
+        const json = await res.json()
+        setDefs((prev) => ({ ...prev, ...json }))
+      } catch {
+        // フォールバック定義を使う
+      }
+    }
+    loadDefs()
+  }, [])
+
+  const loadSheet = async (key: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/excel/${key}`)
+      if (res.status === 404) {
+        setSheetData((prev) => ({ ...prev, [key]: null }))
+        return
+      }
+      if (!res.ok) {
+        throw new Error('fetch failed')
+      }
+      const json = (await res.json()) as SheetPayload
+      setSheetData((prev) => ({ ...prev, [key]: json }))
+    } catch (e) {
+      setError('データ取得に失敗しました。バックエンドが起動しているか確認してください。')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSheet(activeKey)
+  }, [activeKey])
+
+  const handleFile = async (file?: File) => {
+    if (!file) return
+    setUploadedName(file.name)
+    setUploadMessage(null)
+    setUploadError(null)
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`${API_BASE}/excel/${activeKey}/upload`, { method: 'POST', body: fd })
+      if (!res.ok) {
+        let detail = ''
+        try {
+          const body = await res.json()
+          detail = body?.detail?.message || JSON.stringify(body?.detail || body)
+        } catch {
+          detail = await res.text()
+        }
+        throw new Error(detail || 'アップロードに失敗しました')
+      }
+      setUploadMessage('アップロード完了。最新データを表示します。')
+      await loadSheet(activeKey)
+    } catch (e: any) {
+      setUploadError(e?.message ?? 'アップロードに失敗しました')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const sheet = sheetData[activeKey]?.sheets?.[0]
+  const grid = useMemo(() => {
+    if (sheet?.grid?.length) return sheet.grid
+    if (sheet?.headers?.length) return [sheet.headers, ...(sheet.rows || [])]
+    const headers = activeDef.expected_headers ?? []
+    return [headers, headers.length ? [Array(headers.length).fill('')] : []]
+  }, [sheet, activeDef])
+
+  const headers = grid[0] || []
+  const bodyRows = grid.slice(1)
 
   return (
     <div className="jfa-app">
@@ -64,9 +187,9 @@ export default function Home() {
 
       <main className="jfa-shell">
         <div className="flex gap-2 flex-wrap mb-3">
-          {SHEET_NAMES.map((name, idx) => (
+          {FILE_ORDER.map((key, idx) => (
             <button
-              key={name}
+              key={key}
               onClick={() => setActiveSheet(idx)}
               style={{
                 padding: '8px 12px',
@@ -78,7 +201,7 @@ export default function Home() {
                 boxShadow: idx === activeSheet ? '0 6px 12px rgba(0,0,0,0.08)' : 'none',
               }}
             >
-              {name}
+              {defs[key]?.display_name || key}
             </button>
           ))}
         </div>
@@ -86,7 +209,7 @@ export default function Home() {
         <div className="flex flex-col gap-1">
           <div className="text-2xl font-bold text-[var(--jfa-navy)]">実所定外時間 推計データ</div>
           <div className="text-sm text-slate-600">
-            2025年12月度 （2025年12月15日現在） | {SHEET_NAMES[activeSheet]}
+            2025年12月度 （2025年12月15日現在） | {defs[activeKey]?.display_name || activeKey}
           </div>
         </div>
 
@@ -101,44 +224,71 @@ export default function Home() {
           ))}
         </div>
 
+        <section className="sheet-card" style={{ marginTop: '8px' }}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              style={{ display: 'none' }}
+              id="excel-upload"
+              onChange={(e) => handleFile(e.target.files?.[0])}
+            />
+            <label
+              htmlFor="excel-upload"
+              className="jfa-button"
+              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              エクセルをアップロード
+            </label>
+            {uploadedName && <span className="text-sm text-slate-600">選択中: {uploadedName}</span>}
+          </div>
+          <div className="text-xs text-slate-500 mt-2">※アップロードされたファイルは今後の取り込み処理に利用できます。</div>
+          {uploadMessage && <div className="text-sm text-green-700 mt-1">{uploadMessage}</div>}
+          {uploadError && <div className="text-sm text-red-600 mt-1">エラー: {uploadError}</div>}
+          {uploading && <div className="text-sm text-slate-600 mt-1">アップロード中…</div>}
+        </section>
+
         <section className="sheet-card">
+          {loading && <div className="text-sm text-slate-600 mb-2">読み込み中…</div>}
+          {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
           <div className="sheet-table-wrapper">
             <div className="sheet-table">
               <div className="sheet-row sheet-header-band">
-                <div className="sheet-cell sheet-title" style={{ width: HEADER.length * 110 }}>
+                <div className="sheet-cell sheet-title" style={{ width: Math.max(headers.length * 110, 320) }}>
                   2025年12月度 実所定外時間 推計データ（2025年12月15日現在）
                 </div>
               </div>
               <div className="sheet-row sheet-header">
-                {HEADER.map((title, idx) => (
+                {headers.map((title, idx) => (
                   <div
                     key={title}
                     className="sheet-cell"
                     style={{
-                      width: idx === 3 ? 120 : idx >= 12 ? 140 : 110,
-                      background: idx >= 12 ? '#f6d7b5' : idx === 3 ? '#fef9c3' : '#fdfbf6',
-                      color: idx >= 6 ? '#c00000' : undefined,
-                      fontWeight: idx >= 6 ? 700 : 600,
+                      width: title.length > 10 ? 140 : 110,
+                      background: '#fdfbf6',
+                      fontWeight: 700,
                     }}
                   >
                     {title}
                   </div>
                 ))}
               </div>
-              <div className="sheet-row">
-                {SAMPLE_ROW.map((cell, idx) => (
-                  <div
-                    key={`${activeSheet}-${idx}`}
-                    className="sheet-cell sheet-body"
-                    style={{
-                      width: idx === 3 ? 120 : idx >= 12 ? 140 : 110,
-                      background: idx === 3 ? '#fef9c3' : '#fff',
-                    }}
-                  >
-                    <div style={{ fontSize: '12px' }}>{cell}</div>
-                  </div>
-                ))}
-              </div>
+              {bodyRows.map((row, rIdx) => (
+                <div className="sheet-row" key={`row-${activeSheet}-${rIdx}`}>
+                  {headers.map((_, cIdx) => (
+                    <div
+                      key={`cell-${rIdx}-${cIdx}`}
+                      className="sheet-cell sheet-body"
+                      style={{
+                        width: headers[cIdx]?.length > 10 ? 140 : 110,
+                        background: rIdx === 0 ? '#fffef6' : '#fff',
+                      }}
+                    >
+                      <div style={{ fontSize: '12px' }}>{row?.[cIdx] ?? ''}</div>
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
         </section>

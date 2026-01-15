@@ -9,6 +9,11 @@ from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Session
 from datetime import date, datetime
 import httpx
 import json
+import os
+from fastapi import UploadFile, File
+import tempfile
+import csv
+import openpyxl
 
 
 class Settings(BaseSettings):
@@ -24,6 +29,26 @@ settings = Settings()
 engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+class ExcelFile(Base):
+    __tablename__ = "excel_files"
+    id = Column(Integer, primary_key=True, index=True)
+    file_key = Column(String, index=True, nullable=False)  # A部〜H部など
+    file_name = Column(String, nullable=False)
+    version = Column(Integer, default=1)
+    uploaded_at = Column(Date, default=date.today)
+    cells = relationship("ExcelCell", back_populates="file", cascade="all, delete-orphan")
+
+
+class ExcelCell(Base):
+    __tablename__ = "excel_cells"
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("excel_files.id"), nullable=False)
+    sheet_name = Column(String, nullable=False)
+    row_index = Column(Integer, nullable=False)
+    col_index = Column(Integer, nullable=False)
+    value = Column(Text, nullable=True)
+    file = relationship("ExcelFile", back_populates="cells")
 
 
 class Tournament(Base):
@@ -450,3 +475,232 @@ def seed(req: SeedRequest, db: Session = Depends(get_db)):
     db.refresh(t)
     generate_tasks_from_template(t, db)
     return t
+FILE_DEFINITIONS = {
+    "schedule_input": {
+        "display_name": "勤務予定入力 (11_TIM_勤務予定入力.xlsx)",
+        "expected_headers": [
+            "従業員番号",
+            "勤務予定日",
+            "出勤休日区分",
+            "出勤休日区分名",
+            "就業時間パターンコード",
+            "就業時間パターン名",
+            "就業開始時刻",
+            "就業終了時刻",
+            "休憩時間",
+        ],
+    },
+    "punches": {
+        "display_name": "出退社時刻 (12_TIM_出退社時刻.xlsx)",
+        "expected_headers": [
+            "従業員番号",
+            "勤務日付",
+            "出社時刻",
+            "退社時刻",
+        ],
+    },
+    "days_items": {
+        "display_name": "日数項目 (13_日数項目.csv)",
+        "expected_headers": [
+            "従業員番号",
+            "勤務日",
+            "出社時刻",
+            "退社時刻",
+            "日数項目",
+            "日数項目名",
+        ],
+    },
+    "tim_daily": {
+        "display_name": "日次実績 (14_TIM.xlsx)",
+        "expected_headers": [
+            "従業員番号",
+            "勤務日付",
+            "(時間)定時開始時刻",
+            "(時間)定時終了時刻",
+            "(時間)呼出出勤",
+            "(時間)呼出退勤",
+            "(時間)呼出勤務",
+            "(時間)実所定外時間",
+            "(時間)出社日数",
+            "(時間)在宅勤務時間",
+            "(時間)在宅勤務日数",
+            "(時間)終日在宅フラグ",
+            "(時間)実労働時間",
+            "(時間)休憩Ｈ",
+            "(時間)休憩勤務開始",
+            "(時間)休憩勤務終了",
+            "(時間)休憩1開始時刻",
+            "(時間)休憩1終了時刻",
+            "(時間)休憩2開始時刻",
+            "(時間)休憩2終了時刻",
+            "(時間)休憩3開始時刻",
+            "(時間)休憩3終了時刻",
+            "(時間)休憩4開始時刻",
+            "(時間)休憩4終了時刻",
+        ],
+    },
+    "person_progress": {
+        "display_name": "勤務予定進捗一覧 (15_勤務予定進捗一覧.csv)",
+        "expected_headers": [
+            "社員番号",
+            "氏名",
+            "カナ氏名",
+            "勤怠年月",
+            "勤務開始日",
+            "進捗状況",
+            "打刻実績",
+            "勤務実績登録",
+            "所属名称",
+            "メールアドレス",
+        ],
+    },
+}
+
+
+def normalize_headers(headers: List[str]) -> List[str]:
+    cleaned = []
+    for h in headers:
+        if h is None:
+            h = ""
+        if not isinstance(h, str):
+            h = str(h)
+        cleaned.append(h.lstrip("\ufeff").strip())
+    return cleaned
+
+
+def parse_csv_to_cells(path: str):
+    cells = []
+    headers: List[str] = []
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.reader(f)
+        for r_idx, row in enumerate(reader, start=1):
+            if r_idx == 1:
+                headers = normalize_headers(row)
+            for c_idx, val in enumerate(row, start=1):
+                cells.append((r_idx, c_idx, val))
+    return cells, headers, "Sheet1"
+
+
+def parse_xlsx_to_cells(path: str):
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    ws = wb.active
+    cells = []
+    headers: List[str] = []
+    for r_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        if r_idx == 1:
+            headers = normalize_headers(list(row))
+        for c_idx, val in enumerate(row, start=1):
+            cells.append((r_idx, c_idx, "" if val is None else str(val)))
+    return cells, headers, ws.title or "Sheet1"
+
+
+@app.get("/excel/config")
+def list_excel_config():
+    """
+    フロントでタブ表示等に使う定義情報を返す。
+    """
+    return FILE_DEFINITIONS
+
+
+@app.post("/excel/{file_key}/upload")
+async def upload_excel(file_key: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if file_key not in FILE_DEFINITIONS:
+        raise HTTPException(status_code=400, detail="unknown file_key")
+
+    os.makedirs("data/uploads", exist_ok=True)
+    suffix = os.path.splitext(file.filename)[1].lower()
+    with tempfile.NamedTemporaryFile(delete=False, dir="data/uploads", suffix=suffix) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        if suffix in [".csv"]:
+            cells, headers, sheet_name = parse_csv_to_cells(tmp_path)
+        elif suffix in [".xlsx", ".xls"]:
+            cells, headers, sheet_name = parse_xlsx_to_cells(tmp_path)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type")
+
+        expected = FILE_DEFINITIONS[file_key]["expected_headers"]
+        if normalize_headers(expected) != normalize_headers(headers):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "header mismatch",
+                    "expected": expected,
+                    "received": headers,
+                },
+            )
+
+        latest = (
+            db.query(ExcelFile)
+            .filter(ExcelFile.file_key == file_key)
+            .order_by(ExcelFile.version.desc())
+            .first()
+        )
+        version = (latest.version + 1) if latest else 1
+
+        ef = ExcelFile(file_key=file_key, file_name=file.filename, version=version, uploaded_at=date.today())
+        db.add(ef)
+        db.flush()
+
+        for r, c, v in cells:
+            cell = ExcelCell(file_id=ef.id, sheet_name=sheet_name, row_index=r, col_index=c, value=v)
+            db.add(cell)
+        db.commit()
+        return {
+            "file_key": file_key,
+            "version": version,
+            "rows": len(set([r for r, _, _ in cells])),
+            "cells": len(cells),
+            "sheet_name": sheet_name,
+        }
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+@app.get("/excel/{file_key}")
+def get_excel(file_key: str, db: Session = Depends(get_db)):
+    ef = (
+        db.query(ExcelFile)
+        .filter(ExcelFile.file_key == file_key)
+        .order_by(ExcelFile.version.desc())
+        .first()
+    )
+    if not ef:
+        raise HTTPException(status_code=404, detail="not found")
+    cells = (
+        db.query(ExcelCell)
+        .filter(ExcelCell.file_id == ef.id)
+        .order_by(ExcelCell.sheet_name, ExcelCell.row_index, ExcelCell.col_index)
+        .all()
+    )
+    sheets = {}
+    for cell in cells:
+        sheets.setdefault(cell.sheet_name, []).append(cell)
+
+    formatted = []
+    for sheet_name, sheet_cells in sheets.items():
+        max_row = max(c.row_index for c in sheet_cells)
+        max_col = max(c.col_index for c in sheet_cells)
+        grid = [["" for _ in range(max_col)] for _ in range(max_row)]
+        for c in sheet_cells:
+            grid[c.row_index - 1][c.col_index - 1] = c.value or ""
+        formatted.append(
+            {
+                "name": sheet_name,
+                "headers": grid[0] if grid else [],
+                "rows": grid[1:] if len(grid) > 1 else [],
+                "grid": grid,
+            }
+        )
+
+    return {
+        "file_key": ef.file_key,
+        "file_name": ef.file_name,
+        "version": ef.version,
+        "sheets": formatted,
+        "expected_headers": FILE_DEFINITIONS.get(file_key, {}).get("expected_headers", []),
+    }

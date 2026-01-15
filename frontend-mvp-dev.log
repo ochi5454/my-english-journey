@@ -2,17 +2,16 @@
 > frontend-mvp@0.1.0 dev
 > next dev --hostname 127.0.0.1 --port 5175
 
-  ▲ Next.js 14.2.5
-  - Local:        http://127.0.0.1:5175
-  - Network:      http://127.0.0.1:5175
-  - Environments: .env
-
- ✓ Starting...
- ✓ Ready in 1638ms
- ○ Compiling / ...
- ✓ Compiled / in 1356ms (458 modules)
- GET / 200 in 1447ms
- ✓ Compiled in 71ms (236 modules)
- GET / 200 in 32ms
- GET / 200 in 144ms
- GET / 200 in 100ms
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use 127.0.0.1:5175
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '127.0.0.1',
+  port: 5175
+}
+[?25h
