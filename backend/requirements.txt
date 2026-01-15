@@ -41,3 +41,5 @@ chromadb
 pdfplumber
 pymupdf
 aiofiles
+faster-whisper
+pyannote.audio

@@ -3,12 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.routers import (
     score_resume,
     score_adjustment,
-    interview_schedule, 
-    checksheet, 
+    interview_schedule,
+    checksheet,
     score_byinterview,
     score_ofinterviewer,
     hr,
     resume_batch,
+    transfer,
+    referee_report,
+    audio_parse,
 )
 from backend.routers.admin import (
     skills,
@@ -45,7 +48,11 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://prothentia.ngrok.app"],  # フロントエンドのURL
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://prothentia.ngrok.app",
+    ],  # フロントエンドのURL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,6 +71,8 @@ app.include_router(checksheet.router)
 app.include_router(score_byinterview.router)
 app.include_router(score_ofinterviewer.router)
 app.include_router(hr.router)
+app.include_router(transfer.router)
+app.include_router(audio_parse.router)
 # 以下admin関連
 app.include_router(skills.router)
 app.include_router(role.router)

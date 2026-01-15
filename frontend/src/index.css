@@ -5,7 +5,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f5;
+  background: linear-gradient(120deg, #f9f5ff, #f0f9ff, #fef2f2);
+  background-size: 240% 240%;
+  animation: gradientShift 14s ease-in-out infinite;
 }
 
 code {
@@ -19,4 +21,57 @@ code {
 
 #root {
   min-height: 100vh;
+}
+
+:root {
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --glow-amber: 0 12px 28px rgba(226, 153, 47, 0.18);
+  --glass: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.35);
+}
+
+button,
+input,
+select,
+textarea,
+a {
+  transition: background-color 180ms var(--ease-soft), border-color 180ms var(--ease-soft), box-shadow 180ms var(--ease-soft),
+    transform 180ms var(--ease-soft), color 180ms var(--ease-soft);
+}
+
+button:hover,
+button:focus-visible,
+a:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12), var(--glow-amber);
+}
+
+input:hover,
+select:hover,
+textarea:hover,
+input:focus,
+select:focus,
+textarea:focus {
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(110, 231, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+  body {
+    animation: none;
+  }
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
