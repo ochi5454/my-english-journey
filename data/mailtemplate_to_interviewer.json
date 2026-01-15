@@ -1,4 +1,0 @@
-{
-  "subject": "【面談対応のお願い】{{candidate_name}}様のご対応について",
-  "body": "以下の通り、{{candidate_name}}様の{{stage}}の面談を予定しております。\n\n■ 候補者名: {{candidate_name}}\n■ 面談日時: {{interview_date}}\n■ ご担当者: {{interviewer_name}}\n\n候補者情報の事前確認や、質問事項のご準備など、必要に応じて事前のご対応をお願いいたします。\n\n当日はどうぞよろしくお願いいたします。"
-}

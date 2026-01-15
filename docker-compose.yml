@@ -1,27 +1,27 @@
 version: "3.9"
 
 services:
-  backend-mvp:
-    build: ./backend-mvp
-    container_name: backend-mvp
+  backend:
+    build: ./backend
+    container_name: backend
     env_file:
-      - ./backend-mvp/.env
+      - ./backend/.env
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     ports:
-      - "8001:8000"
+      - "8000:8000"
     volumes:
-      - backend-mvp-data:/app/data
+      - backend-data:/app/data
 
-  frontend-mvp:
-    build: ./frontend-mvp
-    container_name: frontend-mvp
+  frontend:
+    build: ./frontend
+    container_name: frontend
     env_file:
-      - ./frontend-mvp/.env
+      - ./frontend/.env
     ports:
       - "5175:3000"
     depends_on:
-      - backend-mvp
+      - backend
 
 volumes:
-  backend-mvp-data:
+  backend-data:
