@@ -17,7 +17,7 @@ const FILE_ORDER = ['schedule_input', 'punches', 'days_items', 'tim_daily', 'per
 
 const FALLBACK_DEFS: Record<string, FileDef> = {
   schedule_input: {
-    display_name: '勤務予定入力 (11_TIM_勤務予定入力.xlsx)',
+    display_name: '勤務予定入力',
     expected_headers: [
       '従業員番号',
       '勤務予定日',
@@ -31,15 +31,15 @@ const FALLBACK_DEFS: Record<string, FileDef> = {
     ],
   },
   punches: {
-    display_name: '出退社時刻 (12_TIM_出退社時刻.xlsx)',
+    display_name: '出退社時刻',
     expected_headers: ['従業員番号', '勤務日付', '出社時刻', '退社時刻'],
   },
   days_items: {
-    display_name: '日数項目 (13_日数項目.csv)',
+    display_name: '日数項目',
     expected_headers: ['従業員番号', '勤務日', '出社時刻', '退社時刻', '日数項目', '日数項目名'],
   },
   tim_daily: {
-    display_name: '日次実績 (14_TIM.xlsx)',
+    display_name: '日次実績',
     expected_headers: [
       '従業員番号',
       '勤務日付',
@@ -68,7 +68,7 @@ const FALLBACK_DEFS: Record<string, FileDef> = {
     ],
   },
   person_progress: {
-    display_name: '勤務予定進捗一覧 (15_勤務予定進捗一覧.csv)',
+    display_name: '勤務予定進捗一覧',
     expected_headers: ['社員番号', '氏名', 'カナ氏名', '勤怠年月', '勤務開始日', '進捗状況', '打刻実績', '勤務実績登録', '所属名称', 'メールアドレス'],
   },
 }
@@ -92,9 +92,9 @@ export default function Home() {
   const [uploadMessage, setUploadMessage] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadedName, setUploadedName] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'upload' | 'download'>('upload')
-  const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [showDownloadPanel, setShowDownloadPanel] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   const activeKey = FILE_ORDER[activeSheet]
   const activeDef = defs[activeKey] ?? { display_name: activeKey, expected_headers: [] }
@@ -169,45 +169,6 @@ export default function Home() {
     }
   }
 
-  const downloadProcessed = async (key: string) => {
-    setDownloadingKey(key)
-    setDownloadError(null)
-    try {
-      let data = sheetData[key]
-      if (!data) {
-        data = await loadSheet(key)
-      }
-      const sheet = data?.sheets?.[0]
-      if (!sheet) {
-        throw new Error('データがありません。先にアップロードしてください。')
-      }
-      const gridData = sheet.grid?.length
-        ? sheet.grid
-        : sheet.headers?.length
-          ? [sheet.headers, ...(sheet.rows || [])]
-          : []
-      if (!gridData.length) {
-        throw new Error('ダウンロード可能なデータが見つかりません。')
-      }
-      const csv = gridData
-        .map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
-        .join('\n')
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${key}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-    } catch (err: any) {
-      setDownloadError(err?.message ?? 'ダウンロードに失敗しました')
-    } finally {
-      setDownloadingKey(null)
-    }
-  }
-
   const sheet = sheetData[activeKey]?.sheets?.[0]
   const grid = useMemo(() => {
     if (sheet?.grid?.length) return sheet.grid
@@ -220,184 +181,205 @@ export default function Home() {
   const bodyRows = grid.slice(1)
 
   return (
-    <div className="jfa-app">
-      <nav className="jfa-nav">
-        <div className="jfa-nav-top">
-          <div className="jfa-brand">
-            <span>AEON delight</span>
+    <div className="dash-layout">
+      <aside className="dash-sidebar">
+        <div className="sidebar-brand">時間外労働管理システム</div>
+        <nav className="sidebar-nav">
+          <div className="sidebar-label">ファイルアップロード</div>
+          {FILE_ORDER.map((key, idx) => {
+            const active = idx === activeSheet
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  setActiveSheet(idx)
+                  setShowDownloadPanel(false)
+                }}
+                className={`sidebar-item ${active ? 'active' : ''}`}
+              >
+                <span>{defs[key]?.display_name || key}</span>
+              </button>
+            )
+          })}
+          <div className="sidebar-label" style={{ marginTop: '8px' }}>
+            加工済みデータをダウンロード
           </div>
-        </div>
-        <div className="flex gap-2 mt-2 flex-wrap">
           <button
-            onClick={() => setActiveTab('upload')}
-            className="jfa-button"
-            style={{
-              background: activeTab === 'upload' ? '#0b2545' : '#fff',
-              color: activeTab === 'upload' ? '#fff' : '#0b2545',
-              fontWeight: 800,
-              border: '1px solid #0b2545',
-            }}
-          >
-            ファイルアップロード
-          </button>
-          <button
-            onClick={() => setActiveTab('download')}
-            className="jfa-button"
-            style={{
-              background: activeTab === 'download' ? '#0b2545' : '#fff',
-              color: activeTab === 'download' ? '#fff' : '#0b2545',
-              fontWeight: 800,
-              border: '1px solid #0b2545',
-            }}
+            className={`sidebar-download-btn ${showDownloadPanel ? 'active' : ''}`}
+            onClick={() => setShowDownloadPanel(true)}
           >
             加工済みデータのダウンロード
           </button>
-        </div>
-      </nav>
+        </nav>
+      </aside>
 
-      <main className="jfa-shell">
-        {activeTab === 'upload' && (
-          <>
-            <div className="flex gap-2 flex-wrap mb-3">
-              {FILE_ORDER.map((key, idx) => (
+      <div className="dash-main">
+
+        <div className="dash-content">
+          {showDownloadPanel ? (
+            <section className="sheet-card" style={{ padding: '16px', width: '100%', alignSelf: 'stretch' }}>
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="text-sm text-slate-700">Excel生成してダウンロード</label>
                 <button
-                  key={key}
-                  onClick={() => setActiveSheet(idx)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    border: idx === activeSheet ? '2px solid #0b2545' : '1px solid #e2e8f0',
-                    background: idx === activeSheet ? '#fff' : '#f8fafc',
-                    fontWeight: idx === activeSheet ? 800 : 600,
-                    cursor: 'pointer',
-                    boxShadow: idx === activeSheet ? '0 6px 12px rgba(0,0,0,0.08)' : 'none',
+                  className="jfa-button"
+                  style={{ opacity: generating ? 0.7 : 1, cursor: generating ? 'not-allowed' : 'pointer' }}
+                  disabled={generating}
+                  onClick={async () => {
+                    setToast(null)
+                    setGenerating(true)
+                    try {
+                      const res = await fetch(`${API_BASE}/processed/excel`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ target_ym: '' }),
+                      })
+                      if (!res.ok) {
+                        const body = await res.json().catch(() => ({}))
+                        throw new Error(body?.detail?.message || body?.detail || '生成に失敗しました')
+                      }
+                      const blob = await res.blob()
+                      const url = window.URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      const disposition = res.headers.get('Content-Disposition') || ''
+                      const match = disposition.match(/filename="?(.*)"?/)
+                      const filename = match?.[1] || 'processed.xlsx'
+                      a.href = url
+                      a.download = filename
+                      document.body.appendChild(a)
+                      a.click()
+                      a.remove()
+                      window.URL.revokeObjectURL(url)
+                      setToast('Excelを生成しました')
+                    } catch (err: any) {
+                      setToast(err?.message || '生成に失敗しました')
+                    } finally {
+                      setGenerating(false)
+                    }
                   }}
                 >
-                  {defs[key]?.display_name || key}
+                  {generating ? '生成中…' : '生成してダウンロード'}
                 </button>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <div className="text-2xl font-bold text-[var(--jfa-navy)]">実所定外時間 推計データ</div>
-              <div className="text-sm text-slate-600">
-                2025年12月度 （2025年12月15日現在） | {defs[activeKey]?.display_name || activeKey}
               </div>
-            </div>
+              {toast && <div className="text-sm text-slate-600 mt-2">{toast}</div>}
 
-            <div className="sheet-legend">
-              {LEGEND.map((item) => (
-                <div key={item.label} className="sheet-legend-row">
-                  <span className="sheet-legend-chip" style={{ background: item.bg, color: item.color }}>
-                    {item.label}
-                  </span>
-                  <span className="sheet-legend-text">{item.desc}</span>
-                </div>
-              ))}
-            </div>
-
-            <section className="sheet-card" style={{ marginTop: '8px' }}>
-              <div className="flex items-center gap-3 flex-wrap">
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  style={{ display: 'none' }}
-                  id="excel-upload"
-                  onChange={(e) => handleFile(e.target.files?.[0])}
-                />
-                <label
-                  htmlFor="excel-upload"
-                  className="jfa-button"
-                  style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                >
-                  エクセルをアップロード
-                </label>
-                {uploadedName && <span className="text-sm text-slate-600">選択中: {uploadedName}</span>}
-              </div>
-              <div className="text-xs text-slate-500 mt-2">※アップロードされたファイルは今後の取り込み処理に利用できます。</div>
-              {uploadMessage && <div className="text-sm text-green-700 mt-1">{uploadMessage}</div>}
-              {uploadError && <div className="text-sm text-red-600 mt-1">エラー: {uploadError}</div>}
-              {uploading && <div className="text-sm text-slate-600 mt-1">アップロード中…</div>}
-            </section>
-
-            <section className="sheet-card">
-              {loading && <div className="text-sm text-slate-600 mb-2">読み込み中…</div>}
-              {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
-              <div className="sheet-table-wrapper">
-                <div className="sheet-table">
-                  <div className="sheet-row sheet-header-band">
-                    <div className="sheet-cell sheet-title" style={{ width: Math.max(headers.length * 110, 320) }}>
-                      2025年12月度 実所定外時間 推計データ（2025年12月15日現在）
+              <section className="sheet-card" style={{ padding: '16px', width: '100%', alignSelf: 'stretch', marginTop: '12px' }}>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <div className="text-2xl font-bold text-[var(--jfa-navy)]">実所定外時間 推計データ</div>
+                    <div className="text-sm text-slate-600">
+                      2025年12月度 （2025年12月15日現在） | {defs[activeKey]?.display_name || activeKey}
                     </div>
                   </div>
-                  <div className="sheet-row sheet-header">
-                    {headers.map((title, idx) => (
-                      <div
-                        key={title}
-                        className="sheet-cell"
-                        style={{
-                          width: title.length > 10 ? 140 : 110,
-                          background: '#fdfbf6',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {title}
+
+                  <div className="sheet-legend">
+                    {LEGEND.map((item) => (
+                      <div key={item.label} className="sheet-legend-row">
+                        <span className="sheet-legend-chip" style={{ background: item.bg, color: item.color }}>
+                          {item.label}
+                        </span>
+                        <span className="sheet-legend-text">{item.desc}</span>
                       </div>
                     ))}
                   </div>
-                  {bodyRows.map((row, rIdx) => (
-                    <div className="sheet-row" key={`row-${activeSheet}-${rIdx}`}>
-                      {headers.map((_, cIdx) => (
+                </div>
+              </section>
+            </section>
+          ) : (
+            <>
+              <section className="sheet-card" style={{ padding: '16px', width: '100%', alignSelf: 'stretch' }}>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <div className="text-2xl font-bold text-[var(--jfa-navy)]">実所定外時間 推計データ</div>
+                    <div className="text-sm text-slate-600">
+                      2025年12月度 （2025年12月15日現在） | {defs[activeKey]?.display_name || activeKey}
+                    </div>
+                  </div>
+
+                  <div className="sheet-legend">
+                    {LEGEND.map((item) => (
+                      <div key={item.label} className="sheet-legend-row">
+                        <span className="sheet-legend-chip" style={{ background: item.bg, color: item.color }}>
+                          {item.label}
+                        </span>
+                        <span className="sheet-legend-text">{item.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <section className="sheet-card" style={{ marginTop: '8px', width: '100%', alignSelf: 'stretch' }}>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{ display: 'none' }}
+                    id="excel-upload"
+                    onChange={(e) => handleFile(e.target.files?.[0])}
+                  />
+                  <label
+                    htmlFor="excel-upload"
+                    className="jfa-button"
+                    style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    エクセルをアップロード
+                  </label>
+                  {uploadedName && <span className="text-sm text-slate-600">選択中: {uploadedName}</span>}
+                </div>
+                <div className="text-xs text-slate-500 mt-2">※アップロードされたファイルは今後の取り込み処理に利用できます。</div>
+                {uploadMessage && <div className="text-sm text-green-700 mt-1">{uploadMessage}</div>}
+                {uploadError && <div className="text-sm text-red-600 mt-1">エラー: {uploadError}</div>}
+                {uploading && <div className="text-sm text-slate-600 mt-1">アップロード中…</div>}
+              </section>
+
+              <section className="sheet-card" style={{ width: '100%', alignSelf: 'stretch' }}>
+                {loading && <div className="text-sm text-slate-600 mb-2">読み込み中…</div>}
+                {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
+                <div className="sheet-table-wrapper">
+                  <div className="sheet-table">
+                    <div className="sheet-row sheet-header-band">
+                      <div className="sheet-cell sheet-title" style={{ width: Math.max(headers.length * 110, 320) }}>
+                        2025年12月度 実所定外時間 推計データ（2025年12月15日現在）
+                      </div>
+                    </div>
+                    <div className="sheet-row sheet-header">
+                      {headers.map((title, idx) => (
                         <div
-                          key={`cell-${rIdx}-${cIdx}`}
-                          className="sheet-cell sheet-body"
+                          key={title}
+                          className="sheet-cell"
                           style={{
-                            width: headers[cIdx]?.length > 10 ? 140 : 110,
-                            background: rIdx === 0 ? '#fffef6' : '#fff',
+                            width: title.length > 10 ? 140 : 110,
+                            background: '#fdfbf6',
+                            fontWeight: 700,
                           }}
                         >
-                          <div style={{ fontSize: '12px' }}>{row?.[cIdx] ?? ''}</div>
+                          {title}
                         </div>
                       ))}
                     </div>
-                  ))}
+                    {bodyRows.map((row, rIdx) => (
+                      <div className="sheet-row" key={`row-${activeSheet}-${rIdx}`}>
+                        {headers.map((_, cIdx) => (
+                          <div
+                            key={`cell-${rIdx}-${cIdx}`}
+                            className="sheet-cell sheet-body"
+                            style={{
+                              width: headers[cIdx]?.length > 10 ? 140 : 110,
+                              background: rIdx === 0 ? '#fffef6' : '#fff',
+                            }}
+                          >
+                            <div style={{ fontSize: '12px' }}>{row?.[cIdx] ?? ''}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </section>
-          </>
-        )}
-
-        {activeTab === 'download' && (
-          <section className="sheet-card" style={{ marginTop: '16px' }}>
-            <div className="text-xl font-bold text-[var(--jfa-navy)] mb-2">加工済みデータのダウンロード</div>
-            <div className="text-sm text-slate-600 mb-4">
-              取得済みのシートをCSVでダウンロードできます。未取得のタブは自動で取得してから保存します。
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {FILE_ORDER.map((key) => (
-                <button
-                  key={`dl-${key}`}
-                  onClick={() => downloadProcessed(key)}
-                  className="jfa-button"
-                  style={{
-                    cursor: 'pointer',
-                    background: '#f8fafc',
-                    border: '1px solid #cbd5e1',
-                    color: '#0b2545',
-                    fontWeight: 700,
-                    opacity: downloadingKey && downloadingKey !== key ? 0.6 : 1,
-                  }}
-                  disabled={!!downloadingKey && downloadingKey !== key}
-                >
-                  {defs[key]?.display_name || key}
-                  {downloadingKey === key ? ' を準備中…' : ' をダウンロード'}
-                </button>
-              ))}
-            </div>
-            {downloadError && <div className="text-sm text-red-600 mt-3">エラー: {downloadError}</div>}
-          </section>
-        )}
-      </main>
+              </section>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
