@@ -737,7 +737,8 @@ body {
 }
 
 .btn-outline-blue,
-.btn-outline-red {
+.btn-outline-red,
+.btn-outline-orange {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -776,6 +777,19 @@ body {
   background: #ffecec;
   border-color: #e49a9a;
   color: #b32020;
+}
+
+.btn-outline-orange {
+  border: 1.5px solid #f8c88c;
+  color: #c45a00;
+  background: #fff7ec;
+  box-shadow: 0 6px 12px rgba(196, 90, 0, 0.12);
+}
+
+.btn-outline-orange:hover {
+  background: #ffedd6;
+  border-color: #f0b573;
+  color: #a84c00;
 }
 
 .jfa-button-dark {

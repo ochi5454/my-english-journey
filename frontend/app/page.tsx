@@ -8,6 +8,7 @@ import { Sidebar } from './components/Sidebar'
 import { UploadSection } from './components/UploadSection'
 import { API_BASE, FALLBACK_DEFS, FILE_ORDER, LEGEND, REPORT_HEADING, TABLE_TITLE } from './constants/excel'
 import { FileDef, SheetPayload } from './types/excel'
+import * as XLSX from 'xlsx'
 
 const STORAGE_KEY = 'overtime_import_cache_v1'
 
@@ -36,7 +37,11 @@ export default function Home() {
   const [uploadedName, setUploadedName] = useState<string | null>(null)
   const [showDownloadPanel, setShowDownloadPanel] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [exportAbort, setExportAbort] = useState<AbortController | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [uploadStart, setUploadStart] = useState<Record<string, number | null>>({})
+  const [uploadElapsedSec, setUploadElapsedSec] = useState<Record<string, number>>({})
+  const [uploadEstimateSec, setUploadEstimateSec] = useState<Record<string, number | null>>({})
   const [savedPreviews, setSavedPreviews] = useState<
     Record<string, { headers: string[]; rows: string[][]; fileName?: string | null; importedAt?: string }>
   >(() => readInitialSavedPreviews())
@@ -106,6 +111,23 @@ export default function Home() {
     }
   }, [persistPreview, savedPreviews])
 
+  const parseLocalPreview = useCallback(async (file: File) => {
+    try {
+      const t0 = performance.now()
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array', dense: true })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false })
+      const headers = (rows[0] as string[] | undefined) || []
+      const body = (rows.slice(1) as string[][] | undefined) || []
+      const parseMs = performance.now() - t0
+      return { headers, rows: body, parseMs }
+    } catch (err) {
+      console.error('preview parse failed', err)
+      return null
+    }
+  }, [])
+
   useEffect(() => {
     loadSheet(activeKey)
   }, [activeKey, loadSheet])
@@ -116,7 +138,32 @@ export default function Home() {
     setUploadMessage(null)
     setUploadError(null)
     setUploading(true)
+    setUploadStart((prev) => ({ ...prev, [activeKey]: Date.now() }))
+    setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
+    setUploadEstimateSec((prev) => ({ ...prev, [activeKey]: null }))
     try {
+      const preview = await parseLocalPreview(file)
+      if (preview) {
+        const est = Math.min(
+          900,
+          Math.max(
+            10,
+            Math.max((preview.parseMs ?? 0) / 1000 * 3, (preview.rows?.length || 0) * 0.02)
+          )
+        )
+        setUploadEstimateSec((prev) => ({ ...prev, [activeKey]: est }))
+        const next = {
+          ...savedPreviews,
+          [activeKey]: {
+            headers: preview.headers,
+            rows: preview.rows,
+            fileName: file.name,
+            importedAt: new Date().toISOString(),
+          },
+        }
+        persistPreview(next)
+      }
+
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch(`${API_BASE}/excel/${activeKey}/upload`, { method: 'POST', body: fd })
@@ -148,6 +195,9 @@ export default function Home() {
       setUploadError(e?.message ?? 'アップロードに失敗しました')
     } finally {
       setUploading(false)
+      setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
+      setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
+      setUploadEstimateSec((prev) => ({ ...prev, [activeKey]: null }))
     }
   }
 
@@ -161,17 +211,23 @@ export default function Home() {
     setUploadedName(null)
     setUploadMessage(null)
     setUploadError(null)
+    setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
+    setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
+    setUploadEstimateSec((prev) => ({ ...prev, [activeKey]: null }))
   }
 
   const handleGenerateDownload = async () => {
     setToast(null)
     setGenerating(true)
+    const controller = new AbortController()
+    setExportAbort(controller)
     try {
       const targetKey = showDownloadPanel ? processedFileKey : activeKey
       const res = await fetch(`${API_BASE}/processed/excel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target_ym: '', file_key: targetKey }),
+        signal: controller.signal,
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -191,10 +247,27 @@ export default function Home() {
       window.URL.revokeObjectURL(url)
       setToast('Excelを生成しました')
     } catch (err: any) {
-      setToast(err?.message || '生成に失敗しました')
+      if (err?.name !== 'AbortError') {
+        setToast(err?.message || '生成に失敗しました')
+      }
     } finally {
+      setExportAbort(null)
       setGenerating(false)
     }
+  }
+  const handleCancelExport = () => {
+    if (exportAbort) {
+      exportAbort.abort()
+    }
+  }
+
+  const handleClearExportTable = () => {
+    const ok = window.confirm('エクスポート用の表示データを削除しますか？')
+    if (!ok) return
+    setSheetData((prev) => ({ ...prev, [processedFileKey]: null }))
+    const next = { ...savedPreviews }
+    delete next[processedFileKey]
+    persistPreview(next)
   }
 
   const sheet = sheetData[activeKey]?.sheets?.[0]
@@ -316,6 +389,17 @@ export default function Home() {
     }
   }, [showDownloadPanel, processedFileKey, loadSheet, savedPreviews, processedSheet])
 
+  useEffect(() => {
+    if (!uploading || uploadStart[activeKey] == null) return
+    const timer = window.setInterval(() => {
+      setUploadElapsedSec((prev) => ({
+        ...prev,
+        [activeKey]: Math.floor((Date.now() - (uploadStart[activeKey] as number)) / 1000),
+      }))
+    }, 500)
+    return () => window.clearInterval(timer)
+  }, [uploading, uploadStart, activeKey])
+
   return (
     <div className="dash-layout">
       <Sidebar
@@ -338,6 +422,8 @@ export default function Home() {
               generating={generating}
               toast={toast}
               onGenerate={handleGenerateDownload}
+              onCancel={handleCancelExport}
+              onClear={handleClearExportTable}
             />
           ) : (
             <>
@@ -346,6 +432,9 @@ export default function Home() {
                 uploadMessage={uploadMessage}
                 uploadError={uploadError}
                 uploading={uploading}
+                uploadElapsedSec={uploadElapsedSec[activeKey]}
+                uploadEstimateSec={uploadEstimateSec[activeKey]}
+                activeKey={activeKey}
                 onClear={handleClearPageData}
                 onFileSelected={handleFile}
               />

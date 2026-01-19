@@ -1,4 +1,4 @@
-import { Download as DownloadIcon } from 'lucide-react'
+import { Download as DownloadIcon, XCircle, Trash2 } from 'lucide-react'
 import { LegendItem } from '../types/excel'
 import { SheetSummary } from './SheetSummary'
 
@@ -7,11 +7,22 @@ type DownloadPanelProps = {
   subtitle: string
   legend: LegendItem[]
   generating: boolean
+  onCancel?: () => void
+  onClear?: () => void
   toast: string | null
   onGenerate: () => Promise<void>
 }
 
-export function DownloadPanel({ heading, subtitle, legend, generating, toast, onGenerate }: DownloadPanelProps) {
+export function DownloadPanel({
+  heading,
+  subtitle,
+  legend,
+  generating,
+  toast,
+  onGenerate,
+  onCancel,
+  onClear,
+}: DownloadPanelProps) {
   return (
     <>
       <SheetSummary heading={heading} subtitle={subtitle} legend={legend} />
@@ -27,6 +38,29 @@ export function DownloadPanel({ heading, subtitle, legend, generating, toast, on
             <DownloadIcon size={18} />
             <span>{generating ? 'エクスポート中…' : 'エクスポート'}</span>
           </button>
+          {onCancel && (
+            <button
+              type="button"
+              className="btn-outline-orange"
+              style={{ opacity: generating ? 1 : 0.6, cursor: generating ? 'pointer' : 'not-allowed' }}
+              disabled={!generating}
+              onClick={onCancel}
+            >
+              <XCircle size={18} />
+              <span>中断</span>
+            </button>
+          )}
+          {onClear && (
+            <button
+              type="button"
+              className="btn-outline-red"
+              style={{ cursor: 'pointer' }}
+              onClick={onClear}
+            >
+              <Trash2 size={18} />
+              <span>削除</span>
+            </button>
+          )}
         </div>
         {toast && <div className="text-sm text-slate-600 mt-2">{toast}</div>}
       </section>

@@ -4,6 +4,9 @@ type UploadSectionProps = {
   inputId?: string
   uploadedName?: string | null
   uploading: boolean
+  uploadElapsedSec?: number
+  uploadEstimateSec?: number | null
+  activeKey?: string
   uploadMessage?: string | null
   uploadError?: string | null
   onFileSelected: (file?: File) => void
@@ -14,6 +17,9 @@ export function UploadSection({
   inputId = 'excel-upload',
   uploadedName,
   uploading,
+  uploadElapsedSec = 0,
+  uploadEstimateSec = null,
+  activeKey,
   uploadMessage,
   uploadError,
   onFileSelected,
@@ -46,10 +52,16 @@ export function UploadSection({
           <Trash2 size={18} />
           <span>削除</span>
         </button>
-        {uploadedName && <span className="text-sm text-slate-600">選択中: {uploadedName}</span>}
       </div>
       {uploadMessage && <div className="text-sm text-green-700 mt-1">{uploadMessage}</div>}
       {uploadError && <div className="text-sm text-red-600 mt-1">エラー: {uploadError}</div>}
+      {uploading && (
+        <div className="text-sm text-slate-600 mt-1">
+          {uploadEstimateSec !== null
+            ? `推定残り: 約 ${Math.max((uploadEstimateSec ?? 0) - (uploadElapsedSec ?? 0), 0).toFixed(0)} 秒`
+            : ''}
+        </div>
+      )}
     </section>
   )
 }
