@@ -1,3 +1,5 @@
+import type { LucideIcon } from 'lucide-react'
+import { CalendarPlus, Clock, Hash, Table2, TrendingUp, Download } from 'lucide-react'
 import { FileDef } from '../types/excel'
 
 type SidebarProps = {
@@ -19,13 +21,22 @@ export function Sidebar({
   showDownloadPanel,
   onShowDownload,
 }: SidebarProps) {
+  const iconMap: Record<string, LucideIcon> = {
+    schedule_input: CalendarPlus,
+    punches: Clock,
+    days_items: Hash,
+    tim_daily: Table2,
+    person_progress: TrendingUp,
+  }
+
   return (
     <aside className="dash-sidebar">
       <div className="sidebar-brand">時間外労働管理システム</div>
       <nav className="sidebar-nav">
-        <div className="sidebar-label">ファイルアップロード</div>
+        <div className="sidebar-label">ファイルをインポート</div>
         {fileOrder.map((key, idx) => {
           const active = idx === activeSheet
+          const Icon = iconMap[key]
           return (
             <button
               key={key}
@@ -35,15 +46,17 @@ export function Sidebar({
               }}
               className={`sidebar-item ${active ? 'active' : ''}`}
             >
+              {Icon ? <Icon className="sidebar-icon" size={18} /> : null}
               <span>{defs[key]?.display_name || key}</span>
             </button>
           )
         })}
         <div className="sidebar-label" style={{ marginTop: '8px' }}>
-          加工済みデータをダウンロード
+          データをエクスポート
         </div>
         <button className={`sidebar-download-btn ${showDownloadPanel ? 'active' : ''}`} onClick={onShowDownload}>
-          加工済みデータのダウンロード
+          <Download className="sidebar-icon" size={18} />
+          <span>データをエクスポート</span>
         </button>
       </nav>
     </aside>

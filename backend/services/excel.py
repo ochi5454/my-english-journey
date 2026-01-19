@@ -1,7 +1,8 @@
 import os
 import csv
 import tempfile
-from typing import List, Dict
+import re
+from typing import List, Dict, Optional
 import openpyxl
 from io import BytesIO
 from datetime import date
@@ -158,15 +159,102 @@ def fetch_grid_for_key(db, file_key: str):
     return {"grid": grid, "headers": grid[0] if grid else [], "rows": grid[1:] if len(grid) > 1 else []}
 
 
-def build_processed_excel(grids: Dict, target_ym: str = "") -> BytesIO:
+def _normalized_header_key(header: str) -> str:
+    if header is None:
+        return ""
+    if not isinstance(header, str):
+        header = str(header)
+    h = header.lstrip("\ufeff").strip()
+    h = re.sub(r"[()（）\[\]【】]", "", h)
+    h = re.sub(r"^時間", "", h)
+    h = h.replace(" ", "").replace("　", "").replace("/", "")
+    return h.lower()
+
+
+def _build_column_map(headers: List[str]) -> Dict[str, int]:
+    normalized = {_normalized_header_key(h): idx for idx, h in enumerate(headers)}
+    aliases = {
+        "emp_no": ["従業員番号", "社員番号", "社員No"],
+        "name": ["氏名", "名前", "カナ氏名"],
+        "status": ["勤務予定", "勤務予定日", "勤務予定区分", "勤務状況", "進捗状況"],
+        "overtime": ["実所定外時間", "残業時間", "残業", "(時間)実所定外時間"],
+        "overtime_detail": ["残業時間", "実所定外時間", "(時間)残業時間"],
+        "call_time": ["呼出出勤時間", "呼出出勤", "(時間)呼出出勤"],
+        "grade": ["グレード"],
+        "role": ["職制", "役職"],
+        "org2": ["所属名称2", "所属2"],
+        "org3": ["所属名称3", "所属3"],
+        "org4": ["所属名称4", "所属4"],
+        "org5": ["所属名称5", "所属5"],
+        "org6": ["所属名称6", "所属6"],
+        "org7": ["所属名称7", "所属7"],
+        "org8": ["所属名称8", "所属8"],
+    }
+
+    resolved = {}
+    for key, candidates in aliases.items():
+        for c in candidates:
+            idx = normalized.get(_normalized_header_key(c))
+            if idx is not None:
+                resolved[key] = idx
+                break
+    return resolved
+
+
+def _build_rows_from_grid(grid: Dict) -> List[List[str]]:
+    headers = grid.get("headers") or []
+    rows = grid.get("rows") or []
+    col_map = _build_column_map(headers)
+
+    if "emp_no" not in col_map:
+        raise ValueError("必須列「従業員番号」が見つかりませんでした。")
+
+    data_rows: List[List[str]] = []
+    for row in rows:
+        def pick(key: str, default: str = "") -> str:
+            idx = col_map.get(key)
+            if idx is None:
+                return default
+            return row[idx] if idx < len(row) and row[idx] is not None else default
+
+        overtime_value = pick("overtime", "0:00") or "0:00"
+        data_rows.append(
+            [
+                pick("emp_no", ""),
+                pick("name", ""),
+                pick("status", ""),
+                overtime_value,
+                pick("overtime_detail", overtime_value),
+                pick("call_time", "0:00"),
+                pick("grade", ""),
+                pick("role", ""),
+                pick("org2", ""),
+                pick("org3", ""),
+                pick("org4", ""),
+                pick("org5", ""),
+                pick("org6", ""),
+                pick("org7", ""),
+                pick("org8", ""),
+            ]
+        )
+
+    if not data_rows:
+        data_rows.append([""] * 15)
+    return data_rows
+
+
+def build_processed_excel(grid: Dict, target_ym: str = "") -> BytesIO:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "実所定外時間 推計データ"
 
-    title = f"{target_ym or '2025年12月度'} 実所定外時間 推計データ（2025年12月15日現在）"
+    ym_label = target_ym or "2025年12月度"
+    today_label = date.today().strftime("%Y年%m月%d日")
+    title = f"{ym_label} 実所定外時間 推計データ（{today_label}現在）"
     ws.merge_cells("A1:O1")
     ws["A1"] = title
     ws["A1"].font = openpyxl.styles.Font(size=14, bold=True)
+    ws["A1"].alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
 
     legends = [
         ("80h超", "長時間労働", "6b4f00", "f7f2e2"),
@@ -182,9 +270,11 @@ def build_processed_excel(grids: Dict, target_ym: str = "") -> BytesIO:
         ws[f"A{r}"] = label
         ws[f"A{r}"].fill = openpyxl.styles.PatternFill("solid", fgColor=bg)
         ws[f"A{r}"].font = openpyxl.styles.Font(color=fg, bold=True)
-        ws[f"B{r}"] = f": {desc}"
+        ws[f"A{r}"].alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+        ws[f"B{r}"] = desc
+        ws[f"B{r}"].alignment = openpyxl.styles.Alignment(horizontal="left", vertical="center")
 
-    table_headers = [
+    header_titles = [
         "従業員番号",
         "氏名",
         "勤務予定",
@@ -202,60 +292,129 @@ def build_processed_excel(grids: Dict, target_ym: str = "") -> BytesIO:
         "所属名称8",
     ]
     header_row = start_row + len(legends) + 2
-    for c_idx, h in enumerate(table_headers, start=1):
-        cell = ws.cell(row=header_row, column=c_idx, value=h)
-        cell.fill = openpyxl.styles.PatternFill("solid", fgColor="f2f2f2")
-        cell.font = openpyxl.styles.Font(bold=True)
+    sub_header_row = header_row + 1
+
+    # 上段ヘッダ
+    merges = {
+        "A": "A",
+        "B": "B",
+        "C": "C",
+        "D": "D",
+        "E": "F",  # 内訳のグルーピング
+        "G": "G",
+        "H": "H",
+        "I": "I",
+        "J": "J",
+        "K": "K",
+        "L": "L",
+        "M": "M",
+        "N": "N",
+        "O": "O",
+    }
+    for start_col, end_col in merges.items():
+        if start_col != end_col:
+            ws.merge_cells(f"{start_col}{header_row}:{end_col}{header_row}")
+
+    header_labels_top = [
+        "従業員番号",
+        "氏名",
+        "勤務予定",
+        "実所定外時間",
+        "内訳",
+        None,
+        "グレード",
+        "職制",
+        "所属名称2",
+        "所属名称3",
+        "所属名称4",
+        "所属名称5",
+        "所属名称6",
+        "所属名称7",
+        "所属名称8",
+    ]
+    header_labels_bottom = [
+        "従業員番号",
+        "氏名",
+        "勤務予定",
+        "実所定外時間",
+        "残業時間",
+        "呼出出勤時間",
+        "グレード",
+        "職制",
+        "所属名称2",
+        "所属名称3",
+        "所属名称4",
+        "所属名称5",
+        "所属名称6",
+        "所属名称7",
+        "所属名称8",
+    ]
+
+    header_fill = openpyxl.styles.PatternFill("solid", fgColor="ffffff")
+    yellow_fill = openpyxl.styles.PatternFill("solid", fgColor="fff8a8")
+    orange_fill = openpyxl.styles.PatternFill("solid", fgColor="f9d3b0")
+    red_font = openpyxl.styles.Font(color="c81e1e", bold=True)
+    default_font = openpyxl.styles.Font(bold=True)
+    border = openpyxl.styles.Border(
+        left=openpyxl.styles.Side(style="thin", color="b7b7b7"),
+        right=openpyxl.styles.Side(style="thin", color="b7b7b7"),
+        top=openpyxl.styles.Side(style="thin", color="b7b7b7"),
+        bottom=openpyxl.styles.Side(style="thin", color="b7b7b7"),
+    )
+
+    for idx, label in enumerate(header_labels_top, start=1):
+        cell = ws.cell(row=header_row, column=idx, value=label)
+        cell.fill = header_fill
+        cell.font = default_font
+        if idx == 4:
+            cell.fill = yellow_fill
+        if idx == 7:
+            cell.font = red_font
+        if 9 <= idx <= 13:
+            cell.fill = orange_fill
+            cell.font = red_font
+        if idx in (14, 15):
+            cell.font = red_font
         cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
-        cell.border = openpyxl.styles.Border(
-            left=openpyxl.styles.Side(style="thin", color="cccccc"),
-            right=openpyxl.styles.Side(style="thin", color="cccccc"),
-            top=openpyxl.styles.Side(style="thin", color="cccccc"),
-            bottom=openpyxl.styles.Side(style="thin", color="cccccc"),
-        )
+        cell.border = border
 
-    data_start = header_row + 1
-    data_rows = []
-    sched = grids.get("schedule_input")
-    if sched and sched.get("rows"):
-        for row in sched["rows"]:
-            data_rows.append(
-                [
-                    row[0] if len(row) > 0 else "",
-                    "",
-                    row[1] if len(row) > 1 else "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                ]
-            )
-    else:
-        data_rows.append([""] * len(table_headers))
+    for idx, label in enumerate(header_labels_bottom, start=1):
+        cell = ws.cell(row=sub_header_row, column=idx, value=label)
+        cell.fill = header_fill
+        cell.font = default_font
+        if idx == 4:
+            cell.fill = yellow_fill
+        if idx == 7:
+            cell.font = red_font
+        if 9 <= idx <= 13:
+            cell.fill = orange_fill
+            cell.font = red_font
+        if idx in (14, 15):
+            cell.font = red_font
+        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+        cell.border = border
 
+    ws.row_dimensions[header_row].height = 24
+    ws.row_dimensions[sub_header_row].height = 24
+
+    try:
+        data_rows = _build_rows_from_grid(grid)
+    except ValueError as exc:
+        raise
+
+    data_start = sub_header_row + 1
     for r_idx, r in enumerate(data_rows, start=data_start):
         for c_idx, val in enumerate(r, start=1):
             cell = ws.cell(row=r_idx, column=c_idx, value=val)
-            align = "right" if 4 <= c_idx <= 6 else "left"
+            align = "center" if 4 <= c_idx <= 6 else "left"
             cell.alignment = openpyxl.styles.Alignment(horizontal=align, vertical="center")
-            cell.border = openpyxl.styles.Border(
-                left=openpyxl.styles.Side(style="thin", color="cccccc"),
-                right=openpyxl.styles.Side(style="thin", color="cccccc"),
-                top=openpyxl.styles.Side(style="thin", color="cccccc"),
-                bottom=openpyxl.styles.Side(style="thin", color="cccccc"),
-            )
+            cell.border = border
 
-    widths = [12, 12, 12, 12, 12, 14, 10, 10, 12, 12, 12, 12, 12, 12, 12]
+    widths = [13, 14, 12, 13, 12, 14, 10, 10, 13, 13, 13, 13, 13, 13, 13]
     for c_idx, w in enumerate(widths, start=1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(c_idx)].width = w
+
+    ws.freeze_panes = ws["A" + str(data_start)]
 
     stream = BytesIO()
     wb.save(stream)

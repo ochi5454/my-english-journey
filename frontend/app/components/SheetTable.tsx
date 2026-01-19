@@ -1,15 +1,48 @@
+// Client component because pagination state lives here
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+
+import { Pagination } from './Pagination'
+
 type SheetTableProps = {
   headers: string[]
   rows: string[][]
   title: string
   loading?: boolean
   error?: string | null
+  defaultPageSize?: number
+  pageSizeOptions?: number[]
 }
 
-export function SheetTable({ headers, rows, title, loading = false, error = null }: SheetTableProps) {
+export function SheetTable({
+  headers,
+  rows,
+  title,
+  loading = false,
+  error = null,
+  defaultPageSize = 25,
+  pageSizeOptions = [10, 25, 50, 100],
+}: SheetTableProps) {
+  const [pageSize, setPageSize] = useState(defaultPageSize)
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    setPage(1)
+  }, [rows, pageSize])
+
+  const { pagedRows, totalPages } = useMemo(() => {
+    const totalPagesCalc = Math.max(1, Math.ceil(rows.length / pageSize))
+    const safePage = Math.min(page, totalPagesCalc)
+    const startIdx = rows.length === 0 ? 0 : (safePage - 1) * pageSize
+    return {
+      pagedRows: rows.slice(startIdx, startIdx + pageSize),
+      totalPages: totalPagesCalc,
+    }
+  }, [page, pageSize, rows])
+
   return (
     <section className="sheet-card" style={{ width: '100%', alignSelf: 'stretch' }}>
-      {loading && <div className="text-sm text-slate-600 mb-2">読み込み中…</div>}
       {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
       <div className="sheet-table-wrapper">
         <div className="sheet-table">
@@ -33,7 +66,7 @@ export function SheetTable({ headers, rows, title, loading = false, error = null
               </div>
             ))}
           </div>
-          {rows.map((row, rIdx) => (
+          {pagedRows.map((row, rIdx) => (
             <div className="sheet-row" key={`row-${rIdx}`}>
               {headers.map((_, cIdx) => (
                 <div
@@ -51,6 +84,14 @@ export function SheetTable({ headers, rows, title, loading = false, error = null
           ))}
         </div>
       </div>
+      <Pagination
+        total={rows.length}
+        page={page}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageChange={(next) => setPage(Math.min(Math.max(1, next), totalPages))}
+        onPageSizeChange={(size) => setPageSize(size)}
+      />
     </section>
   )
 }

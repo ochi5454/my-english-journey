@@ -1,3 +1,5 @@
+import { Download, Trash2 } from 'lucide-react'
+
 type UploadSectionProps = {
   inputId?: string
   uploadedName?: string | null
@@ -5,6 +7,7 @@ type UploadSectionProps = {
   uploadMessage?: string | null
   uploadError?: string | null
   onFileSelected: (file?: File) => void
+  onClear?: () => void
 }
 
 export function UploadSection({
@@ -14,6 +17,7 @@ export function UploadSection({
   uploadMessage,
   uploadError,
   onFileSelected,
+  onClear,
 }: UploadSectionProps) {
   return (
     <section className="sheet-card" style={{ marginTop: '8px', width: '100%', alignSelf: 'stretch' }}>
@@ -27,17 +31,25 @@ export function UploadSection({
         />
         <label
           htmlFor={inputId}
-          className="jfa-button"
-          style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          className="btn-outline-blue"
+          style={{ cursor: 'pointer' }}
         >
-          エクセルをアップロード
+          <Download size={18} />
+          <span>インポート</span>
         </label>
+        <button
+          type="button"
+          className="btn-outline-red"
+          onClick={onClear}
+          style={{ cursor: 'pointer' }}
+        >
+          <Trash2 size={18} />
+          <span>削除</span>
+        </button>
         {uploadedName && <span className="text-sm text-slate-600">選択中: {uploadedName}</span>}
       </div>
-      <div className="text-xs text-slate-500 mt-2">※アップロードされたファイルは今後の取り込み処理に利用できます。</div>
       {uploadMessage && <div className="text-sm text-green-700 mt-1">{uploadMessage}</div>}
       {uploadError && <div className="text-sm text-red-600 mt-1">エラー: {uploadError}</div>}
-      {uploading && <div className="text-sm text-slate-600 mt-1">アップロード中…</div>}
     </section>
   )
 }

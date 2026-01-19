@@ -1,7 +1,8 @@
 import os
 import tempfile
 import time
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from backend.core.config import DATA_DIR
 from backend.core.database import get_db
@@ -146,21 +147,21 @@ def get_excel(file_key: str, db=Depends(get_db)):
 
 
 @router.post("/processed/excel")
-def generate_processed_excel(target_ym: str = "", db=Depends(get_db)):
-    missing = []
-    grids = {}
-    for key in FILE_DEFINITIONS.keys():
-        g = fetch_grid_for_key(db, key)
-        if not g:
-            missing.append(key)
-        else:
-            grids[key] = g
-    if missing:
-        raise HTTPException(status_code=400, detail={"message": "required files missing", "missing": missing})
+def generate_processed_excel(payload: dict = Body(default={} ,embed=False), db=Depends(get_db)):
+    target_ym = payload.get("target_ym", "") if isinstance(payload, dict) else ""
+    file_key = payload.get("file_key", "person_progress") if isinstance(payload, dict) else "person_progress"
 
-    stream = build_processed_excel(grids, target_ym)
-    filename = f"processed_{target_ym or 'data'}.xlsx"
+    grid = fetch_grid_for_key(db, file_key)
+    if not grid:
+        raise HTTPException(status_code=400, detail={"message": f"file not uploaded for key: {file_key}"})
+
+    try:
+        stream = build_processed_excel(grid, target_ym)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"message": str(exc)})
+    stamp = date.today().strftime("%Y%m%d")
+    filename = f"{target_ym or '実所定外時間'}_推計データ_{stamp}.xlsx"
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"'
+        "Content-Disposition": f'attachment; filename=\"{filename}\"'
     }
     return StreamingResponse(stream, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)

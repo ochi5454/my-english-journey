@@ -72,5 +72,4 @@ export const LEGEND: LegendItem[] = [
 ]
 
 export const REPORT_HEADING = '実所定外時間 推計データ'
-export const REPORT_PERIOD = '2025年12月度 （2025年12月15日現在）'
-export const TABLE_TITLE = '2025年12月度 実所定外時間 推計データ（2025年12月15日現在）'
+export const TABLE_TITLE = '実所定外時間 推計データ'
