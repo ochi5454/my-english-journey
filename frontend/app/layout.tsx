@@ -2,8 +2,8 @@ import './globals.css'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: '実所定外時間 推計データ',
-  description: '実所定外時間 推計データビュー',
+  title: 'インポートデータビュー',
+  description: 'データインポート用ページ',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

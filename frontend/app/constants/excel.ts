@@ -71,5 +71,5 @@ export const LEGEND: LegendItem[] = [
   { label: '15h〜20h', desc: '', bg: '#5f86c6', color: '#fdfdfd' },
 ]
 
-export const REPORT_HEADING = '実所定外時間 推計データ'
-export const TABLE_TITLE = '実所定外時間 推計データ'
+export const REPORT_HEADING = 'インポートデータビュー'
+export const TABLE_TITLE = 'インポートデータ一覧'

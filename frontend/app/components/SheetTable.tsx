@@ -13,6 +13,7 @@ type SheetTableProps = {
   error?: string | null
   defaultPageSize?: number
   pageSizeOptions?: number[]
+  emptyMessage?: string
 }
 
 export function SheetTable({
@@ -23,6 +24,7 @@ export function SheetTable({
   error = null,
   defaultPageSize = 25,
   pageSizeOptions = [10, 25, 50, 100],
+  emptyMessage = 'データがありません',
 }: SheetTableProps) {
   const [pageSize, setPageSize] = useState(defaultPageSize)
   const [page, setPage] = useState(1)
@@ -66,6 +68,20 @@ export function SheetTable({
               </div>
             ))}
           </div>
+          {pagedRows.length === 0 && (
+            <div className="sheet-row">
+              <div
+                className="sheet-cell sheet-empty-state"
+                style={{
+                  width: Math.max(headers.length * 110, 320),
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                }}
+              >
+                {loading ? '読み込み中です…' : emptyMessage}
+              </div>
+            </div>
+          )}
           {pagedRows.map((row, rIdx) => (
             <div className="sheet-row" key={`row-${rIdx}`}>
               {headers.map((_, cIdx) => (

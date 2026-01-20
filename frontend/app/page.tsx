@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Search, X } from 'lucide-react'
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { DownloadPanel } from './components/DownloadPanel'
 import { SheetTable } from './components/SheetTable'
@@ -11,6 +12,7 @@ import { FileDef, SheetPayload } from './types/excel'
 import * as XLSX from 'xlsx'
 
 const STORAGE_KEY = 'overtime_import_cache_v1'
+const SEARCH_TARGET_HEADERS = ['案件名', '現場名', '仕入先名']
 
 const readInitialSavedPreviews = () => {
   if (typeof window === 'undefined') return {}
@@ -42,6 +44,9 @@ export default function Home() {
   const [uploadStart, setUploadStart] = useState<Record<string, number | null>>({})
   const [uploadElapsedSec, setUploadElapsedSec] = useState<Record<string, number>>({})
   const [uploadEstimateSec, setUploadEstimateSec] = useState<Record<string, number | null>>({})
+  const [searchInput, setSearchInput] = useState('')
+  const [filteredRows, setFilteredRows] = useState<string[][] | null>(null)
+  const [lastSearch, setLastSearch] = useState('')
   const [savedPreviews, setSavedPreviews] = useState<
     Record<string, { headers: string[]; rows: string[][]; fileName?: string | null; importedAt?: string }>
   >(() => readInitialSavedPreviews())
@@ -282,6 +287,7 @@ export default function Home() {
 
   const headers = grid[0] || []
   const bodyRows = grid.slice(1)
+  const rowsForDisplay = filteredRows ?? bodyRows
 
   const processedSheet = sheetData[processedFileKey]?.sheets?.[0]
   const exportHeaders = [
@@ -383,6 +389,62 @@ export default function Home() {
     ])
   }, [processedGrid])
 
+  const normalizeSearchText = useCallback((value: string) => {
+    const base = (value ?? '').trim().toLowerCase()
+    return base.replace(/[！-～]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+  }, [])
+
+  const targetSearchColumns = useMemo(() => {
+    const normalizedTargets = SEARCH_TARGET_HEADERS.map((h) => normalizeSearchText(h))
+    const matched = headers
+      .map((h, idx) => ({ idx, header: normalizeSearchText(h) }))
+      .filter(({ header }) => normalizedTargets.some((target) => header.includes(target)))
+      .map(({ idx }) => idx)
+    return matched.length ? matched : headers.map((_, idx) => idx)
+  }, [headers, normalizeSearchText])
+
+  const applySearch = useCallback(
+    (query: string, options: { persistLast?: boolean } = {}) => {
+      const { persistLast = true } = options
+      const normalizedQuery = normalizeSearchText(query)
+      if (!normalizedQuery) {
+        setFilteredRows(null)
+        if (persistLast) {
+          setLastSearch('')
+        }
+        return
+      }
+      if (persistLast) {
+        setLastSearch(query.trim())
+      }
+      const matches = bodyRows.filter((row) =>
+        targetSearchColumns.some((idx) => normalizeSearchText(row?.[idx] ?? '').includes(normalizedQuery)),
+      )
+      setFilteredRows(matches)
+    },
+    [bodyRows, normalizeSearchText, targetSearchColumns],
+  )
+
+  const handleSearchSubmit = useCallback(
+    (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault()
+      applySearch(searchInput)
+    },
+    [applySearch, searchInput],
+  )
+
+  useEffect(() => {
+    if (lastSearch.trim()) {
+      applySearch(lastSearch, { persistLast: false })
+    }
+  }, [applySearch, bodyRows, lastSearch])
+
+  const handleClearSearch = useCallback(() => {
+    setSearchInput('')
+    setFilteredRows(null)
+    setLastSearch('')
+  }, [])
+
   useEffect(() => {
     if (showDownloadPanel && !savedPreviews[processedFileKey] && !processedSheet) {
       loadSheet(processedFileKey)
@@ -437,8 +499,46 @@ export default function Home() {
                 activeKey={activeKey}
                 onClear={handleClearPageData}
                 onFileSelected={handleFile}
+                rightContent={
+                  <form className="search-bar" onSubmit={handleSearchSubmit}>
+                    <Search size={16} className="search-icon" />
+                    <input
+                      type="search"
+                      className="search-input"
+                      placeholder="案件名・現場名・仕入先名"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                    />
+                    {searchInput && (
+                      <button
+                        type="button"
+                        className="search-clear"
+                        aria-label="検索条件をクリア"
+                        onClick={handleClearSearch}
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                    <button className="search-button" type="submit" disabled={loading && bodyRows.length === 0}>
+                      検索
+                    </button>
+                    {lastSearch && (
+                      <button type="button" className="search-chip" onClick={handleClearSearch}>
+                        <span>検索中: {lastSearch}</span>
+                        <X size={14} />
+                      </button>
+                    )}
+                  </form>
+                }
               />
-              <SheetTable headers={headers} rows={bodyRows} title={TABLE_TITLE} loading={loading} error={error} />
+              <SheetTable
+                headers={headers}
+                rows={rowsForDisplay}
+                title={TABLE_TITLE}
+                loading={loading}
+                error={error}
+                emptyMessage={filteredRows ? '該当するデータがありません' : 'データがありません'}
+              />
             </>
           )}
           {showDownloadPanel && (

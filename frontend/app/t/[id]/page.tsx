@@ -97,7 +97,7 @@ export default function TournamentDetail() {
         <div className="jfa-nav-bottom">
           <div className="jfa-nav-links">
             <button className="jfa-nav-button" type="button">
-              実所定外時間 推計データ
+              トーナメントダッシュボード
             </button>
           </div>
         </div>

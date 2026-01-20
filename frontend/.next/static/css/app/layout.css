@@ -634,6 +634,9 @@ video {
   --tw-text-opacity: 1;
   color: rgb(15 23 42 / var(--tw-text-opacity));
 }
+.filter {
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
 
 body {
   font-family: 'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
@@ -1113,6 +1116,105 @@ body {
   padding: 16px;
 }
 
+.upload-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.upload-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.upload-right {
+  display: flex;
+  justify-content: flex-end;
+  flex: 1 1 240px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
+  width: min(440px, 100%);
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  padding: 6px 2px;
+}
+
+.search-icon {
+  color: #6b7280;
+}
+
+.search-clear {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-button {
+  border: 1px solid rgba(25, 118, 210, 0.35);
+  background: linear-gradient(135deg, #1e88e5, #1976d2);
+  color: #fff;
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  box-shadow: 0 8px 14px rgba(25, 118, 210, 0.2);
+}
+
+.search-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(25, 118, 210, 0.4);
+  color: #1259b3;
+  background: #eef4ff;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.search-chip:hover {
+  background: #e1ecff;
+  border-color: rgba(25, 118, 210, 0.6);
+}
+
 .sheet-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1199,6 +1301,12 @@ body {
 
 .sheet-cell:last-child {
   border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sheet-empty-state {
+  background: linear-gradient(180deg, #f9fafb, #ffffff);
+  color: #6b7280;
+  font-weight: 700;
 }
 .jfa-chip-row {
   display: flex;

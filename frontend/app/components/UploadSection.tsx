@@ -11,6 +11,7 @@ type UploadSectionProps = {
   uploadError?: string | null
   onFileSelected: (file?: File) => void
   onClear?: () => void
+  rightContent?: React.ReactNode
 }
 
 export function UploadSection({
@@ -24,34 +25,38 @@ export function UploadSection({
   uploadError,
   onFileSelected,
   onClear,
+  rightContent,
 }: UploadSectionProps) {
   return (
     <section className="sheet-card" style={{ marginTop: '8px', width: '100%', alignSelf: 'stretch' }}>
-      <div className="flex items-center gap-3 flex-wrap">
-        <input
-          type="file"
-          accept=".xlsx,.xls,.csv"
-          style={{ display: 'none' }}
-          id={inputId}
-          onChange={(e) => onFileSelected(e.target.files?.[0])}
-        />
-        <label
-          htmlFor={inputId}
-          className="btn-outline-blue"
-          style={{ cursor: 'pointer' }}
-        >
-          <Download size={18} />
-          <span>インポート</span>
-        </label>
-        <button
-          type="button"
-          className="btn-outline-red"
-          onClick={onClear}
-          style={{ cursor: 'pointer' }}
-        >
-          <Trash2 size={18} />
-          <span>削除</span>
-        </button>
+      <div className="upload-row">
+        <div className="upload-actions">
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            style={{ display: 'none' }}
+            id={inputId}
+            onChange={(e) => onFileSelected(e.target.files?.[0])}
+          />
+          <label
+            htmlFor={inputId}
+            className="btn-outline-blue"
+            style={{ cursor: 'pointer' }}
+          >
+            <Download size={18} />
+            <span>インポート</span>
+          </label>
+          <button
+            type="button"
+            className="btn-outline-red"
+            onClick={onClear}
+            style={{ cursor: 'pointer' }}
+          >
+            <Trash2 size={18} />
+            <span>削除</span>
+          </button>
+        </div>
+        {rightContent && <div className="upload-right">{rightContent}</div>}
       </div>
       {uploadMessage && <div className="text-sm text-green-700 mt-1">{uploadMessage}</div>}
       {uploadError && <div className="text-sm text-red-600 mt-1">エラー: {uploadError}</div>}
