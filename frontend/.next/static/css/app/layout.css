@@ -837,6 +837,12 @@ body {
   margin-bottom: 16px;
 }
 
+.sidebar-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 4px 0 12px;
+}
+
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -1382,6 +1388,19 @@ body {
   padding: 0 4px;
   color: #6b7280;
   font-weight: 700;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .pager-info {

@@ -32,6 +32,7 @@ export function Sidebar({
   return (
     <aside className="dash-sidebar">
       <div className="sidebar-brand">時間外労働管理システム</div>
+      <div className="sidebar-divider" />
       <nav className="sidebar-nav">
         <div className="sidebar-label">ファイルをインポート</div>
         {fileOrder.map((key, idx) => {

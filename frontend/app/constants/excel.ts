@@ -71,5 +71,5 @@ export const LEGEND: LegendItem[] = [
   { label: '15h〜20h', desc: '', bg: '#5f86c6', color: '#fdfdfd' },
 ]
 
-export const REPORT_HEADING = 'インポートデータビュー'
+export const REPORT_HEADING = 'データエクスポート'
 export const TABLE_TITLE = 'インポートデータ一覧'

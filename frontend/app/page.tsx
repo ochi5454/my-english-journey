@@ -1,7 +1,7 @@
 'use client'
 
 import { Search, X } from 'lucide-react'
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { DownloadPanel } from './components/DownloadPanel'
 import { SheetTable } from './components/SheetTable'
@@ -13,6 +13,31 @@ import * as XLSX from 'xlsx'
 
 const STORAGE_KEY = 'overtime_import_cache_v1'
 const SEARCH_TARGET_HEADERS = ['案件名', '現場名', '仕入先名']
+type ExportStatus = 'idle' | 'exporting' | 'success' | 'error' | 'canceled'
+const normalizeHeader = (h: string) =>
+  (h || '')
+    .replace(/[\s　]/g, '')
+    .replace(/[()（）\[\]【】]/g, '')
+    .replace(/^時間/, '')
+    .replace(/\//g, '')
+    .toLowerCase()
+const COLUMN_MAP_ALIASES: Record<string, string[]> = {
+  emp_no: ['従業員番号', '社員番号', '社員No'],
+  name: ['氏名', '名前', 'カナ氏名'],
+  status: ['勤務予定', '勤務予定日', '勤務予定区分', '勤務状況', '進捗状況'],
+  overtime: ['実所定外時間', '残業時間', '残業'],
+  overtime_detail: ['残業時間', '実所定外時間'],
+  call_time: ['呼出出勤時間', '呼出出勤'],
+  grade: ['グレード'],
+  role: ['職制', '役職'],
+  org2: ['所属名称2', '所属2'],
+  org3: ['所属名称3', '所属3'],
+  org4: ['所属名称4', '所属4'],
+  org5: ['所属名称5', '所属5'],
+  org6: ['所属名称6', '所属6'],
+  org7: ['所属名称7', '所属7'],
+  org8: ['所属名称8', '所属8'],
+}
 
 const readInitialSavedPreviews = () => {
   if (typeof window === 'undefined') return {}
@@ -38,9 +63,10 @@ export default function Home() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadedName, setUploadedName] = useState<string | null>(null)
   const [showDownloadPanel, setShowDownloadPanel] = useState(false)
-  const [generating, setGenerating] = useState(false)
   const [exportAbort, setExportAbort] = useState<AbortController | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [exportStatus, setExportStatus] = useState<ExportStatus>('idle')
+  const statusResetTimer = useRef<number | null>(null)
   const [uploadStart, setUploadStart] = useState<Record<string, number | null>>({})
   const [uploadElapsedSec, setUploadElapsedSec] = useState<Record<string, number>>({})
   const [uploadEstimateSec, setUploadEstimateSec] = useState<Record<string, number | null>>({})
@@ -137,6 +163,14 @@ export default function Home() {
     loadSheet(activeKey)
   }, [activeKey, loadSheet])
 
+  useEffect(() => {
+    return () => {
+      if (statusResetTimer.current) {
+        window.clearTimeout(statusResetTimer.current)
+      }
+    }
+  }, [])
+
   const handleFile = async (file?: File) => {
     if (!file) return
     setUploadedName(file.name)
@@ -223,46 +257,106 @@ export default function Home() {
 
   const handleGenerateDownload = async () => {
     setToast(null)
-    setGenerating(true)
     const controller = new AbortController()
     setExportAbort(controller)
+    setStatusWithReset('exporting')
     try {
-      const targetKey = showDownloadPanel ? processedFileKey : activeKey
-      const res = await fetch(`${API_BASE}/processed/excel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_ym: '', file_key: targetKey }),
-        signal: controller.signal,
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body?.detail?.message || body?.detail || '生成に失敗しました')
+      const resolvedSheet = sheetData[processedFileKey]?.sheets?.[0]
+      const cached = savedPreviews[processedFileKey]
+      const sourceHeaders =
+        (resolvedSheet?.headers?.length ? resolvedSheet.headers : null) ??
+        (cached?.headers?.length ? cached.headers : null) ??
+        (resolvedSheet?.grid?.[0]?.length ? resolvedSheet.grid[0] : null) ??
+        []
+      const sourceRows =
+        (resolvedSheet?.rows?.length ? resolvedSheet.rows : null) ??
+        (cached?.rows?.length ? cached.rows : null) ??
+        (resolvedSheet?.grid?.length ? resolvedSheet.grid.slice(1) : null) ??
+        []
+
+      const mappedRows = mapRowsToExport(sourceHeaders, sourceRows).filter((row) =>
+        row.some((cell) => (cell ?? '').toString().trim() !== ''),
+      )
+      if (!mappedRows.length) {
+        setToast('出力対象がありません')
+        setStatusWithReset('error')
+        return
       }
-      const blob = await res.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      const disposition = res.headers.get('Content-Disposition') || ''
-      const match = disposition.match(/filename="?(.*)"?/)
-      const filename = match?.[1] || 'processed.xlsx'
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
-      setToast('Excelを生成しました')
+
+      const mergedRows = mergeByEmployee(mappedRows)
+
+      const grouped = mergedRows.reduce<Map<string, string[][]>>((acc, row) => {
+        if (controller.signal.aborted) {
+          throw new DOMException('aborted', 'AbortError')
+        }
+        const org2 = (row[8] ?? '').trim() || '未設定'
+        const bucket = acc.get(org2) || []
+        bucket.push(row)
+        acc.set(org2, bucket)
+        return acc
+      }, new Map())
+
+      if (!grouped.size) {
+        setToast('出力対象がありません')
+        setStatusWithReset('error')
+        return
+      }
+
+      const pad = (n: number) => `${n}`.padStart(2, '0')
+      const timestamp = () => {
+        const now = new Date()
+        return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(
+          now.getMinutes(),
+        )}`
+      }
+      const sanitize = (value: string) => {
+        const base = (value || '未設定').trim() || '未設定'
+        const cleaned = base.replace(/[\\/:*?"<>|]/g, '_')
+        return cleaned.slice(0, 50)
+      }
+
+      for (const [org2, rows] of grouped.entries()) {
+        if (controller.signal.aborted) {
+          throw new DOMException('aborted', 'AbortError')
+        }
+        const sheet = XLSX.utils.aoa_to_sheet([exportHeaders, ...rows])
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, sheet, 'export')
+        const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+        const blob = new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `export_${sanitize(org2)}_${timestamp()}.xlsx`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        window.URL.revokeObjectURL(url)
+      }
+
+      const fileCount = grouped.size
+      const rowCount = mergedRows.length
+      setToast(`エクスポートが完了しました（${fileCount}ファイル / ${rowCount}行）`)
+      setStatusWithReset('success')
     } catch (err: any) {
-      if (err?.name !== 'AbortError') {
+      if (err?.name === 'AbortError') {
+        setToast('エクスポートを中断しました')
+        setStatusWithReset('canceled')
+      } else {
         setToast(err?.message || '生成に失敗しました')
+        setStatusWithReset('error')
       }
     } finally {
       setExportAbort(null)
-      setGenerating(false)
     }
   }
   const handleCancelExport = () => {
     if (exportAbort) {
       exportAbort.abort()
+      setStatusWithReset('canceled')
+      setExportAbort(null)
     }
   }
 
@@ -308,39 +402,13 @@ export default function Home() {
     '所属名称8',
   ]
 
-  const normalizeHeader = (h: string) =>
-    (h || '')
-      .replace(/[\s　]/g, '')
-      .replace(/[()（）\[\]【】]/g, '')
-      .replace(/^時間/, '')
-      .replace(/\//g, '')
-      .toLowerCase()
-
-  const columnMapAliases: Record<string, string[]> = {
-    emp_no: ['従業員番号', '社員番号', '社員No'],
-    name: ['氏名', '名前', 'カナ氏名'],
-    status: ['勤務予定', '勤務予定日', '勤務予定区分', '勤務状況', '進捗状況'],
-    overtime: ['実所定外時間', '残業時間', '残業'],
-    overtime_detail: ['残業時間', '実所定外時間'],
-    call_time: ['呼出出勤時間', '呼出出勤'],
-    grade: ['グレード'],
-    role: ['職制', '役職'],
-    org2: ['所属名称2', '所属2'],
-    org3: ['所属名称3', '所属3'],
-    org4: ['所属名称4', '所属4'],
-    org5: ['所属名称5', '所属5'],
-    org6: ['所属名称6', '所属6'],
-    org7: ['所属名称7', '所属7'],
-    org8: ['所属名称8', '所属8'],
-  }
-
-  const buildColumnMap = (headers: string[]) => {
+  const buildColumnMap = useCallback((headers: string[]) => {
     const normalized: Record<string, number> = {}
     headers.forEach((h, idx) => {
       normalized[normalizeHeader(h)] = idx
     })
     const resolved: Record<string, number> = {}
-    Object.entries(columnMapAliases).forEach(([key, aliases]) => {
+    Object.entries(COLUMN_MAP_ALIASES).forEach(([key, aliases]) => {
       for (const name of aliases) {
         const idx = normalized[normalizeHeader(name)]
         if (idx !== undefined) {
@@ -350,26 +418,15 @@ export default function Home() {
       }
     })
     return resolved
-  }
+  }, [])
 
-  const processedGrid = useMemo(() => {
-    const cached = savedPreviews[processedFileKey]
-    if (cached) return [cached.headers || [], ...(cached.rows || [])]
-    if (processedSheet?.grid?.length) return processedSheet.grid
-    if (processedSheet?.headers?.length) return [processedSheet.headers, ...(processedSheet.rows || [])]
-    const headers = defs[processedFileKey]?.expected_headers ?? []
-    return [headers, headers.length ? [Array(headers.length).fill('')] : []]
-  }, [processedSheet, savedPreviews, processedFileKey, defs])
-  const processedRows = useMemo(() => {
-    const headers = processedGrid[0] || []
-    const rows = processedGrid.slice(1)
+  const mapRowsToExport = useCallback((headers: string[], rows: string[][]) => {
     const colMap = buildColumnMap(headers)
     const pick = (row: string[], key: string, fallback = '') => {
       const idx = colMap[key]
       if (idx === undefined) return fallback
       return row[idx] ?? fallback
     }
-    if (!rows.length) return [[...Array(exportHeaders.length)].map(() => '')]
     return rows.map((r) => [
       pick(r, 'emp_no', ''),
       pick(r, 'name', ''),
@@ -387,7 +444,96 @@ export default function Home() {
       pick(r, 'org7', ''),
       pick(r, 'org8', ''),
     ])
-  }, [processedGrid])
+  }, [buildColumnMap])
+
+  const NUMERIC_TIME_INDEXES = [3, 4, 5]
+  const parseMinutes = (value: string | number | undefined | null) => {
+    if (value == null) return 0
+    const str = String(value).trim()
+    if (!str) return 0
+    if (str.includes(':')) {
+      const [h, m] = str.split(':').map((v) => Number(v) || 0)
+      return h * 60 + m
+    }
+    const num = Number(str)
+    if (!Number.isFinite(num)) return 0
+    return Math.round(num)
+  }
+  const formatMinutes = (total: number | undefined) => {
+    if (total == null) return ''
+    const minutes = Math.max(0, Math.round(total))
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    return `${h}:${m.toString().padStart(2, '0')}`
+  }
+
+  const mergeByEmployee = (rows: string[][]) => {
+    const grouped = new Map<string, { base: string[]; sums: Record<number, number> }>()
+    const orphanRows: string[][] = []
+    rows.forEach((row, idx) => {
+      const empNo = (row?.[0] ?? '').trim()
+      if (!empNo) {
+        orphanRows.push(row)
+        return
+      }
+      const existing = grouped.get(empNo)
+      if (!existing) {
+        const sums: Record<number, number> = {}
+        NUMERIC_TIME_INDEXES.forEach((i) => {
+          sums[i] = parseMinutes(row[i])
+        })
+        grouped.set(empNo, { base: [...row], sums })
+        return
+      }
+      const nextBase = [...existing.base]
+      NUMERIC_TIME_INDEXES.forEach((i) => {
+        existing.sums[i] = (existing.sums[i] ?? 0) + parseMinutes(row[i])
+      })
+      nextBase.forEach((cell, i) => {
+        if (NUMERIC_TIME_INDEXES.includes(i)) return
+        const candidate = row[i]
+        if ((!cell || cell.toString().trim() === '') && candidate && candidate.toString().trim() !== '') {
+          nextBase[i] = candidate
+        }
+      })
+      grouped.set(empNo, { base: nextBase, sums: existing.sums })
+    })
+
+    const mergedRows: string[][] = []
+    grouped.forEach(({ base, sums }) => {
+      const out = [...base]
+      NUMERIC_TIME_INDEXES.forEach((i) => {
+        out[i] = formatMinutes(sums[i])
+      })
+      mergedRows.push(out)
+    })
+    return [...mergedRows, ...orphanRows]
+  }
+
+  const setStatusWithReset = useCallback((state: ExportStatus) => {
+    if (statusResetTimer.current) {
+      window.clearTimeout(statusResetTimer.current)
+    }
+    setExportStatus(state)
+    if (state !== 'exporting' && state !== 'idle') {
+      statusResetTimer.current = window.setTimeout(() => setExportStatus('idle'), 2500)
+    }
+  }, [])
+
+  const processedGrid = useMemo(() => {
+    const cached = savedPreviews[processedFileKey]
+    if (cached) return [cached.headers || [], ...(cached.rows || [])]
+    if (processedSheet?.grid?.length) return processedSheet.grid
+    if (processedSheet?.headers?.length) return [processedSheet.headers, ...(processedSheet.rows || [])]
+    const headers = defs[processedFileKey]?.expected_headers ?? []
+    return [headers, headers.length ? [Array(headers.length).fill('')] : []]
+  }, [processedSheet, savedPreviews, processedFileKey, defs])
+  const processedRows = useMemo(() => {
+    const headers = processedGrid[0] || []
+    const rows = processedGrid.slice(1)
+    if (!rows.length) return [[...Array(exportHeaders.length)].map(() => '')]
+    return mapRowsToExport(headers, rows)
+  }, [processedGrid, mapRowsToExport])
 
   const normalizeSearchText = useCallback((value: string) => {
     const base = (value ?? '').trim().toLowerCase()
@@ -481,7 +627,7 @@ export default function Home() {
               heading={REPORT_HEADING}
               subtitle={downloadSubtitle}
               legend={LEGEND}
-              generating={generating}
+              exportStatus={exportStatus}
               toast={toast}
               onGenerate={handleGenerateDownload}
               onCancel={handleCancelExport}
@@ -505,20 +651,10 @@ export default function Home() {
                     <input
                       type="search"
                       className="search-input"
-                      placeholder="案件名・現場名・仕入先名"
+                      placeholder=""
                       value={searchInput}
                       onChange={(e) => setSearchInput(e.target.value)}
                     />
-                    {searchInput && (
-                      <button
-                        type="button"
-                        className="search-clear"
-                        aria-label="検索条件をクリア"
-                        onClick={handleClearSearch}
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
                     <button className="search-button" type="submit" disabled={loading && bodyRows.length === 0}>
                       検索
                     </button>
