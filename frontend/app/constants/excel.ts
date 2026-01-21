@@ -2,7 +2,14 @@ import { FileDef, LegendItem } from '../types/excel'
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:8000'
 
-export const FILE_ORDER = ['schedule_input', 'punches', 'days_items', 'tim_daily', 'person_progress'] as const
+export const FILE_ORDER = [
+  'schedule_input',
+  'punches',
+  'days_items',
+  'tim_daily',
+  'person_progress',
+  'org_info',
+] as const
 
 export const FALLBACK_DEFS: Record<string, FileDef> = {
   schedule_input: {
@@ -60,6 +67,31 @@ export const FALLBACK_DEFS: Record<string, FileDef> = {
     display_name: '勤務予定進捗一覧',
     expected_headers: ['社員番号', '氏名', 'カナ氏名', '勤怠年月', '勤務開始日', '進捗状況', '打刻実績', '勤務実績登録', '所属名称', 'メールアドレス'],
   },
+  org_info: {
+    display_name: '所属情報',
+    expected_headers: [
+      '従業員番号',
+      '氏名',
+      'カナ氏名',
+      '所属コード',
+      '所属名称１',
+      '所属名称２',
+      '所属名称３',
+      '所属名称４',
+      '所属名称５',
+      '所属名称６',
+      '所属名称７',
+      '所属名称８',
+      '従業員区分(ｺｰﾄﾞ)',
+      '従業員区分',
+      '職制(ｺｰﾄﾞ)',
+      '職制',
+      '損益管理コード(ｺｰﾄﾞ)',
+      '損益管理コード',
+      'アドレス1',
+      '入社年月日',
+    ],
+  },
 }
 
 export const LEGEND: LegendItem[] = [
@@ -72,4 +104,4 @@ export const LEGEND: LegendItem[] = [
 ]
 
 export const REPORT_HEADING = 'データエクスポート'
-export const TABLE_TITLE = 'インポートデータ一覧'
+export const TABLE_TITLE = ''

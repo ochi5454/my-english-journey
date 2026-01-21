@@ -1,11 +1,8 @@
 import { AlertTriangle, CheckCircle2, Download as DownloadIcon, Loader2, XCircle, Trash2 } from 'lucide-react'
-import { LegendItem } from '../types/excel'
-import { SheetSummary } from './SheetSummary'
 
 type DownloadPanelProps = {
   heading: string
   subtitle: string
-  legend: LegendItem[]
   exportStatus: 'idle' | 'exporting' | 'success' | 'error' | 'canceled'
   onCancel?: () => void
   onClear?: () => void
@@ -16,7 +13,6 @@ type DownloadPanelProps = {
 export function DownloadPanel({
   heading,
   subtitle,
-  legend,
   exportStatus,
   toast,
   onGenerate,
@@ -47,9 +43,7 @@ export function DownloadPanel({
 
   return (
     <>
-      <SheetSummary heading={heading} subtitle={subtitle} legend={legend} />
-
-      <section className="sheet-card" style={{ padding: '16px', width: '100%', alignSelf: 'stretch', marginTop: '12px' }}>
+      <section className="sheet-card" style={{ padding: '16px', width: '100%', alignSelf: 'stretch' }}>
         <div className="flex items-center gap-3 flex-wrap">
           <button
             className={btnClass}

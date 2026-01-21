@@ -8,7 +8,7 @@ import { Pagination } from './Pagination'
 type SheetTableProps = {
   headers: string[]
   rows: string[][]
-  title: string
+  title?: string
   loading?: boolean
   error?: string | null
   defaultPageSize?: number
@@ -19,7 +19,7 @@ type SheetTableProps = {
 export function SheetTable({
   headers,
   rows,
-  title,
+  title = '',
   loading = false,
   error = null,
   defaultPageSize = 25,
@@ -48,11 +48,13 @@ export function SheetTable({
       {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
       <div className="sheet-table-wrapper">
         <div className="sheet-table">
-          <div className="sheet-row sheet-header-band">
-            <div className="sheet-cell sheet-title" style={{ width: Math.max(headers.length * 110, 320) }}>
-              {title}
+          {title ? (
+            <div className="sheet-row sheet-header-band">
+              <div className="sheet-cell sheet-title" style={{ width: Math.max(headers.length * 110, 320) }}>
+                {title}
+              </div>
             </div>
-          </div>
+          ) : null}
           <div className="sheet-row sheet-header">
             {headers.map((titleText, idx) => (
               <div
@@ -68,7 +70,7 @@ export function SheetTable({
               </div>
             ))}
           </div>
-          {pagedRows.length === 0 && (
+          {pagedRows.length === 0 && !loading && (
             <div className="sheet-row">
               <div
                 className="sheet-cell sheet-empty-state"
@@ -78,7 +80,7 @@ export function SheetTable({
                   textAlign: 'center',
                 }}
               >
-                {loading ? '読み込み中です…' : emptyMessage}
+                {emptyMessage}
               </div>
             </div>
           )}

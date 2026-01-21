@@ -1,13 +1,13 @@
 'use client'
 
-import { Search, X } from 'lucide-react'
+import { Search, X, Download as DownloadIcon } from 'lucide-react'
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { DownloadPanel } from './components/DownloadPanel'
 import { SheetTable } from './components/SheetTable'
 import { Sidebar } from './components/Sidebar'
 import { UploadSection } from './components/UploadSection'
-import { API_BASE, FALLBACK_DEFS, FILE_ORDER, LEGEND, REPORT_HEADING, TABLE_TITLE } from './constants/excel'
+import { API_BASE, FALLBACK_DEFS, FILE_ORDER, REPORT_HEADING, TABLE_TITLE } from './constants/excel'
 import { FileDef, SheetPayload } from './types/excel'
 import * as XLSX from 'xlsx'
 
@@ -22,22 +22,58 @@ const normalizeHeader = (h: string) =>
     .replace(/\//g, '')
     .toLowerCase()
 const COLUMN_MAP_ALIASES: Record<string, string[]> = {
-  emp_no: ['従業員番号', '社員番号', '社員No'],
-  name: ['氏名', '名前', 'カナ氏名'],
+  emp_no: ['従業員番号', '社員番号', '社員No', '(基本)従業員番号'],
+  name: ['氏名', '名前', 'カナ氏名', '(基本)氏名', '(基本)カナ氏名'],
   status: ['勤務予定', '勤務予定日', '勤務予定区分', '勤務状況', '進捗状況'],
   overtime: ['実所定外時間', '残業時間', '残業'],
   overtime_detail: ['残業時間', '実所定外時間'],
   call_time: ['呼出出勤時間', '呼出出勤'],
-  grade: ['グレード'],
-  role: ['職制', '役職'],
-  org2: ['所属名称2', '所属2'],
-  org3: ['所属名称3', '所属3'],
-  org4: ['所属名称4', '所属4'],
-  org5: ['所属名称5', '所属5'],
-  org6: ['所属名称6', '所属6'],
-  org7: ['所属名称7', '所属7'],
-  org8: ['所属名称8', '所属8'],
+  grade: ['グレード', '従業員区分', '(従業員区分(基準日))従業員区分'],
+  role: ['職制', '役職', '(職制(基準日))職制'],
+  org2: ['所属名称2', '所属名称２', '所属2', '(人事所属本務(基準日))所属名称２'],
+  org3: ['所属名称3', '所属名称３', '所属3', '(人事所属本務(基準日))所属名称３'],
+  org4: ['所属名称4', '所属名称４', '所属4', '(人事所属本務(基準日))所属名称４'],
+  org5: ['所属名称5', '所属名称５', '所属5', '(人事所属本務(基準日))所属名称５'],
+  org6: ['所属名称6', '所属名称６', '所属6', '(人事所属本務(基準日))所属名称６'],
+  org7: ['所属名称7', '所属名称７', '所属7', '(人事所属本務(基準日))所属名称７'],
+  org8: ['所属名称8', '所属名称８', '所属8', '(人事所属本務(基準日))所属名称８'],
 }
+const asString = (value: unknown) => (value == null ? '' : String(value))
+const EXPORT_HEADERS = [
+  '従業員番号',
+  '氏名',
+  '勤務予定',
+  '実所定外時間',
+  '残業時間',
+  '呼出出勤時間',
+  'グレード',
+  '職制',
+  '所属名称2',
+  '所属名称3',
+  '所属名称4',
+  '所属名称5',
+  '所属名称6',
+  '所属名称7',
+  '所属名称8',
+] as const
+const BRANCH_GROUPS = [
+  { key: 'hokkaido', label: '北海道支社', matcher: (org2: string) => org2.includes('北海道') },
+  { key: 'tohoku', label: '東北支社', matcher: (org2: string) => org2.includes('東北') },
+  { key: 'kanto', label: '関東支社', matcher: (org2: string) => org2.includes('関東') },
+  { key: 'hokuriku', label: '北陸信越支社', matcher: (org2: string) => org2.includes('北陸') || org2.includes('信越') },
+  { key: 'tokai', label: '東海支社', matcher: (org2: string) => org2.includes('東海') },
+  { key: 'kansai', label: '関西支社', matcher: (org2: string) => org2.includes('関西') },
+  { key: 'chushikoku', label: '中四国支社', matcher: (org2: string) => org2.includes('中四国') || org2.includes('中国') || org2.includes('四国') },
+  { key: 'kyushu', label: '九州支社', matcher: (org2: string) => org2.includes('九州') },
+] as const
+const LEGEND_ROWS = [
+  { label: '80h超', desc: '長時間労働', color: '6b4f00', textColor: 'f7f2e2' },
+  { label: '〜80h', desc: '３６協定特別条項上限超過者', color: 'd0a754', textColor: '1a1200' },
+  { label: '〜60h', desc: '３６協定特別条項上限', color: 'e6a600', textColor: '1a1200' },
+  { label: '〜45h', desc: '労働基準法上の時間外労働上限', color: 'c7b202', textColor: '0f0f0f' },
+  { label: '〜30h', desc: '社内ルールに基づく上限', color: '1f8a55', textColor: 'fdfdfd' },
+  { label: '15h〜20h', desc: '', color: '5f86c6', textColor: 'fdfdfd' },
+] as const
 
 const readInitialSavedPreviews = () => {
   if (typeof window === 'undefined') return {}
@@ -63,7 +99,6 @@ export default function Home() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadedName, setUploadedName] = useState<string | null>(null)
   const [showDownloadPanel, setShowDownloadPanel] = useState(false)
-  const [exportAbort, setExportAbort] = useState<AbortController | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus>('idle')
   const statusResetTimer = useRef<number | null>(null)
@@ -76,6 +111,70 @@ export default function Home() {
   const [savedPreviews, setSavedPreviews] = useState<
     Record<string, { headers: string[]; rows: string[][]; fileName?: string | null; importedAt?: string }>
   >(() => readInitialSavedPreviews())
+  const emptyGrouping = useCallback(
+    () => BRANCH_GROUPS.reduce<Record<string, string[][]>>((acc, g) => ({ ...acc, [g.key]: [] }), {}),
+    [],
+  )
+  const [groupedRowsByBranch, setGroupedRowsByBranch] = useState<Record<string, string[][]>>(emptyGrouping)
+  const [branchExportStatus, setBranchExportStatus] = useState<Record<string, ExportStatus>>(
+    () => BRANCH_GROUPS.reduce<Record<string, ExportStatus>>((acc, g) => ({ ...acc, [g.key]: 'idle' }), {}),
+  )
+  const [unmatchedCount, setUnmatchedCount] = useState(0)
+  const setBranchExportStatusWithReset = useCallback((key: string, state: ExportStatus) => {
+    setBranchExportStatus((prev) => ({ ...prev, [key]: state }))
+    if (state !== 'exporting' && state !== 'idle') {
+      window.setTimeout(() => {
+        setBranchExportStatus((prev) => ({ ...prev, [key]: 'idle' }))
+      }, 2000)
+    }
+  }, [])
+  const buildLegendSheet = useCallback((rows: string[][]) => {
+    const legendAoA = LEGEND_ROWS.map((item) => [item.label, item.desc ? `： ${item.desc}` : ''])
+    const spacer = ['']
+    const headerRow = [...EXPORT_HEADERS]
+    const aoa = [...legendAoA, spacer, headerRow, ...rows]
+    const sheet = XLSX.utils.aoa_to_sheet(aoa)
+
+    // style legend cells
+    LEGEND_ROWS.forEach((item, idx) => {
+      const rowIndex = idx + 1
+      const labelCell = XLSX.utils.encode_cell({ r: rowIndex - 1, c: 0 })
+      const descCell = XLSX.utils.encode_cell({ r: rowIndex - 1, c: 1 })
+      const labelStyle = {
+        font: { bold: true, color: { rgb: `FF${item.textColor.toUpperCase()}` } },
+        fill: { patternType: 'solid', fgColor: { rgb: `FF${item.color.toUpperCase()}` } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+          bottom: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+          left: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+          right: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+        },
+      }
+      const descStyle = {
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+          bottom: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+          left: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+          right: { style: 'thin', color: { rgb: 'FFCCCCCC' } },
+        },
+      }
+      if (!sheet[labelCell]) sheet[labelCell] = { t: 's', v: item.label }
+      sheet[labelCell].s = labelStyle
+      if (!sheet[descCell]) sheet[descCell] = { t: 's', v: item.desc ? `： ${item.desc}` : '' }
+      sheet[descCell].s = descStyle
+    })
+
+    // widen desc column a bit
+    sheet['!cols'] = [
+      { wch: 10 },
+      { wch: 40 },
+      ...EXPORT_HEADERS.slice(2).map(() => ({ wch: 14 })),
+    ]
+
+    return sheet
+  }, [])
 
   const processedFileKey = 'tim_daily'
   const activeKey = FILE_ORDER[activeSheet]
@@ -231,7 +330,12 @@ export default function Home() {
         setUploadMessage('アップロード完了。最新データを表示します。')
       }
     } catch (e: any) {
-      setUploadError(e?.message ?? 'アップロードに失敗しました')
+      const raw = e?.message ?? ''
+      const friendly =
+        raw.toLowerCase().includes('header mismatch') || raw.toLowerCase().includes('header_mismatch')
+          ? 'アップロードに失敗しました。項目名がテンプレートと一致するか確認してください。'
+          : raw || 'アップロードに失敗しました'
+      setUploadError(friendly)
     } finally {
       setUploading(false)
       setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
@@ -257,69 +361,70 @@ export default function Home() {
 
   const handleGenerateDownload = async () => {
     setToast(null)
-    const controller = new AbortController()
-    setExportAbort(controller)
+    setUnmatchedCount(0)
     setStatusWithReset('exporting')
     try {
-      const resolvedSheet = sheetData[processedFileKey]?.sheets?.[0]
-      const cached = savedPreviews[processedFileKey]
-      const sourceHeaders =
-        (resolvedSheet?.headers?.length ? resolvedSheet.headers : null) ??
-        (cached?.headers?.length ? cached.headers : null) ??
-        (resolvedSheet?.grid?.[0]?.length ? resolvedSheet.grid[0] : null) ??
-        []
-      const sourceRows =
-        (resolvedSheet?.rows?.length ? resolvedSheet.rows : null) ??
-        (cached?.rows?.length ? cached.rows : null) ??
-        (resolvedSheet?.grid?.length ? resolvedSheet.grid.slice(1) : null) ??
-        []
-
-      const mappedRows = mapRowsToExport(sourceHeaders, sourceRows).filter((row) =>
+      const meaningfulRows = processedRows.filter((row) =>
         row.some((cell) => (cell ?? '').toString().trim() !== ''),
       )
-      if (!mappedRows.length) {
+      if (!meaningfulRows.length) {
+        setGroupedRowsByBranch(emptyGrouping())
         setToast('出力対象がありません')
         setStatusWithReset('error')
         return
       }
 
-      const mergedRows = mergeByEmployee(mappedRows)
+      const mergedRows = mergeByEmployee(meaningfulRows)
+      const nextGrouped = emptyGrouping()
+      let unmatched = 0
 
-      const grouped = mergedRows.reduce<Map<string, string[][]>>((acc, row) => {
-        if (controller.signal.aborted) {
-          throw new DOMException('aborted', 'AbortError')
+      mergedRows.forEach((row) => {
+        const org2 = asString(row[8]).trim()
+        const matchedGroup = BRANCH_GROUPS.find((g) => g.matcher(org2))
+        if (matchedGroup) {
+          nextGrouped[matchedGroup.key] = [...nextGrouped[matchedGroup.key], row]
+        } else {
+          unmatched += 1
         }
-        const org2 = (row[8] ?? '').trim() || '未設定'
-        const bucket = acc.get(org2) || []
-        bucket.push(row)
-        acc.set(org2, bucket)
-        return acc
-      }, new Map())
+      })
 
-      if (!grouped.size) {
+      setGroupedRowsByBranch(nextGrouped)
+      setUnmatchedCount(unmatched)
+
+      if (unmatched > 0) {
+        setToast(`分類できないデータが${unmatched}件あります`)
+      } else {
+        setToast('振り分けが完了しました')
+      }
+      setStatusWithReset('success')
+    } catch (err: any) {
+      setToast(err?.message || '振り分けに失敗しました')
+      setStatusWithReset('error')
+    }
+  }
+  const handleExportBranch = useCallback(
+    (key: string, label: string) => {
+      const rows = groupedRowsByBranch[key] || []
+      if (!rows.length) {
         setToast('出力対象がありません')
-        setStatusWithReset('error')
         return
       }
-
-      const pad = (n: number) => `${n}`.padStart(2, '0')
-      const timestamp = () => {
-        const now = new Date()
-        return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(
-          now.getMinutes(),
-        )}`
-      }
-      const sanitize = (value: string) => {
-        const base = (value || '未設定').trim() || '未設定'
-        const cleaned = base.replace(/[\\/:*?"<>|]/g, '_')
-        return cleaned.slice(0, 50)
-      }
-
-      for (const [org2, rows] of grouped.entries()) {
-        if (controller.signal.aborted) {
-          throw new DOMException('aborted', 'AbortError')
+      setBranchExportStatusWithReset(key, 'exporting')
+      try {
+        const pad = (n: number) => `${n}`.padStart(2, '0')
+        const timestamp = () => {
+          const now = new Date()
+          return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(
+            now.getMinutes(),
+          )}`
         }
-        const sheet = XLSX.utils.aoa_to_sheet([exportHeaders, ...rows])
+        const sanitize = (value: string) => {
+          const base = (value || 'export').trim() || 'export'
+          const cleaned = base.replace(/[\\/:*?"<>|]/g, '_')
+          return cleaned.slice(0, 50)
+        }
+
+        const sheet = buildLegendSheet(rows)
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, sheet, 'export')
         const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
@@ -329,34 +434,24 @@ export default function Home() {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `export_${sanitize(org2)}_${timestamp()}.xlsx`
+        a.download = `export_${sanitize(label)}_${timestamp()}.xlsx`
         document.body.appendChild(a)
         a.click()
         a.remove()
         window.URL.revokeObjectURL(url)
+        setBranchExportStatusWithReset(key, 'success')
+      } catch (err: any) {
+        console.error(err)
+        setToast(err?.message || '出力に失敗しました')
+        setBranchExportStatusWithReset(key, 'error')
       }
-
-      const fileCount = grouped.size
-      const rowCount = mergedRows.length
-      setToast(`エクスポートが完了しました（${fileCount}ファイル / ${rowCount}行）`)
-      setStatusWithReset('success')
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        setToast('エクスポートを中断しました')
-        setStatusWithReset('canceled')
-      } else {
-        setToast(err?.message || '生成に失敗しました')
-        setStatusWithReset('error')
-      }
-    } finally {
-      setExportAbort(null)
-    }
-  }
+    },
+    [buildLegendSheet, groupedRowsByBranch, setBranchExportStatusWithReset],
+  )
   const handleCancelExport = () => {
-    if (exportAbort) {
-      exportAbort.abort()
+    if (exportStatus === 'exporting') {
       setStatusWithReset('canceled')
-      setExportAbort(null)
+      setToast('振り分けを中断しました')
     }
   }
 
@@ -367,6 +462,11 @@ export default function Home() {
     const next = { ...savedPreviews }
     delete next[processedFileKey]
     persistPreview(next)
+    setGroupedRowsByBranch(emptyGrouping())
+    setBranchExportStatus(
+      BRANCH_GROUPS.reduce<Record<string, ExportStatus>>((acc, g) => ({ ...acc, [g.key]: 'idle' }), {}),
+    )
+    setUnmatchedCount(0)
   }
 
   const sheet = sheetData[activeKey]?.sheets?.[0]
@@ -384,23 +484,6 @@ export default function Home() {
   const rowsForDisplay = filteredRows ?? bodyRows
 
   const processedSheet = sheetData[processedFileKey]?.sheets?.[0]
-  const exportHeaders = [
-    '従業員番号',
-    '氏名',
-    '勤務予定',
-    '実所定外時間',
-    '残業時間',
-    '呼出出勤時間',
-    'グレード',
-    '職制',
-    '所属名称2',
-    '所属名称3',
-    '所属名称4',
-    '所属名称5',
-    '所属名称6',
-    '所属名称7',
-    '所属名称8',
-  ]
 
   const buildColumnMap = useCallback((headers: string[]) => {
     const normalized: Record<string, number> = {}
@@ -425,7 +508,7 @@ export default function Home() {
     const pick = (row: string[], key: string, fallback = '') => {
       const idx = colMap[key]
       if (idx === undefined) return fallback
-      return row[idx] ?? fallback
+      return asString(row[idx])
     }
     return rows.map((r) => [
       pick(r, 'emp_no', ''),
@@ -531,7 +614,7 @@ export default function Home() {
   const processedRows = useMemo(() => {
     const headers = processedGrid[0] || []
     const rows = processedGrid.slice(1)
-    if (!rows.length) return [[...Array(exportHeaders.length)].map(() => '')]
+    if (!rows.length) return []
     return mapRowsToExport(headers, rows)
   }, [processedGrid, mapRowsToExport])
 
@@ -609,79 +692,126 @@ export default function Home() {
   }, [uploading, uploadStart, activeKey])
 
   return (
-    <div className="dash-layout">
-      <Sidebar
-        defs={defs}
-        fileOrder={FILE_ORDER}
-        activeSheet={activeSheet}
-        onChangeSheet={setActiveSheet}
-        onCloseDownloadPanel={() => setShowDownloadPanel(false)}
-        showDownloadPanel={showDownloadPanel}
-        onShowDownload={() => setShowDownloadPanel(true)}
-      />
+    <div className="dash-shell">
+      <header className="dash-header-bar">
+        <div className="header-title">時間外労働管理システム</div>
+      </header>
+      <div className="dash-layout">
+        <Sidebar
+          defs={defs}
+          fileOrder={FILE_ORDER}
+          activeSheet={activeSheet}
+          onChangeSheet={setActiveSheet}
+          onCloseDownloadPanel={() => setShowDownloadPanel(false)}
+          showDownloadPanel={showDownloadPanel}
+          onShowDownload={() => setShowDownloadPanel(true)}
+        />
 
-      <div className="dash-main">
-        <div className="dash-content">
-          {showDownloadPanel ? (
-            <DownloadPanel
-              heading={REPORT_HEADING}
-              subtitle={downloadSubtitle}
-              legend={LEGEND}
-              exportStatus={exportStatus}
-              toast={toast}
-              onGenerate={handleGenerateDownload}
-              onCancel={handleCancelExport}
-              onClear={handleClearExportTable}
-            />
-          ) : (
-            <>
-              <UploadSection
-                uploadedName={uploadedName}
-                uploadMessage={uploadMessage}
-                uploadError={uploadError}
-                uploading={uploading}
-                uploadElapsedSec={uploadElapsedSec[activeKey]}
-                uploadEstimateSec={uploadEstimateSec[activeKey]}
-                activeKey={activeKey}
-                onClear={handleClearPageData}
-                onFileSelected={handleFile}
-                rightContent={
-                  <form className="search-bar" onSubmit={handleSearchSubmit}>
-                    <Search size={16} className="search-icon" />
-                    <input
-                      type="search"
-                      className="search-input"
-                      placeholder=""
-                      value={searchInput}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                    />
-                    <button className="search-button" type="submit" disabled={loading && bodyRows.length === 0}>
-                      検索
-                    </button>
-                    {lastSearch && (
-                      <button type="button" className="search-chip" onClick={handleClearSearch}>
-                        <span>検索中: {lastSearch}</span>
-                        <X size={14} />
+        <div className="dash-main">
+          <div className="dash-content">
+            {showDownloadPanel ? (
+              <DownloadPanel
+                heading={REPORT_HEADING}
+                subtitle={downloadSubtitle}
+                exportStatus={exportStatus}
+                toast={toast}
+                onGenerate={handleGenerateDownload}
+                onCancel={handleCancelExport}
+                onClear={handleClearExportTable}
+              />
+            ) : (
+              <>
+                <UploadSection
+                  uploadedName={uploadedName}
+                  uploadMessage={uploadMessage}
+                  uploadError={uploadError}
+                  uploading={uploading}
+                  uploadElapsedSec={uploadElapsedSec[activeKey]}
+                  uploadEstimateSec={uploadEstimateSec[activeKey]}
+                  activeKey={activeKey}
+                  onClear={handleClearPageData}
+                  onFileSelected={handleFile}
+                  rightContent={
+                    <form className="search-bar" onSubmit={handleSearchSubmit}>
+                      <Search size={16} className="search-icon" />
+                      <input
+                        type="search"
+                        className="search-input"
+                        placeholder=""
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                      />
+                      <button className="search-button" type="submit" disabled={loading && bodyRows.length === 0}>
+                        検索
                       </button>
-                    )}
-                  </form>
-                }
-              />
-              <SheetTable
-                headers={headers}
-                rows={rowsForDisplay}
-                title={TABLE_TITLE}
-                loading={loading}
-                error={error}
-                emptyMessage={filteredRows ? '該当するデータがありません' : 'データがありません'}
-              />
-            </>
-          )}
-          {showDownloadPanel && (
-            <div style={{ marginTop: '12px' }}>
-              <SheetTable headers={exportHeaders} rows={processedRows} title={TABLE_TITLE} loading={loading} error={error} />
-            </div>
-          )}
+                      {lastSearch && (
+                        <button type="button" className="search-chip" onClick={handleClearSearch}>
+                          <span>検索中: {lastSearch}</span>
+                          <X size={14} />
+                        </button>
+                      )}
+                    </form>
+                  }
+                />
+                <SheetTable
+                  headers={headers}
+                  rows={rowsForDisplay}
+                  title={TABLE_TITLE}
+                  loading={loading}
+                  error={error}
+                  emptyMessage={filteredRows ? '該当するデータがありません' : 'データがありません'}
+                />
+              </>
+            )}
+            {showDownloadPanel && (
+              <div style={{ marginTop: '12px' }}>
+                {BRANCH_GROUPS.map((group) => {
+                  const branchRows = groupedRowsByBranch[group.key] || []
+                  const btnStatus = branchExportStatus[group.key] || 'idle'
+                  const btnLabel =
+                    btnStatus === 'exporting' ? '出力中...' : btnStatus === 'success' ? '完了' : 'Excel出力'
+                  const disabled = btnStatus === 'exporting' || branchRows.length === 0
+                  return (
+                    <div key={group.key} style={{ marginBottom: '24px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#333' }}>
+                          {group.label}{' '}
+                          <span style={{ fontSize: '13px', color: '#666' }}>（{branchRows.length}件）</span>
+                        </h3>
+                        <button
+                          className="btn-outline-blue"
+                          style={{
+                            minWidth: '130px',
+                            opacity: disabled ? 0.6 : 1,
+                            cursor: disabled ? 'not-allowed' : 'pointer',
+                          }}
+                          disabled={disabled}
+                          onClick={() => handleExportBranch(group.key, group.label)}
+                          title={branchRows.length === 0 ? '出力対象がありません' : ''}
+                        >
+                          <DownloadIcon size={16} />
+                          <span>{btnLabel}</span>
+                        </button>
+                      </div>
+                      <SheetTable
+                        headers={EXPORT_HEADERS}
+                        rows={branchRows}
+                        title={TABLE_TITLE}
+                        loading={loading}
+                        error={error}
+                        emptyMessage="0件"
+                      />
+                    </div>
+                  )
+                })}
+                {unmatchedCount > 0 && (
+                  <div style={{ marginTop: '4px', color: '#a15c00', fontSize: '13px' }}>
+                    所属名称2が分類できないデータが {unmatchedCount} 件あります
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

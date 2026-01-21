@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { CalendarPlus, Clock, Hash, Table2, TrendingUp, Download } from 'lucide-react'
+import { CalendarPlus, Clock, Hash, Table2, TrendingUp, Download, Building2 } from 'lucide-react'
 import { FileDef } from '../types/excel'
 
 type SidebarProps = {
@@ -27,12 +27,11 @@ export function Sidebar({
     days_items: Hash,
     tim_daily: Table2,
     person_progress: TrendingUp,
+    org_info: Building2,
   }
 
   return (
     <aside className="dash-sidebar">
-      <div className="sidebar-brand">時間外労働管理システム</div>
-      <div className="sidebar-divider" />
       <nav className="sidebar-nav">
         <div className="sidebar-label">ファイルをインポート</div>
         {fileOrder.map((key, idx) => {
