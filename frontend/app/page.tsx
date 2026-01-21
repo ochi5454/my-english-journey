@@ -10,8 +10,8 @@ import { UploadSection } from './components/UploadSection'
 import { API_BASE, FALLBACK_DEFS, FILE_ORDER, REPORT_HEADING, TABLE_TITLE } from './constants/excel'
 import { FileDef, SheetPayload } from './types/excel'
 import * as XLSX from 'xlsx'
+import { useImportDataStore, setImportData, clearImportData } from './store/useImportDataStore'
 
-const STORAGE_KEY = 'overtime_import_cache_v1'
 const SEARCH_TARGET_HEADERS = ['案件名', '現場名', '仕入先名']
 type ExportStatus = 'idle' | 'exporting' | 'success' | 'error' | 'canceled'
 const normalizeHeader = (h: string) =>
@@ -74,19 +74,7 @@ const LEGEND_ROWS = [
   { label: '〜30h', desc: '社内ルールに基づく上限', color: '1f8a55', textColor: 'fdfdfd' },
   { label: '15h〜20h', desc: '', color: '5f86c6', textColor: 'fdfdfd' },
 ] as const
-
-const readInitialSavedPreviews = () => {
-  if (typeof window === 'undefined') return {}
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object') return parsed
-  } catch {
-    // ignore parse errors
-  }
-  return {}
-}
+const BRANCH_ORG_INDEX = 11
 
 export default function Home() {
   const [activeSheet, setActiveSheet] = useState(0)
@@ -108,9 +96,7 @@ export default function Home() {
   const [searchInput, setSearchInput] = useState('')
   const [filteredRows, setFilteredRows] = useState<string[][] | null>(null)
   const [lastSearch, setLastSearch] = useState('')
-  const [savedPreviews, setSavedPreviews] = useState<
-    Record<string, { headers: string[]; rows: string[][]; fileName?: string | null; importedAt?: string }>
-  >(() => readInitialSavedPreviews())
+  const { data: savedPreviews } = useImportDataStore()
   const emptyGrouping = useCallback(
     () => BRANCH_GROUPS.reduce<Record<string, string[][]>>((acc, g) => ({ ...acc, [g.key]: [] }), {}),
     [],
@@ -182,17 +168,6 @@ export default function Home() {
   const subtitle = activeDef.display_name
   const downloadSubtitle = defs[processedFileKey]?.display_name ?? '加工済みデータ'
 
-  const persistPreview = useCallback((next: typeof savedPreviews) => {
-    setSavedPreviews(next)
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      } catch {
-        // ignore
-      }
-    }
-  }, [])
-
   useEffect(() => {
     const loadDefs = async () => {
       try {
@@ -222,14 +197,11 @@ export default function Home() {
       setSheetData((prev) => ({ ...prev, [key]: json }))
       const sheetPayload = json?.sheets?.[0]
       if (sheetPayload) {
-        persistPreview({
-          ...savedPreviews,
-          [key]: {
-            headers: sheetPayload.headers ?? [],
-            rows: sheetPayload.rows ?? [],
-            fileName: json.file_name,
-            importedAt: new Date().toISOString(),
-          },
+        setImportData(key, {
+          headers: sheetPayload.headers ?? [],
+          rows: sheetPayload.rows ?? [],
+          fileName: json.file_name,
+          importedAt: new Date().toISOString(),
         })
       }
       return json
@@ -239,7 +211,7 @@ export default function Home() {
     } finally {
       setLoading(false)
     }
-  }, [persistPreview, savedPreviews])
+  }, [])
 
   const parseLocalPreview = useCallback(async (file: File) => {
     try {
@@ -290,16 +262,12 @@ export default function Home() {
           )
         )
         setUploadEstimateSec((prev) => ({ ...prev, [activeKey]: est }))
-        const next = {
-          ...savedPreviews,
-          [activeKey]: {
-            headers: preview.headers,
-            rows: preview.rows,
-            fileName: file.name,
-            importedAt: new Date().toISOString(),
-          },
-        }
-        persistPreview(next)
+        setImportData(activeKey, {
+          headers: preview.headers,
+          rows: preview.rows,
+          fileName: file.name,
+          importedAt: new Date().toISOString(),
+        })
       }
 
       const fd = new FormData()
@@ -318,14 +286,11 @@ export default function Home() {
       const loaded = await loadSheet(activeKey)
       const sheetPayload = loaded?.sheets?.[0]
       if (sheetPayload) {
-        persistPreview({
-          ...savedPreviews,
-          [activeKey]: {
-            headers: sheetPayload.headers ?? [],
-            rows: sheetPayload.rows ?? [],
-            fileName: file.name,
-            importedAt: new Date().toISOString(),
-          },
+        setImportData(activeKey, {
+          headers: sheetPayload.headers ?? [],
+          rows: sheetPayload.rows ?? [],
+          fileName: file.name,
+          importedAt: new Date().toISOString(),
         })
         setUploadMessage('アップロード完了。最新データを表示します。')
       }
@@ -348,9 +313,7 @@ export default function Home() {
     const ok = window.confirm('表示中のデータを削除しますか？')
     if (!ok) return
     setSheetData((prev) => ({ ...prev, [activeKey]: null }))
-    const next = { ...savedPreviews }
-    delete next[activeKey]
-    persistPreview(next)
+    clearImportData(activeKey)
     setUploadedName(null)
     setUploadMessage(null)
     setUploadError(null)
@@ -379,8 +342,8 @@ export default function Home() {
       let unmatched = 0
 
       mergedRows.forEach((row) => {
-        const org2 = asString(row[8]).trim()
-        const matchedGroup = BRANCH_GROUPS.find((g) => g.matcher(org2))
+        const orgForBranch = asString(row[BRANCH_ORG_INDEX] ?? '').trim()
+        const matchedGroup = BRANCH_GROUPS.find((g) => g.matcher(orgForBranch))
         if (matchedGroup) {
           nextGrouped[matchedGroup.key] = [...nextGrouped[matchedGroup.key], row]
         } else {
@@ -423,6 +386,13 @@ export default function Home() {
           const cleaned = base.replace(/[\\/:*?"<>|]/g, '_')
           return cleaned.slice(0, 50)
         }
+        const buildFileName = (branchLabel: string) => {
+          const pad = (n: number) => `${n}`.padStart(2, '0')
+          const today = new Date()
+          const stamp = `${today.getFullYear()}${pad(today.getMonth() + 1)}${pad(today.getDate())}`
+          const safeBranch = sanitize(branchLabel)
+          return `${stamp}_jikangai_${safeBranch}.xlsx`
+        }
 
         const sheet = buildLegendSheet(rows)
         const wb = XLSX.utils.book_new()
@@ -434,7 +404,7 @@ export default function Home() {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `export_${sanitize(label)}_${timestamp()}.xlsx`
+        a.download = buildFileName(label)
         document.body.appendChild(a)
         a.click()
         a.remove()
@@ -459,9 +429,7 @@ export default function Home() {
     const ok = window.confirm('エクスポート用の表示データを削除しますか？')
     if (!ok) return
     setSheetData((prev) => ({ ...prev, [processedFileKey]: null }))
-    const next = { ...savedPreviews }
-    delete next[processedFileKey]
-    persistPreview(next)
+    clearImportData(processedFileKey)
     setGroupedRowsByBranch(emptyGrouping())
     setBranchExportStatus(
       BRANCH_GROUPS.reduce<Record<string, ExportStatus>>((acc, g) => ({ ...acc, [g.key]: 'idle' }), {}),
