@@ -72,7 +72,6 @@ export const FALLBACK_DEFS: Record<string, FileDef> = {
     expected_headers: [
       '従業員番号',
       '氏名',
-      'カナ氏名',
       '所属コード',
       '所属名称１',
       '所属名称２',

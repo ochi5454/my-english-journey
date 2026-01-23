@@ -1,4 +1,5 @@
-import { Download, Trash2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { UploadCloud, CloudUpload } from 'lucide-react'
 
 type UploadSectionProps = {
   inputId?: string
@@ -27,37 +28,67 @@ export function UploadSection({
   onClear,
   rightContent,
 }: UploadSectionProps) {
+  const [dragActive, setDragActive] = useState(false)
+
+  const handleFiles = useCallback(
+    (files: FileList | null | undefined) => {
+      if (files && files.length > 0) {
+        onFileSelected(files[0])
+      }
+    },
+    [onFileSelected],
+  )
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    handleFiles(e.dataTransfer.files)
+  }
+
+  const handleBrowseClick = () => {
+    const el = document.getElementById(inputId) as HTMLInputElement | null
+    el?.click()
+  }
+
   return (
     <section className="sheet-card" style={{ marginTop: '8px', width: '100%', alignSelf: 'stretch' }}>
-      <div className="upload-row">
-        <div className="upload-actions">
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            style={{ display: 'none' }}
-            id={inputId}
-            onChange={(e) => onFileSelected(e.target.files?.[0])}
-          />
-          <label
-            htmlFor={inputId}
-            className="btn-outline-blue"
-            style={{ cursor: 'pointer' }}
-          >
-            <Download size={18} />
-            <span>インポート</span>
-          </label>
-          <button
-            type="button"
-            className="btn-outline-red"
-            onClick={onClear}
-            style={{ cursor: 'pointer' }}
-          >
-            <Trash2 size={18} />
-            <span>削除</span>
+      <div
+        className={`drop-zone ${dragActive ? 'drag-active' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <input
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          style={{ display: 'none' }}
+          id={inputId}
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+        <label htmlFor={inputId} className="drop-zone-inner">
+          <UploadCloud size={48} color="#7a7a7a" />
+          <div className="drop-title">ファイルをドラッグ＆ドロップ</div>
+          <div className="drop-sub">または</div>
+          <button type="button" className="drop-button-big" onClick={handleBrowseClick}>
+            <CloudUpload size={18} />
+            <span>ファイルを選択</span>
           </button>
-        </div>
-        {rightContent && <div className="upload-right">{rightContent}</div>}
+        </label>
       </div>
+
       {uploadMessage && <div className="text-sm text-green-700 mt-1">{uploadMessage}</div>}
       {uploadError && <div className="text-sm text-red-600 mt-1">エラー: {uploadError}</div>}
       {uploading && (

@@ -9,7 +9,6 @@ from backend.core.database import get_db
 from backend.models.excel import ExcelFile, ExcelCell
 from backend.services.excel import (
     FILE_DEFINITIONS,
-    normalize_headers,
     parse_csv_to_cells,
     parse_xlsx_to_cells,
     fetch_grid_for_key,
@@ -53,17 +52,6 @@ async def upload_excel(file_key: str, file: UploadFile = File(...), db=Depends(g
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type")
         timings["parse_ms"] = round((time.perf_counter() - t_parse) * 1000)
-
-        expected = FILE_DEFINITIONS[file_key]["expected_headers"]
-        if normalize_headers(expected) != normalize_headers(headers):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "message": "header mismatch",
-                    "expected": expected,
-                    "received": headers,
-                },
-            )
 
         latest = (
             db.query(ExcelFile)
