@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from backend.core.config import DATA_DIR
 from backend.core.database import get_db
-from backend.models.excel import ExcelFile, ExcelCell
+from backend.models.excel import ExcelFile, ExcelCell, ExportCache
 from backend.services.excel import (
     FILE_DEFINITIONS,
     parse_csv_to_cells,
@@ -22,6 +22,22 @@ router = APIRouter(prefix="/excel", tags=["excel"])
 @router.get("/config")
 def list_excel_config():
     return FILE_DEFINITIONS
+
+
+@router.get("/export-cache")
+def get_export_cache(db=Depends(get_db)):
+    latest = db.query(ExportCache).order_by(ExportCache.id.desc()).first()
+    return {"payload": latest.payload if latest else None}
+
+
+@router.post("/export-cache")
+def set_export_cache(payload: dict = Body(default={}, embed=False), db=Depends(get_db)):
+    if not isinstance(payload, dict) or "rows" not in payload:
+        raise HTTPException(status_code=400, detail="payload must include rows")
+    cache = ExportCache(payload=payload, created_at=date.today())
+    db.add(cache)
+    db.commit()
+    return {"status": "ok"}
 
 
 @router.post("/{file_key}/upload")

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.core.database import init_db, reset_sqlite_db
+from backend.core.database import init_db
 from backend.routers import excel, tournament
 
 
@@ -17,7 +17,6 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
-    reset_sqlite_db()
     init_db()
 
 

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, Text
+from sqlalchemy.types import JSON
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 from datetime import date
@@ -23,3 +24,10 @@ class ExcelCell(Base):
     col_index = Column(Integer, nullable=False)
     value = Column(Text, nullable=True)
     file = relationship("ExcelFile", back_populates="cells")
+
+
+class ExportCache(Base):
+    __tablename__ = "export_cache"
+    id = Column(Integer, primary_key=True, index=True)
+    payload = Column(JSON, nullable=False)
+    created_at = Column(Date, default=date.today, nullable=False)

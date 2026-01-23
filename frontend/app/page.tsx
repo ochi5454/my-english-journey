@@ -122,6 +122,7 @@ export default function Home() {
   const [exportLastSearch, setExportLastSearch] = useState('')
   const [workerExportRows, setWorkerExportRows] = useState<string[][]>([])
   const workerRef = useRef<Worker | null>(null)
+  const [cacheLoaded, setCacheLoaded] = useState(false)
   const [loadingExport, setLoadingExport] = useState(false)
   const { data: savedPreviews } = useImportDataStore()
   const buildLegendSheet = useCallback((rows: string[][]) => {
@@ -434,7 +435,6 @@ export default function Home() {
         pick(r, 'overtime', ''),
         pick(r, 'overtime_detail', pick(r, 'overtime', '')),
         pick(r, 'call_time', ''),
-        pick(r, 'grade', ''),
         pick(r, 'role', ''),
         ...org2to8, // 所属名称２〜８
       ]
@@ -641,7 +641,7 @@ export default function Home() {
 
   const exportRowsForDisplay = exportFilteredRows ?? exportRowsDisplay
   const hasExportData = exportRowsForDisplay.length > 0
-  const exportHeadersDisplay = useMemo(() => EXPORT_HEADERS.map(stripParens), [])
+  const exportHeadersDisplay = useMemo(() => EXPORT_HEADERS.map(stripParens).filter((h) => h !== 'グレード'), [])
 
   const targetSearchColumns = useMemo(() => {
     const normalizedTargets = SEARCH_TARGET_HEADERS.map((h) => normalizeSearchText(h))
@@ -723,6 +723,42 @@ export default function Home() {
       workerRef.current = null
     }
   }, [exportSourceGrids])
+
+  // Load cached export rows from backend once
+  useEffect(() => {
+    const loadCache = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/excel/export-cache`)
+        if (!res.ok) return
+        const json = await res.json()
+        if (json?.payload?.rows) {
+          setWorkerExportRows(json.payload.rows)
+        }
+      } catch {
+        // ignore cache fetch errors
+      } finally {
+        setCacheLoaded(true)
+      }
+    }
+    loadCache()
+  }, [])
+
+  // Save export rows to backend cache when recomputed
+  useEffect(() => {
+    const saveCache = async () => {
+      if (!workerExportRows.length || !cacheLoaded) return
+      try {
+        await fetch(`${API_BASE}/excel/export-cache`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: workerExportRows }),
+        })
+      } catch {
+        // ignore cache write errors
+      }
+    }
+    saveCache()
+  }, [workerExportRows, cacheLoaded])
 
   return (
     <div className="dash-shell">
