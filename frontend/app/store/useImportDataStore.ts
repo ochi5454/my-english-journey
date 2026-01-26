@@ -46,8 +46,10 @@ const subscribe = (cb: () => void) => {
 }
 
 const getSnapshot = () => state
+// Server render fallback to satisfy useSyncExternalStore API
+const getServerSnapshot = () => state
 
-export const useImportDataStore = () => useSyncExternalStore(subscribe, getSnapshot)
+export const useImportDataStore = () => useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 
 export const setImportData = (fileKey: string, payload: ImportPreview) => {
   setState((prev) => ({ data: { ...prev.data, [fileKey]: payload } }))
