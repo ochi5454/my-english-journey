@@ -7,6 +7,7 @@ type DownloadPanelProps = {
   onClear?: () => void
   toast: string | null
   rightContent?: ReactNode
+  etaSeconds?: number | null
 }
 
 export function DownloadPanel({
@@ -15,7 +16,15 @@ export function DownloadPanel({
   toast,
   onClear,
   rightContent,
+  etaSeconds = null,
 }: DownloadPanelProps) {
+  const etaLabel =
+    etaSeconds == null
+      ? ''
+      : etaSeconds === 0
+        ? 'まもなく完了'
+        : `計算中… 残り約${etaSeconds}秒`
+
   return (
     <>
       <section className="sheet-card" style={{ padding: '16px', width: '100%', alignSelf: 'stretch' }}>
@@ -35,6 +44,11 @@ export function DownloadPanel({
           </div>
           {rightContent && <div style={{ marginLeft: 'auto' }}>{rightContent}</div>}
         </div>
+        {etaLabel && (
+          <div className="text-sm text-slate-700 mt-2" aria-live="polite">
+            {etaLabel}
+          </div>
+        )}
         {toast && <div className="text-sm text-slate-600 mt-2">{toast}</div>}
       </section>
     </>

@@ -1,8 +1,10 @@
 'use client'
 
+import { useMemo, useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 import { api } from '../../api/client'
+import { Pagination } from '../../components/Pagination'
 
 type Task = {
   id: number
@@ -37,6 +39,15 @@ const fetcher = (url: string) => api.get(url).then((r) => r.data)
 export default function TournamentDetail() {
   const params = useParams<{ id: string }>()
   const { data, mutate } = useSWR<Tournament>(`/tournaments/${params.id}`, fetcher)
+  const TASK_PAGE_SIZE = 10
+  const DOC_PAGE_SIZE = 6
+  const [taskPage, setTaskPage] = useState(1)
+  const [docPage, setDocPage] = useState(1)
+
+  useEffect(() => {
+    setTaskPage(1)
+    setDocPage(1)
+  }, [data])
 
   const generateTasks = async () => {
     await api.post(`/tournaments/${params.id}/generate/tasks`)
@@ -85,6 +96,16 @@ export default function TournamentDetail() {
   }
 
   if (!data) return <div>Loading...</div>
+
+  const pagedTasks = useMemo(() => {
+    const start = (taskPage - 1) * TASK_PAGE_SIZE
+    return data.tasks.slice(start, start + TASK_PAGE_SIZE)
+  }, [data.tasks, taskPage])
+
+  const pagedDocuments = useMemo(() => {
+    const start = (docPage - 1) * DOC_PAGE_SIZE
+    return data.documents.slice(start, start + DOC_PAGE_SIZE)
+  }, [data.documents, docPage])
 
   return (
     <div className="jfa-app">
@@ -159,7 +180,7 @@ export default function TournamentDetail() {
             <span className="text-xs text-slate-500">ステータスを更新できます</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            {data.tasks.map((t) => (
+            {pagedTasks.map((t) => (
               <div key={t.id} className="border border-slate-200 rounded-lg p-3 bg-[#fdfbf6]">
                 <div className="font-semibold">{t.title}</div>
                 <div className="text-xs text-slate-600">期限: {t.due_date || '未設定'}</div>
@@ -176,6 +197,18 @@ export default function TournamentDetail() {
               </div>
             ))}
           </div>
+          <div className="mt-3">
+            <Pagination
+              total={data.tasks.length}
+              page={taskPage}
+              pageSize={TASK_PAGE_SIZE}
+              pageSizeOptions={[TASK_PAGE_SIZE]}
+              onPageChange={(next) =>
+                setTaskPage(Math.min(Math.max(1, next), Math.max(1, Math.ceil(data.tasks.length / TASK_PAGE_SIZE))))
+              }
+              onPageSizeChange={() => {}}
+            />
+          </div>
         </section>
 
         <section className="jfa-section">
@@ -184,12 +217,24 @@ export default function TournamentDetail() {
             <span className="text-xs text-slate-500">進行表・メールはここに表示</span>
           </div>
           <div className="space-y-2 text-sm">
-            {data.documents.map((d) => (
+            {pagedDocuments.map((d) => (
               <details key={d.id} className="border border-slate-200 rounded p-3 bg-[#fdfbf6]">
                 <summary className="cursor-pointer font-semibold">{d.doc_type}</summary>
                 {renderDoc(d)}
               </details>
             ))}
+          </div>
+          <div className="mt-3">
+            <Pagination
+              total={data.documents.length}
+              page={docPage}
+              pageSize={DOC_PAGE_SIZE}
+              pageSizeOptions={[DOC_PAGE_SIZE]}
+              onPageChange={(next) =>
+                setDocPage(Math.min(Math.max(1, next), Math.max(1, Math.ceil(data.documents.length / DOC_PAGE_SIZE))))
+              }
+              onPageSizeChange={() => {}}
+            />
           </div>
         </section>
       </main>

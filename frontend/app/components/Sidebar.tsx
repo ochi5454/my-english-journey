@@ -10,6 +10,8 @@ type SidebarProps = {
   onCloseDownloadPanel: () => void
   showDownloadPanel: boolean
   onShowDownload: () => void
+  showOvertimePanel: boolean
+  onShowOvertime: () => void
 }
 
 export function Sidebar({
@@ -20,6 +22,8 @@ export function Sidebar({
   onCloseDownloadPanel,
   showDownloadPanel,
   onShowDownload,
+  showOvertimePanel,
+  onShowOvertime,
 }: SidebarProps) {
   const iconMap: Record<string, LucideIcon> = {
     schedule_input: CalendarPlus,
@@ -57,6 +61,10 @@ export function Sidebar({
         <button className={`sidebar-download-btn ${showDownloadPanel ? 'active' : ''}`} onClick={onShowDownload}>
           <Download className="sidebar-icon" size={18} />
           <span>データをエクスポート</span>
+        </button>
+        <button className={`sidebar-download-btn ${showOvertimePanel ? 'active' : ''}`} onClick={onShowOvertime}>
+          <Clock className="sidebar-icon" size={18} />
+          <span>残業時間エクスポート</span>
         </button>
       </nav>
     </aside>

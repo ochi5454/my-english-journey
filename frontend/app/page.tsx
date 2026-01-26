@@ -12,6 +12,7 @@ import { FileDef, SheetPayload } from './types/excel'
 import * as XLSX from 'xlsx'
 import { useImportDataStore, setImportData, clearImportData } from './store/useImportDataStore'
 import type { ExportWorkerRequest, ExportWorkerResponse, GridPayload } from './workers/exportWorker'
+import { estimateEtaSeconds, loadSpeed, saveSpeed, updateSpeedEma } from './utils/eta'
 
 const SEARCH_TARGET_HEADERS = ['案件名', '現場名', '仕入先名']
 const stripParens = (value: unknown) => {
@@ -124,6 +125,15 @@ export default function Home() {
   const workerRef = useRef<Worker | null>(null)
   const [cacheLoaded, setCacheLoaded] = useState(false)
   const [loadingExport, setLoadingExport] = useState(false)
+  const [exportEtaSec, setExportEtaSec] = useState<number | null>(null)
+  const etaTimerRef = useRef<number | null>(null)
+  const [exportTotalRows, setExportTotalRows] = useState(0)
+  const [exportProcessedRows, setExportProcessedRows] = useState(0)
+  const [exportStartAt, setExportStartAt] = useState<number | null>(null)
+  const [exportSpeed, setExportSpeed] = useState<number>(() => loadSpeed())
+  const [overtimeRowsDisplay, setOvertimeRowsDisplay] = useState<string[][]>([])
+  const [showOvertimePanel, setShowOvertimePanel] = useState(false)
+  const [overtimeOverrideMap, setOvertimeOverrideMap] = useState<Record<string, { actual?: number; overtime?: number }>>({})
   const { data: savedPreviews } = useImportDataStore()
   const buildLegendSheet = useCallback((rows: string[][]) => {
     const legendAoA = LEGEND_ROWS.map((item) => [item.label, item.desc ? `： ${item.desc}` : ''])
@@ -462,7 +472,7 @@ export default function Home() {
     return `${h}:${m.toString().padStart(2, '0')}`
   }
 
-  const mergeByEmployee = (rows: string[][]) => {
+  const mergeByEmployee = (rows: string[][], overrides: Record<string, { actual?: number; overtime?: number }> = {}) => {
     const grouped = new Map<string, { base: string[]; sums: Record<number, number> }>()
     const orphanRows: string[][] = []
     rows.forEach((row, idx) => {
@@ -495,14 +505,42 @@ export default function Home() {
     })
 
     const mergedRows: string[][] = []
-    grouped.forEach(({ base, sums }) => {
+    grouped.forEach(({ base, sums }, empNo) => {
       const out = [...base]
-      NUMERIC_TIME_INDEXES.forEach((i) => {
-        out[i] = formatMinutes(sums[i])
-      })
+      const override = overrides[empNo]
+      const actual = override?.actual
+      const overtime = override?.overtime
+      out[3] = formatMinutes(actual ?? sums[3])
+      out[4] = formatMinutes(overtime ?? sums[4])
+      out[5] = formatMinutes(sums[5])
       mergedRows.push(out)
     })
     return [...mergedRows, ...orphanRows]
+  }
+
+  const hhmmToMinutes = (value: string | number | undefined | null): number | null => {
+    if (value == null) return null
+    const str = String(value).trim()
+    if (!str) return null
+    if (str.includes(':')) {
+      const [h, m] = str.split(':').map((v) => Number(v) || 0)
+      if (m >= 60 || h < 0) return null
+      return h * 60 + m
+    }
+    const num = Number(str)
+    if (!Number.isFinite(num)) return null
+    const h = Math.floor(num / 100)
+    const m = num % 100
+    if (m >= 60 || h < 0) return null
+    return h * 60 + m
+  }
+
+  const minutesToHHMM = (minutes: number | null | undefined) => {
+    if (minutes == null || !Number.isFinite(minutes)) return ''
+    const safe = Math.max(0, Math.round(minutes))
+    const h = Math.floor(safe / 60)
+    const m = safe % 60
+    return `${h}:${m.toString().padStart(2, '0')}`
   }
 
   const setStatusWithReset = useCallback((state: ExportStatus) => {
@@ -547,6 +585,11 @@ export default function Home() {
     return grids
   }, [buildGridForKey])
 
+  const totalRowsForExport = useMemo(
+    () => exportSourceGrids.reduce((sum, g) => sum + (g.rows?.length || 0), 0),
+    [exportSourceGrids],
+  )
+
   const combinedMappedRows = useMemo(() => {
     const rows: string[][] = []
     FILE_ORDER.slice(0, 6).forEach((key) => {
@@ -560,20 +603,48 @@ export default function Home() {
     return rows
   }, [buildGridForKey, mapRowsToExport])
 
+  const [overtimeMap, setOvertimeMap] = useState<Record<string, { actual?: number; overtime?: number }>>({})
+
+  useEffect(() => {
+    const fetchOvertime = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/excel/punches/overtime`)
+        if (!res.ok) return
+        const json = await res.json()
+        const map: Record<string, { actual?: number; overtime?: number }> = {}
+        ;(json?.rows || []).forEach((item: any) => {
+          const emp = item?.emp_no?.toString().trim()
+          if (!emp) return
+          const minutes = Number(item?.total_minutes)
+          if (!Number.isFinite(minutes)) return
+          map[emp] = { actual: minutes, overtime: minutes }
+        })
+        setOvertimeMap(map)
+      } catch {
+        // ignore fetch errors
+      }
+    }
+    fetchOvertime()
+  }, [])
+
   const exportRows = useMemo(() => {
-    if (workerExportRows.length) return workerExportRows
+    if (workerExportRows.length) {
+      // Worker output already merged; still allow overriding when overtimeMap arrives later
+      const merged = mergeByEmployee(workerExportRows, { ...overtimeMap, ...overtimeOverrideMap })
+      return merged
+    }
 
     const t0 = performance.now()
     const meaningfulRows = combinedMappedRows.filter((row) => row.some((cell) => (cell ?? '').toString().trim() !== ''))
-    const result = mergeByEmployee(meaningfulRows)
+    const result = mergeByEmployee(meaningfulRows, { ...overtimeMap, ...overtimeOverrideMap })
 
     const elapsed = performance.now() - t0
     if (result.length > 0) {
-      console.log(`[Performance] Export calculation (fallback): ${elapsed.toFixed(2)}ms (${result.length} rows)`)
+      console.log(`[Performance] Export calculation (fallback): ${elapsed.toFixed(2)}ms (${result.length} rows)`) 
     }
 
     return result
-  }, [combinedMappedRows, mergeByEmployee, workerExportRows])
+  }, [combinedMappedRows, mergeByEmployee, workerExportRows, overtimeMap, overtimeOverrideMap])
 
   const exportRowsDisplay = useMemo(
     () => exportRows.map((row) => row.map(stripParens)).filter(isMeaningfulRow),
@@ -631,17 +702,15 @@ export default function Home() {
   useEffect(() => {
     if (showDownloadPanel) {
       setLoadingExport(true)
-      // 計算完了を待つ（次のティックで完了している想定）
-      const timer = setTimeout(() => {
-        setLoadingExport(false)
-      }, 100)
-      return () => clearTimeout(timer)
+      // ETAが0になったタイミング or worker完了で解除される
+      return () => {}
     }
   }, [showDownloadPanel, exportRows])
 
   const exportRowsForDisplay = exportFilteredRows ?? exportRowsDisplay
   const hasExportData = exportRowsForDisplay.length > 0
   const exportHeadersDisplay = useMemo(() => EXPORT_HEADERS.map(stripParens).filter((h) => h !== 'グレード'), [])
+  const overtimeHeadersDisplay = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
 
   const targetSearchColumns = useMemo(() => {
     const normalizedTargets = SEARCH_TARGET_HEADERS.map((h) => normalizeSearchText(h))
@@ -706,23 +775,209 @@ export default function Home() {
   }, [uploading, uploadStart, activeKey])
 
   // Offload heavy export mapping to Web Worker
+  // ETA helpers
+  const resetEtaTimer = useCallback(() => {
+    if (etaTimerRef.current) {
+      window.clearInterval(etaTimerRef.current)
+      etaTimerRef.current = null
+    }
+  }, [])
+
+  const startEtaTimer = useCallback(
+    (total: number) => {
+      resetEtaTimer()
+      if (!total) {
+        setExportEtaSec(null)
+        setExportTotalRows(0)
+        setExportProcessedRows(0)
+        setExportStartAt(null)
+        return
+      }
+      const started = performance.now()
+      setExportStartAt(started)
+      setExportTotalRows(total)
+      setExportProcessedRows(0)
+      const tick = () => {
+        const eta = estimateEtaSeconds(
+          { totalRows: total, startAt: started, processed: exportProcessedRows },
+          exportSpeed,
+        )
+        setExportEtaSec(eta)
+      }
+      tick()
+      etaTimerRef.current = window.setInterval(tick, 1000)
+    },
+    [exportProcessedRows, exportSpeed, resetEtaTimer],
+  )
+
+  const finishEta = useCallback(
+    (processedTotal?: number) => {
+      const total = processedTotal ?? exportTotalRows
+      resetEtaTimer()
+      setExportEtaSec(0)
+      if (exportStartAt && total) {
+        const elapsedSec = (performance.now() - exportStartAt) / 1000
+        const measured = elapsedSec > 0 ? total / elapsedSec : exportSpeed
+        const newSpeed = updateSpeedEma(exportSpeed, measured)
+        setExportSpeed(newSpeed)
+        saveSpeed(newSpeed)
+      }
+      window.setTimeout(() => setExportEtaSec(null), 1200)
+      setExportStartAt(null)
+      setExportTotalRows(0)
+      setExportProcessedRows(0)
+    },
+    [exportSpeed, exportStartAt, exportTotalRows, resetEtaTimer],
+  )
+
   useEffect(() => {
     if (typeof Worker === 'undefined') {
       setWorkerExportRows([])
       return
     }
+    if (!totalRowsForExport) {
+      setWorkerExportRows([])
+      setExportEtaSec(null)
+      return
+    }
+    startEtaTimer(totalRowsForExport)
     const worker = new Worker(new URL('./workers/exportWorker.ts', import.meta.url))
     workerRef.current = worker
     worker.onmessage = (e: MessageEvent<ExportWorkerResponse>) => {
+      const { type } = e.data as any
+      if (type === 'progress') {
+        const processed = Number((e.data as any).processed || 0)
+        setExportProcessedRows(processed)
+        const eta = estimateEtaSeconds(
+          { totalRows: totalRowsForExport, startAt: exportStartAt || performance.now(), processed },
+          exportSpeed,
+        )
+        setExportEtaSec(eta)
+        return
+      }
       setWorkerExportRows(e.data.exportRows || [])
+      finishEta(totalRowsForExport)
     }
     const payload: ExportWorkerRequest = { grids: exportSourceGrids }
     worker.postMessage(payload)
     return () => {
       worker.terminate()
       workerRef.current = null
+      resetEtaTimer()
     }
-  }, [exportSourceGrids])
+  }, [exportSourceGrids, exportSpeed, finishEta, resetEtaTimer, startEtaTimer, totalRowsForExport, exportStartAt])
+
+  // 残業時間（開始前/終了後/合計）テーブル
+  useEffect(() => {
+    const scheduleGrid = buildGridForKey('schedule_input')
+    const punchesGrid = buildGridForKey('punches')
+    const schedHeaders = scheduleGrid[0] || []
+    const schedRows = scheduleGrid.slice(1)
+    const punchHeaders = punchesGrid[0] || []
+    const punchRows = punchesGrid.slice(1)
+    const schedMapIdx: Record<string, number> = {}
+    schedHeaders.forEach((h, idx) => {
+      const norm = normalizeHeader(stripParens(h))
+      schedMapIdx[norm] = idx
+    })
+    const punchMapIdx: Record<string, number> = {}
+    punchHeaders.forEach((h, idx) => {
+      const norm = normalizeHeader(stripParens(h))
+      punchMapIdx[norm] = idx
+    })
+    const pick = (row: string[], map: Record<string, number>, names: string[]) => {
+      for (const n of names) {
+        const idx = map[normalizeHeader(n)]
+        if (idx !== undefined) return row[idx]
+      }
+      return ''
+    }
+    type Planned = { start: number | null; end: number | null }
+    const plannedByKey = new Map<string, Planned>()
+
+    const parsePatternHours = (pattern: string) => {
+      const m = /([0-9]+(?:\\.[0-9]+)?)h/i.exec(pattern || '')
+      if (!m) return null
+      return Number(m[1])
+    }
+
+    schedRows.forEach((row) => {
+      const emp = String(pick(row as any, schedMapIdx, ['従業員番号'])).trim()
+      const date = String(pick(row as any, schedMapIdx, ['勤務予定日'])).trim()
+      if (!emp || !date) return
+      const startVal = pick(row as any, schedMapIdx, ['就業開始時刻'])
+      const endVal = pick(row as any, schedMapIdx, ['就業終了時刻'])
+      const restVal = pick(row as any, schedMapIdx, ['休憩時間'])
+      const patternVal = pick(row as any, schedMapIdx, ['就業時間パターン名'])
+      const start = hhmmToMinutes(startVal)
+      let end = hhmmToMinutes(endVal)
+      if (end == null && start != null) {
+        const restMin = Number(restVal) || 0
+        const hours = parsePatternHours(String(patternVal))
+        if (hours != null) {
+          end = start + restMin + Math.round(hours * 60)
+        }
+      }
+      plannedByKey.set(`${emp}__${date}`, { start, end })
+    })
+
+    const sums = new Map<string, { startOt: number; endOt: number }>()
+    const applyThreshold = (minutes: number) => {
+      if (minutes <= 15) return 0
+      return minutes
+    }
+    punchRows.forEach((row) => {
+      const emp = String(pick(row as any, punchMapIdx, ['従業員番号'])).trim()
+      const date = String(pick(row as any, punchMapIdx, ['勤務日付', '勤務日'])).trim()
+      if (!emp || !date) return
+      const plan = plannedByKey.get(`${emp}__${date}`)
+      if (!plan || plan.start == null || plan.end == null) return
+      const actualStart = hhmmToMinutes(pick(row as any, punchMapIdx, ['出社時刻']))
+      const actualEnd = hhmmToMinutes(pick(row as any, punchMapIdx, ['退社時刻']))
+      if (actualStart == null && actualEnd == null) return
+      let startOt = 0
+      let endOt = 0
+      if (actualStart != null && actualStart < plan.start) {
+        startOt = applyThreshold(plan.start - actualStart)
+      }
+      if (actualEnd != null && actualEnd > plan.end) {
+        endOt = applyThreshold(actualEnd - plan.end)
+      }
+      // 勤務時間が10時間超なら追加休憩30分を残業から差し引く
+      let totalOt = startOt + endOt
+      if (actualStart != null && actualEnd != null) {
+        const workDuration = actualEnd - actualStart
+        if (workDuration > 10 * 60) {
+          totalOt = Math.max(0, totalOt - 30)
+        }
+      }
+      // start/endの比率で戻すより単純に終了後から優先的に差し引く
+      if (totalOt < startOt + endOt) {
+        const deficit = startOt + endOt - totalOt
+        let endReduce = Math.min(endOt, deficit)
+        endOt -= endReduce
+        let startReduce = deficit - endReduce
+        if (startReduce > 0) startOt = Math.max(0, startOt - startReduce)
+      }
+      const entry = sums.get(emp) || { startOt: 0, endOt: 0 }
+      entry.startOt += startOt
+      entry.endOt += endOt
+      sums.set(emp, entry)
+    })
+
+    const rows: string[][] = []
+    const overrideMap: Record<string, { actual?: number; overtime?: number }> = {}
+    Array.from(sums.keys())
+      .sort()
+      .forEach((emp) => {
+        const v = sums.get(emp)!
+        const total = v.startOt + v.endOt
+        rows.push([emp, minutesToHHMM(v.startOt), minutesToHHMM(v.endOt), minutesToHHMM(total)])
+        overrideMap[emp] = { actual: total, overtime: total }
+      })
+    setOvertimeRowsDisplay(rows)
+    setOvertimeOverrideMap(overrideMap)
+  }, [buildGridForKey, normalizeHeader])
 
   // Load cached export rows from backend once
   useEffect(() => {
@@ -770,10 +1025,25 @@ export default function Home() {
           defs={defs}
           fileOrder={FILE_ORDER}
           activeSheet={activeSheet}
-          onChangeSheet={setActiveSheet}
-          onCloseDownloadPanel={() => setShowDownloadPanel(false)}
+          onChangeSheet={(idx) => {
+            setActiveSheet(idx)
+            setShowDownloadPanel(false)
+            setShowOvertimePanel(false)
+          }}
+          onCloseDownloadPanel={() => {
+            setShowDownloadPanel(false)
+            setShowOvertimePanel(false)
+          }}
           showDownloadPanel={showDownloadPanel}
-          onShowDownload={() => setShowDownloadPanel(true)}
+          onShowDownload={() => {
+            setShowDownloadPanel(true)
+            setShowOvertimePanel(false)
+          }}
+          showOvertimePanel={showOvertimePanel}
+          onShowOvertime={() => {
+            setShowOvertimePanel(true)
+            setShowDownloadPanel(false)
+          }}
         />
 
         <div className="dash-main">
@@ -805,7 +1075,31 @@ export default function Home() {
                     )}
                   </form>
                 }
+                etaSeconds={exportEtaSec}
               />
+            ) : showOvertimePanel ? (
+              <div>
+                <DownloadPanel
+                  heading="残業時間エクスポート"
+                  subtitle="開始前/終了後/合計"
+                  toast={toast}
+                  onClear={() => setOvertimeRowsDisplay([])}
+                  etaSeconds={null}
+                  rightContent={null}
+                />
+                <div style={{ marginTop: '12px' }}>
+                  <SheetTable
+                    headers={overtimeHeadersDisplay}
+                    rows={overtimeRowsDisplay}
+                    title="残業時間エクスポート"
+                    loading={loading}
+                    error={error}
+                    emptyMessage="残業データがありません"
+                    showOnlyFirstColumn={false}
+                    hideBodyWhenEmpty={overtimeRowsDisplay.length === 0}
+                  />
+                </div>
+              </div>
             ) : (
               <>
                 <UploadSection
@@ -877,6 +1171,18 @@ export default function Home() {
                   showOnlyFirstColumn={false}
                   hideBodyWhenEmpty={exportRowsForDisplay.length === 0 && !loadingExport}
                 />
+                <div style={{ marginTop: '16px' }}>
+                  <SheetTable
+                    headers={overtimeHeadersDisplay}
+                    rows={overtimeRowsDisplay}
+                    title="残業時間エクスポート"
+                    loading={loading}
+                    error={error}
+                    emptyMessage="残業データがありません"
+                    showOnlyFirstColumn={false}
+                    hideBodyWhenEmpty={overtimeRowsDisplay.length === 0}
+                  />
+                </div>
               </div>
             )}
           </div>

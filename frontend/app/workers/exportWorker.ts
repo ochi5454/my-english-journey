@@ -3,7 +3,9 @@
 
 export type GridPayload = { headers: string[]; rows: string[][] }
 export type ExportWorkerRequest = { grids: GridPayload[] }
-export type ExportWorkerResponse = { exportRows: string[][] }
+export type ExportWorkerResponse =
+  | { type?: 'done'; exportRows: string[][] }
+  | { type: 'progress'; processed: number; total: number }
 
 const normalizeHeader = (h: string) =>
   (h || '')
@@ -40,6 +42,16 @@ const COLUMN_MAP_ALIASES: Record<string, string[]> = {
 }
 
 const NUMERIC_TIME_INDEXES = [3, 4, 5]
+
+const minutesToDisplay = (minutes: number | string | undefined | null) => {
+  if (minutes == null) return ''
+  const num = Number(minutes)
+  if (!Number.isFinite(num)) return ''
+  const safe = Math.max(0, Math.round(num))
+  const h = Math.floor(safe / 60)
+  const m = safe % 60
+  return `${h}:${m.toString().padStart(2, '0')}`
+}
 
 const buildColumnMap = (headers: string[]) => {
   const normalized: Record<string, number> = {}
@@ -129,7 +141,7 @@ const formatMinutes = (total: number | undefined) => {
   return `${h}:${m.toString().padStart(2, '0')}`
 }
 
-const mergeByEmployee = (rows: string[][]) => {
+const mergeByEmployee = (rows: string[][], overrides: Record<string, { actual?: number; overtime?: number }> = {}) => {
   const grouped = new Map<string, { base: string[]; sums: Record<number, number> }>()
   const orphanRows: string[][] = []
   rows.forEach((row) => {
@@ -162,11 +174,14 @@ const mergeByEmployee = (rows: string[][]) => {
   })
 
   const mergedRows: string[][] = []
-  grouped.forEach(({ base, sums }) => {
+  grouped.forEach(({ base, sums }, empNo) => {
     const out = [...base]
-    NUMERIC_TIME_INDEXES.forEach((i) => {
-      out[i] = formatMinutes(sums[i])
-    })
+    const override = overrides[empNo]
+    const actual = override?.actual
+    const overtime = override?.overtime
+    out[3] = minutesToDisplay(actual ?? sums[3])
+    out[4] = minutesToDisplay(overtime ?? sums[4])
+    out[5] = minutesToDisplay(sums[5])
     mergedRows.push(out)
   })
   return [...mergedRows, ...orphanRows]
@@ -175,14 +190,23 @@ const mergeByEmployee = (rows: string[][]) => {
 self.onmessage = (e: MessageEvent<ExportWorkerRequest>) => {
   const { grids } = e.data
   const allRows: string[][] = []
+  const totalRows = grids.reduce((sum, g) => sum + (g.rows?.length || 0), 0)
+  let processed = 0
+  const CHUNK = 1000
   grids.forEach((g) => {
     if (!g || !g.headers || !g.rows || !g.rows.length) return
     const mapped = mapRowsToExport(g.headers, g.rows)
-    mapped.forEach((r) => allRows.push(r))
+    mapped.forEach((r, idx) => {
+      allRows.push(r)
+      processed += 1
+      if (processed % CHUNK === 0) {
+        const progress: ExportWorkerResponse = { type: 'progress', processed, total: totalRows }
+        ;(self as any).postMessage(progress)
+      }
+    })
   })
   const meaningful = allRows.filter((row) => row.some((cell) => (cell ?? '').toString().trim() !== ''))
   const exportRows = mergeByEmployee(meaningful)
-  const resp: ExportWorkerResponse = { exportRows }
+  const resp: ExportWorkerResponse = { type: 'done', exportRows }
   ;(self as any).postMessage(resp)
 }
-

@@ -14,6 +14,7 @@ from backend.services.excel import (
     fetch_grid_for_key,
     build_processed_excel,
 )
+from backend.services.overtime import aggregate_overtime_by_employee, BASE_MINUTES
 
 
 router = APIRouter(prefix="/excel", tags=["excel"])
@@ -22,6 +23,21 @@ router = APIRouter(prefix="/excel", tags=["excel"])
 @router.get("/config")
 def list_excel_config():
     return FILE_DEFINITIONS
+
+
+@router.get("/punches/overtime")
+def get_punches_overtime(db=Depends(get_db)):
+    grid = fetch_grid_for_key(db, "punches")
+    if not grid:
+        raise HTTPException(status_code=404, detail="punches file not uploaded")
+    try:
+        aggregates = aggregate_overtime_by_employee(grid)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {
+        "base_minutes": BASE_MINUTES,
+        "rows": aggregates,
+    }
 
 
 @router.get("/export-cache")
