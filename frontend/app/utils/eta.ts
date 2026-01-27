@@ -1,6 +1,11 @@
 const STORAGE_KEY = 'export_rows_per_sec'
 const DEFAULT_SPEED = 1200 // rows/sec fallback
 
+const hasLocalStorage =
+  typeof window !== 'undefined' &&
+  typeof window.localStorage !== 'undefined' &&
+  typeof window.localStorage.getItem === 'function'
+
 export type EtaTrackerState = {
   totalRows: number
   startAt: number
@@ -8,17 +13,17 @@ export type EtaTrackerState = {
 }
 
 export const loadSpeed = (): number => {
-  if (typeof localStorage === 'undefined') return DEFAULT_SPEED
-  const raw = localStorage.getItem(STORAGE_KEY)
+  if (!hasLocalStorage) return DEFAULT_SPEED
+  const raw = window.localStorage.getItem(STORAGE_KEY)
   const val = raw ? Number(raw) : NaN
   if (!Number.isFinite(val) || val <= 0) return DEFAULT_SPEED
   return val
 }
 
 export const saveSpeed = (value: number) => {
-  if (typeof localStorage === 'undefined') return
+  if (!hasLocalStorage) return
   if (!Number.isFinite(value) || value <= 0) return
-  localStorage.setItem(STORAGE_KEY, String(Math.round(value)))
+  window.localStorage.setItem(STORAGE_KEY, String(Math.round(value)))
 }
 
 export const updateSpeedEma = (oldSpeed: number, measured: number, alpha = 0.3): number => {
