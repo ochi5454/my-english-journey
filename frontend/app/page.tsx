@@ -879,6 +879,25 @@ export default function Home() {
     [datasetIds],
   )
 
+  const fetchDatasetAll = useCallback(
+    async (key: string, pageSize = 50000) => {
+      const datasetId = await resolveDatasetId(key)
+      if (!datasetId) return null
+      const res = await fetch(`${API_BASE}/datasets/${datasetId}/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters: {}, page: 1, pageSize }),
+      })
+      if (!res.ok) return null
+      const json = await res.json()
+      return {
+        headers: (json?.columns as string[]) || [],
+        rows: (json?.rows as string[][]) || [],
+      }
+    },
+    [resolveDatasetId],
+  )
+
   const handleExportDataset = useCallback(async () => {
     const datasetId = await resolveDatasetId(activeKey)
     if (!datasetId) {
@@ -1039,16 +1058,17 @@ export default function Home() {
   useEffect(() => {
     let canceled = false
     const run = async () => {
-      // Ensure required datasets are loaded
-      if (!sheetData['schedule_input']) {
-        await loadSheet('schedule_input')
-      }
-      if (!sheetData['punches']) {
-        await loadSheet('punches')
-      }
+      // Pull full datasets (no filters) to ensure集計に必要な全行を取得
+      const schedAll = await fetchDatasetAll('schedule_input')
+      const punchAll = await fetchDatasetAll('punches')
 
-      const scheduleGrid = buildGridForKey('schedule_input')
-      const punchesGrid = buildGridForKey('punches')
+      const scheduleGrid = schedAll
+        ? [schedAll.headers, ...(schedAll.rows || [])]
+        : buildGridForKey('schedule_input')
+      const punchesGrid = punchAll
+        ? [punchAll.headers, ...(punchAll.rows || [])]
+        : buildGridForKey('punches')
+
       const schedHeaders = scheduleGrid[0] || []
       const schedRows = scheduleGrid.slice(1)
       const punchHeaders = punchesGrid[0] || []
@@ -1273,7 +1293,7 @@ export default function Home() {
             ) : showOvertimePanel ? (
               <div>
                 <DownloadPanel
-                  heading="残業時間詳細"
+                  heading=""
                   subtitle="開始前/終了後/合計"
                   toast={toast}
                   onClear={() => setOvertimeRowsDisplay([])}
@@ -1304,7 +1324,7 @@ export default function Home() {
                   <SheetTable
                     headers={overtimeHeadersDisplay}
                     rows={overtimeRowsForDisplay}
-                    title="残業時間詳細"
+                    title=""
                     loading={loading}
                     error={error}
                     emptyMessage={overtimeFilteredRows ? '該当するデータがありません' : '残業データがありません'}
