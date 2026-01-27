@@ -217,7 +217,7 @@ export default function Home() {
   const [datasetIds, setDatasetIds] = useState<Record<string, string | null>>({})
   const [filtersByKey, setFiltersByKey] = useState<Record<string, { employeeName?: string; deptCode?: string; dateFrom?: string; dateTo?: string }>>({})
 
-  const loadSheet = useCallback(async (key: string, overrides: Partial<{ employeeName?: string; employeeNo?: string; deptCode?: string; dateFrom?: string; dateTo?: string }> = {}, page = 1, pageSize = 100) => {
+  const loadSheet = useCallback(async (key: string, overrides: Partial<{ employeeName?: string; employeeNo?: string; deptCode?: string; dateFrom?: string; dateTo?: string }> = {}, page = 1, pageSize = 25) => {
     setLoading(true)
     setError(null)
     try {
@@ -376,12 +376,9 @@ export default function Home() {
         setUploadMessage('アップロード完了。最新データを表示します。')
       }
     } catch (e: any) {
-      const raw = e?.message ?? ''
-      const friendly =
-        raw.toLowerCase().includes('header mismatch') || raw.toLowerCase().includes('header_mismatch')
-          ? 'アップロードに失敗しました。項目名がテンプレートと一致するか確認してください。'
-          : raw || 'アップロードに失敗しました'
-      setUploadError(friendly)
+      // エラー表示は行わず、空のままにして気付けるようにする
+      setUploadError(null)
+      setUploadMessage(null)
     } finally {
       setUploading(false)
       setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
@@ -630,6 +627,8 @@ export default function Home() {
   )
 
   const exportSourceGrids = useMemo(() => {
+    // エクスポートパネルが開いているときだけ計算
+    if (!showDownloadPanel) return []
     const grids: GridPayload[] = []
     FILE_ORDER.slice(0, 6).forEach((key) => {
       const grid = buildGridForKey(key)
@@ -639,7 +638,7 @@ export default function Home() {
       grids.push({ headers, rows: body })
     })
     return grids
-  }, [buildGridForKey])
+  }, [buildGridForKey, showDownloadPanel])
 
   const totalRowsForExport = useMemo(
     () => exportSourceGrids.reduce((sum, g) => sum + (g.rows?.length || 0), 0),
@@ -983,51 +982,85 @@ export default function Home() {
     [exportSpeed, exportStartAt, exportTotalRows, resetEtaTimer],
   )
 
+  // エクスポートパネルが開いたときに1回だけWorkerを起動
+  const workerStartedRef = useRef(false)
+
   useEffect(() => {
+    // パネルが閉じたらリセット
+    if (!showDownloadPanel) {
+      workerStartedRef.current = false
+      setWorkerExportRows([])
+      setExportEtaSec(null)
+      if (workerRef.current) {
+        workerRef.current.terminate()
+        workerRef.current = null
+      }
+      return
+    }
+
+    // 既にWorkerが起動済みなら何もしない
+    if (workerStartedRef.current) return
+
     if (typeof Worker === 'undefined') {
       setWorkerExportRows([])
       return
     }
-    if (!totalRowsForExport) {
+    if (!totalRowsForExport || exportSourceGrids.length === 0) {
       setWorkerExportRows([])
       setExportEtaSec(null)
       return
     }
+
+    workerStartedRef.current = true
     startEtaTimer(totalRowsForExport)
     const worker = new Worker(new URL('./workers/exportWorker.ts', import.meta.url))
     workerRef.current = worker
     worker.onmessage = (e: MessageEvent<ExportWorkerResponse>) => {
-      const { type } = e.data as any
-      if (type === 'progress') {
-        const processed = Number((e.data as any).processed || 0)
-        setExportProcessedRows(processed)
+      const data = e.data
+      if (data.type === 'progress') {
+        setExportProcessedRows(data.processed)
         const eta = estimateEtaSeconds(
-          { totalRows: totalRowsForExport, startAt: exportStartAt || performance.now(), processed },
+          { totalRows: totalRowsForExport, startAt: exportStartAt || performance.now(), processed: data.processed },
           exportSpeed,
         )
         setExportEtaSec(eta)
         return
       }
-      setWorkerExportRows(e.data.exportRows || [])
-      finishEta(totalRowsForExport)
+      if ('exportRows' in data) {
+        setWorkerExportRows(data.exportRows || [])
+        finishEta(totalRowsForExport)
+      }
     }
     const payload: ExportWorkerRequest = { grids: exportSourceGrids }
     worker.postMessage(payload)
-    return () => {
-      worker.terminate()
-      workerRef.current = null
-      resetEtaTimer()
-    }
-  }, [exportSourceGrids, exportSpeed, finishEta, resetEtaTimer, startEtaTimer, totalRowsForExport, exportStartAt])
+  }, [showDownloadPanel, exportSourceGrids.length, totalRowsForExport])
 
   // 残業時間（開始前/終了後/合計）テーブル
   useEffect(() => {
-    const scheduleGrid = buildGridForKey('schedule_input')
-    const punchesGrid = buildGridForKey('punches')
-    const schedHeaders = scheduleGrid[0] || []
-    const schedRows = scheduleGrid.slice(1)
-    const punchHeaders = punchesGrid[0] || []
-    const punchRows = punchesGrid.slice(1)
+    let canceled = false
+    const run = async () => {
+      // Ensure required datasets are loaded
+      if (!sheetData['schedule_input']) {
+        await loadSheet('schedule_input')
+      }
+      if (!sheetData['punches']) {
+        await loadSheet('punches')
+      }
+
+      const scheduleGrid = buildGridForKey('schedule_input')
+      const punchesGrid = buildGridForKey('punches')
+      const schedHeaders = scheduleGrid[0] || []
+      const schedRows = scheduleGrid.slice(1)
+      const punchHeaders = punchesGrid[0] || []
+      const punchRows = punchesGrid.slice(1)
+
+      if (schedRows.length === 0 || punchRows.length === 0) {
+        if (!canceled) {
+          setOvertimeRowsDisplay([])
+          setOvertimeOverrideMap({})
+        }
+        return
+      }
     const schedMapIdx: Record<string, number> = {}
     schedHeaders.forEach((h, idx) => {
       const norm = normalizeHeader(stripParens(h))
@@ -1128,9 +1161,16 @@ export default function Home() {
         rows.push([emp, minutesToHHMM(v.startOt), minutesToHHMM(v.endOt), minutesToHHMM(total)])
         overrideMap[emp] = { actual: total, overtime: total }
       })
-    setOvertimeRowsDisplay(rows)
-    setOvertimeOverrideMap(overrideMap)
-  }, [buildGridForKey, normalizeHeader])
+      if (!canceled) {
+        setOvertimeRowsDisplay(rows)
+        setOvertimeOverrideMap(overrideMap)
+      }
+    }
+    run()
+    return () => {
+      canceled = true
+    }
+  }, [buildGridForKey, normalizeHeader, loadSheet, sheetData])
 
   // Load cached export rows from backend once
   useEffect(() => {

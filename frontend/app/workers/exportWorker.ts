@@ -192,19 +192,20 @@ self.onmessage = (e: MessageEvent<ExportWorkerRequest>) => {
   const allRows: string[][] = []
   const totalRows = grids.reduce((sum, g) => sum + (g.rows?.length || 0), 0)
   let processed = 0
-  const CHUNK = 1000
+  const CHUNK = 5000 // 1000 → 5000に変更（プログレス更新を減らす）
+
   grids.forEach((g) => {
     if (!g || !g.headers || !g.rows || !g.rows.length) return
     const mapped = mapRowsToExport(g.headers, g.rows)
-    mapped.forEach((r, idx) => {
-      allRows.push(r)
-      processed += 1
-      if (processed % CHUNK === 0) {
-        const progress: ExportWorkerResponse = { type: 'progress', processed, total: totalRows }
-        ;(self as any).postMessage(progress)
-      }
-    })
+    // まとめて追加（ループを減らす）
+    allRows.push(...mapped)
+    processed += mapped.length
+    if (processed % CHUNK === 0 || processed === totalRows) {
+      const progress: ExportWorkerResponse = { type: 'progress', processed, total: totalRows }
+      ;(self as any).postMessage(progress)
+    }
   })
+
   const meaningful = allRows.filter((row) => row.some((cell) => (cell ?? '').toString().trim() !== ''))
   const exportRows = mergeByEmployee(meaningful)
   const resp: ExportWorkerResponse = { type: 'done', exportRows }
