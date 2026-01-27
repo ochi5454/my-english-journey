@@ -221,6 +221,7 @@ export default function Home() {
     setLoading(true)
     setError(null)
     try {
+      const filters = { ...(filtersByKey[key] || {}), ...overrides }
       let datasetId = datasetIds[key]
       if (!datasetId) {
         const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`)
@@ -246,7 +247,6 @@ export default function Home() {
         return payload
       }
 
-      const filters = { ...(filtersByKey[key] || {}), ...overrides }
       setFiltersByKey((prev) => ({ ...prev, [key]: filters }))
 
       const res = await fetch(`${API_BASE}/datasets/${datasetId}/query`, {
@@ -308,8 +308,10 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    // load once per activeKey; avoid dependency on loadSheet to prevent refetch loop when callbacks change
     loadSheet(activeKey)
-  }, [activeKey, loadSheet])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey])
 
   useEffect(() => {
     return () => {
@@ -850,12 +852,6 @@ export default function Home() {
     [applySearch, searchInput],
   )
 
-  useEffect(() => {
-    if (lastSearch.trim()) {
-      applySearch(lastSearch, { persistLast: false })
-    }
-  }, [applySearch, lastSearch, grid])
-
   const handleClearSearch = useCallback(() => {
     setSearchInput('')
     setEmpNoSearchInput('')
@@ -1058,16 +1054,9 @@ export default function Home() {
   useEffect(() => {
     let canceled = false
     const run = async () => {
-      // Pull full datasets (no filters) to ensure集計に必要な全行を取得
-      const schedAll = await fetchDatasetAll('schedule_input')
-      const punchAll = await fetchDatasetAll('punches')
-
-      const scheduleGrid = schedAll
-        ? [schedAll.headers, ...(schedAll.rows || [])]
-        : buildGridForKey('schedule_input')
-      const punchesGrid = punchAll
-        ? [punchAll.headers, ...(punchAll.rows || [])]
-        : buildGridForKey('punches')
+      // 既にロード済みのデータだけで集計する（追加フェッチしない）
+      const scheduleGrid = buildGridForKey('schedule_input')
+      const punchesGrid = buildGridForKey('punches')
 
       const schedHeaders = scheduleGrid[0] || []
       const schedRows = scheduleGrid.slice(1)
@@ -1190,43 +1179,12 @@ export default function Home() {
     return () => {
       canceled = true
     }
-  }, [buildGridForKey, normalizeHeader, loadSheet, sheetData])
+  }, [buildGridForKey, normalizeHeader, loadSheet])
 
-  // Load cached export rows from backend once
+  // Cache fetch/POSTを停止（CORS回避）
   useEffect(() => {
-    const loadCache = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/excel/export-cache`)
-        if (!res.ok) return
-        const json = await res.json()
-        if (json?.payload?.rows) {
-          setWorkerExportRows(json.payload.rows)
-        }
-      } catch {
-        // ignore cache fetch errors
-      } finally {
-        setCacheLoaded(true)
-      }
-    }
-    loadCache()
+    setCacheLoaded(true)
   }, [])
-
-  // Save export rows to backend cache when recomputed
-  useEffect(() => {
-    const saveCache = async () => {
-      if (!workerExportRows.length || !cacheLoaded) return
-      try {
-        await fetch(`${API_BASE}/excel/export-cache`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: workerExportRows }),
-        })
-      } catch {
-        // ignore cache write errors
-      }
-    }
-    saveCache()
-  }, [workerExportRows, cacheLoaded])
 
   return (
     <div className="dash-shell">

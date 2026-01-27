@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 from .config import Settings, DATA_DIR
 
@@ -31,7 +31,7 @@ settings.database_url, SQLITE_PATH = _normalize_sqlite_url(settings.database_url
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
-engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+engine = create_engine(settings.database_url, connect_args={"check_same_thread": False, "timeout": 60})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -40,6 +40,13 @@ def init_db():
     # Import models to register metadata
     from backend import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    # Improve SQLite concurrency
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("PRAGMA journal_mode=WAL"))
+            conn.execute(text("PRAGMA synchronous=NORMAL"))
+        except Exception:
+            pass
 
 
 def reset_sqlite_db():
