@@ -56,15 +56,15 @@ export function Sidebar({
           )
         })}
         <div className="sidebar-label" style={{ marginTop: '8px' }}>
-          データをエクスポート
+          実所定外時間 推計データ
         </div>
         <button className={`sidebar-download-btn ${showDownloadPanel ? 'active' : ''}`} onClick={onShowDownload}>
           <Download className="sidebar-icon" size={18} />
-          <span>データをエクスポート</span>
+          <span>実所定外時間 推計データ</span>
         </button>
         <button className={`sidebar-download-btn ${showOvertimePanel ? 'active' : ''}`} onClick={onShowOvertime}>
           <Clock className="sidebar-icon" size={18} />
-          <span>残業時間エクスポート</span>
+          <span>残業時間詳細</span>
         </button>
       </nav>
     </aside>

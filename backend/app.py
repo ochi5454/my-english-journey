@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.database import init_db
-from backend.routers import excel, tournament
+from backend.routers import excel, tournament, datasets
 
 
 app = FastAPI(title="Tournament Ops MVP")
@@ -22,3 +22,4 @@ def startup_event():
 
 app.include_router(excel.router)
 app.include_router(tournament.router)
+app.include_router(datasets.router)

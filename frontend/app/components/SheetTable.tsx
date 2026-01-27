@@ -19,6 +19,11 @@ type SheetTableProps = {
   hideBodyWhenEmpty?: boolean
   rowStyles?: Array<{ bg?: string; color?: string }>
   topContent?: ReactNode
+  page?: number
+  pageSize?: number
+  totalOverride?: number
+  onPageChange?: (page: number) => void
+  onPageSizeChange?: (size: number) => void
 }
 
 export function SheetTable({
@@ -34,13 +39,24 @@ export function SheetTable({
   hideBodyWhenEmpty = false,
   rowStyles = [],
   topContent = null,
+  page,
+  pageSize,
+  totalOverride,
+  onPageChange,
+  onPageSizeChange,
 }: SheetTableProps) {
-  const [pageSize, setPageSize] = useState(defaultPageSize)
-  const [page, setPage] = useState(1)
+  const CELL_WIDTH = 130
+  const ROW_HEIGHT = 44
+
+  const [pageSizeState, setPageSizeState] = useState(defaultPageSize)
+  const [pageState, setPageState] = useState(1)
 
   useEffect(() => {
-    setPage(1)
-  }, [rows, pageSize])
+    if (page === undefined) setPageState(1)
+  }, [rows, page, pageSize])
+
+  const currentPageSize = pageSize ?? pageSizeState
+  const currentPage = page ?? pageState
 
   const visibleHeaders = useMemo(() => (showOnlyFirstColumn ? headers.slice(0, 1) : headers), [headers, showOnlyFirstColumn])
   const visibleRows = useMemo(
@@ -52,14 +68,16 @@ export function SheetTable({
   )
 
   const { pagedRows, totalPages } = useMemo(() => {
-    const totalPagesCalc = Math.max(1, Math.ceil(visibleRows.length / pageSize))
-    const safePage = Math.min(page, totalPagesCalc)
-    const startIdx = visibleRows.length === 0 ? 0 : (safePage - 1) * pageSize
+    const total = totalOverride ?? visibleRows.length
+    const totalPagesCalc = Math.max(1, Math.ceil(total / currentPageSize))
+    const safePage = Math.min(currentPage, totalPagesCalc)
+    const startIdx = visibleRows.length === 0 ? 0 : (safePage - 1) * currentPageSize
+    const body = page === undefined ? visibleRows.slice(startIdx, startIdx + currentPageSize) : visibleRows
     return {
-      pagedRows: visibleRows.slice(startIdx, startIdx + pageSize),
+      pagedRows: body,
       totalPages: totalPagesCalc,
     }
-  }, [page, pageSize, visibleRows])
+  }, [currentPage, currentPageSize, page, totalOverride, visibleRows])
 
   return (
     <section className="sheet-card" style={{ width: '100%', alignSelf: 'stretch' }}>
@@ -69,7 +87,7 @@ export function SheetTable({
         <div className="sheet-table">
           {title ? (
             <div className="sheet-row sheet-header-band">
-              <div className="sheet-cell sheet-title" style={{ width: Math.max(visibleHeaders.length * 110, 320) }}>
+              <div className="sheet-cell sheet-title" style={{ width: Math.max(visibleHeaders.length * CELL_WIDTH, 320) }}>
                 {title}
               </div>
             </div>
@@ -80,7 +98,11 @@ export function SheetTable({
                 key={`${titleText}-${idx}`}
                 className="sheet-cell"
                 style={{
-                  width: titleText.length > 10 ? 140 : 110,
+                  width: CELL_WIDTH,
+                  minWidth: CELL_WIDTH,
+                  height: ROW_HEIGHT,
+                  display: 'flex',
+                  alignItems: 'center',
                   background: '#fff7e6', // 1行目は端の色(#fff7e6)で統一
                   fontWeight: 700,
                   whiteSpace: 'pre-line',
@@ -91,18 +113,19 @@ export function SheetTable({
             ))}
           </div>
           {pagedRows.length === 0 && !loading && !hideBodyWhenEmpty && (
-            <div className="sheet-row">
-              <div
-                className="sheet-cell sheet-empty-state"
-                style={{
-                  width: Math.max(visibleHeaders.length * 110, 320),
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                }}
-              >
-                {emptyMessage}
+              <div className="sheet-row">
+                <div
+                  className="sheet-cell sheet-empty-state"
+                  style={{
+                    width: Math.max(visibleHeaders.length * CELL_WIDTH, 320),
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    minHeight: ROW_HEIGHT,
+                  }}
+                >
+                  {emptyMessage}
+                </div>
               </div>
-            </div>
           )}
           {pagedRows.map((row, rIdx) => {
             const startIdx = (page - 1) * pageSize
@@ -115,14 +138,16 @@ export function SheetTable({
                     key={`cell-${rIdx}-${cIdx}`}
                     className="sheet-cell sheet-body"
                     style={{
-                      width: visibleHeaders[cIdx]?.length > 10 ? 140 : 110,
+                      width: CELL_WIDTH,
+                      minWidth: CELL_WIDTH,
+                      height: ROW_HEIGHT,
                       // 2行目以降は全て白で統一
                       background: '#ffffff',
                       color: rowStyle?.color || 'inherit',
                       whiteSpace: 'pre-line',
                     }}
                   >
-                    <div style={{ fontSize: '12px' }}>{row?.[cIdx] ?? ''}</div>
+                    <div style={{ fontSize: '12px', lineHeight: '16px' }}>{row?.[cIdx] ?? ''}</div>
                   </div>
                 ))}
               </div>
@@ -131,12 +156,19 @@ export function SheetTable({
         </div>
       </div>
       <Pagination
-        total={visibleRows.length}
-        page={page}
-        pageSize={pageSize}
+        total={totalOverride ?? visibleRows.length}
+        page={currentPage}
+        pageSize={currentPageSize}
         pageSizeOptions={pageSizeOptions}
-        onPageChange={(next) => setPage(Math.min(Math.max(1, next), totalPages))}
-        onPageSizeChange={(size) => setPageSize(size)}
+        onPageChange={(next) =>
+          onPageChange
+            ? onPageChange(Math.min(Math.max(1, next), totalPages))
+            : setPageState(Math.min(Math.max(1, next), totalPages))
+        }
+        onPageSizeChange={(size) => {
+          onPageSizeChange?.(size)
+          if (!onPageSizeChange) setPageSizeState(size)
+        }}
       />
     </section>
   )

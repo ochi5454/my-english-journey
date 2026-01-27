@@ -116,15 +116,22 @@ export default function Home() {
   const [uploadElapsedSec, setUploadElapsedSec] = useState<Record<string, number>>({})
   const [uploadEstimateSec, setUploadEstimateSec] = useState<Record<string, number | null>>({})
   const [searchInput, setSearchInput] = useState('')
+  const [empNoSearchInput, setEmpNoSearchInput] = useState('')
+  const [deptSearchInput, setDeptSearchInput] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [filteredRows, setFilteredRows] = useState<string[][] | null>(null)
   const [lastSearch, setLastSearch] = useState('')
   const [exportSearchInput, setExportSearchInput] = useState('')
   const [exportFilteredRows, setExportFilteredRows] = useState<string[][] | null>(null)
   const [exportLastSearch, setExportLastSearch] = useState('')
   const [workerExportRows, setWorkerExportRows] = useState<string[][]>([])
+  const [overtimeSearchInput, setOvertimeSearchInput] = useState('')
+  const [overtimeFilteredRows, setOvertimeFilteredRows] = useState<string[][] | null>(null)
+  const [overtimeLastSearch, setOvertimeLastSearch] = useState('')
+  const [loadingExport, setLoadingExport] = useState(false)
   const workerRef = useRef<Worker | null>(null)
   const [cacheLoaded, setCacheLoaded] = useState(false)
-  const [loadingExport, setLoadingExport] = useState(false)
   const [exportEtaSec, setExportEtaSec] = useState<number | null>(null)
   const etaTimerRef = useRef<number | null>(null)
   const [exportTotalRows, setExportTotalRows] = useState(0)
@@ -207,36 +214,81 @@ export default function Home() {
     loadDefs()
   }, [])
 
-  const loadSheet = useCallback(async (key: string) => {
+  const [datasetIds, setDatasetIds] = useState<Record<string, string | null>>({})
+  const [filtersByKey, setFiltersByKey] = useState<Record<string, { employeeName?: string; deptCode?: string; dateFrom?: string; dateTo?: string }>>({})
+
+  const loadSheet = useCallback(async (key: string, overrides: Partial<{ employeeName?: string; employeeNo?: string; deptCode?: string; dateFrom?: string; dateTo?: string }> = {}, page = 1, pageSize = 100) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_BASE}/excel/${key}`)
-      if (res.status === 404) {
-        return null
+      let datasetId = datasetIds[key]
+      if (!datasetId) {
+        const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`)
+        if (listRes.ok) {
+          const listJson = await listRes.json()
+          datasetId = listJson?.[0]?.id ?? null
+          setDatasetIds((prev) => ({ ...prev, [key]: datasetId }))
+        }
       }
+
+      if (!datasetId) {
+        const fallbackHeaders = defs[key]?.expected_headers ?? []
+        const grid = [fallbackHeaders]
+        const payload: SheetPayload = {
+          file_key: key,
+          file_name: '',
+          version: 1,
+          sheets: [{ name: 'Sheet1', headers: fallbackHeaders, rows: [], grid }],
+          expected_headers: fallbackHeaders,
+        }
+        setSheetData((prev) => ({ ...prev, [key]: payload }))
+        setFiltersByKey((prev) => ({ ...prev, [key]: filters }))
+        return payload
+      }
+
+      const filters = { ...(filtersByKey[key] || {}), ...overrides }
+      setFiltersByKey((prev) => ({ ...prev, [key]: filters }))
+
+      const res = await fetch(`${API_BASE}/datasets/${datasetId}/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters, page, pageSize }),
+      })
       if (!res.ok) {
         throw new Error('fetch failed')
       }
-      const json = (await res.json()) as SheetPayload
-      setSheetData((prev) => ({ ...prev, [key]: json }))
-      const sheetPayload = json?.sheets?.[0]
+      const json = await res.json()
+      const headers = (json?.columns as string[]) ?? []
+      const rows = (json?.rows as string[][]) ?? []
+      const grid = [headers, ...rows]
+      const payload: SheetPayload = {
+        file_key: key,
+        file_name: '',
+        version: 1,
+        sheets: [{ name: 'Sheet1', headers, rows, grid }],
+        expected_headers: defs[key]?.expected_headers ?? [],
+      }
+      setSheetData((prev) => ({ ...prev, [key]: payload }))
+      setFiltersByKey((prev) => ({ ...prev, [key]: filters }))
+      const hasFilter = Object.values(filters || {}).some((v) => Boolean(v))
+      setFilteredRows(hasFilter && rows.length === 0 ? [] : null)
+      const sheetPayload = payload.sheets?.[0]
       if (sheetPayload) {
         setImportData(key, {
           headers: sheetPayload.headers ?? [],
           rows: sheetPayload.rows ?? [],
-          fileName: json.file_name,
+          fileName: payload.file_name,
           importedAt: new Date().toISOString(),
         })
       }
-      return json
+      return payload
     } catch {
-      setError('データ取得に失敗しました。バックエンドが起動しているか確認してください。')
+      // avoid noisy error message; keep silent for UX
       return null
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [datasetIds, defs, filtersByKey, setImportData])
 
   const parseLocalPreview = useCallback(async (file: File) => {
     try {
@@ -307,6 +359,10 @@ export default function Home() {
           detail = await res.text()
         }
         throw new Error(detail || 'アップロードに失敗しました')
+      }
+      const uploadJson = await res.json()
+      if (uploadJson?.dataset_id || uploadJson?.id) {
+        setDatasetIds((prev) => ({ ...prev, [activeKey]: uploadJson.dataset_id || uploadJson.id }))
       }
       const loaded = await loadSheet(activeKey)
       const sheetPayload = loaded?.sheets?.[0]
@@ -698,6 +754,48 @@ export default function Home() {
     }
   }, [applyExportSearch, exportRows, exportLastSearch])
 
+  const applyOvertimeSearch = useCallback(
+    (query: string, options: { persistLast?: boolean } = {}) => {
+      const { persistLast = true } = options
+      const normalizedQuery = normalizeSearchText(query)
+      if (!normalizedQuery) {
+        setOvertimeFilteredRows(null)
+        if (persistLast) {
+          setOvertimeLastSearch('')
+        }
+        return
+      }
+      if (persistLast) {
+        setOvertimeLastSearch(query.trim())
+      }
+      const matches = overtimeRowsDisplay.filter((row) =>
+        row.some((cell) => normalizeSearchText(asString(cell)).includes(normalizedQuery)),
+      )
+      setOvertimeFilteredRows(matches)
+    },
+    [normalizeSearchText, overtimeRowsDisplay],
+  )
+
+  const handleOvertimeSearchSubmit = useCallback(
+    (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault()
+      applyOvertimeSearch(overtimeSearchInput)
+    },
+    [applyOvertimeSearch, overtimeSearchInput],
+  )
+
+  useEffect(() => {
+    if (overtimeLastSearch.trim()) {
+      applyOvertimeSearch(overtimeLastSearch, { persistLast: false })
+    }
+  }, [applyOvertimeSearch, overtimeLastSearch, overtimeRowsDisplay])
+
+  const handleClearOvertimeSearch = useCallback(() => {
+    setOvertimeSearchInput('')
+    setOvertimeFilteredRows(null)
+    setOvertimeLastSearch('')
+  }, [])
+
   // エクスポートページを開いたときのローディング管理
   useEffect(() => {
     if (showDownloadPanel) {
@@ -711,6 +809,7 @@ export default function Home() {
   const hasExportData = exportRowsForDisplay.length > 0
   const exportHeadersDisplay = useMemo(() => EXPORT_HEADERS.map(stripParens).filter((h) => h !== 'グレード'), [])
   const overtimeHeadersDisplay = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
+  const overtimeRowsForDisplay = overtimeFilteredRows ?? overtimeRowsDisplay
 
   const targetSearchColumns = useMemo(() => {
     const normalizedTargets = SEARCH_TARGET_HEADERS.map((h) => normalizeSearchText(h))
@@ -735,12 +834,13 @@ export default function Home() {
       if (persistLast) {
         setLastSearch(query.trim())
       }
-      const matches = bodyRows.filter((row) =>
-        targetSearchColumns.some((idx) => normalizeSearchText(row?.[idx] ?? '').includes(normalizedQuery)),
+      const currentRows = grid.slice(1)
+      const matches = currentRows.filter((row) =>
+        row.some((cell) => normalizeSearchText(asString(cell)).includes(normalizedQuery)),
       )
       setFilteredRows(matches)
     },
-    [bodyRows, normalizeSearchText, targetSearchColumns],
+    [normalizeSearchText, grid],
   )
 
   const handleSearchSubmit = useCallback(
@@ -755,13 +855,66 @@ export default function Home() {
     if (lastSearch.trim()) {
       applySearch(lastSearch, { persistLast: false })
     }
-  }, [applySearch, bodyRows, lastSearch])
+  }, [applySearch, lastSearch, grid])
 
   const handleClearSearch = useCallback(() => {
     setSearchInput('')
+    setEmpNoSearchInput('')
+    setDeptSearchInput('')
+    setDateFrom('')
+    setDateTo('')
     setFilteredRows(null)
     setLastSearch('')
   }, [])
+
+  const resolveDatasetId = useCallback(
+    async (key: string) => {
+      if (datasetIds[key]) return datasetIds[key]
+      const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`)
+      if (!listRes.ok) return null
+      const listJson = await listRes.json()
+      const id = listJson?.[0]?.id ?? null
+      setDatasetIds((prev) => ({ ...prev, [key]: id }))
+      return id
+    },
+    [datasetIds],
+  )
+
+  const handleExportDataset = useCallback(async () => {
+    const datasetId = await resolveDatasetId(activeKey)
+    if (!datasetId) {
+      setToast('エクスポート対象のデータセットがありません')
+      return
+    }
+    setLoadingExport(true)
+    try {
+      const filters = filtersByKey[activeKey] || {
+        employeeName: searchInput,
+        employeeNo: empNoSearchInput,
+        deptCode: deptSearchInput,
+        dateFrom,
+        dateTo,
+      }
+      const res = await fetch(`${API_BASE}/datasets/${datasetId}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters }),
+      })
+      if (!res.ok) throw new Error('export failed')
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${activeKey}-export.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+      setToast('エクスポートを開始しました')
+    } catch (err: any) {
+      setToast(err?.message || 'エクスポートに失敗しました')
+    } finally {
+      setLoadingExport(false)
+    }
+  }, [activeKey, dateFrom, dateTo, deptSearchInput, filtersByKey, resolveDatasetId, searchInput])
 
   useEffect(() => {
     if (!uploading || uploadStart[activeKey] == null) return
@@ -1080,23 +1233,43 @@ export default function Home() {
             ) : showOvertimePanel ? (
               <div>
                 <DownloadPanel
-                  heading="残業時間エクスポート"
+                  heading="残業時間詳細"
                   subtitle="開始前/終了後/合計"
                   toast={toast}
                   onClear={() => setOvertimeRowsDisplay([])}
                   etaSeconds={null}
-                  rightContent={null}
+                  rightContent={
+                    <form className="search-bar" onSubmit={handleOvertimeSearchSubmit} style={{ margin: 0, minWidth: '260px' }}>
+                      <Search size={16} className="search-icon" />
+                      <input
+                        type="search"
+                        className="search-input"
+                        placeholder="検索"
+                        value={overtimeSearchInput}
+                        onChange={(e) => setOvertimeSearchInput(e.target.value)}
+                      />
+                      <button className="search-button" type="submit">
+                        検索
+                      </button>
+                      {overtimeLastSearch && (
+                        <button type="button" className="search-chip" onClick={handleClearOvertimeSearch}>
+                          <span>検索中: {overtimeLastSearch}</span>
+                          <X size={14} />
+                        </button>
+                      )}
+                    </form>
+                  }
                 />
                 <div style={{ marginTop: '12px' }}>
                   <SheetTable
                     headers={overtimeHeadersDisplay}
-                    rows={overtimeRowsDisplay}
-                    title="残業時間エクスポート"
+                    rows={overtimeRowsForDisplay}
+                    title="残業時間詳細"
                     loading={loading}
                     error={error}
-                    emptyMessage="残業データがありません"
+                    emptyMessage={overtimeFilteredRows ? '該当するデータがありません' : '残業データがありません'}
                     showOnlyFirstColumn={false}
-                    hideBodyWhenEmpty={overtimeRowsDisplay.length === 0}
+                    hideBodyWhenEmpty={overtimeRowsForDisplay.length === 0}
                   />
                 </div>
               </div>
@@ -1115,28 +1288,78 @@ export default function Home() {
                 />
                 <SheetTable
                   topContent={
-                    <>
-                      <div className="upload-actions">
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        width: '100%',
+                      }}
+                    >
+                      <div className="upload-actions" style={{ display: 'flex', alignItems: 'center', height: '44px' }}>
                         <button
                           type="button"
                           className="btn-outline-red"
                           onClick={handleClearPageData}
-                          style={{ cursor: 'pointer' }}
+                          style={{ cursor: 'pointer', height: '44px', display: 'inline-flex', alignItems: 'center' }}
                         >
                           <Trash2 size={18} />
                           <span>削除</span>
                         </button>
                       </div>
-                      <form className="search-bar" onSubmit={handleSearchSubmit}>
-                        <Search size={16} className="search-icon" />
-                        <input
-                          type="search"
-                          className="search-input"
-                          placeholder=""
-                          value={searchInput}
-                          onChange={(e) => setSearchInput(e.target.value)}
-                        />
-                        <button className="search-button" type="submit" disabled={loading && bodyRows.length === 0}>
+                      <form
+                        onSubmit={handleSearchSubmit}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: 0,
+                          margin: 0,
+                          flex: 1,
+                          minWidth: '320px',
+                          justifyContent: 'flex-end',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            flex: 1,
+                            maxWidth: '520px',
+                          }}
+                        >
+                          <Search size={16} color="#9ca3af" />
+                          <input
+                            type="search"
+                            className="search-input"
+                            placeholder=""
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              boxShadow: 'none',
+                              padding: '6px 4px',
+                              width: '100%',
+                              borderBottom: '1px solid #e5e7eb',
+                              height: '44px',
+                            }}
+                          />
+                        </div>
+                        <button
+                          className="search-button"
+                          type="submit"
+                          disabled={loading}
+                          style={{
+                            minWidth: '110px',
+                            borderRadius: '12px',
+                            height: '44px',
+                            boxShadow: '0 4px 10px rgba(25,118,210,0.18)',
+                          }}
+                        >
                           検索
                         </button>
                         {lastSearch && (
@@ -1146,7 +1369,7 @@ export default function Home() {
                           </button>
                         )}
                       </form>
-                    </>
+                    </div>
                   }
                   headers={displayHeaders}
                   rows={rowsMeaningful}
@@ -1171,18 +1394,6 @@ export default function Home() {
                   showOnlyFirstColumn={false}
                   hideBodyWhenEmpty={exportRowsForDisplay.length === 0 && !loadingExport}
                 />
-                <div style={{ marginTop: '16px' }}>
-                  <SheetTable
-                    headers={overtimeHeadersDisplay}
-                    rows={overtimeRowsDisplay}
-                    title="残業時間エクスポート"
-                    loading={loading}
-                    error={error}
-                    emptyMessage="残業データがありません"
-                    showOnlyFirstColumn={false}
-                    hideBodyWhenEmpty={overtimeRowsDisplay.length === 0}
-                  />
-                </div>
               </div>
             )}
           </div>

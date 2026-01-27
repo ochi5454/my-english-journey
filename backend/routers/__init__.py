@@ -1,1 +1,1 @@
-from backend.routers import excel, tournament  # noqa: F401
+from backend.routers import excel, tournament, datasets  # noqa: F401

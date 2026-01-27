@@ -2,22 +2,21 @@ import os
 import tempfile
 import time
 from datetime import date
+import io
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from backend.core.config import DATA_DIR
 from backend.core.database import get_db
 from backend.models.excel import ExcelFile, ExcelCell, ExportCache
-from backend.services.excel import (
-    FILE_DEFINITIONS,
-    parse_csv_to_cells,
-    parse_xlsx_to_cells,
-    fetch_grid_for_key,
-    build_processed_excel,
-)
+from backend.models.dataset import Dataset, DatasetStatus
+from backend.services.excel import FILE_DEFINITIONS, fetch_grid_for_key, build_processed_excel
+from backend.services.dataset_service import DatasetService
 from backend.services.overtime import aggregate_overtime_by_employee, BASE_MINUTES
 
 
 router = APIRouter(prefix="/excel", tags=["excel"])
+dataset_service = DatasetService()
 
 
 @router.get("/config")
@@ -64,103 +63,64 @@ async def upload_excel(file_key: str, file: UploadFile = File(...), db=Depends(g
     timings = {}
     t0 = time.perf_counter()
 
-    os.makedirs(DATA_DIR / "uploads", exist_ok=True)
-    suffix = os.path.splitext(file.filename)[1].lower()
     content = await file.read()
     size_mb = len(content) / (1024 * 1024)
-    if size_mb > 50:
-        raise HTTPException(status_code=413, detail="file too large (>50MB)")
-    with tempfile.NamedTemporaryFile(delete=False, dir=DATA_DIR / "uploads", suffix=suffix) as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-    timings["save_temp_ms"] = round((time.perf_counter() - t0) * 1000)
+    if size_mb > 200:
+        raise HTTPException(status_code=413, detail="file too large (>200MB)")
 
+    dataset = dataset_service.save_upload(io.BytesIO(content), file.filename, file_key, file.content_type, db)
     try:
-        t_parse = time.perf_counter()
-        if suffix in [".csv"]:
-            cells, headers, sheet_name = parse_csv_to_cells(tmp_path)
-        elif suffix in [".xlsx", ".xls"]:
-            cells, headers, sheet_name = parse_xlsx_to_cells(tmp_path)
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported file type")
-        timings["parse_ms"] = round((time.perf_counter() - t_parse) * 1000)
-
-        latest = (
-            db.query(ExcelFile)
-            .filter(ExcelFile.file_key == file_key)
-            .order_by(ExcelFile.version.desc())
-            .first()
-        )
-        version = (latest.version + 1) if latest else 1
-
-        from datetime import date
-        ef = ExcelFile(file_key=file_key, file_name=file.filename, version=version, uploaded_at=date.today())
-        db.add(ef)
-        db.flush()
-
-        t_insert = time.perf_counter()
-        cell_objs = [
-            ExcelCell(file_id=ef.id, sheet_name=sheet_name, row_index=r, col_index=c, value=v) for r, c, v in cells
-        ]
-        db.bulk_save_objects(cell_objs)
+        dataset = dataset_service.convert_to_parquet(dataset, db)
+    except Exception as exc:
+        dataset.status = DatasetStatus.failed
+        db.add(dataset)
         db.commit()
-        timings["insert_ms"] = round((time.perf_counter() - t_insert) * 1000)
+        raise HTTPException(status_code=400, detail=str(exc))
 
-        timings["total_ms"] = round((time.perf_counter() - t0) * 1000)
-        print(f"[UPLOAD_TIMING] key={file_key} size_mb={size_mb:.2f} steps={timings}")
-        return {
-            "file_key": file_key,
-            "version": version,
-            "rows": len(set([r for r, _, _ in cells])),
-            "cells": len(cells),
-            "sheet_name": sheet_name,
-            "timings_ms": timings,
-        }
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+    timings["total_ms"] = round((time.perf_counter() - t0) * 1000)
+    print(f"[UPLOAD_TIMING] key={file_key} size_mb={size_mb:.2f} steps={timings}")
+    return {
+        "file_key": file_key,
+        "dataset_id": dataset.id,
+        "rows": dataset.row_count,
+        "status": dataset.status.value if dataset.status else None,
+        "timings_ms": timings,
+    }
 
 
 @router.get("/{file_key}")
 def get_excel(file_key: str, db=Depends(get_db)):
-    ef = (
-        db.query(ExcelFile)
-        .filter(ExcelFile.file_key == file_key)
-        .order_by(ExcelFile.version.desc())
+    dataset = (
+        db.query(Dataset)
+        .filter(Dataset.kind == file_key, Dataset.status == DatasetStatus.ready)
+        .order_by(Dataset.uploaded_at.desc())
         .first()
     )
-    if not ef:
+    if not dataset:
         raise HTTPException(status_code=404, detail="not found")
-    cells = (
-        db.query(ExcelCell)
-        .filter(ExcelCell.file_id == ef.id)
-        .order_by(ExcelCell.sheet_name, ExcelCell.row_index, ExcelCell.col_index)
-        .all()
-    )
-    sheets = {}
-    for cell in cells:
-        sheets.setdefault(cell.sheet_name, []).append(cell)
+    try:
+        df = pd.read_parquet(dataset.stored_path)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"failed to read dataset: {exc}")
 
-    formatted = []
-    for sheet_name, sheet_cells in sheets.items():
-        max_row = max(c.row_index for c in sheet_cells)
-        max_col = max(c.col_index for c in sheet_cells)
-        grid = [["" for _ in range(max_col)] for _ in range(max_row)]
-        for c in sheet_cells:
-            grid[c.row_index - 1][c.col_index - 1] = c.value or ""
-        formatted.append(
-            {
-                "name": sheet_name,
-                "headers": grid[0] if grid else [],
-                "rows": grid[1:] if len(grid) > 1 else [],
-                "grid": grid,
-            }
-        )
+    headers = list(df.columns)
+    rows = df.head(500).fillna("").astype(str).values.tolist()
+    grid = [headers, *rows]
+
+    formatted = [
+        {
+          "name": "Sheet1",
+          "headers": headers,
+          "rows": rows,
+          "grid": grid,
+        }
+    ]
 
     return {
-        "file_key": ef.file_key,
-        "file_name": ef.file_name,
-        "version": ef.version,
+        "file_key": dataset.kind,
+        "file_name": dataset.original_filename,
+        "dataset_id": dataset.id,
+        "version": 1,
         "sheets": formatted,
         "expected_headers": FILE_DEFINITIONS.get(file_key, {}).get("expected_headers", []),
     }

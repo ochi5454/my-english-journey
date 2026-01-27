@@ -513,8 +513,8 @@ body {
   background: white;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-  padding: 16px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+  padding: 8px 12px;
 }
 
 .upload-row {
@@ -544,7 +544,7 @@ body {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .drop-zone {
@@ -611,18 +611,7 @@ body {
   transform: translateY(1px);
 }
 
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0 4px;
-  padding: 10px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 9999px;
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
-  width: min(440px, 100%);
-}
+/* search-bar class no longer used (pill removed) */
 
 .search-input {
   flex: 1;

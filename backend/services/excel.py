@@ -6,9 +6,12 @@ from typing import List, Dict, Optional
 import openpyxl
 from io import BytesIO
 from datetime import date
+import pandas as pd
 from backend.core.config import DATA_DIR
 from backend.models.excel import ExcelFile, ExcelCell
+from backend.models.dataset import Dataset, DatasetStatus
 from backend.core.database import Base
+from backend.services.dataset_service import _normalize_header
 
 
 FILE_DEFINITIONS = {
@@ -155,6 +158,23 @@ def parse_xlsx_to_cells(path: str):
 
 
 def fetch_grid_for_key(db, file_key: str):
+    dataset = (
+        db.query(Dataset)
+        .filter(Dataset.kind == file_key, Dataset.status == DatasetStatus.ready)
+        .order_by(Dataset.uploaded_at.desc())
+        .first()
+    )
+    if dataset:
+        try:
+            df = pd.read_parquet(dataset.stored_path)
+            headers = list(df.columns)
+            rows = df.fillna("").astype(str).values.tolist()
+            grid = [headers, *rows]
+            return {"grid": grid, "headers": headers, "rows": rows}
+        except Exception:
+            pass
+
+    # fallback legacy path
     ef = (
         db.query(ExcelFile)
         .filter(ExcelFile.file_key == file_key)
