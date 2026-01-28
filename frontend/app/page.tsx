@@ -13,8 +13,11 @@ import * as XLSX from 'xlsx'
 import { useImportDataStore, setImportData, clearImportData } from './store/useImportDataStore'
 import type { ExportWorkerRequest, ExportWorkerResponse, GridPayload } from './workers/exportWorker'
 import { estimateEtaSeconds, loadSpeed, saveSpeed, updateSpeedEma } from './utils/eta'
+import { useJobUpload } from './hooks/useJobUpload'
+import { jobClient } from './api/jobClient'
 
 const SEARCH_TARGET_HEADERS = ['案件名', '現場名', '仕入先名']
+const DEFAULT_PAGE_SIZE = 25
 const stripParens = (value: unknown) => {
   if (value == null) return ''
   const str = String(value)
@@ -216,8 +219,11 @@ export default function Home() {
 
   const [datasetIds, setDatasetIds] = useState<Record<string, string | null>>({})
   const [filtersByKey, setFiltersByKey] = useState<Record<string, { employeeName?: string; deptCode?: string; dateFrom?: string; dateTo?: string }>>({})
+  const [pageByKey, setPageByKey] = useState<Record<string, number>>({})
+  const [pageSizeByKey, setPageSizeByKey] = useState<Record<string, number>>({})
+  const [totalByKey, setTotalByKey] = useState<Record<string, number>>({})
 
-  const loadSheet = useCallback(async (key: string, overrides: Partial<{ employeeName?: string; employeeNo?: string; deptCode?: string; dateFrom?: string; dateTo?: string }> = {}, page = 1, pageSize = 25) => {
+  const loadSheet = useCallback(async (key: string, overrides: Partial<{ employeeName?: string; employeeNo?: string; deptCode?: string; dateFrom?: string; dateTo?: string }> = {}, page = 1, pageSize = DEFAULT_PAGE_SIZE) => {
     setLoading(true)
     setError(null)
     try {
@@ -244,6 +250,9 @@ export default function Home() {
         }
         setSheetData((prev) => ({ ...prev, [key]: payload }))
         setFiltersByKey((prev) => ({ ...prev, [key]: filters }))
+        setPageByKey((prev) => ({ ...prev, [key]: 1 }))
+        setPageSizeByKey((prev) => ({ ...prev, [key]: pageSize }))
+        setTotalByKey((prev) => ({ ...prev, [key]: grid.length - 1 }))
         return payload
       }
 
@@ -260,6 +269,9 @@ export default function Home() {
       const json = await res.json()
       const headers = (json?.columns as string[]) ?? []
       const rows = (json?.rows as string[][]) ?? []
+      const total = Number(json?.total) || rows.length
+      const pageFromServer = Number(json?.page) || page
+      const pageSizeFromServer = Number(json?.pageSize) || pageSize
       const grid = [headers, ...rows]
       const payload: SheetPayload = {
         file_key: key,
@@ -270,6 +282,9 @@ export default function Home() {
       }
       setSheetData((prev) => ({ ...prev, [key]: payload }))
       setFiltersByKey((prev) => ({ ...prev, [key]: filters }))
+      setPageByKey((prev) => ({ ...prev, [key]: pageFromServer }))
+      setPageSizeByKey((prev) => ({ ...prev, [key]: pageSizeFromServer }))
+      setTotalByKey((prev) => ({ ...prev, [key]: total }))
       const hasFilter = Object.values(filters || {}).some((v) => Boolean(v))
       setFilteredRows(hasFilter && rows.length === 0 ? [] : null)
       const sheetPayload = payload.sheets?.[0]
@@ -309,7 +324,9 @@ export default function Home() {
 
   useEffect(() => {
     // load once per activeKey; avoid dependency on loadSheet to prevent refetch loop when callbacks change
-    loadSheet(activeKey)
+    const initialPage = pageByKey[activeKey] ?? 1
+    const initialSize = pageSizeByKey[activeKey] ?? DEFAULT_PAGE_SIZE
+    loadSheet(activeKey, filtersByKey[activeKey], initialPage, initialSize)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKey])
 
@@ -389,6 +406,96 @@ export default function Home() {
     }
   }
 
+  /**
+   * 新しい非同期版のファイルアップロード処理
+   *
+   * ナレッジリファレンスのパターンに従う:
+   * - HTTP 202 Acceptedで即座にjob_idを返す
+   * - バックグラウンドで処理を実行
+   * - ポーリングで進捗確認
+   */
+  const handleFileAsync = async (file?: File) => {
+    if (!file) return
+
+    setUploadedName(file.name)
+    setUploadMessage(null)
+    setUploadError(null)
+    setUploading(true)
+    setUploadStart((prev) => ({ ...prev, [activeKey]: Date.now() }))
+    setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
+
+    try {
+      // ローカルプレビュー（即座に表示）
+      const preview = await parseLocalPreview(file)
+      if (preview) {
+        setImportData(activeKey, {
+          headers: preview.headers,
+          rows: preview.rows,
+          fileName: file.name,
+          importedAt: new Date().toISOString(),
+        })
+      }
+
+      // 非同期アップロード開始
+      console.log('[Upload] Starting async upload for', activeKey)
+      const response = await jobClient.uploadFileAsync(file, activeKey)
+      console.log('[Upload] Job created:', response.job_id)
+
+      setUploadMessage(`処理中... (Job ID: ${response.job_id})`)
+
+      // ポーリング
+      const finalStatus = await jobClient.pollUntilComplete(
+        response.job_id,
+        (status) => {
+          // 進捗更新
+          const percent = status.progress.percent
+          const processed = status.progress.processed
+          const total = status.progress.total
+
+          console.log(`[Upload] Progress: ${percent}% (${processed}/${total})`)
+
+          // UIに進捗を表示
+          if (total > 0) {
+            setUploadMessage(`処理中... ${percent}% (${processed}/${total})`)
+          }
+        },
+        2000 // 2秒間隔でポーリング
+      )
+
+      console.log('[Upload] Completed:', finalStatus)
+
+      // 完了後、データセットIDを保存
+      if (finalStatus.result?.dataset_id) {
+        setDatasetIds((prev) => ({
+          ...prev,
+          [activeKey]: finalStatus.result.dataset_id
+        }))
+      }
+
+      // データを再読み込み
+      const loaded = await loadSheet(activeKey)
+      const sheetPayload = loaded?.sheets?.[0]
+      if (sheetPayload) {
+        setImportData(activeKey, {
+          headers: sheetPayload.headers ?? [],
+          rows: sheetPayload.rows ?? [],
+          fileName: file.name,
+          importedAt: new Date().toISOString(),
+        })
+        setUploadMessage('アップロード完了。最新データを表示します。')
+      }
+
+    } catch (e: any) {
+      console.error('[Upload] Error:', e)
+      setUploadError(e?.message || 'アップロードに失敗しました')
+      setUploadMessage(null)
+    } finally {
+      setUploading(false)
+      setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
+      setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
+    }
+  }
+
   const handleClearPageData = () => {
     const ok = window.confirm('表示中のデータを削除しますか？')
     if (!ok) return
@@ -400,6 +507,9 @@ export default function Home() {
     setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
     setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
     setUploadEstimateSec((prev) => ({ ...prev, [activeKey]: null }))
+    setPageByKey((prev) => ({ ...prev, [activeKey]: 1 }))
+    setPageSizeByKey((prev) => ({ ...prev, [activeKey]: DEFAULT_PAGE_SIZE }))
+    setTotalByKey((prev) => ({ ...prev, [activeKey]: 0 }))
   }
 
   const handleGenerateDownload = async () => {
@@ -438,6 +548,25 @@ export default function Home() {
     [filteredRows, bodyRows],
   )
   const rowsMeaningful = useMemo(() => rowsForDisplay.filter(isMeaningfulRow), [rowsForDisplay])
+  const currentPage = pageByKey[activeKey] ?? 1
+  const currentPageSize = pageSizeByKey[activeKey] ?? DEFAULT_PAGE_SIZE
+  const totalRowsForPagination = filteredRows ? rowsMeaningful.length : totalByKey[activeKey] ?? rowsMeaningful.length
+  const handlePageChange = useCallback(
+    (nextPage: number) => {
+      const size = pageSizeByKey[activeKey] ?? DEFAULT_PAGE_SIZE
+      setPageByKey((prev) => ({ ...prev, [activeKey]: nextPage }))
+      loadSheet(activeKey, filtersByKey[activeKey], nextPage, size)
+    },
+    [activeKey, filtersByKey, loadSheet, pageSizeByKey],
+  )
+  const handlePageSizeChange = useCallback(
+    (size: number) => {
+      setPageSizeByKey((prev) => ({ ...prev, [activeKey]: size }))
+      setPageByKey((prev) => ({ ...prev, [activeKey]: 1 }))
+      loadSheet(activeKey, filtersByKey[activeKey], 1, size)
+    },
+    [activeKey, filtersByKey, loadSheet],
+  )
   const hasImportData = rowsMeaningful.length > 0
   const buildColumnMap = useCallback((headers: string[]) => {
     const normalized: Record<string, number> = {}
@@ -691,22 +820,29 @@ export default function Home() {
 
   const exportRows = useMemo(() => {
     if (workerExportRows.length) {
-      // Worker output already merged; still allow overriding when overtimeMap arrives later
-      const merged = mergeByEmployee(workerExportRows, { ...overtimeMap, ...overtimeOverrideMap })
-      return merged
+      // バックエンドから取得したデータは既にマージ・集計済みなので、そのまま返す
+      console.log(`[Export] Using backend data: ${workerExportRows.length} rows (already merged)`)
+      return workerExportRows
     }
 
+    // バックエンドから取得する方式なので、フォールバックは使用しない
+    console.log('[Export] Waiting for backend data...')
+    return []
+
+    // 以下、古いフォールバックロジック（無効化）
+    /*
     const t0 = performance.now()
     const meaningfulRows = combinedMappedRows.filter((row) => row.some((cell) => (cell ?? '').toString().trim() !== ''))
     const result = mergeByEmployee(meaningfulRows, { ...overtimeMap, ...overtimeOverrideMap })
 
     const elapsed = performance.now() - t0
     if (result.length > 0) {
-      console.log(`[Performance] Export calculation (fallback): ${elapsed.toFixed(2)}ms (${result.length} rows)`) 
+      console.log(`[Performance] Export calculation (fallback): ${elapsed.toFixed(2)}ms (${result.length} rows)`)
     }
 
     return result
-  }, [combinedMappedRows, mergeByEmployee, workerExportRows, overtimeMap, overtimeOverrideMap])
+    */
+  }, [workerExportRows])
 
   const exportRowsDisplay = useMemo(
     () => exportRows.map((row) => row.map(stripParens)).filter(isMeaningfulRow),
@@ -1386,7 +1522,7 @@ export default function Home() {
                   uploadEstimateSec={uploadEstimateSec[activeKey]}
                   activeKey={activeKey}
                   onClear={handleClearPageData}
-                  onFileSelected={handleFile}
+                  onFileSelected={handleFileAsync}
                 />
                 <SheetTable
                   topContent={
@@ -1481,6 +1617,11 @@ export default function Home() {
                   emptyMessage={filteredRows ? '該当するデータがありません' : 'データがありません'}
                   showOnlyFirstColumn={false}
                   hideBodyWhenEmpty={rowsMeaningful.length === 0}
+                  page={currentPage}
+                  pageSize={currentPageSize}
+                  totalOverride={totalRowsForPagination}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
                 />
               </>
             )}

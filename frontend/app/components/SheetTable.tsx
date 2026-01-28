@@ -128,7 +128,7 @@ export function SheetTable({
               </div>
           )}
           {pagedRows.map((row, rIdx) => {
-            const startIdx = (page - 1) * pageSize
+            const startIdx = page && pageSize ? (page - 1) * pageSize : 0
             const actualRowIdx = startIdx + rIdx
             const rowStyle = rowStyles[actualRowIdx]
             return (
