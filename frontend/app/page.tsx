@@ -758,7 +758,8 @@ export default function Home() {
     if (exportLastSearch.trim()) {
       applyExportSearch(exportLastSearch, { persistLast: false })
     }
-  }, [applyExportSearch, exportRows, exportLastSearch])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exportRowsDisplay])
 
   const applyOvertimeSearch = useCallback(
     (query: string, options: { persistLast?: boolean } = {}) => {
@@ -794,7 +795,8 @@ export default function Home() {
     if (overtimeLastSearch.trim()) {
       applyOvertimeSearch(overtimeLastSearch, { persistLast: false })
     }
-  }, [applyOvertimeSearch, overtimeLastSearch, overtimeRowsDisplay])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overtimeRowsDisplay])
 
   const handleClearOvertimeSearch = useCallback(() => {
     setOvertimeSearchInput('')
