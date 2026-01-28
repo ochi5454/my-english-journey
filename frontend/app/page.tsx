@@ -128,7 +128,15 @@ export default function Home() {
   const [exportSearchInput, setExportSearchInput] = useState('')
   const [exportFilteredRows, setExportFilteredRows] = useState<string[][] | null>(null)
   const [exportLastSearch, setExportLastSearch] = useState('')
-  const [workerExportRows, setWorkerExportRows] = useState<string[][]>([])
+  const [workerExportRows, setWorkerExportRows] = useState<string[][]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const saved = localStorage.getItem('exportData_estimated')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
   const [overtimeSearchInput, setOvertimeSearchInput] = useState('')
   const [overtimeFilteredRows, setOvertimeFilteredRows] = useState<string[][] | null>(null)
   const [overtimeLastSearch, setOvertimeLastSearch] = useState('')
@@ -141,7 +149,15 @@ export default function Home() {
   const [exportProcessedRows, setExportProcessedRows] = useState(0)
   const [exportStartAt, setExportStartAt] = useState<number | null>(null)
   const [exportSpeed, setExportSpeed] = useState<number>(() => loadSpeed())
-  const [overtimeRowsDisplay, setOvertimeRowsDisplay] = useState<string[][]>([])
+  const [overtimeRowsDisplay, setOvertimeRowsDisplay] = useState<string[][]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const saved = localStorage.getItem('exportData_overtime')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
   const [showOvertimePanel, setShowOvertimePanel] = useState(false)
   const [overtimeOverrideMap, setOvertimeOverrideMap] = useState<Record<string, { actual?: number; overtime?: number }>>({})
   const { data: savedPreviews } = useImportDataStore()
@@ -521,6 +537,20 @@ export default function Home() {
     if (!ok) return
     setSheetData((prev) => ({ ...prev, [processedFileKey]: null }))
     clearImportData(processedFileKey)
+
+    // エクスポートデータもクリア
+    setWorkerExportRows([])
+    setOvertimeRowsDisplay([])
+
+    // localStorage からも削除
+    try {
+      localStorage.removeItem('exportData_estimated')
+      localStorage.removeItem('exportData_overtime')
+      localStorage.removeItem('exportData_timestamp')
+      console.log('[Export] Data cleared from localStorage')
+    } catch (e) {
+      console.warn('[Export] Failed to clear localStorage:', e)
+    }
   }
 
   const sheet = sheetData[activeKey]?.sheets?.[0]
@@ -849,6 +879,76 @@ export default function Home() {
     [exportRows]
   )
 
+  const handleDownloadExportExcel = useCallback(() => {
+    try {
+      if (exportRowsDisplay.length === 0) {
+        setToast('エクスポートデータがありません')
+        return
+      }
+
+      // ワークブック作成
+      const wb = XLSX.utils.book_new()
+
+      // シート1: 実所定外時間 推計データ（凡例付き）
+      const estimatedSheet = buildLegendSheet(exportRowsDisplay)
+      XLSX.utils.book_append_sheet(wb, estimatedSheet, '実所定外時間 推計データ')
+
+      // シート2: 残業時間詳細
+      if (overtimeRowsDisplay.length > 0) {
+        const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
+        const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeRowsDisplay])
+
+        // 列幅設定
+        overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
+
+        XLSX.utils.book_append_sheet(wb, overtimeSheet, '残業時間詳細')
+      }
+
+      // ファイル名生成（日時付き）
+      const now = new Date()
+      const dateStr = now.toISOString().split('T')[0].replace(/-/g, '')
+      const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '')
+      const filename = `時間外労働_エクスポート_${dateStr}_${timeStr}.xlsx`
+
+      // ダウンロード
+      XLSX.writeFile(wb, filename)
+      setToast('Excelファイルをダウンロードしました')
+    } catch (error) {
+      console.error('Excel download failed:', error)
+      setToast('Excelのダウンロードに失敗しました')
+    }
+  }, [exportRowsDisplay, overtimeRowsDisplay, buildLegendSheet])
+
+  const handleDownloadOvertimeExcel = useCallback(() => {
+    try {
+      if (overtimeRowsDisplay.length === 0) {
+        setToast('残業時間データがありません')
+        return
+      }
+
+      const wb = XLSX.utils.book_new()
+      const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
+      const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeRowsDisplay])
+
+      // 列幅設定
+      overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
+
+      XLSX.utils.book_append_sheet(wb, overtimeSheet, '残業時間詳細')
+
+      // ファイル名生成（日時付き）
+      const now = new Date()
+      const dateStr = now.toISOString().split('T')[0].replace(/-/g, '')
+      const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '')
+      const filename = `残業時間詳細_${dateStr}_${timeStr}.xlsx`
+
+      XLSX.writeFile(wb, filename)
+      setToast('Excelファイルをダウンロードしました')
+    } catch (error) {
+      console.error('Excel download failed:', error)
+      setToast('Excelのダウンロードに失敗しました')
+    }
+  }, [overtimeRowsDisplay])
+
   const normalizeSearchText = useCallback((value: string) => {
     const base = (value ?? '').trim().toLowerCase()
     return base.replace(/[！-～]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
@@ -994,6 +1094,16 @@ export default function Home() {
         // バックエンドで既にマージ・集計済みのデータをセット
         setWorkerExportRows(allEstimatedRows)
         setOvertimeRowsDisplay(allOvertimeRows)
+
+        // localStorage に永続化
+        try {
+          localStorage.setItem('exportData_estimated', JSON.stringify(allEstimatedRows))
+          localStorage.setItem('exportData_overtime', JSON.stringify(allOvertimeRows))
+          localStorage.setItem('exportData_timestamp', new Date().toISOString())
+          console.log('[Export] Data saved to localStorage')
+        } catch (e) {
+          console.warn('[Export] Failed to save to localStorage:', e)
+        }
 
         console.log('[Export] Data loaded successfully')
       } catch (error) {
@@ -1201,10 +1311,11 @@ export default function Home() {
   const workerStartedRef = useRef(false)
 
   useEffect(() => {
-    // パネルが閉じたらリセット
+    // パネルが閉じたらリセット（データは永続化済みなのでクリアしない）
     if (!showDownloadPanel) {
       workerStartedRef.current = false
-      setWorkerExportRows([])
+      // データは永続化されているので、stateはクリアしない
+      // setWorkerExportRows([]) を削除
       setExportEtaSec(null)
       if (workerRef.current) {
         workerRef.current.terminate()
@@ -1445,6 +1556,7 @@ export default function Home() {
                 subtitle={downloadSubtitle}
                 toast={toast}
                 onClear={handleClearExportTable}
+                onDownload={handleDownloadExportExcel}
                 rightContent={
                   <form className="search-bar" onSubmit={handleExportSearchSubmit} style={{ margin: 0, minWidth: '260px' }}>
                     <Search size={16} className="search-icon" />
@@ -1474,7 +1586,16 @@ export default function Home() {
                   heading=""
                   subtitle="開始前/終了後/合計"
                   toast={toast}
-                  onClear={() => setOvertimeRowsDisplay([])}
+                  onClear={() => {
+                    setOvertimeRowsDisplay([])
+                    try {
+                      localStorage.removeItem('exportData_overtime')
+                      console.log('[Export] Overtime data cleared from localStorage')
+                    } catch (e) {
+                      console.warn('[Export] Failed to clear localStorage:', e)
+                    }
+                  }}
+                  onDownload={handleDownloadOvertimeExcel}
                   etaSeconds={null}
                   rightContent={
                     <form className="search-bar" onSubmit={handleOvertimeSearchSubmit} style={{ margin: 0, minWidth: '260px' }}>

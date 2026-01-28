@@ -1,10 +1,11 @@
-import { Trash2 } from 'lucide-react'
+import { Trash2, Download } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 type DownloadPanelProps = {
   heading: string
   subtitle: string
   onClear?: () => void
+  onDownload?: () => void
   toast: string | null
   rightContent?: ReactNode
   etaSeconds?: number | null
@@ -15,6 +16,7 @@ export function DownloadPanel({
   subtitle,
   toast,
   onClear,
+  onDownload,
   rightContent,
   etaSeconds = null,
 }: DownloadPanelProps) {
@@ -30,6 +32,17 @@ export function DownloadPanel({
       <section className="sheet-card" style={{ padding: '16px', width: '100%', alignSelf: 'stretch' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <div className="flex items-center gap-3 flex-wrap">
+            {onDownload && (
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                onClick={onDownload}
+              >
+                <Download size={18} />
+                <span>Excelダウンロード</span>
+              </button>
+            )}
             {onClear && (
               <button
                 type="button"
