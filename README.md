@@ -32,6 +32,23 @@
 6) サンプルデータ: `POST http://localhost:8000/seed` で大会1件+タスクを投入。  
 7) 進行表: OpenAIキーが無くてもローカルテンプレでタイムラインJSONを生成し保存（キーがあればAI版で上書き）。
 
+## 追加: 時間外エクスポート（カーソル型・非Excel）
+- 全件をカーソル方式で走査し、JSON / CSV / ZIP で「実所定外時間推計データ」「残業時間詳細」の2テーブルを取得できます。  
+- 例（JSON 取得・limit=5）  
+  ```bash
+  curl "http://localhost:8000/export/all?format=json&limit=5"
+  # 応答に next_cursor があれば繰り返し
+  curl "http://localhost:8000/export/all?format=json&limit=5&cursor=BASE64TOKEN"
+  ```
+- CSV 単体（推計データのみ）  
+  ```bash
+  curl -o estimated.csv "http://localhost:8000/export/all?format=csv&limit=500"
+  ```
+- ZIP（estimated.csv + overtime_detail.csv）  
+  ```bash
+  curl -o export.zip "http://localhost:8000/export/all?format=zip&limit=200"
+  ```
+
 ## 開発メモ
 - Backend: `backend/app.py` を uvicorn で起動。データは `backend/data/app.db`（volumeに永続化）。  
 - Frontend: `frontend` で `npm install && npm run dev` でも起動可（APIは `NEXT_PUBLIC_API_BASE` で指定）。  

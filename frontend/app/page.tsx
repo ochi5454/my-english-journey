@@ -636,11 +636,16 @@ export default function Home() {
       const grid = buildGridForKey(key)
       const headers = grid[0] || []
       const body = grid.slice(1)
-      if (!body.length) return
+      if (!body.length) {
+        console.log(`[ExportGrids] Skipping ${key}: no data (headers=${headers.length})`)
+        return
+      }
+      console.log(`[ExportGrids] Adding ${key}: ${body.length} rows`)
       grids.push({ headers, rows: body })
     })
+    console.log(`[ExportGrids] Total grids: ${grids.length}, total rows: ${grids.reduce((sum, g) => sum + g.rows.length, 0)}`)
     return grids
-  }, [buildGridForKey, showDownloadPanel])
+  }, [buildGridForKey, showDownloadPanel, savedPreviews, sheetData])
 
   const totalRowsForExport = useMemo(
     () => exportSourceGrids.reduce((sum, g) => sum + (g.rows?.length || 0), 0),
@@ -797,14 +802,71 @@ export default function Home() {
     setOvertimeLastSearch('')
   }, [])
 
-  // エクスポートページを開いたときのローディング管理
+  // エクスポートページを開いたときにバックエンドから全データを取得
   useEffect(() => {
-    if (showDownloadPanel) {
+    if (!showDownloadPanel) return
+
+    const fetchExportData = async () => {
       setLoadingExport(true)
-      // ETAが0になったタイミング or worker完了で解除される
-      return () => {}
+
+      try {
+        console.log('[Export] Fetching merged data from backend /export/all...')
+
+        // カーソルを使って全データを取得
+        let allEstimatedRows: string[][] = []
+        let allOvertimeRows: string[][] = []
+        let cursor: string | null = null
+        let pageCount = 0
+
+        do {
+          const url = cursor
+            ? `${API_BASE}/export/all?format=json&limit=5000&cursor=${encodeURIComponent(cursor)}`
+            : `${API_BASE}/export/all?format=json&limit=5000`
+
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          })
+
+          if (!response.ok) {
+            throw new Error(`Backend returned ${response.status}: ${response.statusText}`)
+          }
+
+          const data = await response.json()
+          pageCount++
+
+          if (data.estimated?.rows) {
+            allEstimatedRows = allEstimatedRows.concat(data.estimated.rows)
+          }
+          if (data.overtime_detail?.rows) {
+            allOvertimeRows = allOvertimeRows.concat(data.overtime_detail.rows)
+          }
+
+          cursor = data.has_more ? data.next_cursor : null
+
+          console.log(`[Export] Page ${pageCount}: fetched ${data.estimated?.rows?.length || 0} estimated, ${data.overtime_detail?.rows?.length || 0} overtime rows. Total so far: ${allEstimatedRows.length} / ${allOvertimeRows.length}`)
+        } while (cursor)
+
+        console.log('[Export] All data fetched:', {
+          total_estimated: allEstimatedRows.length,
+          total_overtime: allOvertimeRows.length,
+          pages: pageCount,
+        })
+
+        // バックエンドで既にマージ・集計済みのデータをセット
+        setWorkerExportRows(allEstimatedRows)
+        setOvertimeRowsDisplay(allOvertimeRows)
+
+        console.log('[Export] Data loaded successfully')
+      } catch (error) {
+        console.error('[Export] Failed to fetch export data:', error)
+      } finally {
+        setLoadingExport(false)
+      }
     }
-  }, [showDownloadPanel, exportRows])
+
+    fetchExportData()
+  }, [showDownloadPanel])
 
   const exportRowsForDisplay = exportFilteredRows ?? exportRowsDisplay
   const hasExportData = exportRowsForDisplay.length > 0
@@ -1013,19 +1075,29 @@ export default function Home() {
       return
     }
 
-    // 既にWorkerが起動済みなら何もしない
-    if (workerStartedRef.current) return
+    // バックエンド /export/all を使用するため、Worker処理は無効化
+    console.log('[Worker] Disabled - using backend /export/all instead')
+
+    // 以下、古いWorker処理（コメントアウト）
+    /*
+    if (workerStartedRef.current) {
+      console.log('[Worker] Already started, skipping')
+      return
+    }
 
     if (typeof Worker === 'undefined') {
+      console.log('[Worker] Worker not supported')
       setWorkerExportRows([])
       return
     }
     if (!totalRowsForExport || exportSourceGrids.length === 0) {
+      console.log(`[Worker] Not ready: totalRows=${totalRowsForExport}, grids=${exportSourceGrids.length}`)
       setWorkerExportRows([])
       setExportEtaSec(null)
       return
     }
 
+    console.log(`[Worker] Starting with ${exportSourceGrids.length} grids, ${totalRowsForExport} total rows`)
     workerStartedRef.current = true
     startEtaTimer(totalRowsForExport)
     const worker = new Worker(new URL('./workers/exportWorker.ts', import.meta.url))
@@ -1042,16 +1114,25 @@ export default function Home() {
         return
       }
       if ('exportRows' in data) {
+        console.log(`[Worker] Completed: ${data.exportRows?.length || 0} rows`)
         setWorkerExportRows(data.exportRows || [])
         finishEta(totalRowsForExport)
+        setLoadingExport(false)
       }
     }
     const payload: ExportWorkerRequest = { grids: exportSourceGrids }
     worker.postMessage(payload)
-  }, [showDownloadPanel, exportSourceGrids.length, totalRowsForExport])
+    */
+  }, [showDownloadPanel])
 
   // 残業時間（開始前/終了後/合計）テーブル
+  // NOTE: バックエンド /export/all から取得するため、この処理は無効化
   useEffect(() => {
+    console.log('[Overtime] Disabled - using backend /export/all instead')
+    return
+
+    // 以下、古い処理（コメントアウト）
+    /*
     let canceled = false
     const run = async () => {
       // 既にロード済みのデータだけで集計する（追加フェッチしない）
@@ -1179,7 +1260,8 @@ export default function Home() {
     return () => {
       canceled = true
     }
-  }, [buildGridForKey, normalizeHeader, loadSheet])
+    */
+  }, [])
 
   // Cache fetch/POSTを停止（CORS回避）
   useEffect(() => {

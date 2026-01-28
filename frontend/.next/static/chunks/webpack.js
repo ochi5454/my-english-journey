@@ -163,7 +163,7 @@
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = function(chunkId) {
 /******/ 			// return url for filenames based on template
-/******/ 			return "static/chunks/" + chunkId + ".js";
+/******/ 			return undefined;
 /******/ 		};
 /******/ 	}();
 /******/ 	
@@ -192,7 +192,7 @@
 /******/ 	
 /******/ 	/* webpack/runtime/getFullHash */
 /******/ 	!function() {
-/******/ 		__webpack_require__.h = function() { return "9eb3bd9f870f0be1"; }
+/******/ 		__webpack_require__.h = function() { return "4aef3820872cc6e0"; }
 /******/ 	}();
 /******/ 	
 /******/ 	/* webpack/runtime/global */
@@ -823,7 +823,7 @@
 /******/ 	
 /******/ 	/* webpack/runtime/jsonp chunk loading */
 /******/ 	!function() {
-/******/ 		__webpack_require__.b = document.baseURI || self.location.href;
+/******/ 		// no baseURI
 /******/ 		
 /******/ 		// object to store loaded and loading chunks
 /******/ 		// undefined = chunk not loaded, null = chunk preloaded/prefetched

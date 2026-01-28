@@ -125,7 +125,7 @@
 /******/ 	
 /******/ 	/* webpack/runtime/getFullHash */
 /******/ 	(() => {
-/******/ 		__webpack_require__.h = () => ("76e400203222dc28")
+/******/ 		__webpack_require__.h = () => ("f19450142eccfcfc")
 /******/ 	})();
 /******/ 	
 /******/ 	/* webpack/runtime/hasOwnProperty shorthand */
@@ -165,14 +165,9 @@
 /******/ 		}
 /******/ 	})();
 /******/ 	
-/******/ 	/* webpack/runtime/publicPath */
-/******/ 	(() => {
-/******/ 		__webpack_require__.p = "/_next/";
-/******/ 	})();
-/******/ 	
 /******/ 	/* webpack/runtime/require chunk loading */
 /******/ 	(() => {
-/******/ 		__webpack_require__.b = require("url").pathToFileURL(__filename);
+/******/ 		// no baseURI
 /******/ 		
 /******/ 		// object to store loaded chunks
 /******/ 		// "1" means "loaded", otherwise not loaded yet
