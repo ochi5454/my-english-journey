@@ -1,56 +1,72 @@
-# Tournament Ops MVP (並置構成)
+# 時間外労働管理システム / Tournament Ops MVP
 
-`frontend/` (Next.js) と `backend/` (FastAPI+SQLite) の2つで構成しています。`docker-compose` で両方起動できます。
+Next.js（App Router）フロントと FastAPI バックエンドで構成された、勤務データのインポート・集計・エクスポートを行うアプリです。docker-compose で一括起動、またはそれぞれローカル起動できます。
 
-## 構成
-- `backend/`: FastAPI + SQLite。大会/タスク/ドキュメント生成/遅延アラート/サンプル投入。
-- `frontend/`: Next.js (App Router) + Tailwind。大会一覧→詳細→生成ボタン→結果表示。
-- `docker-compose.yml`: ポート `8000:8000`(backend), `5175:3000`(frontend)。
+## 構成とスタック
+- frontend: Next.js 14 (App Router) + TypeScript + Tailwind
+- backend: FastAPI + SQLite（`backend/data/app.db`）
+- docker-compose: frontend 5175→3000, backend 8000→8000
+- 認証なしのローカル開発前提（API ベース URL は `NEXT_PUBLIC_API_BASE`）
 
 ## セットアップ
-1. 環境変数を用意  
-   - `cp backend/.env.example backend/.env`  
-   - `cp frontend/.env.example frontend/.env`  
-   - `.env` に `OPENAI_API_KEY` を設定（backend側）。
-2. Dockerビルド・起動  
-   ```bash
-   docker-compose up --build
+1) 環境変数を用意  
    ```
-3. アクセス  
-   - Backend: http://localhost:8000/docs  
-   - Frontend: http://localhost:5175/
+   cp backend/.env.example backend/.env
+   cp frontend/.env.example frontend/.env
+   ```
+   backend 側 `.env` に `OPENAI_API_KEY` を設定（必要な場合のみ）。
 
-## 使い方（MVP）
-1) フロントトップで大会を登録。  
-2) 大会カードをクリック → 詳細画面へ。  
-3) ボタンで以下を生成:  
-   - ToDo自動生成（テンプレートからSQLite保存）  
-   - 進行表（ローカルテンプレ or OpenAI JSON）  
-   - 会場手配メール / 審判手配メール（OpenAI JSON）  
-4) 生成結果はDBに保存され、詳細画面の「生成結果」で確認。  
-5) タスク期限が過ぎて未完の場合、詳細読み込み時に遅延アラートを生成し表示。  
-6) サンプルデータ: `POST http://localhost:8000/seed` で大会1件+タスクを投入。  
-7) 進行表: OpenAIキーが無くてもローカルテンプレでタイムラインJSONを生成し保存（キーがあればAI版で上書き）。
+2) 依存インストール  
+   - backend: `pip install -r requirements.txt`（または `pip install -r backend/requirements.txt`）  
+   - frontend: `cd frontend && npm install`
 
-## 追加: 時間外エクスポート（カーソル型・非Excel）
-- 全件をカーソル方式で走査し、JSON / CSV / ZIP で「実所定外時間推計データ」「残業時間詳細」の2テーブルを取得できます。  
-- 例（JSON 取得・limit=5）  
-  ```bash
-  curl "http://localhost:8000/export/all?format=json&limit=5"
-  # 応答に next_cursor があれば繰り返し
-  curl "http://localhost:8000/export/all?format=json&limit=5&cursor=BASE64TOKEN"
-  ```
-- CSV 単体（推計データのみ）  
-  ```bash
-  curl -o estimated.csv "http://localhost:8000/export/all?format=csv&limit=500"
-  ```
-- ZIP（estimated.csv + overtime_detail.csv）  
-  ```bash
-  curl -o export.zip "http://localhost:8000/export/all?format=zip&limit=200"
-  ```
+## 起動方法
+### docker-compose で起動
+```
+docker-compose up --build
+```
+- Backend: http://localhost:8000/docs  
+- Frontend: http://localhost:5175/
+
+### ローカル個別起動
+Backend:
+```
+cd backend
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+Frontend:
+```
+cd frontend
+npm run dev
+```
+API ベース URL は `.env` の `NEXT_PUBLIC_API_BASE` で指定（デフォルト http://127.0.0.1:8000）。
+
+## 主要機能
+- Excel/CSV アップロード（複数シート：勤務予定入力、出退社時刻、日数項目、日次実績、勤務予定進捗一覧、所属情報）
+- 実所定外時間 推計データの集計・表示・Excelダウンロード
+- 残業時間詳細の表示・Excelダウンロード
+- バックエンド `/export/all` でカーソル型エクスポート（JSON/CSV/ZIP）
+- ローカルストレージを使ったインポートプレビューの保持
+
+## よく使うコマンド
+- フロント開発サーバ: `cd frontend && npm run dev`
+- Lint: `cd frontend && npm run lint`
+- バックエンド起動: `cd backend && uvicorn app:app --reload`
+- エクスポート API 例: `curl "http://localhost:8000/export/all?format=json&limit=5"`
+
+## データファイル
+サンプル入力は `docs/11_TIM_勤務予定入力.xlsx` などに配置。エクスポート結果はブラウザから Excel ダウンロードまたは API 経由で取得できます。
+
+## 参考ドキュメント（docs/）
+- `ai-architecture-reference.md` バックエンド設計ガイド
+- `ai-frontend-architecture-reference.md` フロント設計ガイド
+- `ai-encryption-implementation-reference.md` 暗号化データ実装
+- `ai-oauth2-implementation-reference.md` OAuth2 実装
+- `ai-azure-deployment-reference.md` Azure へのデプロイ
+- `ai-sharepoint-integration-reference.md` SharePoint 連携
+- `ai-design-fundamentals-reference.md` 設計基礎ガイド
 
 ## 開発メモ
-- Backend: `backend/app.py` を uvicorn で起動。データは `backend/data/app.db`（volumeに永続化）。  
-- Frontend: `frontend` で `npm install && npm run dev` でも起動可（APIは `NEXT_PUBLIC_API_BASE` で指定）。  
-- AIプロンプトは backend の `PROMPTS` に集約。OpenAI APIキーは環境変数のみで扱う。  
-- DB: SQLite / SQLAlchemy (Base), マイグレーションは未導入（必要なら Alembic）。  
+- DB は SQLite。マイグレーション未導入（必要なら Alembic を追加）。
+- API プロンプトは backend `PROMPTS` に集約。
+- OpenAI キーは環境変数でのみ扱い、ソースにハードコードしない。
