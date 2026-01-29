@@ -15,6 +15,8 @@ import type { ExportWorkerRequest, ExportWorkerResponse, GridPayload } from './w
 import { estimateEtaSeconds, loadSpeed, saveSpeed, updateSpeedEma } from './utils/eta'
 import { useJobUpload } from './hooks/useJobUpload'
 import { jobClient } from './api/jobClient'
+import { AuthGuard } from './components/AuthGuard'
+import { HeaderBar } from './components/HeaderBar'
 
 const SEARCH_TARGET_HEADERS = ['案件名', '現場名', '仕入先名']
 const DEFAULT_PAGE_SIZE = 25
@@ -226,7 +228,7 @@ export default function Home() {
   useEffect(() => {
     const loadDefs = async () => {
       try {
-        const res = await fetch(`${API_BASE}/excel/config`)
+        const res = await fetch(`${API_BASE}/excel/config`, { credentials: 'include' })
         if (!res.ok) throw new Error('config load failed')
         const json = await res.json()
         setDefs((prev) => ({ ...prev, ...sanitizeDefs(json) }))
@@ -250,7 +252,7 @@ export default function Home() {
       const filters = { ...(filtersByKey[key] || {}), ...overrides }
       let datasetId = datasetIds[key]
       if (!datasetId) {
-        const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`)
+        const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`, { credentials: 'include' })
         if (listRes.ok) {
           const listJson = await listRes.json()
           datasetId = listJson?.[0]?.id ?? null
@@ -281,6 +283,7 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/datasets/${datasetId}/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ filters, page, pageSize }),
       })
       if (!res.ok) {
@@ -388,7 +391,7 @@ export default function Home() {
 
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch(`${API_BASE}/excel/${activeKey}/upload`, { method: 'POST', body: fd })
+      const res = await fetch(`${API_BASE}/excel/${activeKey}/upload`, { method: 'POST', body: fd, credentials: 'include' })
       if (!res.ok) {
         let detail = ''
         try {
@@ -880,28 +883,78 @@ export default function Home() {
     return map
   }, [buildGridForKey])
 
-  const injectGrades = useCallback(
+  const org6Map = useMemo(() => {
+    const grid = buildGridForKey('org_info')
+    const headers = grid[0] || []
+    const rows = grid.slice(1)
+    if (!rows.length) return {}
+
+    const headerMap: Record<string, number> = {}
+    headers.forEach((h, idx) => {
+      headerMap[normalizeHeader(stripParens(h))] = idx
+    })
+
+    const findIdx = (names: string[]) => {
+      for (const n of names) {
+        const idx = headerMap[normalizeHeader(n)]
+        if (idx != null) return idx
+      }
+      return undefined
+    }
+
+    const empIdx = findIdx(['従業員番号', '社員番号'])
+    const org6Idx = findIdx(['所属情報6', '所属情報６', '所属名称6', '所属名称６'])
+    if (empIdx == null || org6Idx == null) return {}
+
+    const normalizeEmp = (v: string) => stripParens(v).trim().replace(/^0+/, '')
+    const map: Record<string, string> = {}
+    rows.forEach((r) => {
+      const empRaw = stripParens(r[empIdx] ?? '').trim()
+      const emp = empRaw
+      const val = stripParens(r[org6Idx] ?? '').trim()
+      if (emp && val) {
+        map[emp] = val
+        const norm = normalizeEmp(emp)
+        if (norm && !map[norm]) map[norm] = val
+      }
+    })
+    return map
+  }, [buildGridForKey])
+
+  const enrichRows = useCallback(
     (rows: string[][]) => {
       const normalizeEmp = (v: string) => stripParens(v).trim().replace(/^0+/, '')
       return rows.map((r) => {
         const empRaw = (r?.[0] ?? '').trim()
         const empNorm = normalizeEmp(empRaw)
         if (!empRaw && !empNorm) return r
-        const current = stripParens(r[6] ?? '').trim()
-        const grade = orgGradeMap[empRaw] ?? orgGradeMap[empNorm]
-        if (current || !grade) return r
+
         const next = [...r]
-        next[6] = grade
+
+        // grade (col 6)
+        const gradeCurrent = stripParens(next[6] ?? '').trim()
+        const grade = orgGradeMap[empRaw] ?? orgGradeMap[empNorm]
+        if (!gradeCurrent && grade) {
+          next[6] = grade
+        }
+
+        // org6 (col 12)
+        const org6Current = stripParens(next[12] ?? '').trim()
+        const org6 = org6Map[empRaw] ?? org6Map[empNorm]
+        if (!org6Current && org6) {
+          next[12] = org6
+        }
+
         return next
       })
     },
-    [orgGradeMap],
+    [orgGradeMap, org6Map],
   )
 
   useEffect(() => {
     const fetchOvertime = async () => {
       try {
-        const res = await fetch(`${API_BASE}/excel/punches/overtime`)
+        const res = await fetch(`${API_BASE}/excel/punches/overtime`, { credentials: 'include' })
         if (!res.ok) return
         const json = await res.json()
         const map: Record<string, { actual?: number; overtime?: number }> = {}
@@ -924,7 +977,7 @@ export default function Home() {
     if (workerExportRows.length) {
       // バックエンドから取得したデータは既にマージ・集計済みなので、そのまま返す
       console.log(`[Export] Using backend data: ${workerExportRows.length} rows (already merged)`)
-      return injectGrades(workerExportRows)
+      return enrichRows(workerExportRows)
     }
 
     // バックエンドから取得する方式なので、フォールバックは使用しない
@@ -944,7 +997,7 @@ export default function Home() {
 
     return result
     */
-  }, [workerExportRows, injectGrades])
+  }, [workerExportRows, enrichRows])
 
   const exportRowsDisplay = useMemo(
     () => exportRows.map((row) => row.map(stripParens)).filter(isMeaningfulRow),
@@ -963,7 +1016,7 @@ export default function Home() {
 
       // シート1: 実所定外時間 推計データ（凡例付き）
       const estimatedSheet = buildLegendSheet(exportRowsDisplay)
-      XLSX.utils.book_append_sheet(wb, estimatedSheet, '実所定外時間 推計データ')
+      XLSX.utils.book_append_sheet(wb, estimatedSheet, 'データをエクスポート')
 
       // シート2: 残業時間詳細
       if (overtimeRowsDisplay.length > 0) {
@@ -1143,6 +1196,7 @@ export default function Home() {
           const response = await fetch(url, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
           })
 
           if (!response.ok) {
@@ -1171,7 +1225,7 @@ export default function Home() {
         })
 
         // バックエンドで既にマージ・集計済みのデータをセット
-        const enrichedRows = injectGrades(allEstimatedRows)
+        const enrichedRows = enrichRows(allEstimatedRows)
         setWorkerExportRows(enrichedRows)
         setOvertimeRowsDisplay(allOvertimeRows)
 
@@ -1256,7 +1310,7 @@ export default function Home() {
   const resolveDatasetId = useCallback(
     async (key: string) => {
       if (datasetIds[key]) return datasetIds[key]
-      const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`)
+      const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`, { credentials: 'include' })
       if (!listRes.ok) return null
       const listJson = await listRes.json()
       const id = listJson?.[0]?.id ?? null
@@ -1273,6 +1327,7 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/datasets/${datasetId}/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ filters: {}, page: 1, pageSize }),
       })
       if (!res.ok) return null
@@ -1303,6 +1358,7 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/datasets/${datasetId}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ filters }),
       })
       if (!res.ok) throw new Error('export failed')
@@ -1599,11 +1655,13 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="dash-shell">
-      <header className="dash-header-bar">
-        <div className="header-title">時間外労働管理システム</div>
-      </header>
-      <div className="dash-layout">
+    <AuthGuard>
+      <div className="dash-shell">
+        <header className="dash-header-bar">
+          <div className="header-title">時間外労働管理システム</div>
+        </header>
+        <HeaderBar />
+        <div className="dash-layout">
         <Sidebar
           defs={defs}
           fileOrder={FILE_ORDER}
@@ -1843,7 +1901,8 @@ export default function Home() {
             )}
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   )
 }

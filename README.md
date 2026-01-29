@@ -66,7 +66,19 @@ ENTRA_SCOPE="openid profile email offline_access User.Read"
 SESSION_SECRET_KEY=<random_session_secret>
 SESSION_COOKIE_NAME=session
 SESSION_MAX_AGE=86400
+ENCRYPTION_KEY=<base64-encoded-32-byte-key>  # AES-256-GCM for session/JWT encryption
 ```
+
+### ビルトイン管理者（ローカル/デモ用）
+- 初回起動時に `ADMIN_EMAIL` で指定したユーザーが自動作成され、`/auth/login/basic` にメール+パスワードでログインできます。
+- `.env` 例（backend）
+  ```
+  ADMIN_EMAIL=admin@example.com
+  ADMIN_PASSWORD=admin123!
+  ADMIN_NAME=Admin User
+  ADMIN_BOOTSTRAP_ENABLED=true
+  ```
+  既存ユーザーがある場合は再作成しません。認証後は Entra 同様 `SESSION_COOKIE_NAME` でセッションが発行されます。
 
 ## データファイル
 サンプル入力は `docs/11_TIM_勤務予定入力.xlsx` などに配置。エクスポート結果はブラウザから Excel ダウンロードまたは API 経由で取得できます。

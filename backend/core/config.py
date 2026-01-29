@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     session_secret_key: str = Field(default="dev-session-secret-change", env="SESSION_SECRET_KEY")
     session_cookie_name: str = Field(default="session", env="SESSION_COOKIE_NAME")
     session_max_age: int = Field(default=86400, env="SESSION_MAX_AGE")
+    encryption_key: str = Field(default="", env="ENCRYPTION_KEY")  # base64-encoded 32-byte key
+    # Built-in admin (for local/dev use)
+    admin_email: str = Field(default="admin", env="ADMIN_EMAIL")
+    admin_password: str = Field(default="admin123!", env="ADMIN_PASSWORD")
+    admin_name: str = Field(default="Admin", env="ADMIN_NAME")
+    admin_bootstrap_enabled: bool = Field(default=True, env="ADMIN_BOOTSTRAP_ENABLED")
 
     class Config:
         # Look for .env inside backend/ first, then repo root.

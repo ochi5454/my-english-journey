@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation'
 import useSWR from 'swr'
 import { api } from '../../api/client'
 import { Pagination } from '../../components/Pagination'
+import { AuthGuard } from '../../components/AuthGuard'
+import { HeaderBar } from '../../components/HeaderBar'
 
 type Task = {
   id: number
@@ -108,30 +110,32 @@ export default function TournamentDetail() {
   }, [data.documents, docPage])
 
   return (
-    <div className="jfa-app">
-      <nav className="jfa-nav">
-        <div className="jfa-nav-top">
-          <div className="jfa-brand">
-            <span>AEON delight</span>
+    <AuthGuard>
+      <div className="jfa-app">
+        <HeaderBar />
+        <nav className="jfa-nav">
+          <div className="jfa-nav-top">
+            <div className="jfa-brand">
+              <span>AEON delight</span>
+            </div>
           </div>
-        </div>
-        <div className="jfa-nav-bottom">
-          <div className="jfa-nav-links">
-            <button className="jfa-nav-button" type="button">
-              トーナメントダッシュボード
-            </button>
+          <div className="jfa-nav-bottom">
+            <div className="jfa-nav-links">
+              <button className="jfa-nav-button" type="button">
+                トーナメントダッシュボード
+              </button>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <main className="jfa-shell">
-        <div className="flex flex-col gap-2">
-          <div className="text-xs text-slate-500">大会詳細</div>
-          <div className="text-3xl font-extrabold text-[var(--jfa-navy)]">{data.name}</div>
-          <div className="text-sm text-slate-600">
-            {data.category} / {data.scale} / {data.start_date} - {data.end_date}
+        <main className="jfa-shell">
+          <div className="flex flex-col gap-2">
+            <div className="text-xs text-slate-500">大会詳細</div>
+            <div className="text-3xl font-extrabold text-[var(--jfa-navy)]">{data.name}</div>
+            <div className="text-sm text-slate-600">
+              {data.category} / {data.scale} / {data.start_date} - {data.end_date}
+            </div>
           </div>
-        </div>
 
         <div className="jfa-section">
           <div className="jfa-section-title">
@@ -237,7 +241,8 @@ export default function TournamentDetail() {
             />
           </div>
         </section>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGuard>
   )
 }

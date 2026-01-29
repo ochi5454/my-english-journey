@@ -56,11 +56,11 @@ export function Sidebar({
           )
         })}
         <div className="sidebar-label" style={{ marginTop: '8px' }}>
-          実所定外時間 推計データ
+          実所定外時間
         </div>
         <button className={`sidebar-download-btn ${showDownloadPanel ? 'active' : ''}`} onClick={onShowDownload}>
           <Download className="sidebar-icon" size={18} />
-          <span>実所定外時間 推計データ</span>
+          <span>実所定外時間</span>
         </button>
         <button className={`sidebar-download-btn ${showOvertimePanel ? 'active' : ''}`} onClick={onShowOvertime}>
           <Clock className="sidebar-icon" size={18} />

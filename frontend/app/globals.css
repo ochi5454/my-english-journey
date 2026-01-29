@@ -159,6 +159,31 @@ body {
   color: #a84c00;
 }
 
+.btn-outline-green {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 800;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  border: 1.5px solid #8bd6a4;
+  color: #0f7c46;
+  background: #f2fbf5;
+  box-shadow: 0 6px 12px rgba(15, 124, 70, 0.12);
+}
+
+.btn-outline-green:hover {
+  background: #e4f6ea;
+  border-color: #6ecf91;
+  color: #0d6b3d;
+}
+
+.btn-outline-green:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .jfa-button-dark {
   background: linear-gradient(135deg, #0f172a, #111827);
   color: #e3f2fd;
@@ -319,11 +344,19 @@ body {
 
 .dash-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   padding: 12px 20px;
   background: #ffffff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.header-inner {
+  width: 100%;
+  max-width: 1320px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .header-right {

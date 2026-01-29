@@ -10,8 +10,13 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from backend.core.database import get_db
 from backend.core.config import Settings
+from backend.models.user import User
+from backend.utils.security import verify_password
+from backend.utils.crypto import encrypt_json, decrypt_json
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -72,10 +77,49 @@ def build_authorize_url(
     return f"{authority}/oauth2/v2.0/authorize?{query}"
 
 
+def _session_payload_from_user(user: dict, settings: Settings) -> dict:
+    return {
+        "sub": str(user.get("id")),
+        "name": user.get("name") or "",
+        "email": user.get("email") or "",
+        "is_admin": bool(user.get("is_admin", False)),
+        "exp": int(time.time()) + settings.session_max_age,
+    }
+
+
+def _issue_session_response(user_payload: dict, settings: Settings) -> JSONResponse:
+    session_payload = _session_payload_from_user(user_payload, settings)
+    # Encrypt session payload for confidentiality in transit/storage
+    session_token = encrypt_json(session_payload)
+    resp = JSONResponse({"ok": True, "user": session_payload})
+    resp.set_cookie(
+        key=settings.session_cookie_name,
+        value=session_token,
+        max_age=settings.session_max_age,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        path="/",
+    )
+    return resp
+
+
 class CallbackRequest(BaseModel):
     code: str
     state: str
     redirect_uri: Optional[str] = None
+
+
+class BasicLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class WhoAmIResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    is_admin: bool
 
 
 @router.get("/entra/login")
@@ -157,22 +201,46 @@ async def entra_callback(payload: CallbackRequest, settings: Settings = Depends(
         "email": profile.get("mail") or profile.get("userPrincipalName") or "",
     }
 
-    session_payload = {
-        "sub": user["id"],
-        "name": user["name"],
-        "email": user["email"],
-        "exp": int(time.time()) + settings.session_max_age,
-    }
-    session_token = sign_payload(session_payload, settings.session_secret_key)
+    return _issue_session_response(user, settings)
 
-    resp = JSONResponse({"ok": True, "user": user})
-    resp.set_cookie(
-        key=settings.session_cookie_name,
-        value=session_token,
-        max_age=settings.session_max_age,
-        httponly=True,
-        samesite="lax",
-        secure=False,
-        path="/",
-    )
+
+@router.post("/login/basic")
+def basic_login(
+    payload: BasicLoginRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    user: Optional[User] = db.query(User).filter(User.email == payload.email).one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_password(payload.password, user.password_hash, user.password_salt):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    user_payload = {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "is_admin": user.is_admin,
+    }
+    return _issue_session_response(user_payload, settings)
+
+
+@router.post("/logout")
+def logout(settings: Settings = Depends(get_settings)):
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(key=settings.session_cookie_name, path="/")
     return resp
+
+@router.get("/me")
+def who_am_i(request: Request, settings: Settings = Depends(get_settings)):
+    token = request.cookies.get(settings.session_cookie_name)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        session_data = decrypt_json(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    exp = session_data.get("exp")
+    if not exp or exp < int(time.time()):
+        raise HTTPException(status_code=401, detail="Session expired")
+    return {"ok": True, "user": session_data}

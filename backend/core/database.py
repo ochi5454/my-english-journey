@@ -40,6 +40,14 @@ def init_db():
     # Import models to register metadata
     from backend import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    # Bootstrap built-in admin account (idempotent)
+    try:
+        from backend.core.bootstrap import ensure_default_admin
+        ensure_default_admin()
+    except Exception:
+        # Avoid crashing startup if bootstrap fails; log/print for visibility
+        import traceback
+        traceback.print_exc()
     # Improve SQLite concurrency
     with engine.connect() as conn:
         try:

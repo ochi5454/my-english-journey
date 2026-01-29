@@ -35,23 +35,12 @@ export function DownloadPanel({
             {onDownload && (
               <button
                 type="button"
-                className="btn-primary"
+                className="btn-outline-green"
                 style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                 onClick={onDownload}
               >
                 <Download size={18} />
                 <span>Excelダウンロード</span>
-              </button>
-            )}
-            {onClear && (
-              <button
-                type="button"
-                className="btn-outline-red"
-                style={{ cursor: 'pointer' }}
-                onClick={onClear}
-              >
-                <Trash2 size={18} />
-                <span>削除</span>
               </button>
             )}
           </div>

@@ -41,3 +41,4 @@ transformers
 typing-extensions
 uvicorn[standard]
 wheel
+cryptography

@@ -24,6 +24,7 @@ export class JobClient {
     const response = await fetch(`${this.baseUrl}/excel/${fileKey}/upload-async`, {
       method: 'POST',
       body: formData,
+      credentials: 'include',
     })
 
     if (!response.ok) {
@@ -38,7 +39,7 @@ export class JobClient {
    * ジョブ状態取得
    */
   async getJobStatus(jobId: string): Promise<JobResponse> {
-    const response = await fetch(`${this.baseUrl}/jobs/${jobId}`)
+    const response = await fetch(`${this.baseUrl}/jobs/${jobId}`, { credentials: 'include' })
 
     if (!response.ok) {
       throw new Error(`Status check failed: ${response.statusText}`)
