@@ -53,6 +53,20 @@ API ベース URL は `.env` の `NEXT_PUBLIC_API_BASE` で指定（デフォル
 - Lint: `cd frontend && npm run lint`
 - バックエンド起動: `cd backend && uvicorn app:app --reload`
 - エクスポート API 例: `curl "http://localhost:8000/export/all?format=json&limit=5"`
+- OAuth ログイン画面: `http://localhost:3000/login`（Entra ID 認証画面へリダイレクト）
+
+## OAuth (Microsoft Entra ID) 用の環境変数（例）
+`.env`（backend 配下）に設定してください。
+```
+ENTRA_TENANT_ID=<your_tenant_id>
+ENTRA_CLIENT_ID=<app_client_id>
+ENTRA_CLIENT_SECRET=<app_client_secret>
+ENTRA_REDIRECT_URI=http://localhost:3000/auth/callback
+ENTRA_SCOPE="openid profile email offline_access User.Read"
+SESSION_SECRET_KEY=<random_session_secret>
+SESSION_COOKIE_NAME=session
+SESSION_MAX_AGE=86400
+```
 
 ## データファイル
 サンプル入力は `docs/11_TIM_勤務予定入力.xlsx` などに配置。エクスポート結果はブラウザから Excel ダウンロードまたは API 経由で取得できます。

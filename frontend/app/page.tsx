@@ -157,6 +157,10 @@ export default function Home() {
       if (savedOvertime) {
         setOvertimeRowsDisplay(JSON.parse(savedOvertime))
       }
+      const ts = localStorage.getItem('exportData_timestamp')
+      if (ts) {
+        exportFetchedOnceRef.current = true
+      }
     } catch (e) {
       console.warn('[Export] Failed to load cached export data:', e)
     }
@@ -1109,8 +1113,15 @@ export default function Home() {
   }, [])
 
   // エクスポートページを開いたときにバックエンドから全データを取得
+  const exportFetchedOnceRef = useRef(false)
+
   useEffect(() => {
     if (!showDownloadPanel) return
+    // 既にロード済みなら再フェッチせずに表示を保持
+    if (exportFetchedOnceRef.current && workerExportRows.length && overtimeRowsDisplay.length) {
+      console.log('[Export] Using cached export data (skip fetch)')
+      return
+    }
 
     const fetchExportData = async () => {
       setLoadingExport(true)
@@ -1174,6 +1185,7 @@ export default function Home() {
           console.warn('[Export] Failed to save to localStorage:', e)
         }
 
+        exportFetchedOnceRef.current = true
         console.log('[Export] Data loaded successfully')
       } catch (error) {
         console.error('[Export] Failed to fetch export data:', error)

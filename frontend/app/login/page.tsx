@@ -1,0 +1,90 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { LogIn } from 'lucide-react'
+import { API_BASE } from '../constants/excel'
+
+const CALLBACK_PATH = '/auth/callback'
+
+const buildLoginUrl = (origin: string) =>
+  `${API_BASE}/auth/entra/login?redirect_uri=${encodeURIComponent(`${origin}${CALLBACK_PATH}`)}`
+
+export default function LoginPage() {
+  const [loginUrl, setLoginUrl] = useState('')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setLoginUrl(buildLoginUrl(window.location.origin))
+  }, [])
+
+  const handleLogin = () => {
+    if (!loginUrl) return
+    window.location.href = loginUrl
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)',
+        color: '#e2e8f0',
+        padding: '24px',
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '420px',
+          background: '#0b1220',
+          borderRadius: '16px',
+          padding: '28px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
+          border: '1px solid rgba(226,232,240,0.08)',
+        }}
+      >
+        <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '12px' }}>サインイン</h1>
+        <p style={{ color: '#cbd5e1', marginBottom: '20px', lineHeight: 1.6 }}>
+          Microsoft Entra ID でログインします。ボタンをクリックすると認証画面へ移動します。
+        </p>
+        <button
+          type="button"
+          onClick={handleLogin}
+          disabled={!loginUrl}
+          style={{
+            width: '100%',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            background: '#2563eb',
+            color: '#f8fafc',
+            border: 'none',
+            borderRadius: '10px',
+            padding: '12px 14px',
+            fontSize: '15px',
+            fontWeight: 700,
+            cursor: loginUrl ? 'pointer' : 'not-allowed',
+            boxShadow: '0 10px 30px rgba(37,99,235,0.35)',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+          onMouseDown={(e) => {
+            if (!loginUrl) return
+            ;(e.currentTarget as HTMLButtonElement).style.transform = 'translateY(1px)'
+          }}
+          onMouseUp={(e) => {
+            ;(e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'
+          }}
+        >
+          <LogIn size={18} />
+          <span>Microsoftでログイン</span>
+        </button>
+        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px' }}>
+          ※ ログイン後は自動的に元の画面へ戻ります。
+        </div>
+      </div>
+    </div>
+  )
+}
