@@ -59,16 +59,23 @@ const COLUMN_MAP_ALIASES: Record<string, string[]> = {
   overtime_detail: ['残業時間', '実所定外時間', '(時間)残業時間'],
   call_time: ['呼出出勤時間', '呼出出勤', '(時間)呼出出勤'],
   org_code: ['所属コード', '(人事所属本務(基準日))所属コード'],
-  org1: ['所属名称1', '所属名称１', '所属1', '(人事所属本務(基準日))所属名称１'],
-  org2: ['所属名称2', '所属名称２', '所属2', '(人事所属本務(基準日))所属名称２'],
-  org3: ['所属名称3', '所属名称３', '所属3', '(人事所属本務(基準日))所属名称３'],
-  org4: ['所属名称4', '所属名称４', '所属4', '(人事所属本務(基準日))所属名称４'],
-  org5: ['所属名称5', '所属名称５', '所属5', '(人事所属本務(基準日))所属名称５'],
-  org6: ['所属名称6', '所属名称６', '所属6', '(人事所属本務(基準日))所属名称６'],
-  org7: ['所属名称7', '所属名称７', '所属7', '(人事所属本務(基準日))所属名称７'],
-  org8: ['所属名称8', '所属名称８', '所属8', '(人事所属本務(基準日))所属名称８'],
+  org1: ['所属名称1', '所属名称１', '所属1', '所属情報1', '所属情報１', '(人事所属本務(基準日))所属名称１'],
+  org2: ['所属名称2', '所属名称２', '所属2', '所属情報2', '所属情報２', '(人事所属本務(基準日))所属名称２'],
+  org3: ['所属名称3', '所属名称３', '所属3', '所属情報3', '所属情報３', '(人事所属本務(基準日))所属名称３'],
+  org4: ['所属名称4', '所属名称４', '所属4', '所属情報4', '所属情報４', '(人事所属本務(基準日))所属名称４'],
+  org5: ['所属名称5', '所属名称５', '所属5', '所属情報5', '所属情報５', '(人事所属本務(基準日))所属名称５'],
+  org6: ['所属名称6', '所属名称６', '所属6', '所属情報6', '所属情報６', '(人事所属本務(基準日))所属名称６'],
+  org7: ['所属名称7', '所属名称７', '所属7', '所属情報7', '所属情報７', '(人事所属本務(基準日))所属名称７'],
+  org8: ['所属名称8', '所属名称８', '所属8', '所属情報8', '所属情報８', '(人事所属本務(基準日))所属名称８'],
   grade_code: ['従業員区分(ｺｰﾄﾞ)', '(従業員区分(基準日))従業員区分(ｺｰﾄﾞ)'],
-  grade: ['従業員区分', 'グレード', 'キャリアグレード', '(従業員区分(基準日))従業員区分'],
+  grade: [
+    '従業員区分',
+    'グレード',
+    'キャリアグレード',
+    'キャリア グレード',
+    '所属情報のキャリアグレード',
+    '(従業員区分(基準日))従業員区分',
+  ],
   role_code: ['職制(ｺｰﾄﾞ)', '(職制(基準日))職制(ｺｰﾄﾞ)'],
   role: ['職制', '役職', '(職制(基準日))職制'],
   profit_code: ['損益管理コード(ｺｰﾄﾞ)', '(人事所属本務(基準日))損益管理コード(ｺｰﾄﾞ)'],
@@ -517,22 +524,6 @@ export default function Home() {
       setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
       setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
     }
-  }
-
-  const handleClearPageData = () => {
-    const ok = window.confirm('表示中のデータを削除しますか？')
-    if (!ok) return
-    setSheetData((prev) => ({ ...prev, [activeKey]: null }))
-    clearImportData(activeKey)
-    setUploadedName(null)
-    setUploadMessage(null)
-    setUploadError(null)
-    setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
-    setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
-    setUploadEstimateSec((prev) => ({ ...prev, [activeKey]: null }))
-    setPageByKey((prev) => ({ ...prev, [activeKey]: 1 }))
-    setPageSizeByKey((prev) => ({ ...prev, [activeKey]: DEFAULT_PAGE_SIZE }))
-    setTotalByKey((prev) => ({ ...prev, [activeKey]: 0 }))
   }
 
   const handleGenerateDownload = async () => {
@@ -1011,33 +1002,55 @@ export default function Home() {
         return
       }
 
-      // ワークブック作成
-      const wb = XLSX.utils.book_new()
+      // 所属名称6（列インデックス12）でグルーピングしてファイルを分割
+      const ORG6_COL = 12
+      const groups: Record<string, string[][]> = {}
+      exportRowsDisplay.forEach((row) => {
+        const org6 = (row[ORG6_COL] || '').trim() || '未設定'
+        if (!groups[org6]) groups[org6] = []
+        groups[org6].push(row)
+      })
 
-      // シート1: 実所定外時間 推計データ（凡例付き）
-      const estimatedSheet = buildLegendSheet(exportRowsDisplay)
-      XLSX.utils.book_append_sheet(wb, estimatedSheet, 'データをエクスポート')
-
-      // シート2: 残業時間詳細
+      // 従業員番号で残業詳細をフィルタするためのマップを準備
+      const overtimeByEmp = new Map<string, string[][]>()
       if (overtimeRowsDisplay.length > 0) {
-        const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
-        const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeRowsDisplay])
-
-        // 列幅設定
-        overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
-
-        XLSX.utils.book_append_sheet(wb, overtimeSheet, '残業時間詳細')
+        overtimeRowsDisplay.forEach((r) => {
+          const emp = (r?.[0] ?? '').toString().trim()
+          if (!emp) return
+          if (!overtimeByEmp.has(emp)) overtimeByEmp.set(emp, [])
+          overtimeByEmp.get(emp)!.push(r)
+        })
       }
 
-      // ファイル名生成（日時付き）
       const now = new Date()
       const dateStr = now.toISOString().split('T')[0].replace(/-/g, '')
       const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '')
-      const filename = `時間外労働_エクスポート_${dateStr}_${timeStr}.xlsx`
 
-      // ダウンロード
-      XLSX.writeFile(wb, filename)
-      setToast('Excelファイルをダウンロードしました')
+      Object.entries(groups).forEach(([org6, rows]) => {
+        const wb = XLSX.utils.book_new()
+
+        // シート1: グループの推計データ（凡例付き）
+        const estimatedSheet = buildLegendSheet(rows)
+        XLSX.utils.book_append_sheet(wb, estimatedSheet, 'データをエクスポート')
+
+        // シート2: グループに属する従業員の残業時間詳細のみ
+        if (overtimeRowsDisplay.length > 0) {
+          const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
+          const empSet = new Set(rows.map((r) => (r?.[0] ?? '').toString().trim()))
+          const overtimeFiltered = overtimeRowsDisplay.filter((r) => empSet.has((r?.[0] ?? '').toString().trim()))
+          if (overtimeFiltered.length > 0) {
+            const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeFiltered])
+            overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
+            XLSX.utils.book_append_sheet(wb, overtimeSheet, '残業時間詳細')
+          }
+        }
+
+        const safeOrg6 = org6.replace(/[\\\\/:*?\"<>|]/g, '_') || '未設定'
+        const filename = `時間外労働_エクスポート_${safeOrg6}_${dateStr}_${timeStr}.xlsx`
+        XLSX.writeFile(wb, filename)
+      })
+
+      setToast('所属名称6ごとにExcelをダウンロードしました')
     } catch (error) {
       console.error('Excel download failed:', error)
       setToast('Excelのダウンロードに失敗しました')
@@ -1200,7 +1213,12 @@ export default function Home() {
           })
 
           if (!response.ok) {
-            throw new Error(`Backend returned ${response.status}: ${response.statusText}`)
+            // バックエンド未実装 / エラーの場合は空データで終了し、再試行ループを防ぐ
+            console.warn(`[Export] Backend returned ${response.status}. Skip fetch and use empty data.`)
+            exportFetchedOnceRef.current = true
+            setWorkerExportRows([])
+            setOvertimeRowsDisplay([])
+            return
           }
 
           const data = await response.json()
@@ -1319,6 +1337,43 @@ export default function Home() {
     },
     [datasetIds],
   )
+
+  const handleClearPageData = useCallback(async () => {
+    const ok = window.confirm('表示中のデータを削除しますか？')
+    if (!ok) return
+
+    // バックエンド上の最新データセットも削除
+    try {
+      const listRes = await fetch(`${API_BASE}/datasets?kind=${activeKey}`, { credentials: 'include' })
+      if (listRes.ok) {
+        const listJson = await listRes.json()
+        const ids: string[] = Array.isArray(listJson) ? listJson.map((d: any) => d.id).filter(Boolean) : []
+        for (const id of ids) {
+          await fetch(`${API_BASE}/datasets/${id}`, { method: 'DELETE', credentials: 'include' }).catch(() => null)
+        }
+      }
+      // 削除したデータセットIDをキャッシュから消す
+      setDatasetIds((prev) => {
+        const next = { ...prev }
+        delete next[activeKey]
+        return next
+      })
+    } catch (err) {
+      console.warn('[Delete] Failed to delete dataset on backend:', err)
+    }
+
+    setSheetData((prev) => ({ ...prev, [activeKey]: null }))
+    clearImportData(activeKey)
+    setUploadedName(null)
+    setUploadMessage(null)
+    setUploadError(null)
+    setUploadStart((prev) => ({ ...prev, [activeKey]: null }))
+    setUploadElapsedSec((prev) => ({ ...prev, [activeKey]: 0 }))
+    setUploadEstimateSec((prev) => ({ ...prev, [activeKey]: null }))
+    setPageByKey((prev) => ({ ...prev, [activeKey]: 1 }))
+    setPageSizeByKey((prev) => ({ ...prev, [activeKey]: DEFAULT_PAGE_SIZE }))
+    setTotalByKey((prev) => ({ ...prev, [activeKey]: 0 }))
+  }, [activeKey, resolveDatasetId])
 
   const fetchDatasetAll = useCallback(
     async (key: string, pageSize = 50000) => {

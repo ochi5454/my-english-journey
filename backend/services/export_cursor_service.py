@@ -21,7 +21,15 @@ COLUMN_MAP_ALIASES: Dict[str, List[str]] = {
     "overtime_detail": ["残業時間", "実所定外時間", "(時間)残業時間"],
     "call_time": ["呼出出勤時間", "呼出出勤", "(時間)呼出出勤"],
     "grade_code": ["従業員区分(ｺｰﾄﾞ)", "(従業員区分(基準日))従業員区分(ｺｰﾄﾞ)"],
-    "grade": ["従業員区分", "グレード", "(従業員区分(基準日))従業員区分"],
+    # グレード/キャリアグレード系のゆらぎを拾う
+    "grade": [
+        "従業員区分",
+        "グレード",
+        "キャリアグレード",
+        "キャリア グレード",
+        "所属情報のキャリアグレード",
+        "(従業員区分(基準日))従業員区分",
+    ],
     "role_code": ["職制(ｺｰﾄﾞ)", "(職制(基準日))職制(ｺｰﾄﾞ)"],
     "role": ["職制", "役職", "(職制(基準日))職制"],
     "org1": ["所属名称1", "所属名称１", "所属1", "(人事所属本務(基準日))所属名称１"],
@@ -29,7 +37,7 @@ COLUMN_MAP_ALIASES: Dict[str, List[str]] = {
     "org3": ["所属名称3", "所属名称３", "所属3", "(人事所属本務(基準日))所属名称３"],
     "org4": ["所属名称4", "所属名称４", "所属4", "(人事所属本務(基準日))所属名称４"],
     "org5": ["所属名称5", "所属名称５", "所属5", "(人事所属本務(基準日))所属名称５"],
-    "org6": ["所属名称6", "所属名称６", "所属6", "(人事所属本務(基準日))所属名称６"],
+    "org6": ["所属名称6", "所属名称６", "所属6", "所属情報6", "所属情報６", "(人事所属本務(基準日))所属名称６"],
     "org7": ["所属名称7", "所属名称７", "所属7", "(人事所属本務(基準日))所属名称７"],
     "org8": ["所属名称8", "所属名称８", "所属8", "(人事所属本務(基準日))所属名称８"],
 }
@@ -119,7 +127,6 @@ def _hhmm(minutes: int) -> str:
 
 def _map_rows_to_estimated(headers: List[str], rows: List[List]) -> List[List[str]]:
     colmap = _build_colmap(headers)
-    org_blanks = [""] * 7  # org2-8 を空で埋める
     mapped: List[List[str]] = []
     for r in rows:
         mapped.append(
@@ -132,7 +139,13 @@ def _map_rows_to_estimated(headers: List[str], rows: List[List]) -> List[List[st
                 _pick(r, colmap, "call_time"),
                 _pick(r, colmap, "grade"),
                 _pick(r, colmap, "role"),
-                *org_blanks,
+                _pick(r, colmap, "org2"),
+                _pick(r, colmap, "org3"),
+                _pick(r, colmap, "org4"),
+                _pick(r, colmap, "org5"),
+                _pick(r, colmap, "org6"),
+                _pick(r, colmap, "org7"),
+                _pick(r, colmap, "org8"),
             ]
         )
     return mapped

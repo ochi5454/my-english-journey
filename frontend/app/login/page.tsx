@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LogIn } from 'lucide-react'
 import { API_BASE } from '../constants/excel'
+import { useRouter } from 'next/navigation'
 
 const CALLBACK_PATH = '/auth/callback'
 
@@ -10,6 +11,7 @@ const buildLoginUrl = (origin: string) =>
   `${API_BASE}/auth/entra/login?redirect_uri=${encodeURIComponent(`${origin}${CALLBACK_PATH}`)}`
 
 export default function LoginPage() {
+  const router = useRouter()
   const [loginUrl, setLoginUrl] = useState('')
   const [email, setEmail] = useState('admin@example.com')
   const [password, setPassword] = useState('admin123!')
@@ -45,9 +47,13 @@ export default function LoginPage() {
         throw new Error(text || `HTTP ${res.status}`)
       }
       setAdminStatus('ログイン成功！トップへ移動します…')
-      setTimeout(() => {
-        window.location.href = '/'
-      }, 500)
+      // セッションが有効か念のため確認してから遷移
+      try {
+        await fetch(`${API_BASE}/auth/me`, { credentials: 'include' })
+      } catch {
+        /* ignore */
+      }
+      router.replace('/')
     } catch (e: any) {
       setAdminStatus(`ログイン失敗: ${e?.message || e}`)
     } finally {

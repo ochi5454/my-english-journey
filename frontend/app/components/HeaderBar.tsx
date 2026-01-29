@@ -13,22 +13,11 @@ export function HeaderBar() {
     <header className="dash-header">
       <div className="header-inner">
         <div className="header-right">
-          <span className="user-name">{user.name || user.email}</span>
-          {user.is_admin && <span className="badge-admin">ADMIN</span>}
-          <div className="avatar">{initials}</div>
-          <button
-            type="button"
-            onClick={logout}
-            style={{
-              background: '#ef4444',
-              color: '#fff',
-              padding: '6px 10px',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 700,
-            }}
-          >
+          <div className="user-chip minimal">
+            <span className="user-name">Admin</span>
+            <div className="avatar small">{initials}</div>
+          </div>
+          <button type="button" className="logout-btn-soft" onClick={logout}>
             ログアウト
           </button>
         </div>
