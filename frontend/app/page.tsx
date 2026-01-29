@@ -66,7 +66,7 @@ const COLUMN_MAP_ALIASES: Record<string, string[]> = {
   org7: ['所属名称7', '所属名称７', '所属7', '(人事所属本務(基準日))所属名称７'],
   org8: ['所属名称8', '所属名称８', '所属8', '(人事所属本務(基準日))所属名称８'],
   grade_code: ['従業員区分(ｺｰﾄﾞ)', '(従業員区分(基準日))従業員区分(ｺｰﾄﾞ)'],
-  grade: ['従業員区分', 'グレード', '(従業員区分(基準日))従業員区分'],
+  grade: ['従業員区分', 'グレード', 'キャリアグレード', '(従業員区分(基準日))従業員区分'],
   role_code: ['職制(ｺｰﾄﾞ)', '(職制(基準日))職制(ｺｰﾄﾞ)'],
   role: ['職制', '役職', '(職制(基準日))職制'],
   profit_code: ['損益管理コード(ｺｰﾄﾞ)', '(人事所属本務(基準日))損益管理コード(ｺｰﾄﾞ)'],
@@ -128,15 +128,7 @@ export default function Home() {
   const [exportSearchInput, setExportSearchInput] = useState('')
   const [exportFilteredRows, setExportFilteredRows] = useState<string[][] | null>(null)
   const [exportLastSearch, setExportLastSearch] = useState('')
-  const [workerExportRows, setWorkerExportRows] = useState<string[][]>(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      const saved = localStorage.getItem('exportData_estimated')
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
+  const [workerExportRows, setWorkerExportRows] = useState<string[][]>([])
   const [overtimeSearchInput, setOvertimeSearchInput] = useState('')
   const [overtimeFilteredRows, setOvertimeFilteredRows] = useState<string[][] | null>(null)
   const [overtimeLastSearch, setOvertimeLastSearch] = useState('')
@@ -149,18 +141,26 @@ export default function Home() {
   const [exportProcessedRows, setExportProcessedRows] = useState(0)
   const [exportStartAt, setExportStartAt] = useState<number | null>(null)
   const [exportSpeed, setExportSpeed] = useState<number>(() => loadSpeed())
-  const [overtimeRowsDisplay, setOvertimeRowsDisplay] = useState<string[][]>(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      const saved = localStorage.getItem('exportData_overtime')
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
+  const [overtimeRowsDisplay, setOvertimeRowsDisplay] = useState<string[][]>([])
   const [showOvertimePanel, setShowOvertimePanel] = useState(false)
   const [overtimeOverrideMap, setOvertimeOverrideMap] = useState<Record<string, { actual?: number; overtime?: number }>>({})
   const { data: savedPreviews } = useImportDataStore()
+
+  useEffect(() => {
+    // Hydrate client-only cached export data after mount to avoid SSR/client mismatches
+    try {
+      const savedEstimated = localStorage.getItem('exportData_estimated')
+      if (savedEstimated) {
+        setWorkerExportRows(JSON.parse(savedEstimated))
+      }
+      const savedOvertime = localStorage.getItem('exportData_overtime')
+      if (savedOvertime) {
+        setOvertimeRowsDisplay(JSON.parse(savedOvertime))
+      }
+    } catch (e) {
+      console.warn('[Export] Failed to load cached export data:', e)
+    }
+  }, [])
   const buildLegendSheet = useCallback((rows: string[][]) => {
     const legendAoA = LEGEND_ROWS.map((item) => [item.label, item.desc ? `： ${item.desc}` : ''])
     const spacer = ['']
@@ -826,6 +826,74 @@ export default function Home() {
 
   const [overtimeMap, setOvertimeMap] = useState<Record<string, { actual?: number; overtime?: number }>>({})
 
+  // 従業員番号 -> グレード（キャリアグレード含む）のマップを作成
+  const orgGradeMap = useMemo(() => {
+    const grid = buildGridForKey('org_info')
+    const headers = grid[0] || []
+    const rows = grid.slice(1)
+    if (!rows.length) return {}
+
+    const headerMap: Record<string, number> = {}
+    headers.forEach((h, idx) => {
+      headerMap[normalizeHeader(stripParens(h))] = idx
+    })
+
+    const findIdx = (names: string[]) => {
+      for (const n of names) {
+        const idx = headerMap[normalizeHeader(n)]
+        if (idx != null) return idx
+      }
+      return undefined
+    }
+
+    const empIdx = findIdx(['従業員番号', '社員番号'])
+    const gradeIdx = findIdx([
+      'キャリアグレード',
+      '所属情報のキャリアグレード',
+      'キャリア グレード',
+      '従業員区分',
+      '従業員区分(ｺｰﾄﾞ)',
+      '従業員区分コード',
+      'グレード',
+      '等級',
+    ])
+    if (empIdx == null || gradeIdx == null) return {}
+
+    const normalizeEmp = (v: string) => stripParens(v).trim().replace(/^0+/, '')
+    const map: Record<string, string> = {}
+    rows.forEach((r) => {
+      const empRaw = stripParens(r[empIdx] ?? '').trim()
+      const emp = empRaw
+      const grade = stripParens(r[gradeIdx] ?? '').trim()
+      if (emp && grade) {
+        map[emp] = grade
+        const norm = normalizeEmp(emp)
+        if (norm && !map[norm]) {
+          map[norm] = grade
+        }
+      }
+    })
+    return map
+  }, [buildGridForKey])
+
+  const injectGrades = useCallback(
+    (rows: string[][]) => {
+      const normalizeEmp = (v: string) => stripParens(v).trim().replace(/^0+/, '')
+      return rows.map((r) => {
+        const empRaw = (r?.[0] ?? '').trim()
+        const empNorm = normalizeEmp(empRaw)
+        if (!empRaw && !empNorm) return r
+        const current = stripParens(r[6] ?? '').trim()
+        const grade = orgGradeMap[empRaw] ?? orgGradeMap[empNorm]
+        if (current || !grade) return r
+        const next = [...r]
+        next[6] = grade
+        return next
+      })
+    },
+    [orgGradeMap],
+  )
+
   useEffect(() => {
     const fetchOvertime = async () => {
       try {
@@ -852,7 +920,7 @@ export default function Home() {
     if (workerExportRows.length) {
       // バックエンドから取得したデータは既にマージ・集計済みなので、そのまま返す
       console.log(`[Export] Using backend data: ${workerExportRows.length} rows (already merged)`)
-      return workerExportRows
+      return injectGrades(workerExportRows)
     }
 
     // バックエンドから取得する方式なので、フォールバックは使用しない
@@ -872,7 +940,7 @@ export default function Home() {
 
     return result
     */
-  }, [workerExportRows])
+  }, [workerExportRows, injectGrades])
 
   const exportRowsDisplay = useMemo(
     () => exportRows.map((row) => row.map(stripParens)).filter(isMeaningfulRow),
@@ -1092,12 +1160,13 @@ export default function Home() {
         })
 
         // バックエンドで既にマージ・集計済みのデータをセット
-        setWorkerExportRows(allEstimatedRows)
+        const enrichedRows = injectGrades(allEstimatedRows)
+        setWorkerExportRows(enrichedRows)
         setOvertimeRowsDisplay(allOvertimeRows)
 
         // localStorage に永続化
         try {
-          localStorage.setItem('exportData_estimated', JSON.stringify(allEstimatedRows))
+          localStorage.setItem('exportData_estimated', JSON.stringify(enrichedRows))
           localStorage.setItem('exportData_overtime', JSON.stringify(allOvertimeRows))
           localStorage.setItem('exportData_timestamp', new Date().toISOString())
           console.log('[Export] Data saved to localStorage')
@@ -1118,7 +1187,7 @@ export default function Home() {
 
   const exportRowsForDisplay = exportFilteredRows ?? exportRowsDisplay
   const hasExportData = exportRowsForDisplay.length > 0
-  const exportHeadersDisplay = useMemo(() => EXPORT_HEADERS.map(stripParens).filter((h) => h !== 'グレード'), [])
+  const exportHeadersDisplay = useMemo(() => EXPORT_HEADERS.map(stripParens), [])
   const overtimeHeadersDisplay = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
   const overtimeRowsForDisplay = overtimeFilteredRows ?? overtimeRowsDisplay
 

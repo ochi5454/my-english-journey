@@ -1,13 +1,13 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 
 export type ImportPreview = { headers: string[]; rows: string[][]; fileName?: string | null; importedAt?: string | null }
 type ImportStoreState = { data: Record<string, ImportPreview> }
 
 const STORAGE_KEY = 'jikangai_import_data'
 
-const loadState = (): ImportStoreState => {
+const loadStateFromStorage = (): ImportStoreState => {
   if (typeof window === 'undefined') return { data: {} }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
@@ -22,7 +22,8 @@ const loadState = (): ImportStoreState => {
   return { data: {} }
 }
 
-let state: ImportStoreState = loadState()
+let state: ImportStoreState = { data: {} }
+let hydrated = false
 const subscribers = new Set<() => void>()
 
 const persist = () => {
@@ -48,8 +49,19 @@ const subscribe = (cb: () => void) => {
 const getSnapshot = () => state
 // Server render fallback to satisfy useSyncExternalStore API
 const getServerSnapshot = () => state
+export const hydrateImportDataStore = () => {
+  if (hydrated) return
+  state = loadStateFromStorage()
+  hydrated = true
+  subscribers.forEach((cb) => cb())
+}
 
-export const useImportDataStore = () => useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+export const useImportDataStore = () => {
+  useEffect(() => {
+    hydrateImportDataStore()
+  }, [])
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
 
 export const setImportData = (fileKey: string, payload: ImportPreview) => {
   setState((prev) => ({ data: { ...prev.data, [fileKey]: payload } }))
