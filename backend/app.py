@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.database import init_db
-from backend.routers import excel, tournament, datasets, export_cursor, jobs, auth, export
+from backend.routers import excel, tournament, datasets, export_cursor, jobs, auth, export, notifications
 
 
 app = FastAPI(title="Tournament Ops MVP")
@@ -33,3 +33,4 @@ app.include_router(export_cursor.router)
 app.include_router(export.router)
 app.include_router(jobs.router)
 app.include_router(auth.router)
+app.include_router(notifications.router)
