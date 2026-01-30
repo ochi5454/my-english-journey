@@ -12,6 +12,7 @@ export function AuthGuard({ children }: Props) {
   const { user, loading, refresh } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p))
 
   useEffect(() => {
     // Refresh when route changes to keep session fresh
@@ -20,14 +21,19 @@ export function AuthGuard({ children }: Props) {
 
   useEffect(() => {
     // Allow public pages without redirect
-    if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return
+    if (isPublic) return
     if (loading) return
     if (!user) {
       router.replace('/login')
     }
-  }, [user, loading, router, pathname])
+  }, [user, loading, router, pathname, isPublic])
 
-  if (loading || (!user && !PUBLIC_PATHS.some((p) => pathname.startsWith(p)))) {
+  // 公開ページは認証チェックせず即表示
+  if (isPublic) {
+    return <>{children}</>
+  }
+
+  if (loading || !user) {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', color: '#0f172a' }}>
         認証を確認しています…

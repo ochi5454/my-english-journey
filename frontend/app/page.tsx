@@ -54,7 +54,7 @@ const normalizeHeader = (h: string) =>
 const COLUMN_MAP_ALIASES: Record<string, string[]> = {
   emp_no: ['従業員番号', '社員番号', '社員No', '(基本)従業員番号'],
   name: ['氏名', '名前', 'カナ氏名', '(基本)氏名', '(基本)カナ氏名'],
-  status: ['勤務予定', '勤務予定日', '勤務予定区分', '勤務状況', '進捗状況'],
+  status: ['進捗状況', '勤務予定', '勤務予定日', '勤務予定区分', '勤務状況'],
   overtime: ['実所定外時間', '残業時間', '残業', '(時間)実所定外時間'],
   overtime_detail: ['残業時間', '実所定外時間', '(時間)残業時間'],
   call_time: ['呼出出勤時間', '呼出出勤', '(時間)呼出出勤'],
@@ -157,6 +157,33 @@ export default function Home() {
 
   useEffect(() => {
     // Hydrate client-only cached export data after mount to avoid SSR/client mismatches
+    const normalizeOvertimeRows = (rows: unknown): string[][] => {
+      if (!Array.isArray(rows)) return []
+      return rows.map((r) => {
+        if (!Array.isArray(r)) return []
+        const isTimeLike = (v: unknown) => {
+          const s = String(v ?? '').trim()
+          return /^\d{1,3}:\d{2}$/.test(s) || /^\d+$/.test(s)
+        }
+        // 期待: [従業員番号, 前, 後, 合計, 所属6]
+        if (r.length >= 5) {
+          const a = String(r[1] ?? '')
+          const b = String(r[2] ?? '')
+          const c = String(r[3] ?? '')
+          const d = String(r[4] ?? '')
+          // 旧並び [emp, org6, start, end, total]
+          if (!isTimeLike(a) && isTimeLike(b) && isTimeLike(c)) {
+            return [String(r[0] ?? ''), b, c, d, a]
+          }
+          return [String(r[0] ?? ''), a, b, c, d]
+        }
+        if (r.length === 4) {
+          // v1 (従業員番号 + 3列のみ)
+          return [String(r[0] ?? ''), String(r[1] ?? ''), String(r[2] ?? ''), String(r[3] ?? ''), '']
+        }
+        return r.map((v) => String(v ?? ''))
+      })
+    }
     try {
       const savedEstimated = localStorage.getItem('exportData_estimated')
       if (savedEstimated) {
@@ -164,7 +191,7 @@ export default function Home() {
       }
       const savedOvertime = localStorage.getItem('exportData_overtime')
       if (savedOvertime) {
-        setOvertimeRowsDisplay(JSON.parse(savedOvertime))
+        setOvertimeRowsDisplay(normalizeOvertimeRows(JSON.parse(savedOvertime)))
       }
       const ts = localStorage.getItem('exportData_timestamp')
       if (ts) {
@@ -1035,9 +1062,17 @@ export default function Home() {
 
         // シート2: グループに属する従業員の残業時間詳細のみ
         if (overtimeRowsDisplay.length > 0) {
-          const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
-          const empSet = new Set(rows.map((r) => (r?.[0] ?? '').toString().trim()))
-          const overtimeFiltered = overtimeRowsDisplay.filter((r) => empSet.has((r?.[0] ?? '').toString().trim()))
+        const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
+        const empSet = new Set(rows.map((r) => (r?.[0] ?? '').toString().trim()))
+        const overtimeFiltered = overtimeRowsDisplay
+          .filter((r) => empSet.has((r?.[0] ?? '').toString().trim()))
+          .map((r) => [
+            r?.[0] ?? '',
+            r?.[1] ?? r?.[2] ?? '',
+            r?.[2] ?? r?.[3] ?? '',
+            r?.[3] ?? r?.[4] ?? '',
+            r?.[4] ?? r?.[1] ?? '',
+          ])
           if (overtimeFiltered.length > 0) {
             const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeFiltered])
             overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
@@ -1057,16 +1092,30 @@ export default function Home() {
     }
   }, [exportRowsDisplay, overtimeRowsDisplay, buildLegendSheet])
 
+  const overtimeHeadersDisplay = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
+  const overtimeRowsForDisplay = overtimeFilteredRows ?? overtimeRowsDisplay
+  const overtimeTableRowsForDisplay = useMemo(
+    () =>
+      overtimeRowsForDisplay.map((r) => [
+        r?.[0] ?? '',
+        r?.[1] ?? r?.[2] ?? '',
+        r?.[2] ?? r?.[3] ?? '',
+        r?.[3] ?? r?.[4] ?? '',
+        r?.[4] ?? r?.[1] ?? '',
+      ]),
+    [overtimeRowsForDisplay],
+  )
+
   const handleDownloadOvertimeExcel = useCallback(() => {
     try {
-      if (overtimeRowsDisplay.length === 0) {
+      if (overtimeTableRowsForDisplay.length === 0) {
         setToast('残業時間データがありません')
         return
       }
 
       const wb = XLSX.utils.book_new()
-      const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
-      const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeRowsDisplay])
+      const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
+      const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeTableRowsForDisplay])
 
       // 列幅設定
       overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
@@ -1085,7 +1134,7 @@ export default function Home() {
       console.error('Excel download failed:', error)
       setToast('Excelのダウンロードに失敗しました')
     }
-  }, [overtimeRowsDisplay])
+  }, [overtimeTableRowsForDisplay])
 
   const normalizeSearchText = useCallback((value: string) => {
     const base = (value ?? '').trim().toLowerCase()
@@ -1272,8 +1321,6 @@ export default function Home() {
   const exportRowsForDisplay = exportFilteredRows ?? exportRowsDisplay
   const hasExportData = exportRowsForDisplay.length > 0
   const exportHeadersDisplay = useMemo(() => EXPORT_HEADERS.map(stripParens), [])
-  const overtimeHeadersDisplay = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間']
-  const overtimeRowsForDisplay = overtimeFilteredRows ?? overtimeRowsDisplay
 
   const targetSearchColumns = useMemo(() => {
     const normalizedTargets = SEARCH_TARGET_HEADERS.map((h) => normalizeSearchText(h))
@@ -1816,13 +1863,13 @@ export default function Home() {
                 <div style={{ marginTop: '12px' }}>
                   <SheetTable
                     headers={overtimeHeadersDisplay}
-                    rows={overtimeRowsForDisplay}
+                    rows={overtimeTableRowsForDisplay}
                     title=""
                     loading={loading}
                     error={error}
                     emptyMessage={overtimeFilteredRows ? '該当するデータがありません' : '残業データがありません'}
                     showOnlyFirstColumn={false}
-                    hideBodyWhenEmpty={overtimeRowsForDisplay.length === 0}
+                    hideBodyWhenEmpty={overtimeTableRowsForDisplay.length === 0}
                   />
                 </div>
               </div>

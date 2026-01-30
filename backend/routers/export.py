@@ -32,7 +32,7 @@ def get_export_all(
     無ければ空データを返す。
     """
     # 1) データセットを取得（最新の ready のみ）
-    base_keys = ["schedule_input", "punches", "days_items", "tim_daily", "person_progress", "org_info"]
+    base_keys = ["person_progress", "schedule_input", "punches", "days_items", "tim_daily", "org_info"]
     def _latest(kind: str) -> Optional[Dataset]:
         return (
             db.query(Dataset)
@@ -55,8 +55,9 @@ def get_export_all(
     overtime_rows: List[List[str]] = []
     sched_ds = _latest("schedule_input")
     punch_ds = _latest("punches")
+    org_ds = _latest("org_info")
     if sched_ds and punch_ds:
-        overtime_rows = build_overtime_detail_rows(sched_ds, punch_ds)
+        overtime_rows = build_overtime_detail_rows(sched_ds, punch_ds, org_ds)
 
     # 3) ページング処理
     def _decode_cursor(c: Optional[str]) -> int:

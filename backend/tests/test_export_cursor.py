@@ -67,10 +67,18 @@ def test_build_overtime_detail_rows(tmp_path):
             "退社時刻": ["19:00", "19:10"],
         }
     )
+    org = pd.DataFrame(
+        {
+            "(基本)従業員番号": ["001", "002"],
+            "(人事所属本務(基準日))所属名称６": ["本社", "支社A"],
+        }
+    )
     sched_ds = _make_dataset(tmp_path, "schedule_input", sched)
     punch_ds = _make_dataset(tmp_path, "punches", punches)
-    rows = build_overtime_detail_rows(sched_ds, punch_ds)
+    org_ds = _make_dataset(tmp_path, "org_info", org)
+    rows = build_overtime_detail_rows(sched_ds, punch_ds, org_ds)
     # 001 has both early and late OT
     assert rows[0][0] == "001"
-    assert rows[0][-1] != ""
+    assert rows[0][-1] == "本社"
+    assert rows[0][3] != ""
     assert len(rows[0]) == len(OVERTIME_COLUMNS)

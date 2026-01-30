@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 COLUMN_MAP_ALIASES: Dict[str, List[str]] = {
     "emp_no": ["従業員番号", "社員番号", "社員no", "(基本)従業員番号"],
     "name": ["氏名", "名前", "カナ氏名", "(基本)氏名", "(基本)カナ氏名"],
-    "status": ["勤務予定", "勤務予定日", "勤務予定区分", "勤務状況", "進捗状況"],
+    "status": ["進捗状況", "勤務予定", "勤務予定日", "勤務予定区分", "勤務状況"],
     "overtime": ["実所定外時間", "残業時間", "残業", "(時間)実所定外時間"],
     "overtime_detail": ["残業時間", "実所定外時間", "(時間)残業時間"],
     "call_time": ["呼出出勤時間", "呼出出勤", "(時間)呼出出勤"],
@@ -60,7 +60,7 @@ ESTIMATED_COLUMNS = [
     "所属名称８",
 ]
 
-OVERTIME_COLUMNS = ["従業員番号", "就業開始前残業時間", "就業終了後残業時間", "合計残業時間"]
+OVERTIME_COLUMNS = ["従業員番号", "就業開始前残業時間", "就業終了後残業時間", "合計残業時間", "所属名称６"]
 
 
 def _decode_cursor(cursor: Optional[str]) -> int:
@@ -229,12 +229,26 @@ def build_estimated_rows(datasets: List[Dataset], predicate=is_relevant_estimate
     return merged
 
 
-def build_overtime_detail_rows(schedule: Dataset, punches: Dataset, predicate=is_relevant_overtime_detail) -> List[List[str]]:
+def build_overtime_detail_rows(
+    schedule: Dataset, punches: Dataset, org_info: Optional[Dataset] = None, predicate=is_relevant_overtime_detail
+) -> List[List[str]]:
     # スケジュール
     sched_headers, sched_rows = _dataset_to_rows(schedule)
     sched_map = {_normalize_header(h): idx for idx, h in enumerate(sched_headers)}
     punch_headers, punch_rows = _dataset_to_rows(punches)
     punch_map = {_normalize_header(h): idx for idx, h in enumerate(punch_headers)}
+
+    org_map: Dict[str, str] = {}
+    if org_info:
+        org_headers, org_rows = _dataset_to_rows(org_info)
+        org_colmap = _build_colmap(org_headers)
+        for r in org_rows:
+            emp = _pick(r, org_colmap, "emp_no").strip()
+            if not emp:
+                continue
+            org6 = _pick(r, org_colmap, "org6").strip()
+            if emp not in org_map and org6:
+                org_map[emp] = org6
 
     def pick(row: List[str], m: Dict[str, int], names: List[str]) -> str:
         for n in names:
@@ -302,7 +316,7 @@ def build_overtime_detail_rows(schedule: Dataset, punches: Dataset, predicate=is
     rows: List[List[str]] = []
     for emp, v in sorted(sums.items()):
         total = v["start"] + v["end"]
-        rows.append([emp, _hhmm(v["start"]), _hhmm(v["end"]), _hhmm(total)])
+        rows.append([emp, _hhmm(v["start"]), _hhmm(v["end"]), _hhmm(total), org_map.get(emp, "")])
     if predicate:
         rows = [r for r in rows if predicate(r)]
     return rows

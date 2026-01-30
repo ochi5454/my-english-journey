@@ -63,7 +63,8 @@ def export_all(
     cursor は base64(offset) で統一。limit は両テーブル共通。
     """
     # 1) データセット取得
-    base_keys = ["schedule_input", "punches", "days_items", "tim_daily", "person_progress", "org_info"]
+    # person_progress を先頭に置き、進捗状況を優先的にマッピング
+    base_keys = ["person_progress", "schedule_input", "punches", "days_items", "tim_daily", "org_info"]
     datasets = []
     for k in base_keys:
         ds = _get_latest_dataset(k, db)
@@ -77,7 +78,8 @@ def export_all(
     # overtime 用に必須の2種だけ取れれば OK
     sched_ds = _require_dataset("schedule_input", db)
     punch_ds = _require_dataset("punches", db)
-    overtime_rows = build_overtime_detail_rows(sched_ds, punch_ds)
+    org_ds = _get_latest_dataset("org_info", db)
+    overtime_rows = build_overtime_detail_rows(sched_ds, punch_ds, org_ds)
 
     est_page, est_more, next_cursor_est, start_idx = paginate_rows(estimated_rows, limit, cursor)
     ot_page, ot_more, next_cursor_ot, _ = paginate_rows(overtime_rows, limit, cursor)

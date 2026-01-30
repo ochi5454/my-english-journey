@@ -3,11 +3,11 @@ import { FileDef, LegendItem } from '../types/excel'
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:8000'
 
 export const FILE_ORDER = [
+  'person_progress', // 進捗状況を優先して取り込む
   'schedule_input',
   'punches',
   'days_items',
   'tim_daily',
-  'person_progress',
   'org_info',
 ] as const
 
