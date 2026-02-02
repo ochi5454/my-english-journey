@@ -1,0 +1,11 @@
+node_modules
+dist
+output
+logs
+.env
+.DS_Store
+*.log
+
+# Test data (uncomment if you want to ignore test data)
+# data/recipients.xlsx
+# exports/
