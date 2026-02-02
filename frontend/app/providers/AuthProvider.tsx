@@ -11,6 +11,7 @@ export function AuthProvider({ children }: Props) {
   const [loading, setLoading] = useState(true)
 
   const fetchMe = useCallback(async () => {
+    setLoading(true)
     try {
       const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' })
       if (!res.ok) throw new Error('unauth')

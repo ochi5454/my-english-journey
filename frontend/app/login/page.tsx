@@ -13,8 +13,8 @@ const buildLoginUrl = (origin: string) =>
 export default function LoginPage() {
   const router = useRouter()
   const [loginUrl, setLoginUrl] = useState('')
-  const [email, setEmail] = useState('admin@example.com')
-  const [password, setPassword] = useState('admin123!')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [adminStatus, setAdminStatus] = useState<string | null>(null)
   const [adminLoading, setAdminLoading] = useState(false)
 
@@ -137,7 +137,7 @@ export default function LoginPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="メールアドレス"
+            placeholder="ID"
             style={{
               width: '100%',
               padding: '10px 12px',

@@ -30,6 +30,7 @@ const stripNoise = (value: unknown) =>
   stripParens(value)
     .replace(/[,、，.。・･…‥]/g, '')
     .replace(/\s|　/g, '')
+const normalizeEmpNo = (value: unknown) => stripParens(value ?? '').trim().replace(/^0+/, '')
 const isMeaningfulRow = (row: string[]) =>
   row.some((cell) => stripNoise(cell).length > 0)
 const stripArray = (arr: unknown): string[] => (Array.isArray(arr) ? arr.map((v) => String(v ?? '')) : [])
@@ -289,7 +290,8 @@ export default function Home() {
         const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`, { credentials: 'include' })
         if (listRes.ok) {
           const listJson = await listRes.json()
-          datasetId = listJson?.[0]?.id ?? null
+          const ready = Array.isArray(listJson) ? listJson.find((d) => d?.status === 'ready') : null
+          datasetId = ready?.id ?? null
           setDatasetIds((prev) => ({ ...prev, [key]: datasetId }))
         }
       }
@@ -354,7 +356,8 @@ export default function Home() {
         })
       }
       return payload
-    } catch {
+    } catch (err) {
+      console.warn('[LoadSheet] failed:', err)
       // avoid noisy error message; keep silent for UX
       return null
     } finally {
@@ -901,6 +904,47 @@ export default function Home() {
     return map
   }, [buildGridForKey])
 
+  // 勤務予定進捗一覧の進捗状況を従業員番号キーで保持
+  const progressStatusMap = useMemo(() => {
+    const grid = buildGridForKey('person_progress')
+    const headers = grid[0] || []
+    const rows = grid.slice(1)
+    if (!rows.length) return {}
+
+    const headerMap: Record<string, number> = {}
+    headers.forEach((h, idx) => {
+      headerMap[normalizeHeader(stripParens(h))] = idx
+    })
+
+    const findIdx = (names: string[]) => {
+      for (const n of names) {
+        const idx = headerMap[normalizeHeader(n)]
+        if (idx != null) return idx
+      }
+      return undefined
+    }
+
+    const empIdx = findIdx(['従業員番号', '社員番号', '社員no', '社員No'])
+    const statusIdx = findIdx(['進捗状況', '勤務予定'])
+    if (empIdx == null || statusIdx == null) return {}
+
+    const normalizeEmp = (v: string) => stripParens(v).trim().replace(/^0+/, '')
+    const map: Record<string, string> = {}
+    rows.forEach((r) => {
+      const empRaw = stripParens(r[empIdx] ?? '').trim()
+      const emp = empRaw
+      const status = stripParens(r[statusIdx] ?? '').trim()
+      if (emp && status) {
+        map[emp] = status
+        const norm = normalizeEmp(emp)
+        if (norm && !map[norm]) {
+          map[norm] = status
+        }
+      }
+    })
+    return map
+  }, [buildGridForKey])
+
   const org6Map = useMemo(() => {
     const grid = buildGridForKey('org_info')
     const headers = grid[0] || []
@@ -949,6 +993,10 @@ export default function Home() {
 
         const next = [...r]
 
+        // status (col 2) を勤務予定進捗一覧から補完
+        const status = progressStatusMap[empRaw] ?? progressStatusMap[empNorm]
+        if (status) next[2] = status
+
         // grade (col 6)
         const gradeCurrent = stripParens(next[6] ?? '').trim()
         const grade = orgGradeMap[empRaw] ?? orgGradeMap[empNorm]
@@ -966,7 +1014,7 @@ export default function Home() {
         return next
       })
     },
-    [orgGradeMap, org6Map],
+    [progressStatusMap, orgGradeMap, org6Map],
   )
 
   useEffect(() => {
@@ -1022,6 +1070,85 @@ export default function Home() {
     [exportRows]
   )
 
+  // 実所定外時間シート（推計）側の残業時間を権威値として保持（従業員番号→分）
+  const authoritativeOvertimeMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    exportRowsDisplay.forEach((row) => {
+      const emp = normalizeEmpNo(row?.[0])
+      if (!emp) return
+      // 優先: 残業時間(index4)、なければ実所定外時間(index3)
+      const minutes = parseMinutes(row?.[4] ?? row?.[3])
+      if (Number.isFinite(minutes)) {
+        map[emp] = minutes
+      }
+    })
+    return map
+  }, [exportRowsDisplay])
+
+  // 実所定外時間（推計）テーブルの所属名称6を従業員番号で引けるよう保持
+  const org6FromEstimated = useMemo(() => {
+    const map: Record<string, string> = {}
+    exportRowsDisplay.forEach((row) => {
+      const emp = normalizeEmpNo(row?.[0])
+      const org6 = stripParens(row?.[12] ?? '').trim()
+      if (emp && org6) map[emp] = org6
+    })
+    return map
+  }, [exportRowsDisplay])
+
+  const overtimeHeadersDisplay = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
+  const overtimeRowsForDisplay = overtimeFilteredRows ?? overtimeRowsDisplay
+
+  const adjustOvertimeRow = useCallback(
+    (r: string[]) => {
+      const emp = normalizeEmpNo(r?.[0])
+      const org6Fallback = stripParens(r?.[4] ?? r?.[1] ?? '')
+      const org6 = org6FromEstimated[emp] ?? org6Fallback
+
+      const startMin = parseMinutes(r?.[1])
+      const endMin = parseMinutes(r?.[2])
+      const totalMin = parseMinutes(r?.[3])
+
+      const desired = authoritativeOvertimeMap[emp]
+      if (desired == null || !Number.isFinite(desired)) {
+        return [
+          r?.[0] ?? '',
+          formatMinutes(startMin),
+          formatMinutes(endMin),
+          formatMinutes(totalMin),
+          org6,
+        ]
+      }
+
+      const currentTotal = startMin + endMin
+      let adjStart = startMin
+      let adjEnd = endMin
+      if (currentTotal > 0) {
+        const ratio = desired / currentTotal
+        adjStart = startMin * ratio
+        adjEnd = endMin * ratio
+      } else {
+        // 内訳が無い場合は全量を開始前に寄せる
+        adjStart = desired
+        adjEnd = 0
+      }
+
+      return [
+        r?.[0] ?? '',
+        formatMinutes(adjStart),
+        formatMinutes(adjEnd),
+        formatMinutes(desired),
+        org6,
+      ]
+    },
+    [authoritativeOvertimeMap, org6FromEstimated],
+  )
+
+  const overtimeTableRowsForDisplay = useMemo(
+    () => overtimeRowsForDisplay.map(adjustOvertimeRow),
+    [overtimeRowsForDisplay, adjustOvertimeRow],
+  )
+
   const handleDownloadExportExcel = useCallback(() => {
     try {
       if (exportRowsDisplay.length === 0) {
@@ -1062,17 +1189,11 @@ export default function Home() {
 
         // シート2: グループに属する従業員の残業時間詳細のみ
         if (overtimeRowsDisplay.length > 0) {
-        const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
-        const empSet = new Set(rows.map((r) => (r?.[0] ?? '').toString().trim()))
-        const overtimeFiltered = overtimeRowsDisplay
-          .filter((r) => empSet.has((r?.[0] ?? '').toString().trim()))
-          .map((r) => [
-            r?.[0] ?? '',
-            r?.[1] ?? r?.[2] ?? '',
-            r?.[2] ?? r?.[3] ?? '',
-            r?.[3] ?? r?.[4] ?? '',
-            r?.[4] ?? r?.[1] ?? '',
-          ])
+          const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
+          const empSet = new Set(rows.map((r) => (r?.[0] ?? '').toString().trim()))
+          const overtimeFiltered = overtimeRowsDisplay
+            .filter((r) => empSet.has((r?.[0] ?? '').toString().trim()))
+            .map(adjustOvertimeRow)
           if (overtimeFiltered.length > 0) {
             const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeFiltered])
             overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
@@ -1090,21 +1211,7 @@ export default function Home() {
       console.error('Excel download failed:', error)
       setToast('Excelのダウンロードに失敗しました')
     }
-  }, [exportRowsDisplay, overtimeRowsDisplay, buildLegendSheet])
-
-  const overtimeHeadersDisplay = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
-  const overtimeRowsForDisplay = overtimeFilteredRows ?? overtimeRowsDisplay
-  const overtimeTableRowsForDisplay = useMemo(
-    () =>
-      overtimeRowsForDisplay.map((r) => [
-        r?.[0] ?? '',
-        r?.[1] ?? r?.[2] ?? '',
-        r?.[2] ?? r?.[3] ?? '',
-        r?.[3] ?? r?.[4] ?? '',
-        r?.[4] ?? r?.[1] ?? '',
-      ]),
-    [overtimeRowsForDisplay],
-  )
+  }, [exportRowsDisplay, overtimeRowsDisplay, buildLegendSheet, org6FromEstimated, adjustOvertimeRow])
 
   const handleDownloadOvertimeExcel = useCallback(() => {
     try {
@@ -1113,23 +1220,31 @@ export default function Home() {
         return
       }
 
-      const wb = XLSX.utils.book_new()
-      const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
-      const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...overtimeTableRowsForDisplay])
+      // 所属名称6ごとに分割して出力
+      const groups: Record<string, string[][]> = {}
+      overtimeTableRowsForDisplay.forEach((row) => {
+        const org6 = (row?.[4] ?? '').toString().trim() || '未設定'
+        if (!groups[org6]) groups[org6] = []
+        groups[org6].push(row)
+      })
 
-      // 列幅設定
-      overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
-
-      XLSX.utils.book_append_sheet(wb, overtimeSheet, '残業時間詳細')
-
-      // ファイル名生成（日時付き）
       const now = new Date()
       const dateStr = now.toISOString().split('T')[0].replace(/-/g, '')
       const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '')
-      const filename = `残業時間詳細_${dateStr}_${timeStr}.xlsx`
 
-      XLSX.writeFile(wb, filename)
-      setToast('Excelファイルをダウンロードしました')
+      Object.entries(groups).forEach(([org6, rows]) => {
+        const wb = XLSX.utils.book_new()
+        const overtimeHeaders = ['従業員番号', '就業開始前残業時間', '就業終了後残業時間', '合計残業時間', '所属名称６']
+        const overtimeSheet = XLSX.utils.aoa_to_sheet([overtimeHeaders, ...rows])
+        overtimeSheet['!cols'] = overtimeHeaders.map(() => ({ wch: 20 }))
+        XLSX.utils.book_append_sheet(wb, overtimeSheet, '残業時間詳細')
+
+        const safeOrg6 = org6.replace(/[\\\\/:*?\"<>|]/g, '_') || '未設定'
+        const filename = `残業時間詳細_${safeOrg6}_${dateStr}_${timeStr}.xlsx`
+        XLSX.writeFile(wb, filename)
+      })
+
+      setToast('所属名称6ごとに残業時間詳細をダウンロードしました')
     } catch (error) {
       console.error('Excel download failed:', error)
       setToast('Excelのダウンロードに失敗しました')
@@ -1378,7 +1493,7 @@ export default function Home() {
       const listRes = await fetch(`${API_BASE}/datasets?kind=${key}`, { credentials: 'include' })
       if (!listRes.ok) return null
       const listJson = await listRes.json()
-      const id = listJson?.[0]?.id ?? null
+      const id = (Array.isArray(listJson) ? listJson.find((d) => d?.status === 'ready') : null)?.id ?? null
       setDatasetIds((prev) => ({ ...prev, [key]: id }))
       return id
     },
