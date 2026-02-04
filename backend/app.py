@@ -1,54 +1,94 @@
 import os
-import json
-from langchain_community.vectorstores import FAISS
-from langchain.embeddings import OpenAIEmbeddings
-from langchain_core.prompts import PromptTemplate
-from langchain_community.chat_models import ChatOpenAI
-from langchain.chains.conversation.memory import ConversationBufferMemory
+import time
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-from backend.main import get_chat_history
-from backend.def_library import build_conversation_chain, initialize_vectorstore, save_conversation_to_file
-from backend.embedding_config import get_embedding_model
+from backend.core.database import init_db
+from backend.core.config import Settings
+from backend.core.logging import setup_logging, get_logger, log_request
+from backend.routers import excel, tournament, datasets, export_cursor, jobs, auth, export, notifications, api_keys
 
-if __name__ == "__main__":
-    user_id = input("ユーザーIDを入力してください: ")
-    embedding = get_embedding_model()
-    vectorstore = initialize_vectorstore(user_id, embedding)
+# 設定読み込み
+settings = Settings()
 
-    # メモリを初期化
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+# ログ設定初期化
+env = os.getenv("ENV", "development")
+setup_logging(env=env, log_level=os.getenv("LOG_LEVEL", "INFO"))
+logger = get_logger(__name__)
 
-    # 会話チェーンを構築
-    chain = build_conversation_chain(
-        memory=memory,
-        temperature=0.7,
-        model_name="gpt-3.5-turbo",
-        verbose=True
-    )
+# レート制限設定
+limiter = Limiter(key_func=get_remote_address, enabled=settings.rate_limit_enabled)
 
-    print("会話を開始します。終了するには 'exit' または 'quit' を入力してください。")
-    while True:
-        user_message = input("あなた: ")
-        if user_message.lower() in ["exit", "quit"]:
-            print("会話を終了します。")
-            break
+app = FastAPI(
+    title="Tournament Ops MVP",
+    description="勤怠管理・残業時間追跡システム API",
+    version="1.0.0",
+    openapi_url="/api/openapi.json",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+)
 
-        # 履歴を取得
-        response = get_chat_history(user_id)
-        if isinstance(response, JSONResponse):
-            # JSONResponseの内容を処理
-            raw_body = bytes(response.body)  # memoryviewをbytesに変換
-            data = json.loads(raw_body.decode("utf-8"))  # JSONを辞書に変換
-            history = data.get("history", [])
-        else:
-            history = []
+# レート制限をアプリに追加
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-        context = "\n".join([f"ユーザー: {entry['user']}\nAI: {entry['assistant']}" for entry in history])
+# CORS設定（環境変数から読み込み）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
 
-        # GPTに質問を送信
-        response = chain.run({"history": context, "input": user_message})
-        print("GPT:", response)
 
-        # 会話履歴を保存
-        save_conversation_to_file(user_id, user_message, response)
+@app.middleware("http")
+async def log_requests_middleware(request: Request, call_next):
+    """リクエストログミドルウェア"""
+    start_time = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start_time) * 1000
+
+    # ヘルスチェックはログを省略（ノイズ軽減）
+    if request.url.path != "/health":
+        log_request(
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            client_ip=request.client.host if request.client else None,
+        )
+
+    return response
+
+
+@app.on_event("startup")
+def startup_event():
+    logger.info("application_startup", env=env)
+    init_db()
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    logger.info("application_shutdown")
+
+
+@app.get("/health", tags=["system"])
+def health_check():
+    """ヘルスチェックエンドポイント"""
+    return {"status": "healthy", "version": "1.0.0"}
+
+
+app.include_router(excel.router)
+app.include_router(tournament.router)
+app.include_router(datasets.router)
+app.include_router(export_cursor.router)
+app.include_router(export.router)
+app.include_router(jobs.router)
+app.include_router(auth.router)
+app.include_router(notifications.router)
+app.include_router(api_keys.router)
