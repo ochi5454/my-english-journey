@@ -32,6 +32,17 @@ export function DownloadPanel({
       <section className="sheet-card" style={{ padding: '16px', width: '100%', alignSelf: 'stretch' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <div className="flex items-center gap-3 flex-wrap">
+            {onClear && (
+              <button
+                type="button"
+                className="btn-outline-red"
+                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                onClick={onClear}
+              >
+                <Trash2 size={18} />
+                <span>削除</span>
+              </button>
+            )}
             {onDownload && (
               <button
                 type="button"

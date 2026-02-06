@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from typing import Optional
 
@@ -7,7 +8,10 @@ from sqlalchemy.orm import Session
 
 from backend.core.config import Settings, get_settings
 from backend.core.database import get_db
-from backend.services.mail_service import send_overtime_emails
+from backend.core.dependencies import CurrentUser, get_current_user
+from backend.services.mail_service import send_overtime_emails, preview_overtime_emails
+
+logger = logging.getLogger(__name__)
 from backend.services.excel import fetch_grid_for_key
 from backend.services.overtime import aggregate_overtime_by_employee
 from backend.services.overtime_alert import (
@@ -18,6 +22,34 @@ from backend.services.overtime_alert import (
 )
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+@router.get("/debug/sender-info")
+def get_sender_info(
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """
+    デバッグ用: 現在のログインユーザーの送信元情報を確認
+    """
+    import time
+    has_token = bool(current_user.access_token)
+    token_valid = current_user.has_valid_token()
+    token_expires_in = None
+    if current_user.token_expires_at:
+        token_expires_in = current_user.token_expires_at - int(time.time())
+
+    return {
+        "user_id": current_user.sub,
+        "name": current_user.name,
+        "email": current_user.email,
+        "is_admin": current_user.is_admin,
+        "has_access_token": has_token,
+        "token_valid": token_valid,
+        "token_expires_in_seconds": token_expires_in,
+        "has_refresh_token": bool(current_user.refresh_token),
+        "can_send_email": token_valid,
+        "note": "Entra IDログインでトークンを取得してください。Basic認証ではメール送信不可。"
+    }
 
 
 class OvertimeEmailRequest(BaseModel):
@@ -33,21 +65,62 @@ class AlertNotificationRequest(BaseModel):
 
 
 @router.post("/overtime-email")
-def send_overtime_email(
+async def send_overtime_email(
     request: Optional[OvertimeEmailRequest] = None,
     db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
+    current_user: CurrentUser = Depends(get_current_user)
 ):
     """
     org6ごとに残業明細メールを全メンバーに送信
     添付ファイル: Excel + PDF
+    Microsoft Graph API を使用してメール送信（ログインユーザーの委任トークンを使用）
 
     data_date: データ基準日（例: 2月15日のデータを16日に送る場合は2025-02-15を指定）
                指定しない場合は送信日が使用されます
     """
     try:
         data_date = request.data_date if request else None
-        result = send_overtime_emails(db, settings, data_date=data_date)
+        # ログインユーザーのアクセストークンを使用（委任されたアクセス許可）
+        if not current_user.has_valid_token():
+            raise ValueError(
+                "メール送信にはEntra IDログインが必要です。"
+                "再度ログインしてください。"
+            )
+        logger.info(f"Send overtime email: user={current_user.name}, email={current_user.email}")
+        result = await send_overtime_emails(
+            db, settings, data_date=data_date,
+            access_token=current_user.access_token,
+            refresh_token=current_user.refresh_token,
+            token_expires_at=current_user.token_expires_at
+        )
+        result["sender_email"] = current_user.email
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/overtime-email/preview")
+def preview_overtime_email(
+    request: Optional[OvertimeEmailRequest] = None,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """
+    残業明細メールのプレビューを取得（送信はしない）
+
+    送信前にメール内容を確認するためのエンドポイント。
+    org6ごとの件名、本文、宛先、添付ファイル名を返します。
+
+    data_date: データ基準日（例: 2月15日のデータを16日に送る場合は2025-02-15を指定）
+               指定しない場合は送信日が使用されます
+    """
+    try:
+        data_date = request.data_date if request else None
+        result = preview_overtime_emails(db, settings, data_date=data_date)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

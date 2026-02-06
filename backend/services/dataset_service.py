@@ -39,6 +39,10 @@ def _detect_date_columns(df: pd.DataFrame) -> List[str]:
         sample = df[col].dropna().astype(str).head(20)
         if sample.empty:
             continue
+        # Skip columns that look like time-only values (HH:MM or HH:MM:SS)
+        time_pattern_count = sample.str.match(r'^\d{1,2}:\d{2}(:\d{2})?$').sum()
+        if time_pattern_count >= len(sample) * 0.5:
+            continue
         try:
             parsed = pd.to_datetime(sample, errors="raise", format=None, utc=False)
             # require at least half to succeed

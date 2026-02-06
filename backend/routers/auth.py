@@ -16,6 +16,7 @@ from backend.core.database import get_db
 from backend.core.config import Settings
 from backend.core.audit import audit_action, AuditAction
 from backend.models.user import User
+from backend.models.token_store import TokenStore
 from backend.utils.security import verify_password
 from backend.utils.crypto import encrypt_json, decrypt_json
 
@@ -78,21 +79,52 @@ def build_authorize_url(
     return f"{authority}/oauth2/v2.0/authorize?{query}"
 
 
-def _session_payload_from_user(user: dict, settings: Settings) -> dict:
-    return {
+def _session_payload_from_user(
+    user: dict, settings: Settings, has_entra_tokens: bool = False
+) -> dict:
+    payload = {
         "sub": str(user.get("id")),
         "name": user.get("name") or "",
         "email": user.get("email") or "",
         "is_admin": bool(user.get("is_admin", False)),
         "exp": int(time.time()) + settings.session_max_age,
+        "has_entra_tokens": has_entra_tokens,
     }
+    return payload
 
 
-def _issue_session_response(user_payload: dict, settings: Settings) -> JSONResponse:
-    session_payload = _session_payload_from_user(user_payload, settings)
+def save_tokens_to_db(db: Session, user_sub: str, tokens: dict) -> None:
+    """トークンをデータベースに保存（Cookieサイズ制限回避）"""
+    existing = db.query(TokenStore).filter(TokenStore.user_sub == user_sub).first()
+    if existing:
+        existing.access_token = tokens.get("access_token")
+        existing.refresh_token = tokens.get("refresh_token")
+        existing.token_expires_at = int(time.time()) + tokens.get("expires_in", 3600)
+    else:
+        token_store = TokenStore(
+            user_sub=user_sub,
+            access_token=tokens.get("access_token"),
+            refresh_token=tokens.get("refresh_token"),
+            token_expires_at=int(time.time()) + tokens.get("expires_in", 3600),
+        )
+        db.add(token_store)
+    db.commit()
+
+
+def _issue_session_response(
+    user_payload: dict, settings: Settings, has_entra_tokens: bool = False
+) -> JSONResponse:
+    session_payload = _session_payload_from_user(user_payload, settings, has_entra_tokens)
     # Encrypt session payload for confidentiality in transit/storage
     session_token = encrypt_json(session_payload)
-    resp = JSONResponse({"ok": True, "user": session_payload})
+    # クライアントに返すレスポンスにはトークンを含めない（セキュリティ）
+    user_response = {
+        "sub": session_payload.get("sub"),
+        "name": session_payload.get("name"),
+        "email": session_payload.get("email"),
+        "is_admin": session_payload.get("is_admin"),
+    }
+    resp = JSONResponse({"ok": True, "user": user_response})
     resp.set_cookie(
         key=settings.session_cookie_name,
         value=session_token,
@@ -179,7 +211,11 @@ async def fetch_user_info(access_token: str) -> dict:
 
 
 @router.post("/entra/callback", name="auth_callback")
-async def entra_callback(payload: CallbackRequest, settings: Settings = Depends(get_settings)):
+async def entra_callback(
+    payload: CallbackRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings)
+):
     if not (settings.entra_client_id and settings.entra_client_secret and settings.entra_tenant_id):
         raise HTTPException(status_code=500, detail="Entra settings are not configured")
 
@@ -196,13 +232,17 @@ async def entra_callback(payload: CallbackRequest, settings: Settings = Depends(
         raise HTTPException(status_code=400, detail="Missing access token")
 
     profile = await fetch_user_info(access_token)
+    user_sub = profile.get("id")
     user = {
-        "id": profile.get("id"),
+        "id": user_sub,
         "name": profile.get("displayName") or profile.get("givenName") or "",
         "email": profile.get("mail") or profile.get("userPrincipalName") or "",
     }
 
-    return _issue_session_response(user, settings)
+    # トークンをデータベースに保存（Cookieサイズ制限回避）
+    save_tokens_to_db(db, user_sub, token)
+
+    return _issue_session_response(user, settings, has_entra_tokens=True)
 
 
 @router.post("/login/basic")

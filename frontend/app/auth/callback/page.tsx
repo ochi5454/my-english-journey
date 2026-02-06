@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { API_BASE } from '../../constants/excel'
 
@@ -11,9 +11,14 @@ function AuthCallbackContent() {
   const router = useRouter()
   const [message, setMessage] = useState('認証コードを確認しています…')
   const [isError, setIsError] = useState(false)
+  const exchangeStarted = useRef(false)
 
   useEffect(() => {
     if (!searchParams) return
+    // Prevent duplicate calls (React StrictMode runs effects twice)
+    if (exchangeStarted.current) return
+    exchangeStarted.current = true
+
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const error = searchParams.get('error')

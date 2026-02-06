@@ -1,3 +1,4 @@
+import asyncio
 import ssl
 import smtplib
 from collections import defaultdict
@@ -19,6 +20,7 @@ from backend.services.export_cursor_service import (
     _pick,
     build_overtime_detail_rows,
 )
+from backend.services.graph_mail_service import GraphMailAttachment, send_mail_via_graph
 
 
 @dataclass
@@ -38,18 +40,51 @@ def _latest_dataset(db: Session, kind: str) -> Optional[Dataset]:
     )
 
 
-def _load_recipients(person_ds: Dataset) -> List[Recipient]:
+def _normalize_emp_no(emp: str) -> str:
+    """従業員番号を正規化（先頭ゼロを除去して比較用）"""
+    return emp.lstrip("0") if emp else ""
+
+
+def _load_recipients(person_ds: Dataset, org_info_ds: Optional[Dataset] = None) -> List[Recipient]:
+    """
+    person_progressからrecipient一覧を読み込む。
+    org6がperson_progressに無い場合、org_infoから従業員番号で紐付けて取得する。
+    """
     headers, rows = _dataset_to_rows(person_ds)
     colmap = _build_colmap(headers)
+
+    # org_infoから従業員番号→所属名称6のマップを作成
+    # 従業員番号は先頭ゼロ有無の揺らぎがあるため正規化して格納
+    org6_by_emp: Dict[str, str] = {}
+    if org_info_ds:
+        org_headers, org_rows = _dataset_to_rows(org_info_ds)
+        org_colmap = _build_colmap(org_headers)
+        for org_row in org_rows:
+            emp = _pick(org_row, org_colmap, "emp_no").strip()
+            o6 = _pick(org_row, org_colmap, "org6").strip()
+            if emp and o6:
+                org6_by_emp[_normalize_emp_no(emp)] = o6
+
     recipients: List[Recipient] = []
     for r in rows:
         email = _pick(r, colmap, "email").strip()
-        org6 = _pick(r, colmap, "org6").strip()
-        if not email or not org6:
+        if not email:
             continue
+
+        emp_no = _pick(r, colmap, "emp_no").strip()
+        normalized_emp = _normalize_emp_no(emp_no)
+
+        # まずperson_progressからorg6を取得、無ければorg_infoから
+        org6 = _pick(r, colmap, "org6").strip()
+        if not org6 and normalized_emp:
+            org6 = org6_by_emp.get(normalized_emp, "")
+
+        if not org6:
+            continue
+
         recipients.append(
             Recipient(
-                emp_no=_pick(r, colmap, "emp_no").strip(),
+                emp_no=emp_no,
                 name=_pick(r, colmap, "name").strip() or "各位",
                 email=email,
                 org6=org6,
@@ -108,7 +143,7 @@ class Attachment:
     subtype: str
 
 
-def _send_email_with_attachments(
+def _send_email_with_attachments_smtp(
     settings: Settings,
     to: List[str],
     subject: str,
@@ -116,7 +151,7 @@ def _send_email_with_attachments(
     attachments: List[Attachment]
 ):
     """
-    複数添付ファイル対応のメール送信
+    SMTP経由でメール送信（フォールバック用）
 
     Args:
         to: 宛先メールアドレスのリスト
@@ -147,6 +182,74 @@ def _send_email_with_attachments(
         if settings.smtp_username:
             smtp.login(settings.smtp_username, settings.smtp_password)
         smtp.send_message(msg)
+
+
+async def _send_email_with_attachments_graph(
+    settings: Settings,
+    to: List[str],
+    subject: str,
+    body: str,
+    attachments: List[Attachment],
+    access_token: str = None,
+    refresh_token: str = None,
+    token_expires_at: int = None,
+):
+    """
+    Microsoft Graph API経由でメール送信（委任されたアクセス許可）
+
+    Args:
+        to: 宛先メールアドレスのリスト
+        attachments: 添付ファイルのリスト
+        access_token: ユーザーのアクセストークン
+        refresh_token: リフレッシュトークン
+        token_expires_at: トークンの有効期限
+    """
+    graph_attachments = [
+        GraphMailAttachment(
+            filename=att.filename,
+            data=att.data,
+            content_type=f"{att.maintype}/{att.subtype}",
+        )
+        for att in attachments
+    ]
+    await send_mail_via_graph(
+        settings, to, subject, body, graph_attachments,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_expires_at=token_expires_at,
+    )
+
+
+async def _send_email_with_attachments(
+    settings: Settings,
+    to: List[str],
+    subject: str,
+    body: str,
+    attachments: List[Attachment],
+    access_token: str = None,
+    refresh_token: str = None,
+    token_expires_at: int = None,
+):
+    """
+    複数添付ファイル対応のメール送信
+    mail_use_graph設定に応じてGraph APIまたはSMTPを使用
+
+    Args:
+        to: 宛先メールアドレスのリスト
+        attachments: 添付ファイルのリスト
+        access_token: ユーザーのアクセストークン（Graph APIの場合に使用）
+        refresh_token: リフレッシュトークン
+        token_expires_at: トークンの有効期限
+    """
+    if settings.mail_use_graph:
+        await _send_email_with_attachments_graph(
+            settings, to, subject, body, attachments,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_expires_at=token_expires_at,
+        )
+    else:
+        _send_email_with_attachments_smtp(settings, to, subject, body, attachments)
 
 
 def _build_pdf_attachment(rows: List[List[str]], org6: str) -> Tuple[bytes, str]:
@@ -201,13 +304,24 @@ def _build_pdf_attachment(rows: List[List[str]], org6: str) -> Tuple[bytes, str]
     return pdf_data, pdf_filename
 
 
-def send_overtime_emails(db: Session, settings: Settings, data_date=None) -> Dict:
+async def send_overtime_emails(
+    db: Session,
+    settings: Settings,
+    data_date=None,
+    access_token: str = None,
+    refresh_token: str = None,
+    token_expires_at: int = None,
+) -> Dict:
     """
     org6ごとに1通のメールを、そのorg6の全メンバーに送信
     添付ファイル: Excel + PDF
+    Microsoft Graph API または SMTP を使用（mail_use_graph設定に依存）
 
     Args:
         data_date: データ基準日（指定なしなら送信日が使用される）
+        access_token: ユーザーのアクセストークン（Graph APIの場合、Entra IDログインで取得）
+        refresh_token: リフレッシュトークン
+        token_expires_at: トークンの有効期限
     """
     from datetime import datetime
     from backend.services.pdf_export import is_pdf_available
@@ -222,7 +336,7 @@ def send_overtime_emails(db: Session, settings: Settings, data_date=None) -> Dic
         missing = [k for k, ds in [("person_progress", person_ds), ("schedule_input", schedule_ds), ("punches", punch_ds)] if not ds]
         raise ValueError(f"datasets not ready: {', '.join(missing)}")
 
-    recipients = _load_recipients(person_ds)
+    recipients = _load_recipients(person_ds, org_ds)
     overtime_by_org6 = _build_overtime_by_org6(schedule_ds, punch_ds, org_ds)
 
     # org6ごとにメンバーをグループ化
@@ -275,7 +389,12 @@ def send_overtime_emails(db: Session, settings: Settings, data_date=None) -> Dic
                 pass  # PDF生成に失敗してもExcelは送る
 
         try:
-            _send_email_with_attachments(settings, emails, subject, body, attachments)
+            await _send_email_with_attachments(
+                settings, emails, subject, body, attachments,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_expires_at=token_expires_at,
+            )
             results["sent"].append({
                 "org6": org6,
                 "emails": emails,
@@ -291,3 +410,88 @@ def send_overtime_emails(db: Session, settings: Settings, data_date=None) -> Dic
             })
 
     return results
+
+
+def preview_overtime_emails(
+    db: Session, settings: Settings, data_date=None
+) -> Dict:
+    """
+    メール送信のプレビューを生成（実際には送信しない）
+
+    Args:
+        db: データベースセッション
+        settings: アプリケーション設定
+        data_date: データ基準日（指定なしなら送信日が使用される）
+
+    Returns:
+        プレビューデータ（org6ごとのメール内容）
+    """
+    from datetime import datetime
+
+    # 1) 必要データセットを取得
+    person_ds = _latest_dataset(db, "person_progress")
+    schedule_ds = _latest_dataset(db, "schedule_input")
+    punch_ds = _latest_dataset(db, "punches")
+    org_ds = _latest_dataset(db, "org_info")
+
+    if not person_ds or not schedule_ds or not punch_ds:
+        missing = [k for k, ds in [("person_progress", person_ds), ("schedule_input", schedule_ds), ("punches", punch_ds)] if not ds]
+        raise ValueError(f"datasets not ready: {', '.join(missing)}")
+
+    recipients = _load_recipients(person_ds, org_ds)
+    overtime_by_org6 = _build_overtime_by_org6(schedule_ds, punch_ds, org_ds)
+
+    # org6ごとにメンバーをグループ化
+    members_by_org6: Dict[str, List[Recipient]] = defaultdict(list)
+    for rcpt in recipients:
+        members_by_org6[rcpt.org6].append(rcpt)
+
+    now = datetime.now()
+    previews = []
+
+    for org6, members in members_by_org6.items():
+        subject = f"【毎月15･20･25日定期発信】時間外労働状況の進捗管理（{org6}）"
+        rows = overtime_by_org6.get(org6)
+
+        if not rows:
+            previews.append({
+                "org6": org6,
+                "subject": subject,
+                "recipients": [{"email": m.email, "name": m.name, "emp_no": m.emp_no} for m in members],
+                "recipient_count": len(members),
+                "body": None,
+                "attachments": [],
+                "overtime_row_count": 0,
+                "status": "skip",
+                "skip_reason": "対象となる残業データがありません",
+            })
+            continue
+
+        emails = [m.email for m in members]
+        body = _render_body(settings, org6, data_date=data_date)
+
+        # 添付ファイル名のみを生成（実際のデータは生成しない）
+        attachment_names = [f"overtime_{org6}_{now.strftime('%Y%m%d')}.xlsx"]
+        # PDF添付（利用可能な場合）
+        from backend.services.pdf_export import is_pdf_available
+        if is_pdf_available():
+            attachment_names.append(f"overtime_{org6}_{now.strftime('%Y%m%d')}.pdf")
+
+        previews.append({
+            "org6": org6,
+            "subject": subject,
+            "recipients": [{"email": m.email, "name": m.name, "emp_no": m.emp_no} for m in members],
+            "recipient_count": len(members),
+            "body": body,
+            "attachments": attachment_names,
+            "overtime_row_count": len(rows),
+            "status": "ready",
+            "skip_reason": None,
+        })
+
+    return {
+        "total_emails": len([p for p in previews if p["status"] == "ready"]),
+        "total_recipients": sum(p["recipient_count"] for p in previews if p["status"] == "ready"),
+        "skipped_count": len([p for p in previews if p["status"] == "skip"]),
+        "previews": previews,
+    }

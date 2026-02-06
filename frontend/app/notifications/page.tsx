@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, AlertTriangle, CheckCircle, XCircle, Loader2, Calendar } from 'lucide-react'
+import { Mail, CheckCircle, XCircle, Loader2, Calendar, Eye, ChevronDown, ChevronUp, Users, FileText } from 'lucide-react'
 import { API_BASE } from '../constants/excel'
 import { AuthGuard } from '../components/AuthGuard'
 import { HeaderBar } from '../components/HeaderBar'
@@ -21,18 +21,78 @@ type SendResult = {
   }>
 }
 
+type PreviewRecipient = {
+  email: string
+  name: string
+  emp_no: string
+}
+
+type PreviewItem = {
+  org6: string
+  subject: string
+  recipients: PreviewRecipient[]
+  recipient_count: number
+  body: string | null
+  attachments: string[]
+  overtime_row_count: number
+  status: 'ready' | 'skip'
+  skip_reason: string | null
+}
+
+type PreviewResult = {
+  total_emails: number
+  total_recipients: number
+  skipped_count: number
+  previews: PreviewItem[]
+}
+
 export default function NotificationsPage() {
   const [dataDate, setDataDate] = useState<string>('')
   const [sending, setSending] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)
+  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [expandedOrg6, setExpandedOrg6] = useState<string | null>(null)
+
+  const handlePreview = async () => {
+    setPreviewing(true)
+    setError(null)
+    setPreviewResult(null)
+
+    try {
+      const body: { data_date?: string } = {}
+      if (dataDate) {
+        body.data_date = dataDate
+      }
+
+      const res = await fetch(`${API_BASE}/notifications/overtime-email/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `HTTP ${res.status}`)
+      }
+
+      const data: PreviewResult = await res.json()
+      setPreviewResult(data)
+      setShowPreview(true)
+    } catch (e: any) {
+      setError(e?.message || String(e))
+    } finally {
+      setPreviewing(false)
+    }
+  }
 
   const handleSend = async () => {
     setSending(true)
     setError(null)
     setResult(null)
-    setShowConfirm(false)
 
     try {
       const body: { data_date?: string } = {}
@@ -54,6 +114,7 @@ export default function NotificationsPage() {
 
       const data: SendResult = await res.json()
       setResult(data)
+      setShowPreview(false)
     } catch (e: any) {
       setError(e?.message || String(e))
     } finally {
@@ -67,6 +128,10 @@ export default function NotificationsPage() {
     return `${d.getMonth() + 1}月${d.getDate()}日`
   }
 
+  const toggleOrg6Expand = (org6: string) => {
+    setExpandedOrg6(expandedOrg6 === org6 ? null : org6)
+  }
+
   return (
     <AuthGuard>
       <div className="dash-shell">
@@ -74,7 +139,7 @@ export default function NotificationsPage() {
           <div className="header-title">メール送信システム</div>
         </header>
         <HeaderBar />
-        <main style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
+        <main style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
 
           {/* メール送信セクション */}
           <section
@@ -132,41 +197,43 @@ export default function NotificationsPage() {
               </p>
             </div>
 
-            {/* 送信ボタン */}
-            <button
-              onClick={() => setShowConfirm(true)}
-              disabled={sending}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                background: sending ? '#94a3b8' : '#2563eb',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                padding: '12px 24px',
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: sending ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
-              }}
-            >
-              {sending ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-                  送信中...
-                </>
-              ) : (
-                <>
-                  <Mail size={18} />
-                  メールを送信
-                </>
-              )}
-            </button>
+            {/* ボタン */}
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={handlePreview}
+                disabled={previewing || sending}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: previewing ? '#94a3b8' : '#059669',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '12px 24px',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: previewing || sending ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 12px rgba(5,150,105,0.3)',
+                }}
+              >
+                {previewing ? (
+                  <>
+                    <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                    読み込み中...
+                  </>
+                ) : (
+                  <>
+                    <Eye size={18} />
+                    プレビュー
+                  </>
+                )}
+              </button>
+            </div>
           </section>
 
-          {/* 確認ダイアログ */}
-          {showConfirm && (
+          {/* プレビューモーダル */}
+          {showPreview && previewResult && (
             <div
               style={{
                 position: 'fixed',
@@ -179,35 +246,190 @@ export default function NotificationsPage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 zIndex: 1000,
+                padding: 16,
               }}
-              onClick={() => setShowConfirm(false)}
+              onClick={() => setShowPreview(false)}
             >
               <div
                 style={{
                   background: '#fff',
                   borderRadius: 12,
-                  padding: 24,
-                  maxWidth: 400,
-                  width: '90%',
+                  maxWidth: 800,
+                  width: '100%',
+                  maxHeight: '90vh',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
                   boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                  <AlertTriangle size={24} style={{ color: '#f59e0b' }} />
-                  <h3 style={{ fontSize: 18, fontWeight: 600 }}>送信確認</h3>
+                {/* モーダルヘッダー */}
+                <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <Eye size={24} style={{ color: '#059669' }} />
+                    <h3 style={{ fontSize: 18, fontWeight: 600 }}>メールプレビュー</h3>
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 14 }}>
+                    <span style={{ color: '#059669', fontWeight: 600 }}>
+                      送信予定: {previewResult.total_emails}件
+                    </span>
+                    <span style={{ color: '#2563eb' }}>
+                      宛先: {previewResult.total_recipients}名
+                    </span>
+                    {previewResult.skipped_count > 0 && (
+                      <span style={{ color: '#ca8a04' }}>
+                        スキップ: {previewResult.skipped_count}件
+                      </span>
+                    )}
+                    <span style={{ color: '#64748b' }}>
+                      基準日: {formatDate(dataDate)}
+                    </span>
+                  </div>
                 </div>
-                <p style={{ color: '#475569', marginBottom: 8, lineHeight: 1.6 }}>
-                  以下の内容でメールを送信します。よろしいですか？
-                </p>
-                <ul style={{ color: '#64748b', fontSize: 14, marginBottom: 20, paddingLeft: 20 }}>
-                  <li>基準日: <strong>{formatDate(dataDate)}</strong></li>
-                  <li>送信先: 全org6のメンバー</li>
-                  <li>添付: Excel + PDF</li>
-                </ul>
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+
+                {/* モーダルコンテンツ */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+                  {previewResult.previews.map((item) => (
+                    <div
+                      key={item.org6}
+                      style={{
+                        background: item.status === 'ready' ? '#f8fafc' : '#fffbeb',
+                        borderRadius: 8,
+                        marginBottom: 12,
+                        border: item.status === 'ready' ? '1px solid #e2e8f0' : '1px solid #fde68a',
+                      }}
+                    >
+                      {/* org6ヘッダー */}
+                      <div
+                        style={{
+                          padding: '12px 16px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                        onClick={() => toggleOrg6Expand(item.org6)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span
+                            style={{
+                              background: item.status === 'ready' ? '#059669' : '#ca8a04',
+                              color: '#fff',
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {item.org6}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#64748b' }}>
+                            <Users size={14} />
+                            <span>{item.recipient_count}名</span>
+                            <FileText size={14} style={{ marginLeft: 8 }} />
+                            <span>{item.overtime_row_count}行</span>
+                          </div>
+                          {item.status === 'skip' && (
+                            <span style={{ color: '#ca8a04', fontSize: 13 }}>
+                              ({item.skip_reason})
+                            </span>
+                          )}
+                        </div>
+                        {expandedOrg6 === item.org6 ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </div>
+
+                      {/* 展開時の詳細 */}
+                      {expandedOrg6 === item.org6 && item.status === 'ready' && (
+                        <div style={{ padding: '0 16px 16px' }}>
+                          {/* 件名 */}
+                          <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>件名</div>
+                            <div style={{ fontSize: 14, fontWeight: 500, color: '#1e293b' }}>
+                              {item.subject}
+                            </div>
+                          </div>
+
+                          {/* 宛先 */}
+                          <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>宛先</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {item.recipients.map((r) => (
+                                <span
+                                  key={r.emp_no}
+                                  style={{
+                                    background: '#e0f2fe',
+                                    color: '#0369a1',
+                                    padding: '4px 8px',
+                                    borderRadius: 4,
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  {r.name || r.emp_no} &lt;{r.email}&gt;
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 添付ファイル */}
+                          <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>添付ファイル</div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              {item.attachments.map((att) => (
+                                <span
+                                  key={att}
+                                  style={{
+                                    background: '#f0fdf4',
+                                    color: '#15803d',
+                                    padding: '4px 8px',
+                                    borderRadius: 4,
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  {att}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 本文 */}
+                          <div>
+                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>本文</div>
+                            <pre
+                              style={{
+                                background: '#f1f5f9',
+                                padding: 12,
+                                borderRadius: 6,
+                                fontSize: 12,
+                                lineHeight: 1.6,
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                maxHeight: 200,
+                                overflowY: 'auto',
+                                margin: 0,
+                              }}
+                            >
+                              {item.body}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* モーダルフッター */}
+                <div
+                  style={{
+                    padding: '16px 24px',
+                    borderTop: '1px solid #e2e8f0',
+                    display: 'flex',
+                    gap: 12,
+                    justifyContent: 'flex-end',
+                  }}
+                >
                   <button
-                    onClick={() => setShowConfirm(false)}
+                    onClick={() => setShowPreview(false)}
                     style={{
                       padding: '10px 20px',
                       borderRadius: 8,
@@ -221,18 +443,32 @@ export default function NotificationsPage() {
                   </button>
                   <button
                     onClick={handleSend}
+                    disabled={sending || previewResult.total_emails === 0}
                     style={{
-                      padding: '10px 20px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 24px',
                       borderRadius: 8,
                       border: 'none',
-                      background: '#2563eb',
+                      background: sending || previewResult.total_emails === 0 ? '#94a3b8' : '#2563eb',
                       color: '#fff',
                       fontSize: 14,
                       fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: sending || previewResult.total_emails === 0 ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    送信する
+                    {sending ? (
+                      <>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                        送信中...
+                      </>
+                    ) : (
+                      <>
+                        <Mail size={16} />
+                        {previewResult.total_emails}件を送信
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -254,7 +490,7 @@ export default function NotificationsPage() {
                 <XCircle size={24} style={{ color: '#dc2626' }} />
                 <div>
                   <h3 style={{ fontSize: 16, fontWeight: 600, color: '#dc2626', marginBottom: 4 }}>
-                    送信エラー
+                    エラー
                   </h3>
                   <p style={{ color: '#991b1b', fontSize: 14 }}>{error}</p>
                 </div>

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     entra_client_id: str = ""
     entra_client_secret: str = ""
     entra_redirect_uri: str = ""
-    entra_scope: str = "openid profile email offline_access User.Read"
+    entra_scope: str = "openid profile email offline_access User.Read Mail.Send"
     # Session
     session_secret_key: str = "dev-session-secret-change"
     session_cookie_name: str = "session"
@@ -24,17 +24,19 @@ class Settings(BaseSettings):
     admin_password: str = "admin123!"
     admin_name: str = "Admin"
     admin_bootstrap_enabled: bool = True
-    # Mail / SMTP
+    # Mail settings
+    mail_use_graph: bool = True  # True: Microsoft Graph API, False: SMTP
+    mail_from: str = ""
+    mail_from_name: str = ""
+    mail_company: str = ""
+    mail_department: str = ""
+    mail_sender_name: str = ""
+    # SMTP (fallback if mail_use_graph is False)
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_use_tls: bool = True
-    mail_from: str = "hi3-ochi@aeondelight.jp"
-    mail_from_name: str = ""
-    mail_company: str = ""
-    mail_department: str = ""
-    mail_sender_name: str = ""
     # CORS
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
     # Rate Limiting

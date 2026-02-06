@@ -51,7 +51,7 @@ export function HeaderBar() {
         </nav>
         <div className="header-right">
           <div className="user-chip minimal">
-            <span className="user-name">Admin</span>
+            <span className="user-name">{user.name}</span>
             <div className="avatar small">{initials}</div>
           </div>
           <button type="button" className="logout-btn-soft" onClick={logout}>

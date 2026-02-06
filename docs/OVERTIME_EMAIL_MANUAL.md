@@ -155,24 +155,50 @@ https://ms-bbs.coo-kai.jp/a/aeondelightjp.onmicrosoft.com/topic/4368531060
 | `datasets not ready: person_progress` | person_progressがアップロードされていない | データセットをアップロード |
 | `datasets not ready: schedule_input` | schedule_inputがアップロードされていない | データセットをアップロード |
 | `datasets not ready: punches` | punchesがアップロードされていない | データセットをアップロード |
-| `SMTP_HOST is not configured` | SMTPサーバーが設定されていない | 環境変数 `SMTP_HOST` を設定 |
+| `ENTRA_TENANT_ID is not configured` | Entra ID設定が不足 | 環境変数を設定（下記参照） |
+| `ENTRA_CLIENT_ID is not configured` | Entra ID設定が不足 | 環境変数を設定（下記参照） |
+| `ENTRA_CLIENT_SECRET is not configured` | Entra ID設定が不足 | 環境変数を設定（下記参照） |
+| `MAIL_FROM is not configured` | 送信元アドレスが未設定 | 環境変数 `MAIL_FROM` を設定 |
+| `Failed to send mail: 403` | Mail.Send権限がない | Azure Portalで権限を追加 |
 | `no overtime rows for org6` | その組織に残業データがない | 正常（該当データなしのためスキップ） |
 
 ---
 
-## 7. SMTP設定
+## 7. Microsoft Graph API 設定
 
-メール送信には以下の環境変数が必要です：
+本システムでは **Microsoft Graph API** を使用してメールを送信します。SMTPサーバーの設定は不要です。
 
-| 環境変数 | 説明 | 例 |
-|---------|------|-----|
-| `SMTP_HOST` | SMTPサーバーホスト | `smtp.office365.com` |
-| `SMTP_PORT` | SMTPポート | `587` |
-| `SMTP_USE_TLS` | TLS使用 | `true` |
-| `SMTP_USERNAME` | SMTP認証ユーザー | `user@example.com` |
-| `SMTP_PASSWORD` | SMTP認証パスワード | `password` |
-| `MAIL_FROM` | 送信元アドレス | `noreply@example.com` |
-| `MAIL_FROM_NAME` | 送信者名 | `勤怠管理システム` |
+**送信元**: ログインしているユーザーのMicrosoftメールアドレスが使用されます。
+
+### 認証要件
+
+このエンドポイントは**認証が必要**です。メール送信前にMS Entra IDでログインしてください。
+
+### 必要な環境変数
+
+| 環境変数 | 説明 | 必須 | 例 |
+|---------|------|:----:|-----|
+| `ENTRA_TENANT_ID` | Azure ADテナントID | 必須 | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `ENTRA_CLIENT_ID` | アプリケーションクライアントID | 必須 | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `ENTRA_CLIENT_SECRET` | クライアントシークレット | 必須 | `xxxxxxxxxxxxxxxxxxxxx` |
+| `MAIL_FROM_NAME` | 送信者名（任意） | 任意 | `勤怠管理システム` |
+
+※ `MAIL_FROM`は不要です。ログインユーザーのメールアドレスが自動的に使用されます。
+
+### Azure Portal での設定
+
+1. **アプリの登録** でアプリケーションを作成
+2. **APIのアクセス許可** で `Mail.Send`（アプリケーション権限）を追加
+3. **管理者の同意** を与える
+4. **証明書とシークレット** でクライアントシークレットを作成
+
+詳細は [ENTRA_ID_SETUP.md](./ENTRA_ID_SETUP.md) を参照してください。
+
+### 注意事項
+
+- ログインユーザーは組織内の有効なExchange Onlineメールボックスを持っている必要があります
+- 送信されたメールはログインユーザーの「送信済みアイテム」に保存されます
+- 共有メールボックスや配布リストからの送信はできません
 
 ---
 
@@ -208,4 +234,6 @@ A: 現在は全組織への一括送信のみです。再送する場合は再�
 
 | 日付 | 内容 |
 |------|------|
+| 2025-02-05 | ログインユーザーのメールを送信元として使用するように変更、認証必須化 |
+| 2025-02-05 | SMTPからMicrosoft Graph APIに変更 |
 | 2025-02-04 | 初版作成 |

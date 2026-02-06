@@ -152,6 +152,7 @@ export default function Home() {
   // 全データ用のstate（ルックアップマップ構築用）
   const [allPersonProgressData, setAllPersonProgressData] = useState<{ headers: string[]; rows: string[][] } | null>(null)
   const [allOrgInfoData, setAllOrgInfoData] = useState<{ headers: string[]; rows: string[][] } | null>(null)
+  const lookupFetchedRef = useRef(false)
   const { data: savedPreviews } = useImportDataStore()
 
   useEffect(() => {
@@ -1021,27 +1022,28 @@ export default function Home() {
     [progressStatusMap, orgGradeMap, org6Map],
   )
 
-  useEffect(() => {
-    const fetchOvertime = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/excel/punches/overtime`, { credentials: 'include' })
-        if (!res.ok) return
-        const json = await res.json()
-        const map: Record<string, { actual?: number; overtime?: number }> = {}
-        ;(json?.rows || []).forEach((item: any) => {
-          const emp = item?.emp_no?.toString().trim()
-          if (!emp) return
-          const minutes = Number(item?.total_minutes)
-          if (!Number.isFinite(minutes)) return
-          map[emp] = { actual: minutes, overtime: minutes }
-        })
-        setOvertimeMap(map)
-      } catch {
-        // ignore fetch errors
-      }
-    }
-    fetchOvertime()
-  }, [])
+  // Disabled: overtime data is now fetched from backend export API
+  // useEffect(() => {
+  //   const fetchOvertime = async () => {
+  //     try {
+  //       const res = await fetch(`${API_BASE}/excel/punches/overtime`, { credentials: 'include' })
+  //       if (!res.ok) return
+  //       const json = await res.json()
+  //       const map: Record<string, { actual?: number; overtime?: number }> = {}
+  //       ;(json?.rows || []).forEach((item: any) => {
+  //         const emp = item?.emp_no?.toString().trim()
+  //         if (!emp) return
+  //         const minutes = Number(item?.total_minutes)
+  //         if (!Number.isFinite(minutes)) return
+  //         map[emp] = { actual: minutes, overtime: minutes }
+  //       })
+  //       setOvertimeMap(map)
+  //     } catch {
+  //       // ignore fetch errors
+  //     }
+  //   }
+  //   fetchOvertime()
+  // }, [])
 
   const exportRows = useMemo(() => {
     if (workerExportRows.length) {
@@ -1562,6 +1564,8 @@ export default function Home() {
 
   // ルックアップマップ構築用に全データを取得
   useEffect(() => {
+    if (lookupFetchedRef.current) return
+    lookupFetchedRef.current = true
     const fetchAllLookupData = async () => {
       try {
         const [personData, orgData] = await Promise.all([
@@ -1579,7 +1583,8 @@ export default function Home() {
       }
     }
     fetchAllLookupData()
-  }, [fetchDatasetAll])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleExportDataset = useCallback(async () => {
     const datasetId = await resolveDatasetId(activeKey)
