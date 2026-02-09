@@ -2,6 +2,8 @@ import base64
 import io
 import json
 import logging
+import re
+import unicodedata
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
@@ -11,6 +13,26 @@ from backend.models.dataset import Dataset, DatasetStatus
 from backend.services.dataset_service import _normalize_header
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_emp_no(value: str) -> str:
+    """
+    従業員番号を正規化してマッチング精度を上げる。
+    - 全角→半角変換
+    - 前後の空白除去
+    - 先頭ゼロを除去して数値部分を取得（数値のみの場合）
+    - 括弧で囲まれた部分を除去
+    """
+    if not value:
+        return ""
+    # 全角→半角変換
+    s = unicodedata.normalize("NFKC", str(value)).strip()
+    # 括弧除去
+    s = re.sub(r"[（(][^）)]*[）)]", "", s).strip()
+    # 数値のみの場合は先頭ゼロを除去
+    if s.isdigit():
+        return s.lstrip("0") or "0"
+    return s
 
 # 列名のエイリアスはフロントの exportWorker と合わせる
 COLUMN_MAP_ALIASES: Dict[str, List[str]] = {
@@ -38,7 +60,7 @@ COLUMN_MAP_ALIASES: Dict[str, List[str]] = {
     "org3": ["所属名称3", "所属名称３", "所属3", "(人事所属本務(基準日))所属名称３"],
     "org4": ["所属名称4", "所属名称４", "所属4", "(人事所属本務(基準日))所属名称４"],
     "org5": ["所属名称5", "所属名称５", "所属5", "(人事所属本務(基準日))所属名称５"],
-    "org6": ["所属名称6", "所属名称６", "所属6", "所属情報6", "所属情報６", "(人事所属本務(基準日))所属名称６", "所属名称"],
+    "org6": ["所属名称6", "所属名称６", "所属6", "所属情報6", "所属情報６", "(人事所属本務(基準日))所属名称６"],
     "org7": ["所属名称7", "所属名称７", "所属7", "(人事所属本務(基準日))所属名称７"],
     "org8": ["所属名称8", "所属名称８", "所属8", "(人事所属本務(基準日))所属名称８"],
 }
@@ -157,25 +179,27 @@ def _merge_by_employee(rows: List[List[str]]) -> List[List[str]]:
     grouped: Dict[str, Dict] = {}
     orphans: List[List[str]] = []
     for row in rows:
-        emp = (row[0] or "").strip()
-        if not emp:
+        emp_raw = (row[0] or "").strip()
+        if not emp_raw:
             orphans.append(row)
             continue
-        entry = grouped.get(emp)
+        # 正規化した従業員番号をキーとして使用（先頭ゼロの有無を吸収）
+        emp_norm = _normalize_emp_no(emp_raw)
+        entry = grouped.get(emp_norm)
         if not entry:
-            grouped[emp] = {"base": list(row), "sums": {i: _minutes_from_str(row[i]) for i in numeric_idx}}
+            grouped[emp_norm] = {"base": list(row), "sums": {i: _minutes_from_str(row[i]) for i in numeric_idx}}
             continue
         # accumulate
         for i in numeric_idx:
             entry["sums"][i] = entry["sums"].get(i, 0) + _minutes_from_str(row[i])
-        # fill blanks
+        # fill blanks（所属名称など、空でないデータで埋める）
         for i, cell in enumerate(row):
             if i in numeric_idx:
                 continue
             if not entry["base"][i] and cell:
                 entry["base"][i] = cell
     merged: List[List[str]] = []
-    for emp, data in grouped.items():
+    for emp_norm, data in grouped.items():
         base = list(data["base"])
         for i in numeric_idx:
             base[i] = _hhmm(data["sums"][i])
@@ -231,7 +255,12 @@ def build_estimated_rows(datasets: List[Dataset], predicate=is_relevant_estimate
 
 
 def build_overtime_detail_rows(
-    schedule: Dataset, punches: Dataset, org_info: Optional[Dataset] = None, predicate=is_relevant_overtime_detail
+    schedule: Dataset,
+    punches: Dataset,
+    org_info: Optional[Dataset] = None,
+    person_progress: Optional[Dataset] = None,
+    additional_org_sources: Optional[List[Dataset]] = None,
+    predicate=is_relevant_overtime_detail,
 ) -> List[List[str]]:
     # スケジュール
     sched_headers, sched_rows = _dataset_to_rows(schedule)
@@ -239,17 +268,39 @@ def build_overtime_detail_rows(
     punch_headers, punch_rows = _dataset_to_rows(punches)
     punch_map = {_normalize_header(h): idx for idx, h in enumerate(punch_headers)}
 
+    # 所属名称6のマップを複数データソースから構築
+    # キー: 正規化した従業員番号, 値: 所属名称6
     org_map: Dict[str, str] = {}
+
+    def _add_to_org_map(ds: Dataset) -> None:
+        """データセットから所属名称6を抽出してorg_mapに追加"""
+        try:
+            headers, rows = _dataset_to_rows(ds)
+            colmap = _build_colmap(headers)
+            for r in rows:
+                emp_raw = _pick(r, colmap, "emp_no").strip()
+                if not emp_raw:
+                    continue
+                emp_norm = _normalize_emp_no(emp_raw)
+                org6 = _pick(r, colmap, "org6").strip()
+                if org6 and emp_norm not in org_map:
+                    org_map[emp_norm] = org6
+                # 元の従業員番号でもマッピングを保持
+                if org6 and emp_raw not in org_map:
+                    org_map[emp_raw] = org6
+        except Exception as e:
+            logger.warning("[overtime] Failed to extract org6 from dataset: %s", e)
+
+    # org_info から所属名称6を取得
     if org_info:
-        org_headers, org_rows = _dataset_to_rows(org_info)
-        org_colmap = _build_colmap(org_headers)
-        for r in org_rows:
-            emp = _pick(r, org_colmap, "emp_no").strip()
-            if not emp:
-                continue
-            org6 = _pick(r, org_colmap, "org6").strip()
-            if emp not in org_map and org6:
-                org_map[emp] = org6
+        _add_to_org_map(org_info)
+        logger.info("[overtime] org_map after org_info: %d entries", len(org_map))
+
+    # 追加のデータソースから取得（必要な場合のみ）
+    if additional_org_sources:
+        for ds in additional_org_sources:
+            _add_to_org_map(ds)
+        logger.info("[overtime] org_map after additional sources: %d entries", len(org_map))
 
     def pick(row: List[str], m: Dict[str, int], names: List[str]) -> str:
         for n in names:
@@ -299,8 +350,11 @@ def build_overtime_detail_rows(
         actual_end = hhmm_to_min(pick(r, punch_map, ["退社時刻"]))
         if actual_start is None and actual_end is None:
             continue
-        start_ot = max(0, (plan["start"] - actual_start) if actual_start is not None else 0)
-        end_ot = max(0, (actual_end - plan["end"]) if actual_end is not None else 0)
+        start_ot_raw = max(0, (plan["start"] - actual_start) if actual_start is not None else 0)
+        end_ot_raw = max(0, (actual_end - plan["end"]) if actual_end is not None else 0)
+        # 15分以下は切り捨て、16分以上はそのまま加算
+        start_ot = start_ot_raw if start_ot_raw > 15 else 0
+        end_ot = end_ot_raw if end_ot_raw > 15 else 0
         total = start_ot + end_ot
         # 10時間超勤務で30分控除
         if actual_start is not None and actual_end is not None and actual_end - actual_start > 10 * 60:
@@ -315,9 +369,19 @@ def build_overtime_detail_rows(
         sums[emp] = entry
 
     rows: List[List[str]] = []
+    unmatched_count = 0
     for emp, v in sorted(sums.items()):
         total = v["start"] + v["end"]
-        rows.append([emp, _hhmm(v["start"]), _hhmm(v["end"]), _hhmm(total), org_map.get(emp, "")])
+        # 正規化した従業員番号でルックアップし、見つからなければ元のキーでも試す
+        emp_norm = _normalize_emp_no(emp)
+        org6 = org_map.get(emp_norm) or org_map.get(emp) or ""
+        if not org6:
+            unmatched_count += 1
+        rows.append([emp, _hhmm(v["start"]), _hhmm(v["end"]), _hhmm(total), org6])
+
+    if unmatched_count > 0:
+        logger.warning("[overtime] %d employees have no org6 mapping (total: %d)", unmatched_count, len(rows))
+
     if predicate:
         rows = [r for r in rows if predicate(r)]
     return rows

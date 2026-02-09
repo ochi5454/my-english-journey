@@ -79,7 +79,8 @@ def export_all(
     sched_ds = _require_dataset("schedule_input", db)
     punch_ds = _require_dataset("punches", db)
     org_ds = _get_latest_dataset("org_info", db)
-    overtime_rows = build_overtime_detail_rows(sched_ds, punch_ds, org_ds)
+    person_ds = _get_latest_dataset("person_progress", db)
+    overtime_rows = build_overtime_detail_rows(sched_ds, punch_ds, org_ds, person_progress=person_ds)
 
     est_page, est_more, next_cursor_est, start_idx = paginate_rows(estimated_rows, limit, cursor)
     ot_page, ot_more, next_cursor_ot, _ = paginate_rows(overtime_rows, limit, cursor)

@@ -93,8 +93,10 @@ def _load_recipients(person_ds: Dataset, org_info_ds: Optional[Dataset] = None) 
     return recipients
 
 
-def _build_overtime_by_org6(schedule: Dataset, punches: Dataset, org_info: Optional[Dataset]) -> Dict[str, List[List[str]]]:
-    rows = build_overtime_detail_rows(schedule, punches, org_info)
+def _build_overtime_by_org6(
+    schedule: Dataset, punches: Dataset, org_info: Optional[Dataset], person_progress: Optional[Dataset] = None
+) -> Dict[str, List[List[str]]]:
+    rows = build_overtime_detail_rows(schedule, punches, org_info, person_progress=person_progress)
     grouped: Dict[str, List[List[str]]] = defaultdict(list)
     for row in rows:
         key = (row[4] or "").strip()  # org6 は OVERTIME_COLUMNS の5列目
@@ -337,7 +339,7 @@ async def send_overtime_emails(
         raise ValueError(f"datasets not ready: {', '.join(missing)}")
 
     recipients = _load_recipients(person_ds, org_ds)
-    overtime_by_org6 = _build_overtime_by_org6(schedule_ds, punch_ds, org_ds)
+    overtime_by_org6 = _build_overtime_by_org6(schedule_ds, punch_ds, org_ds, person_progress=person_ds)
 
     # org6ごとにメンバーをグループ化
     members_by_org6: Dict[str, List[Recipient]] = defaultdict(list)
@@ -439,7 +441,7 @@ def preview_overtime_emails(
         raise ValueError(f"datasets not ready: {', '.join(missing)}")
 
     recipients = _load_recipients(person_ds, org_ds)
-    overtime_by_org6 = _build_overtime_by_org6(schedule_ds, punch_ds, org_ds)
+    overtime_by_org6 = _build_overtime_by_org6(schedule_ds, punch_ds, org_ds, person_progress=person_ds)
 
     # org6ごとにメンバーをグループ化
     members_by_org6: Dict[str, List[Recipient]] = defaultdict(list)

@@ -56,8 +56,9 @@ def get_export_all(
     sched_ds = _latest("schedule_input")
     punch_ds = _latest("punches")
     org_ds = _latest("org_info")
+    person_ds = _latest("person_progress")
     if sched_ds and punch_ds:
-        overtime_rows = build_overtime_detail_rows(sched_ds, punch_ds, org_ds)
+        overtime_rows = build_overtime_detail_rows(sched_ds, punch_ds, org_ds, person_progress=person_ds)
 
     # 3) ページング処理
     def _decode_cursor(c: Optional[str]) -> int:

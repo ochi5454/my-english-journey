@@ -153,6 +153,7 @@ export default function Home() {
   const [allPersonProgressData, setAllPersonProgressData] = useState<{ headers: string[]; rows: string[][] } | null>(null)
   const [allOrgInfoData, setAllOrgInfoData] = useState<{ headers: string[]; rows: string[][] } | null>(null)
   const lookupFetchedRef = useRef(false)
+  const exportFetchedOnceRef = useRef(false)
   const { data: savedPreviews } = useImportDataStore()
 
   useEffect(() => {
@@ -184,18 +185,49 @@ export default function Home() {
         return r.map((v) => String(v ?? ''))
       })
     }
+    // localStorageからキャッシュを復元（30分以内のデータのみ有効）
+    console.log('[Export] Component mounted, checking localStorage cache...')
     try {
-      const savedEstimated = localStorage.getItem('exportData_estimated')
-      if (savedEstimated) {
-        setWorkerExportRows(JSON.parse(savedEstimated))
-      }
-      const savedOvertime = localStorage.getItem('exportData_overtime')
-      if (savedOvertime) {
-        setOvertimeRowsDisplay(normalizeOvertimeRows(JSON.parse(savedOvertime)))
-      }
       const ts = localStorage.getItem('exportData_timestamp')
-      if (ts) {
-        exportFetchedOnceRef.current = true
+      const cacheAge = ts ? Date.now() - new Date(ts).getTime() : Infinity
+      const CACHE_TTL = 30 * 60 * 1000 // 30分
+
+      console.log('[Export] Cache check:', { timestamp: ts, ageSeconds: Math.round(cacheAge / 1000), ttlSeconds: CACHE_TTL / 1000 })
+
+      if (cacheAge < CACHE_TTL) {
+        const savedEstimated = localStorage.getItem('exportData_estimated')
+        const savedOvertime = localStorage.getItem('exportData_overtime')
+
+        console.log('[Export] Found valid cache:', {
+          hasEstimated: !!savedEstimated,
+          estimatedLength: savedEstimated ? JSON.parse(savedEstimated).length : 0,
+          hasOvertime: !!savedOvertime,
+          overtimeLength: savedOvertime ? JSON.parse(savedOvertime).length : 0,
+        })
+
+        if (savedEstimated) {
+          const parsed = JSON.parse(savedEstimated)
+          setWorkerExportRows(parsed)
+          console.log('[Export] Restored estimated rows:', parsed.length)
+        }
+        if (savedOvertime) {
+          const parsed = JSON.parse(savedOvertime)
+          const normalized = normalizeOvertimeRows(parsed)
+          setOvertimeRowsDisplay(normalized)
+          console.log('[Export] Restored overtime rows:', normalized.length)
+        }
+        if (savedEstimated || savedOvertime) {
+          exportFetchedOnceRef.current = true
+          console.log('[Export] Set exportFetchedOnceRef.current = true')
+        }
+      } else if (ts) {
+        // 古いキャッシュをクリア
+        localStorage.removeItem('exportData_estimated')
+        localStorage.removeItem('exportData_overtime')
+        localStorage.removeItem('exportData_timestamp')
+        console.log('[Export] Cleared stale localStorage cache (age: ' + Math.round(cacheAge / 1000) + 's)')
+      } else {
+        console.log('[Export] No cache found in localStorage')
       }
     } catch (e) {
       console.warn('[Export] Failed to load cached export data:', e)
@@ -1349,13 +1381,18 @@ export default function Home() {
   }, [])
 
   // エクスポートページを開いたときにバックエンドから全データを取得
-  const exportFetchedOnceRef = useRef(false)
-
   useEffect(() => {
+    console.log('[Export] useEffect triggered:', {
+      showDownloadPanel,
+      exportFetchedOnce: exportFetchedOnceRef.current,
+      workerExportRowsLength: workerExportRows.length,
+      overtimeRowsLength: overtimeRowsDisplay.length,
+    })
+
     if (!showDownloadPanel) return
-    // 既にロード済みなら再フェッチせずに表示を保持
-    if (exportFetchedOnceRef.current && workerExportRows.length && overtimeRowsDisplay.length) {
-      console.log('[Export] Using cached export data (skip fetch)')
+    // 既にキャッシュからロード済みの場合はスキップ（localStorageから復元済みの場合を含む）
+    if (exportFetchedOnceRef.current) {
+      console.log('[Export] Using cached data (skip fetch), rows:', workerExportRows.length, 'overtime:', overtimeRowsDisplay.length)
       return
     }
 
@@ -1422,7 +1459,11 @@ export default function Home() {
           localStorage.setItem('exportData_estimated', JSON.stringify(enrichedRows))
           localStorage.setItem('exportData_overtime', JSON.stringify(allOvertimeRows))
           localStorage.setItem('exportData_timestamp', new Date().toISOString())
-          console.log('[Export] Data saved to localStorage')
+          console.log('[Export] Data saved to localStorage:', {
+            estimatedRows: enrichedRows.length,
+            overtimeRows: allOvertimeRows.length,
+            timestamp: new Date().toISOString(),
+          })
         } catch (e) {
           console.warn('[Export] Failed to save to localStorage:', e)
         }
