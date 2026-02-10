@@ -3,12 +3,14 @@
 import { Suspense, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { API_BASE } from '../../constants/excel'
+import { useAuth } from '../../hooks/useAuth'
 
 const CALLBACK_PATH = '/auth/callback'
 
 function AuthCallbackContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { refresh } = useAuth()
   const [message, setMessage] = useState('認証コードを確認しています…')
   const [isError, setIsError] = useState(false)
   const exchangeStarted = useRef(false)
@@ -48,7 +50,9 @@ function AuthCallbackContent() {
           throw new Error(text || `HTTP ${res.status}`)
         }
         setMessage('サインインに成功しました。画面に戻ります…')
-        setTimeout(() => router.replace('/'), 600)
+        // 認証状態を更新してからリダイレクト
+        await refresh()
+        router.replace('/')
       } catch (e: any) {
         setIsError(true)
         setMessage(`サインインに失敗しました: ${e?.message || e}`)
@@ -56,7 +60,7 @@ function AuthCallbackContent() {
     }
 
     exchange()
-  }, [router, searchParams])
+  }, [router, searchParams, refresh])
 
   return (
     <div

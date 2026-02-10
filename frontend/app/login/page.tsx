@@ -134,10 +134,10 @@ export default function LoginPage() {
             style={{
               width: '100%',
               padding: '10px 12px',
-              borderRadius: '8px',
-              border: '1px solid rgba(148,163,184,0.2)',
-              background: '#0f172a',
-              color: '#e2e8f0',
+              borderRadius: '12px',
+              border: '1px solid #cbd5e1',
+              background: 'rgba(255,255,255,0.95)',
+              color: '#1e293b',
               fontSize: '14px',
             }}
           />
@@ -149,10 +149,10 @@ export default function LoginPage() {
             style={{
               width: '100%',
               padding: '10px 12px',
-              borderRadius: '8px',
-              border: '1px solid rgba(148,163,184,0.2)',
-              background: '#0f172a',
-              color: '#e2e8f0',
+              borderRadius: '12px',
+              border: '1px solid #cbd5e1',
+              background: 'rgba(255,255,255,0.95)',
+              color: '#1e293b',
               fontSize: '14px',
             }}
           />

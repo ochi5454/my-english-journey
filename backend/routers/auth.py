@@ -233,14 +233,40 @@ async def entra_callback(
 
     profile = await fetch_user_info(access_token)
     user_sub = profile.get("id")
+    user_email = profile.get("mail") or profile.get("userPrincipalName") or ""
+    user_name = profile.get("displayName") or profile.get("givenName") or ""
+
+    # Entraユーザー用のUserレコードを作成または取得（外部キー制約のため）
+    db_user = db.query(User).filter(User.email == user_email).first()
+    if not db_user:
+        # 新規Entraユーザーの場合、Userレコードを作成
+        # password_hash/password_saltはEntraユーザーには不要だがDB制約のためプレースホルダー値を設定
+        db_user = User(
+            name=user_name,
+            email=user_email,
+            entra_sub=user_sub,
+            password_hash="ENTRA_USER",  # プレースホルダー（Entra認証のため使用されない）
+            password_salt="ENTRA_USER",  # プレースホルダー（Entra認証のため使用されない）
+            is_active=True,
+            is_admin=False,
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+    elif not db_user.entra_sub:
+        # 既存ユーザーにEntra subを紐付け
+        db_user.entra_sub = user_sub
+        db.commit()
+
     user = {
-        "id": user_sub,
-        "name": profile.get("displayName") or profile.get("givenName") or "",
-        "email": profile.get("mail") or profile.get("userPrincipalName") or "",
+        "id": db_user.id,  # 整数のuser_idを使用
+        "name": user_name,
+        "email": user_email,
+        "is_admin": db_user.is_admin,
     }
 
     # トークンをデータベースに保存（Cookieサイズ制限回避）
-    save_tokens_to_db(db, user_sub, token)
+    save_tokens_to_db(db, str(db_user.id), token)
 
     return _issue_session_response(user, settings, has_entra_tokens=True)
 
@@ -332,3 +358,53 @@ def who_am_i(request: Request, settings: Settings = Depends(get_settings)):
     if not exp or exp < int(time.time()):
         raise HTTPException(status_code=401, detail="Session expired")
     return {"ok": True, "user": session_data}
+
+
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> User:
+    """現在のログインユーザーを取得する依存関数"""
+    token = request.cookies.get(settings.session_cookie_name)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        session_data = decrypt_json(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    exp = session_data.get("exp")
+    if not exp or exp < int(time.time()):
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    user_sub = session_data.get("sub")
+    if not user_sub:
+        raise HTTPException(status_code=401, detail="Invalid session data")
+
+    # user_subは整数IDとして保存されている（Entraユーザーも含む）
+    try:
+        user_id = int(user_sub)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid user ID format")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return user
+
+
+def get_user_tokens(db: Session, user_id) -> Optional[dict]:
+    """ユーザーのEntra IDトークンを取得"""
+    # user_idは整数またはEntra IDのsub（文字列）
+    user_sub = str(user_id)
+    token_store = db.query(TokenStore).filter(TokenStore.user_sub == user_sub).first()
+
+    if not token_store:
+        return None
+
+    return {
+        "access_token": token_store.access_token,
+        "refresh_token": token_store.refresh_token,
+        "expires_at": token_store.token_expires_at,
+    }

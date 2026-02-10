@@ -45,13 +45,56 @@ def _normalize_emp_no(emp: str) -> str:
     return emp.lstrip("0") if emp else ""
 
 
+def _load_email_map_from_excel() -> Dict[str, str]:
+    """
+    社員番号とメールアドレス.xlsx からメールアドレスマップを読み込む
+    Returns: {正規化従業員番号: メールアドレス}
+    """
+    import os
+    from pathlib import Path
+
+    # プロジェクトルートからの相対パス
+    excel_path = Path(__file__).resolve().parent.parent.parent / "docs" / "社員番号とメールアドレス.xlsx"
+
+    if not excel_path.exists():
+        return {}
+
+    try:
+        df = pd.read_excel(excel_path)
+        email_map: Dict[str, str] = {}
+
+        # カラム名を探す
+        emp_col = None
+        email_col = None
+        for col in df.columns:
+            if '従業員番号' in col or '社員番号' in col:
+                emp_col = col
+            if 'メール' in col or 'アドレス' in col:
+                email_col = col
+
+        if emp_col and email_col:
+            for _, row in df.iterrows():
+                emp = str(row[emp_col]).strip() if pd.notna(row[emp_col]) else ""
+                email = str(row[email_col]).strip() if pd.notna(row[email_col]) else ""
+                if emp and email and email != "nan":
+                    email_map[_normalize_emp_no(emp)] = email
+
+        return email_map
+    except Exception:
+        return {}
+
+
 def _load_recipients(person_ds: Dataset, org_info_ds: Optional[Dataset] = None) -> List[Recipient]:
     """
     person_progressからrecipient一覧を読み込む。
+    メールアドレスがperson_progressに無い場合、社員番号とメールアドレス.xlsxから補完。
     org6がperson_progressに無い場合、org_infoから従業員番号で紐付けて取得する。
     """
     headers, rows = _dataset_to_rows(person_ds)
     colmap = _build_colmap(headers)
+
+    # 社員番号とメールアドレス.xlsx からメールアドレスマップを読み込む
+    email_map = _load_email_map_from_excel()
 
     # org_infoから従業員番号→所属名称6のマップを作成
     # 従業員番号は先頭ゼロ有無の揺らぎがあるため正規化して格納
@@ -67,14 +110,18 @@ def _load_recipients(person_ds: Dataset, org_info_ds: Optional[Dataset] = None) 
 
     recipients: List[Recipient] = []
     for r in rows:
-        email = _pick(r, colmap, "email").strip()
-        if not email:
-            continue
-
         emp_no = _pick(r, colmap, "emp_no").strip()
         normalized_emp = _normalize_emp_no(emp_no)
 
-        # まずperson_progressからorg6を取得、無ければorg_infoから
+        # メールアドレス: まずperson_progressから、無ければExcelから補完
+        email = _pick(r, colmap, "email").strip()
+        if not email and normalized_emp:
+            email = email_map.get(normalized_emp, "")
+
+        if not email:
+            continue
+
+        # org6: まずperson_progressから、無ければorg_infoから
         org6 = _pick(r, colmap, "org6").strip()
         if not org6 and normalized_emp:
             org6 = org6_by_emp.get(normalized_emp, "")

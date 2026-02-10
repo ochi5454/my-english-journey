@@ -4,8 +4,8 @@ import { Providers } from './providers'
 import { AuthGuard } from './components/AuthGuard'
 
 export const metadata: Metadata = {
-  title: 'データインポート',
-  description: 'データインポート用ページ',
+  title: 'AI Mail Agent',
+  description: 'AIメール送信エージェント',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

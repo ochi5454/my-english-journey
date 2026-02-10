@@ -10,7 +10,12 @@ from slowapi.errors import RateLimitExceeded
 from backend.core.database import init_db
 from backend.core.config import Settings
 from backend.core.logging import setup_logging, get_logger, log_request
-from backend.routers import excel, tournament, datasets, export_cursor, jobs, auth, export, notifications, api_keys
+
+# 新規ルーター（メール送信エージェント）
+from backend.routers import auth, templates, recipients, attachments, ai_generate, mail
+
+# 削除予定ルーター（データ管理機能）- 一時的に維持
+# from backend.routers import excel, tournament, datasets, export_cursor, jobs, export, notifications, api_keys
 
 # 設定読み込み
 settings = Settings()
@@ -24,8 +29,8 @@ logger = get_logger(__name__)
 limiter = Limiter(key_func=get_remote_address, enabled=settings.rate_limit_enabled)
 
 app = FastAPI(
-    title="Tournament Ops MVP",
-    description="勤怠管理・残業時間追跡システム API",
+    title="AI Mail Agent",
+    description="AIメール送信エージェント API",
     version="1.0.0",
     openapi_url="/api/openapi.json",
     docs_url="/api/docs",
@@ -83,12 +88,22 @@ def health_check():
     return {"status": "healthy", "version": "1.0.0"}
 
 
-app.include_router(excel.router)
-app.include_router(tournament.router)
-app.include_router(datasets.router)
-app.include_router(export_cursor.router)
-app.include_router(export.router)
-app.include_router(jobs.router)
+# 認証（維持）
 app.include_router(auth.router)
-app.include_router(notifications.router)
-app.include_router(api_keys.router)
+
+# 新規ルーター（メール送信エージェント）
+app.include_router(templates.router)
+app.include_router(recipients.router)
+app.include_router(attachments.router)
+app.include_router(ai_generate.router)
+app.include_router(mail.router)
+
+# 削除予定ルーター（データ管理機能）- コメントアウト
+# app.include_router(excel.router)
+# app.include_router(tournament.router)
+# app.include_router(datasets.router)
+# app.include_router(export_cursor.router)
+# app.include_router(export.router)
+# app.include_router(jobs.router)
+# app.include_router(notifications.router)
+# app.include_router(api_keys.router)
