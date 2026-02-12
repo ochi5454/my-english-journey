@@ -1,4 +1,4 @@
-"""AIメール生成API"""
+"""AIメール生成API（Langchain統合版）"""
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,6 +9,12 @@ from backend.core.database import get_db
 from backend.core.auth import get_current_user
 from backend.core.config import Settings
 from backend.models.user import User
+from backend.services.langchain_mail_generator import (
+    LangchainMailGenerator,
+    get_mail_generator,
+    RecipientInfo as LCRecipientInfo,
+    SenderInfo as LCSenderInfo,
+)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 settings = Settings()
@@ -50,16 +56,33 @@ class RecipientInfo(BaseModel):
     department: Optional[str] = None
 
 
+class SenderInfo(BaseModel):
+    """送信者情報"""
+    name: str
+    email: Optional[str] = None
+    department: Optional[str] = None
+    title: Optional[str] = None  # 役職
+
+
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     tone: str = "polite"  # formal / casual / polite
     recipient_type: str = "colleague"  # boss / colleague / customer / vendor
     recipients: Optional[List[RecipientInfo]] = None  # 実際の宛先情報
+    sender: Optional[SenderInfo] = None  # 送信者情報（Langchain用）
+
+
+class GeneratedEmailWithMeta(BaseModel):
+    """名前使用状況を含む生成メール"""
+    subject: str
+    body: str
+    recipient_name_used: bool = False  # 宛先名が使用されたか
+    sender_name_used: bool = False  # 送信者名が使用されたか
 
 
 class ChatResponse(BaseModel):
     message: str
-    email: Optional[GeneratedEmail] = None
+    email: Optional[GeneratedEmailWithMeta] = None
     done: bool = False
 
 
@@ -253,48 +276,77 @@ async def chat_for_email(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """チャット形式でメール作成を支援"""
+    """チャット形式でメール作成を支援（Langchain版）
+
+    sender情報が提供された場合、Langchainを使用して名前挿入を強制します。
+    """
     if not settings.openai_api_key:
         raise HTTPException(
             status_code=503,
             detail="OpenAI API key is not configured"
         )
 
-    # トーン・相手・宛先情報を考慮したシステムプロンプトを構築
-    recipients_data = [r.model_dump() for r in data.recipients] if data.recipients else None
-    system_prompt = build_chat_system_prompt(data.tone, data.recipient_type, data.recipients)
-
-    messages = [{"role": "system", "content": system_prompt}]
-    for msg in data.messages:
-        messages.append({"role": msg.role, "content": msg.content})
-
     try:
-        client = openai.OpenAI(api_key=settings.openai_api_key)
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Langchainサービスを使用（sender情報があれば名前挿入を強制）
+        generator = get_mail_generator()
+
+        # RecipientInfoをLangchain用に変換
+        lc_recipients = None
+        if data.recipients:
+            lc_recipients = [
+                LCRecipientInfo(
+                    email=r.email,
+                    name=r.name,
+                    department=r.department,
+                )
+                for r in data.recipients
+            ]
+
+        # SenderInfoをLangchain用に変換
+        lc_sender = None
+        if data.sender:
+            lc_sender = LCSenderInfo(
+                name=data.sender.name,
+                email=data.sender.email,
+                department=data.sender.department,
+                title=data.sender.title,
+            )
+        elif current_user:
+            # 送信者情報がない場合、ログインユーザー情報を使用
+            lc_sender = LCSenderInfo(
+                name=current_user.name,
+                email=current_user.email,
+            )
+
+        # メッセージリストを構築
+        messages = [{"role": msg.role, "content": msg.content} for msg in data.messages]
+
+        # Langchainで生成
+        result = generator.chat_generate(
             messages=messages,
-            temperature=0.7,
-            max_tokens=1500,
+            tone=data.tone,
+            recipient_type=data.recipient_type,
+            recipients=lc_recipients,
+            sender=lc_sender,
         )
 
-        content = response.choices[0].message.content
-
-        # メールが生成されたかチェック
+        # レスポンスを構築
         email = None
-        done = False
-        if "件名:" in content or "件名：" in content:
-            subject, body = parse_email_response(content)
-            if subject and body:
-                email = GeneratedEmail(subject=subject, body=body)
-                done = True
+        if result.get("email"):
+            email = GeneratedEmailWithMeta(
+                subject=result["email"]["subject"],
+                body=result["email"]["body"],
+                recipient_name_used=result["email"].get("recipient_name_used", False),
+                sender_name_used=result["email"].get("sender_name_used", False),
+            )
 
         return ChatResponse(
-            message=content,
+            message=result["message"],
             email=email,
-            done=done,
+            done=result.get("done", False),
         )
 
-    except openai.APIError as e:
-        raise HTTPException(status_code=503, detail=f"OpenAI API error: {str(e)}")
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")

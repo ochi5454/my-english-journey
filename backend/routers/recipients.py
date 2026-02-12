@@ -1,11 +1,12 @@
-"""宛先管理API"""
+"""宛先管理API（ファジー検索機能付き）"""
 import io
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import pandas as pd
 import httpx
+from rapidfuzz import fuzz
 
 from backend.core.database import get_db
 from backend.core.auth import get_current_user, get_user_tokens
@@ -63,6 +64,91 @@ class EntraUserResponse(BaseModel):
     mail: Optional[str]
     department: Optional[str]
     jobTitle: Optional[str]
+
+
+class FuzzySearchResult(BaseModel):
+    """ファジー検索結果"""
+    email: str
+    name: Optional[str]
+    department: Optional[str]
+    score: float  # マッチスコア (0-1)
+    match_field: str  # マッチした項目 (email / name / department)
+    source: str  # データソース (local / entra)
+
+
+class FuzzySearchResponse(BaseModel):
+    """ファジー検索レスポンス"""
+    results: List[FuzzySearchResult]
+    total_count: int
+    query: str
+
+
+def calculate_fuzzy_score(query: str, candidate: RecipientListMember) -> tuple:
+    """
+    ファジー検索スコアを計算
+
+    Returns:
+        tuple: (best_score, match_field)
+    """
+    query_lower = query.lower()
+
+    # メールアドレスのスコア
+    email_score = 0.0
+    if candidate.email:
+        email_lower = candidate.email.lower()
+        # 完全一致
+        if email_lower == query_lower:
+            email_score = 1.0
+        # 部分一致（含む）
+        elif query_lower in email_lower:
+            email_score = 0.85
+        # ファジーマッチ
+        else:
+            email_score = fuzz.ratio(query_lower, email_lower) / 100
+
+    # 名前のスコア
+    name_score = 0.0
+    if candidate.name:
+        name = candidate.name
+        name_lower = name.lower()
+        # 完全一致
+        if name_lower == query_lower or name == query:
+            name_score = 0.95
+        # 部分一致（含む）
+        elif query_lower in name_lower or query in name:
+            name_score = 0.8
+        # ファジーマッチ（日本語対応のため部分一致スコアも使用）
+        else:
+            # partial_ratio は部分一致に強い
+            name_score = max(
+                fuzz.ratio(query, name) / 100,
+                fuzz.partial_ratio(query, name) / 100 * 0.9  # 部分一致は少し低く評価
+            )
+
+    # 部署のスコア
+    dept_score = 0.0
+    if candidate.department:
+        dept = candidate.department
+        dept_lower = dept.lower()
+        # 完全一致
+        if dept_lower == query_lower or dept == query:
+            dept_score = 0.6
+        # 部分一致（含む）
+        elif query_lower in dept_lower or query in dept:
+            dept_score = 0.55
+        # ファジーマッチ
+        else:
+            dept_score = fuzz.ratio(query, dept) / 100 * 0.5
+
+    # 最高スコアを採用
+    scores = [
+        (email_score, "email"),
+        (name_score, "name"),
+        (dept_score, "department"),
+    ]
+    best_score, match_field = max(scores, key=lambda x: x[0])
+
+    return best_score, match_field
 
 
 # Endpoints
@@ -388,3 +474,134 @@ async def search_local_recipients(
         )
         for m in members
     ]
+
+
+@router.get("/search/fuzzy", response_model=FuzzySearchResponse)
+async def fuzzy_search_recipients(
+    q: str = Query(..., min_length=1, description="検索クエリ"),
+    threshold: float = Query(0.4, ge=0, le=1, description="最小マッチスコア（0-1）"),
+    limit: int = Query(20, ge=1, le=100, description="最大結果数"),
+    include_entra: bool = Query(True, description="Entra ID検索を含めるか"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    ファジー検索（タイプミス許容）でユーザーを検索
+
+    - ローカル宛先リストとEntra IDの両方から検索
+    - Levenshtein距離ベースのスコアリング
+    - 検索対象: メールアドレス、名前、部署
+    """
+    results: List[FuzzySearchResult] = []
+    seen_emails = set()  # 重複排除用
+
+    # 1. ローカル宛先リストからファジー検索
+    all_members = db.query(RecipientListMember).join(RecipientList).filter(
+        RecipientList.user_id == current_user.id,
+    ).all()
+
+    for member in all_members:
+        score, match_field = calculate_fuzzy_score(q, member)
+
+        if score >= threshold and member.email not in seen_emails:
+            results.append(FuzzySearchResult(
+                email=member.email,
+                name=member.name,
+                department=member.department,
+                score=round(score, 3),
+                match_field=match_field,
+                source="local",
+            ))
+            seen_emails.add(member.email)
+
+    # 2. Entra ID検索（オプション、前方一致のみだがスコア計算は行う）
+    if include_entra and len(q) >= 2:
+        try:
+            tokens = get_user_tokens(db, current_user.id)
+            if tokens and tokens.get("access_token"):
+                access_token = tokens["access_token"]
+
+                async with httpx.AsyncClient(timeout=10) as client:
+                    response = await client.get(
+                        "https://graph.microsoft.com/v1.0/users",
+                        params={
+                            "$filter": f"startswith(displayName,'{q}') or startswith(mail,'{q}')",
+                            "$select": "id,displayName,mail,department,jobTitle",
+                            "$top": "20",
+                        },
+                        headers={
+                            "Authorization": f"Bearer {access_token}",
+                        },
+                    )
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        users = data.get("value", [])
+
+                        for u in users:
+                            email = u.get("mail")
+                            if not email or email in seen_emails:
+                                continue
+
+                            # 仮のRecipientListMemberとしてスコア計算
+                            class TempMember:
+                                def __init__(self, email, name, department):
+                                    self.email = email
+                                    self.name = name
+                                    self.department = department
+
+                            temp = TempMember(
+                                email=email,
+                                name=u.get("displayName"),
+                                department=u.get("department"),
+                            )
+                            score, match_field = calculate_fuzzy_score(q, temp)
+
+                            if score >= threshold:
+                                results.append(FuzzySearchResult(
+                                    email=email,
+                                    name=u.get("displayName"),
+                                    department=u.get("department"),
+                                    score=round(score, 3),
+                                    match_field=match_field,
+                                    source="entra",
+                                ))
+                                seen_emails.add(email)
+
+        except Exception as e:
+            # Entra ID検索に失敗してもローカル結果は返す
+            print(f"Entra ID search failed: {e}")
+
+    # 3. スコア順にソート
+    results.sort(key=lambda x: x.score, reverse=True)
+
+    # 4. 上限適用
+    results = results[:limit]
+
+    return FuzzySearchResponse(
+        results=results,
+        total_count=len(results),
+        query=q,
+    )
+
+
+@router.get("/search/unified", response_model=FuzzySearchResponse)
+async def unified_search_recipients(
+    q: str = Query(..., min_length=1, description="検索クエリ"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    統合検索（フロントエンド向け簡易API）
+
+    - ファジー検索をデフォルト設定で実行
+    - To/Cc/Bcc入力欄からの検索に最適化
+    """
+    return await fuzzy_search_recipients(
+        q=q,
+        threshold=0.3,  # 緩めの閾値で多くの候補を返す
+        limit=15,
+        include_entra=True,
+        db=db,
+        current_user=current_user,
+    )

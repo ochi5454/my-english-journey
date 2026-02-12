@@ -13,7 +13,16 @@ export function AuthProvider({ children }: Props) {
   const fetchMe = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' })
+      // タイムアウト付きのfetch（5秒）
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        credentials: 'include',
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
       if (!res.ok) throw new Error('unauth')
       const data = await res.json()
       setUser(data.user)

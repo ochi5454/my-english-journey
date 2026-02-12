@@ -2,6 +2,7 @@ O365
 PyPDF2
 aiofiles
 alembic
+apscheduler>=3.10.0
 chromadb
 deep_translator
 docx2txt
@@ -32,6 +33,7 @@ python-docx
 python-dotenv
 python-multipart
 python-pptx
+rapidfuzz
 requests
 sentence_transformers
 setuptools>=65

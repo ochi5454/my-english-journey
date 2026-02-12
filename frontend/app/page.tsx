@@ -10,7 +10,7 @@ export default function DashboardPage() {
 
   // メイン機能
   const mainItem = {
-    title: '新規作成',
+    title: 'メール新規作成',
     description: 'メールを作成・送信',
     emoji: '✉️',
     href: '/compose',
@@ -20,18 +20,25 @@ export default function DashboardPage() {
   // サブ機能
   const subItems = [
     {
-      title: 'テンプレート',
-      description: 'テンプレートを管理',
+      title: 'テンプレート管理',
+      description: '頻繁に使う定型文を管理・作成',
       emoji: '📋',
       href: '/templates',
       glowColor: 'emerald',
     },
     {
       title: '宛先管理',
-      description: '宛先リストを管理',
+      description: '宛先を管理・作成',
       emoji: '👥',
       href: '/recipients',
       glowColor: 'purple',
+    },
+    {
+      title: '予約送信',
+      description: '予約した送信を管理',
+      emoji: '📅',
+      href: '/scheduled',
+      glowColor: 'pink',
     },
     {
       title: '送信履歴',
@@ -53,6 +60,7 @@ export default function DashboardPage() {
       emerald: 'hover:shadow-emerald-500/30',
       purple: 'hover:shadow-purple-500/30',
       amber: 'hover:shadow-amber-500/30',
+      pink: 'hover:shadow-pink-500/30',
     }
     return colors[color] || colors.blue
   }
@@ -63,6 +71,7 @@ export default function DashboardPage() {
       emerald: 'from-emerald-500/20 to-emerald-600/10',
       purple: 'from-purple-500/20 to-purple-600/10',
       amber: 'from-amber-500/20 to-amber-600/10',
+      pink: 'from-pink-500/20 to-pink-600/10',
     }
     return colors[color] || colors.blue
   }
@@ -131,7 +140,7 @@ export default function DashboardPage() {
           </button>
 
           {/* Sub Features - Glass Cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             {subItems.map((item) => (
               <button
                 key={item.href}

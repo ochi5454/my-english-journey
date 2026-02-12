@@ -12,7 +12,10 @@ from backend.core.config import Settings
 from backend.core.logging import setup_logging, get_logger, log_request
 
 # 新規ルーター（メール送信エージェント）
-from backend.routers import auth, templates, recipients, attachments, ai_generate, mail
+from backend.routers import auth, templates, recipients, attachments, ai_generate, mail, organizations
+
+# スケジューラサービス
+from backend.services.scheduler_service import start_scheduler, stop_scheduler
 
 # 削除予定ルーター（データ管理機能）- 一時的に維持
 # from backend.routers import excel, tournament, datasets, export_cursor, jobs, export, notifications, api_keys
@@ -75,11 +78,13 @@ async def log_requests_middleware(request: Request, call_next):
 def startup_event():
     logger.info("application_startup", env=env)
     init_db()
+    start_scheduler()
 
 
 @app.on_event("shutdown")
 def shutdown_event():
     logger.info("application_shutdown")
+    stop_scheduler()
 
 
 @app.get("/health", tags=["system"])
@@ -97,6 +102,7 @@ app.include_router(recipients.router)
 app.include_router(attachments.router)
 app.include_router(ai_generate.router)
 app.include_router(mail.router)
+app.include_router(organizations.router)
 
 # 削除予定ルーター（データ管理機能）- コメントアウト
 # app.include_router(excel.router)

@@ -7,6 +7,15 @@ from backend.models.email_template import EmailTemplate  # noqa: F401
 from backend.models.recipient import RecipientList, RecipientListMember  # noqa: F401
 from backend.models.mail_log import MailSendLog  # noqa: F401
 from backend.models.attachment import TempAttachment  # noqa: F401
+from backend.models.scheduled_mail import ScheduledMail  # noqa: F401
+
+# 組織・従業員モデル（部署単位での宛先指定用）
+from backend.models.organization import (  # noqa: F401
+    Organization,
+    EmployeeAssignment,
+    EntraSyncLog,
+    EmployeeTransferHistory,
+)
 
 # 以下は削除予定（データ管理機能）
 # from backend.models.excel import ExcelFile, ExcelCell  # noqa: F401

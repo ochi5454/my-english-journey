@@ -1,6 +1,6 @@
 """メール送信API"""
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ from backend.core.config import Settings
 from backend.models.user import User
 from backend.models.mail_log import MailSendLog
 from backend.models.attachment import TempAttachment
+from backend.models.scheduled_mail import ScheduledMail
 from backend.services.graph_mail_service import send_mail_via_graph, GraphMailAttachment
 from backend.routers.attachments import get_attachment_data
 
@@ -255,3 +256,315 @@ async def get_mail_log(
         error_message=log.error_message,
         sent_at=log.sent_at.isoformat(),
     )
+
+
+# =============================================
+# 予約送信関連のスキーマとエンドポイント
+# =============================================
+
+class ScheduleMailRequest(BaseModel):
+    """予約送信リクエスト"""
+    to: List[str]
+    cc: Optional[List[str]] = None
+    bcc: Optional[List[str]] = None
+    subject: str
+    body: str
+    body_type: str = "text"
+    attachments: Optional[List[AttachmentInfo]] = None
+    session_id: Optional[str] = None
+    scheduled_at: datetime  # ISO 8601 形式
+    timezone: str = "Asia/Tokyo"
+
+
+class ScheduleMailResponse(BaseModel):
+    """予約送信レスポンス"""
+    id: int
+    scheduled_at: str
+    timezone: str
+    status: str
+    created_at: str
+
+
+class ScheduledMailListResponse(BaseModel):
+    """予約送信一覧レスポンス"""
+    id: int
+    to_addresses: List[str]
+    subject: str
+    scheduled_at: str
+    timezone: str
+    status: str
+    created_at: str
+
+
+class ScheduledMailDetailResponse(BaseModel):
+    """予約送信詳細レスポンス"""
+    id: int
+    to_addresses: List[str]
+    cc_addresses: Optional[List[str]]
+    bcc_addresses: Optional[List[str]]
+    subject: str
+    body: str
+    body_type: str
+    attachments: Optional[List[dict]]
+    scheduled_at: str
+    timezone: str
+    status: str
+    error_message: Optional[str]
+    created_at: str
+    updated_at: str
+    sent_at: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class ScheduleMailUpdate(BaseModel):
+    """予約送信更新リクエスト"""
+    to: Optional[List[str]] = None
+    cc: Optional[List[str]] = None
+    bcc: Optional[List[str]] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
+    timezone: Optional[str] = None
+
+
+@router.post("/schedule", response_model=ScheduleMailResponse, status_code=201)
+async def schedule_mail(
+    data: ScheduleMailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """メールを予約送信"""
+    # scheduled_at が未来であることを確認
+    now = datetime.utcnow()
+    # タイムゾーン情報を持つ datetime を UTC に変換
+    if data.scheduled_at.tzinfo is not None:
+        scheduled_utc = data.scheduled_at.astimezone(timezone.utc).replace(tzinfo=None)
+    else:
+        # タイムゾーン情報がない場合は UTC として扱う
+        scheduled_utc = data.scheduled_at
+
+    if scheduled_utc <= now:
+        raise HTTPException(
+            status_code=400,
+            detail="予約日時は現在時刻より後を指定してください"
+        )
+
+    # 添付ファイル情報の準備
+    attachment_info = []
+    if data.attachments:
+        for att_info in data.attachments:
+            file_data, filename, content_type = get_attachment_data(db, att_info.id, current_user.id)
+            if file_data:
+                # 予約送信用に添付ファイル情報を保存
+                # ファイルパスは TempAttachment から取得
+                temp_att = db.query(TempAttachment).filter(
+                    TempAttachment.id == att_info.id
+                ).first()
+                attachment_info.append({
+                    "id": att_info.id,
+                    "filename": filename or att_info.filename,
+                    "content_type": content_type,
+                    "file_path": temp_att.file_path if temp_att else None,
+                })
+
+    # session_id から添付ファイルを取得（attachments が指定されていない場合）
+    if not data.attachments and data.session_id:
+        session_attachments = db.query(TempAttachment).filter(
+            TempAttachment.session_id == data.session_id,
+        ).filter(
+            (TempAttachment.user_id == current_user.id) | (TempAttachment.user_id.is_(None))
+        ).all()
+
+        for att in session_attachments:
+            attachment_info.append({
+                "id": att.id,
+                "filename": att.filename,
+                "content_type": att.content_type,
+                "file_path": att.file_path,
+            })
+
+    # 予約送信レコードを作成
+    scheduled_mail = ScheduledMail(
+        user_id=current_user.id,
+        scheduled_at=scheduled_utc,
+        timezone=data.timezone,
+        to_addresses=data.to,
+        cc_addresses=data.cc if data.cc else None,
+        bcc_addresses=data.bcc if data.bcc else None,
+        subject=data.subject,
+        body=data.body,
+        body_type=data.body_type,
+        attachments=attachment_info if attachment_info else None,
+        status="pending",
+    )
+    db.add(scheduled_mail)
+    db.commit()
+    db.refresh(scheduled_mail)
+
+    return ScheduleMailResponse(
+        id=scheduled_mail.id,
+        scheduled_at=scheduled_mail.scheduled_at.isoformat(),
+        timezone=scheduled_mail.timezone,
+        status=scheduled_mail.status,
+        created_at=scheduled_mail.created_at.isoformat(),
+    )
+
+
+@router.get("/schedule", response_model=List[ScheduledMailListResponse])
+async def list_scheduled_mails(
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """予約送信一覧を取得"""
+    query = db.query(ScheduledMail).filter(
+        ScheduledMail.user_id == current_user.id
+    )
+
+    if status:
+        query = query.filter(ScheduledMail.status == status)
+
+    mails = query.order_by(ScheduledMail.scheduled_at.asc()).offset(offset).limit(limit).all()
+
+    return [
+        ScheduledMailListResponse(
+            id=m.id,
+            to_addresses=m.to_addresses,
+            subject=m.subject,
+            scheduled_at=m.scheduled_at.isoformat(),
+            timezone=m.timezone,
+            status=m.status,
+            created_at=m.created_at.isoformat(),
+        )
+        for m in mails
+    ]
+
+
+@router.get("/schedule/{schedule_id}", response_model=ScheduledMailDetailResponse)
+async def get_scheduled_mail(
+    schedule_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """予約送信詳細を取得"""
+    scheduled_mail = db.query(ScheduledMail).filter(
+        ScheduledMail.id == schedule_id,
+        ScheduledMail.user_id == current_user.id,
+    ).first()
+
+    if not scheduled_mail:
+        raise HTTPException(status_code=404, detail="予約送信が見つかりません")
+
+    return ScheduledMailDetailResponse(
+        id=scheduled_mail.id,
+        to_addresses=scheduled_mail.to_addresses,
+        cc_addresses=scheduled_mail.cc_addresses,
+        bcc_addresses=scheduled_mail.bcc_addresses,
+        subject=scheduled_mail.subject,
+        body=scheduled_mail.body,
+        body_type=scheduled_mail.body_type,
+        attachments=scheduled_mail.attachments,
+        scheduled_at=scheduled_mail.scheduled_at.isoformat(),
+        timezone=scheduled_mail.timezone,
+        status=scheduled_mail.status,
+        error_message=scheduled_mail.error_message,
+        created_at=scheduled_mail.created_at.isoformat(),
+        updated_at=scheduled_mail.updated_at.isoformat() if scheduled_mail.updated_at else scheduled_mail.created_at.isoformat(),
+        sent_at=scheduled_mail.sent_at.isoformat() if scheduled_mail.sent_at else None,
+    )
+
+
+@router.put("/schedule/{schedule_id}", response_model=ScheduledMailDetailResponse)
+async def update_scheduled_mail(
+    schedule_id: int,
+    data: ScheduleMailUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """予約送信を更新（pending状態のみ）"""
+    scheduled_mail = db.query(ScheduledMail).filter(
+        ScheduledMail.id == schedule_id,
+        ScheduledMail.user_id == current_user.id,
+    ).first()
+
+    if not scheduled_mail:
+        raise HTTPException(status_code=404, detail="予約送信が見つかりません")
+
+    if scheduled_mail.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"ステータスが '{scheduled_mail.status}' の予約は更新できません"
+        )
+
+    # フィールドを更新
+    if data.to is not None:
+        scheduled_mail.to_addresses = data.to
+    if data.cc is not None:
+        scheduled_mail.cc_addresses = data.cc
+    if data.bcc is not None:
+        scheduled_mail.bcc_addresses = data.bcc
+    if data.subject is not None:
+        scheduled_mail.subject = data.subject
+    if data.body is not None:
+        scheduled_mail.body = data.body
+    if data.scheduled_at is not None:
+        if data.scheduled_at.tzinfo is not None:
+            scheduled_utc = data.scheduled_at.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            scheduled_utc = data.scheduled_at
+        if scheduled_utc <= datetime.utcnow():
+            raise HTTPException(status_code=400, detail="予約日時は現在時刻より後を指定してください")
+        scheduled_mail.scheduled_at = scheduled_utc
+    if data.timezone is not None:
+        scheduled_mail.timezone = data.timezone
+
+    db.commit()
+    db.refresh(scheduled_mail)
+
+    return ScheduledMailDetailResponse(
+        id=scheduled_mail.id,
+        to_addresses=scheduled_mail.to_addresses,
+        cc_addresses=scheduled_mail.cc_addresses,
+        bcc_addresses=scheduled_mail.bcc_addresses,
+        subject=scheduled_mail.subject,
+        body=scheduled_mail.body,
+        body_type=scheduled_mail.body_type,
+        attachments=scheduled_mail.attachments,
+        scheduled_at=scheduled_mail.scheduled_at.isoformat(),
+        timezone=scheduled_mail.timezone,
+        status=scheduled_mail.status,
+        error_message=scheduled_mail.error_message,
+        created_at=scheduled_mail.created_at.isoformat(),
+        updated_at=scheduled_mail.updated_at.isoformat() if scheduled_mail.updated_at else scheduled_mail.created_at.isoformat(),
+        sent_at=scheduled_mail.sent_at.isoformat() if scheduled_mail.sent_at else None,
+    )
+
+
+@router.delete("/schedule/{schedule_id}", status_code=204)
+async def cancel_scheduled_mail(
+    schedule_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """予約送信をキャンセル"""
+    scheduled_mail = db.query(ScheduledMail).filter(
+        ScheduledMail.id == schedule_id,
+        ScheduledMail.user_id == current_user.id,
+    ).first()
+
+    if not scheduled_mail:
+        raise HTTPException(status_code=404, detail="予約送信が見つかりません")
+
+    if scheduled_mail.status not in ["pending", "failed"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"ステータスが '{scheduled_mail.status}' の予約はキャンセルできません"
+        )
+
+    scheduled_mail.status = "cancelled"
+    scheduled_mail.cancelled_at = datetime.utcnow()
+    db.commit()

@@ -4,15 +4,12 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../hooks/useAuth'
 import { API_BASE } from '../constants/excel'
-import { ArrowLeft, Bot, ChevronRight, Paperclip, Send, Eye } from 'lucide-react'
+import { RecipientInput, Recipient } from '../components/RecipientInput'
+import { SendButton } from '../components/SendButton'
+import { ScheduleModal } from '../components/ScheduleModal'
+import { ArrowLeft, Bot, Paperclip, Send, Eye, ChevronRight } from 'lucide-react'
 
-// Types
-interface Recipient {
-  email: string
-  name?: string
-  department?: string
-}
-
+// Types (Recipient is imported from RecipientInput)
 interface Attachment {
   id: string
   filename: string
@@ -65,6 +62,8 @@ export default function ComposePage() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [scheduleSuccess, setScheduleSuccess] = useState(false)
 
   // Recipient list modal
   const [showRecipientListModal, setShowRecipientListModal] = useState(false)
@@ -75,20 +74,19 @@ export default function ComposePage() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
 
-  // Search for To/Cc/Bcc
-  const [toSearch, setToSearch] = useState('')
-  const [ccSearch, setCcSearch] = useState('')
-  const [bccSearch, setBccSearch] = useState('')
-  const [toSearchResults, setToSearchResults] = useState<Recipient[]>([])
-  const [ccSearchResults, setCcSearchResults] = useState<Recipient[]>([])
-  const [bccSearchResults, setBccSearchResults] = useState<Recipient[]>([])
-  const [searching, setSearching] = useState(false)
+  // Recipient list modal target
+  // (search is now handled inside RecipientInput component)
 
   // AI Chat
   const [aiMessages, setAiMessages] = useState<{ role: string; content: string }[]>([])
   const [aiInput, setAiInput] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
-  const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null)
+  const [generatedEmail, setGeneratedEmail] = useState<{
+    subject: string
+    body: string
+    recipient_name_used?: boolean
+    sender_name_used?: boolean
+  } | null>(null)
   const [aiTone, setAiTone] = useState<'formal' | 'casual' | 'polite'>('polite')
   const [aiRecipientType, setAiRecipientType] = useState<'boss' | 'colleague' | 'customer' | 'vendor'>('colleague')
 
@@ -181,64 +179,42 @@ export default function ComposePage() {
     }
   }
 
-  const searchUsers = useCallback(async (query: string, field: 'to' | 'cc' | 'bcc') => {
-    const setResults = field === 'to' ? setToSearchResults : field === 'cc' ? setCcSearchResults : setBccSearchResults
-
-    if (query.length < 2) {
-      setResults([])
-      return
-    }
-    setSearching(true)
+  // Search function for RecipientInput component (returns Promise)
+  const searchRecipients = useCallback(async (query: string): Promise<Recipient[]> => {
     try {
-      const res = await fetch(`${API_BASE}/recipients/search?q=${encodeURIComponent(query)}`, {
+      // ファジー検索APIを使用（タイプミス許容、スコアリング付き）
+      const res = await fetch(`${API_BASE}/recipients/search/unified?q=${encodeURIComponent(query)}`, {
         credentials: 'include',
       })
       if (res.ok) {
         const data = await res.json()
-        setResults(data.map((u: any) => ({
-          email: u.mail || u.email,
-          name: u.displayName || u.name,
-          department: u.department,
-        })))
+        return data.results?.map((r: any) => ({
+          email: r.email,
+          name: r.name,
+          department: r.department,
+          score: r.score,
+          source: r.source,
+        })) || []
+      } else {
+        // フォールバック: 従来のEntra ID検索
+        const fallbackRes = await fetch(`${API_BASE}/recipients/search?q=${encodeURIComponent(query)}`, {
+          credentials: 'include',
+        })
+        if (fallbackRes.ok) {
+          const data = await fallbackRes.json()
+          return Array.isArray(data) ? data.map((u: any) => ({
+            email: u.mail || u.email,
+            name: u.displayName || u.name,
+            department: u.department,
+          })) : []
+        }
+        return []
       }
     } catch (e) {
       console.error('Search failed:', e)
-    } finally {
-      setSearching(false)
+      return []
     }
   }, [])
-
-  useEffect(() => {
-    const timer = setTimeout(() => { searchUsers(toSearch, 'to') }, 300)
-    return () => clearTimeout(timer)
-  }, [toSearch, searchUsers])
-
-  useEffect(() => {
-    const timer = setTimeout(() => { searchUsers(ccSearch, 'cc') }, 300)
-    return () => clearTimeout(timer)
-  }, [ccSearch, searchUsers])
-
-  useEffect(() => {
-    const timer = setTimeout(() => { searchUsers(bccSearch, 'bcc') }, 300)
-    return () => clearTimeout(timer)
-  }, [bccSearch, searchUsers])
-
-  const addRecipient = (recipient: Recipient, field: 'to' | 'cc' | 'bcc') => {
-    const setter = field === 'to' ? setTo : field === 'cc' ? setCc : setBcc
-    const current = field === 'to' ? to : field === 'cc' ? cc : bcc
-    if (!current.find(r => r.email === recipient.email)) {
-      setter([...current, recipient])
-    }
-    if (field === 'to') { setToSearch(''); setToSearchResults([]) }
-    else if (field === 'cc') { setCcSearch(''); setCcSearchResults([]) }
-    else { setBccSearch(''); setBccSearchResults([]) }
-  }
-
-  const removeRecipient = (email: string, field: 'to' | 'cc' | 'bcc') => {
-    const setter = field === 'to' ? setTo : field === 'cc' ? setCc : setBcc
-    const current = field === 'to' ? to : field === 'cc' ? cc : bcc
-    setter(current.filter(r => r.email !== email))
-  }
 
   const applyTemplate = (template: Template) => {
     setSubject(template.subject)
@@ -311,13 +287,26 @@ export default function ComposePage() {
             name: r.name || null,
             department: r.department || null,
           })) : null,
+          // 送信者情報（Langchainで名前挿入に使用）
+          sender: user ? {
+            name: user.name,
+            email: user.email,
+            department: undefined,  // TODO: ユーザープロフィールから取得
+          } : null,
         }),
       })
 
       if (res.ok) {
         const data = await res.json()
         setAiMessages(prev => [...prev, { role: 'assistant', content: data.message }])
-        if (data.email) { setGeneratedEmail(data.email) }
+        if (data.email) {
+          setGeneratedEmail({
+            subject: data.email.subject,
+            body: data.email.body,
+            recipient_name_used: data.email.recipient_name_used,
+            sender_name_used: data.email.sender_name_used,
+          })
+        }
       }
     } catch (e) {
       console.error('AI chat failed:', e)
@@ -373,6 +362,47 @@ export default function ComposePage() {
     }
   }
 
+  const scheduleEmail = async (scheduledAt: Date, timezone: string) => {
+    if (to.length === 0) { setError('宛先を指定してください'); return }
+    if (!subject.trim()) { setError('件名を入力してください'); return }
+
+    setSending(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`${API_BASE}/mail/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          to: to.map(r => r.email),
+          cc: cc.length > 0 ? cc.map(r => r.email) : undefined,
+          bcc: bcc.length > 0 ? bcc.map(r => r.email) : undefined,
+          subject,
+          body,
+          session_id: sessionId,
+          attachments: attachments.map(a => ({ id: a.id, filename: a.filename })),
+          scheduled_at: scheduledAt.toISOString(),
+          timezone,
+        }),
+      })
+
+      if (res.ok) {
+        setScheduleSuccess(true)
+        setShowPreview(false)
+        setTo([]); setCc([]); setBcc([])
+        setSubject(''); setBody(''); setAttachments([])
+      } else {
+        const data = await res.json()
+        setError(data.detail || '予約に失敗しました')
+      }
+    } catch (e) {
+      setError('予約中にエラーが発生しました')
+    } finally {
+      setSending(false)
+    }
+  }
+
   // Glass card style
   const glassCard = "backdrop-blur-xl bg-white/5 border border-white/10 hover:border-white/20"
   const glassCardStatic = "backdrop-blur-xl bg-white/5 border border-white/10"
@@ -418,6 +448,11 @@ export default function ComposePage() {
               ✅ メールを送信しました
             </div>
           )}
+          {scheduleSuccess && (
+            <div className={`mx-4 mt-4 p-4 ${glassCardStatic} rounded-xl text-purple-300 text-sm bg-purple-500/10`}>
+              📅 メールを予約しました
+            </div>
+          )}
           {error && (
             <div className={`mx-4 mt-4 p-4 ${glassCardStatic} rounded-xl text-red-300 text-sm bg-red-500/10`}>
               ⚠️ {error}
@@ -427,92 +462,34 @@ export default function ComposePage() {
           {/* Recipients Card - Glass */}
           <div className={`mx-4 mt-4 ${glassCardStatic} rounded-2xl overflow-hidden`}>
             {/* To */}
-            <div className="flex items-center px-4 py-3 border-b border-white/5">
-              <span className="text-slate-400 text-sm w-12">To:</span>
-              <div className="flex-1 flex flex-wrap items-center gap-2">
-                {to.map(r => (
-                  <span key={r.email} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm border border-blue-400/30 backdrop-blur-sm">
-                    {r.name || r.email}
-                    <button onClick={() => removeRecipient(r.email, 'to')} className="text-blue-400 hover:text-white ml-1">×</button>
-                  </span>
-                ))}
-                <input
-                  type="text"
-                  value={toSearch}
-                  onChange={e => setToSearch(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && toSearch.includes('@')) addRecipient({ email: toSearch }, 'to') }}
-                  placeholder="宛先を追加..."
-                  className="flex-1 min-w-[120px] bg-transparent outline-none text-sm text-white placeholder-slate-500"
-                />
-              </div>
-              <button onClick={() => { setRecipientListTarget('to'); setShowRecipientListModal(true) }} className="text-slate-500 hover:text-slate-300 transition-colors">
-                <ChevronRight size={20} />
-              </button>
-            </div>
-            {toSearchResults.length > 0 && (
-              <div className="border-b border-white/5 bg-slate-900/50">
-                {toSearchResults.map(r => (
-                  <button key={r.email} onClick={() => addRecipient(r, 'to')} className="w-full text-left px-4 py-2 hover:bg-white/5 text-sm transition-colors">
-                    <div className="text-white">{r.name || r.email}</div>
-                    <div className="text-xs text-slate-400">{r.email}</div>
-                  </button>
-                ))}
-              </div>
-            )}
+            <RecipientInput
+              label="To"
+              value={to}
+              onChange={setTo}
+              onSearch={searchRecipients}
+              onOpenList={() => { setRecipientListTarget('to'); setShowRecipientListModal(true) }}
+              placeholder="宛先を追加..."
+              className="border-b border-white/5"
+            />
 
             {/* Cc */}
-            <div className="flex items-center px-4 py-3 border-b border-white/5">
-              <span className="text-slate-400 text-sm w-12">Cc:</span>
-              <div className="flex-1 flex flex-wrap items-center gap-2">
-                {cc.map(r => (
-                  <span key={r.email} className="inline-flex items-center gap-1 px-3 py-1 bg-teal-500/20 text-teal-300 rounded-full text-sm border border-teal-400/30 backdrop-blur-sm">
-                    {r.name || r.email}
-                    <button onClick={() => removeRecipient(r.email, 'cc')} className="text-teal-400 hover:text-white ml-1">×</button>
-                  </span>
-                ))}
-                <input type="text" value={ccSearch} onChange={e => setCcSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && ccSearch.includes('@')) addRecipient({ email: ccSearch }, 'cc') }} placeholder="" className="flex-1 min-w-[60px] bg-transparent outline-none text-sm text-white" />
-              </div>
-              <button onClick={() => { setRecipientListTarget('cc'); setShowRecipientListModal(true) }} className="text-slate-500 hover:text-slate-300 transition-colors">
-                <ChevronRight size={20} />
-              </button>
-            </div>
-            {ccSearchResults.length > 0 && (
-              <div className="border-b border-white/5 bg-slate-900/50">
-                {ccSearchResults.map(r => (
-                  <button key={r.email} onClick={() => addRecipient(r, 'cc')} className="w-full text-left px-4 py-2 hover:bg-white/5 text-sm transition-colors">
-                    <div className="text-white">{r.name || r.email}</div>
-                    <div className="text-xs text-slate-400">{r.email}</div>
-                  </button>
-                ))}
-              </div>
-            )}
+            <RecipientInput
+              label="Cc"
+              value={cc}
+              onChange={setCc}
+              onSearch={searchRecipients}
+              onOpenList={() => { setRecipientListTarget('cc'); setShowRecipientListModal(true) }}
+              className="border-b border-white/5"
+            />
 
             {/* Bcc */}
-            <div className="flex items-center px-4 py-3">
-              <span className="text-slate-400 text-sm w-12">Bcc:</span>
-              <div className="flex-1 flex flex-wrap items-center gap-2">
-                {bcc.map(r => (
-                  <span key={r.email} className="inline-flex items-center gap-1 px-3 py-1 bg-slate-500/20 text-slate-300 rounded-full text-sm border border-slate-400/30 backdrop-blur-sm">
-                    {r.name || r.email}
-                    <button onClick={() => removeRecipient(r.email, 'bcc')} className="text-slate-400 hover:text-white ml-1">×</button>
-                  </span>
-                ))}
-                <input type="text" value={bccSearch} onChange={e => setBccSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && bccSearch.includes('@')) addRecipient({ email: bccSearch }, 'bcc') }} placeholder="" className="flex-1 min-w-[60px] bg-transparent outline-none text-sm text-white" />
-              </div>
-              <button onClick={() => { setRecipientListTarget('bcc'); setShowRecipientListModal(true) }} className="text-slate-500 hover:text-slate-300 transition-colors">
-                <ChevronRight size={20} />
-              </button>
-            </div>
-            {bccSearchResults.length > 0 && (
-              <div className="bg-slate-900/50">
-                {bccSearchResults.map(r => (
-                  <button key={r.email} onClick={() => addRecipient(r, 'bcc')} className="w-full text-left px-4 py-2 hover:bg-white/5 text-sm transition-colors">
-                    <div className="text-white">{r.name || r.email}</div>
-                    <div className="text-xs text-slate-400">{r.email}</div>
-                  </button>
-                ))}
-              </div>
-            )}
+            <RecipientInput
+              label="Bcc"
+              value={bcc}
+              onChange={setBcc}
+              onSearch={searchRecipients}
+              onOpenList={() => { setRecipientListTarget('bcc'); setShowRecipientListModal(true) }}
+            />
           </div>
 
           {/* Compose Mode Card - Glass */}
@@ -585,11 +562,20 @@ export default function ComposePage() {
               <Eye size={18} />
               プレビュー
             </button>
-            <button onClick={sendEmail} disabled={sending || to.length === 0} className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-500/80 backdrop-blur-sm border border-blue-400/30 rounded-2xl text-white font-medium hover:bg-blue-400/80 disabled:opacity-30 transition-all">
-              <Send size={18} />
-              送信
-            </button>
+            <SendButton
+              onSendNow={sendEmail}
+              onSchedule={() => setShowScheduleModal(true)}
+              sending={sending}
+              disabled={to.length === 0}
+            />
           </div>
+
+          {/* Schedule Modal */}
+          <ScheduleModal
+            isOpen={showScheduleModal}
+            onClose={() => setShowScheduleModal(false)}
+            onSchedule={scheduleEmail}
+          />
         </div>
 
         {/* AI Panel - Glass */}
@@ -629,6 +615,25 @@ export default function ComposePage() {
               </div>
             </div>
 
+            {/* 名前情報表示（Langchain用） */}
+            <div className="p-3 border-b border-white/10 bg-slate-900/30">
+              <div className="text-xs text-slate-500 mb-2">📝 自動挿入される情報</div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-500 w-14">宛先名:</span>
+                  <span className={`${to.length > 0 && to[0].name ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    {to.length > 0 && to[0].name ? `${to[0].name}様` : '（宛先を選択してください）'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-500 w-14">署名:</span>
+                  <span className={`${user?.name ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    {user?.name || '（ログイン情報から取得）'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Chat Messages */}
             <div className="flex-1 min-h-0 p-3 overflow-y-auto">
               {aiMessages.length === 0 && (
@@ -660,6 +665,15 @@ export default function ComposePage() {
             {generatedEmail && (
               <div className="p-3 border-t border-white/10 bg-blue-500/10">
                 <div className="text-xs text-blue-300 mb-2 font-medium">✨ メールが生成されました</div>
+                {/* 名前挿入状況の表示 */}
+                <div className="flex gap-2 mb-2 text-xs">
+                  <span className={`px-2 py-0.5 rounded ${generatedEmail.recipient_name_used ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                    {generatedEmail.recipient_name_used ? '✓ 宛先名あり' : '⚠ 宛先名なし'}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded ${generatedEmail.sender_name_used ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                    {generatedEmail.sender_name_used ? '✓ 署名あり' : '⚠ 署名なし'}
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <button onClick={applyGeneratedEmail} className="flex-1 px-3 py-2 bg-blue-500/30 text-white rounded-xl text-sm font-medium hover:bg-blue-400/30 transition-all border border-blue-400/30">
                     この内容を使用
