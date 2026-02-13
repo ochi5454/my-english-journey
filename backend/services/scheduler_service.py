@@ -17,6 +17,7 @@ from backend.core.config import Settings
 from backend.models.scheduled_mail import ScheduledMail
 from backend.models.mail_log import MailSendLog
 from backend.models.token_store import TokenStore
+from backend.models.user import User
 from backend.services.graph_mail_service import send_mail_via_graph, GraphMailAttachment
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,9 @@ async def process_scheduled_mails():
 
 async def _process_single_mail(db: Session, mail: ScheduledMail):
     """単一の予約メールを処理"""
+    token_store = None
+    error_message = None
+
     try:
         # processing に更新（重複処理を防止）
         mail.status = "processing"
@@ -142,10 +146,11 @@ async def _process_single_mail(db: Session, mail: ScheduledMail):
         logger.info(f"Scheduled mail {mail.id} sent successfully")
 
     except Exception as e:
-        logger.error(f"Failed to send scheduled mail {mail.id}: {e}")
+        error_message = str(e)
+        logger.error(f"Failed to send scheduled mail {mail.id}: {error_message}")
 
         mail.status = "failed"
-        mail.error_message = str(e)
+        mail.error_message = error_message
         mail.retry_count += 1
 
         # 失敗ログを作成
@@ -159,7 +164,7 @@ async def _process_single_mail(db: Session, mail: ScheduledMail):
             body_type=mail.body_type,
             attachments=mail.attachments,
             status="failed",
-            error_message=str(e),
+            error_message=error_message,
             sent_at=datetime.utcnow(),
         )
         db.add(log)
@@ -167,6 +172,10 @@ async def _process_single_mail(db: Session, mail: ScheduledMail):
         mail.mail_log_id = log.id
 
         db.commit()
+
+        # 失敗通知メールを送信（トークンがある場合のみ）
+        if token_store and token_store.access_token:
+            await _send_failure_notification(db, mail, token_store, error_message)
 
 
 def _get_stored_attachment_data(att_info: dict) -> Optional[bytes]:
@@ -180,6 +189,65 @@ def _get_stored_attachment_data(att_info: dict) -> Optional[bytes]:
         with open(file_path, "rb") as f:
             return f.read()
     return None
+
+
+async def _send_failure_notification(
+    db: Session,
+    mail: ScheduledMail,
+    token_store: TokenStore,
+    error_message: str
+):
+    """
+    送信失敗時の通知メールを送信
+
+    ユーザー自身のアカウントから自分宛に通知メールを送信する。
+    トークン切れなどで通知も送れない場合はログに記録して終了。
+    """
+    try:
+        # ユーザーのメールアドレスを取得
+        user = db.query(User).filter(User.id == mail.user_id).first()
+        if not user or not user.email:
+            logger.warning(f"Cannot send failure notification: user email not found for mail {mail.id}")
+            return
+
+        # 予約日時をローカル時刻でフォーマット
+        scheduled_at_str = mail.scheduled_at.strftime("%Y-%m-%d %H:%M") if mail.scheduled_at else "不明"
+
+        notification_subject = "【送信失敗】予約メールの送信に失敗しました"
+        notification_body = f"""予約メールの送信に失敗しました。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+■ 失敗したメールの情報
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+件名: {mail.subject}
+宛先: {', '.join(mail.to_addresses) if mail.to_addresses else '(なし)'}
+予約日時: {scheduled_at_str} (UTC)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+■ エラー内容
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{error_message}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+■ 対処方法
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+予約送信ページから再度送信を試みるか、内容を確認してください。
+"""
+
+        await send_mail_via_graph(
+            settings=settings,
+            to=[user.email],
+            subject=notification_subject,
+            body=notification_body,
+            access_token=token_store.access_token,
+            refresh_token=token_store.refresh_token,
+            token_expires_at=token_store.token_expires_at,
+        )
+        logger.info(f"Failure notification sent for scheduled mail {mail.id} to {user.email}")
+
+    except Exception as e:
+        # 通知メール送信も失敗した場合はログのみ
+        logger.error(f"Failed to send failure notification for mail {mail.id}: {e}")
 
 
 def start_scheduler():

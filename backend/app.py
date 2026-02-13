@@ -12,7 +12,7 @@ from backend.core.config import Settings
 from backend.core.logging import setup_logging, get_logger, log_request
 
 # 新規ルーター（メール送信エージェント）
-from backend.routers import auth, templates, recipients, attachments, ai_generate, mail, organizations
+from backend.routers import auth, templates, recipients, attachments, ai_generate, mail, organizations, signatures
 
 # スケジューラサービス
 from backend.services.scheduler_service import start_scheduler, stop_scheduler
@@ -103,6 +103,7 @@ app.include_router(attachments.router)
 app.include_router(ai_generate.router)
 app.include_router(mail.router)
 app.include_router(organizations.router)
+app.include_router(signatures.router)
 
 # 削除予定ルーター（データ管理機能）- コメントアウト
 # app.include_router(excel.router)

@@ -7,7 +7,7 @@ import { API_BASE } from '../constants/excel'
 import { RecipientInput, Recipient } from '../components/RecipientInput'
 import { SendButton } from '../components/SendButton'
 import { ScheduleModal } from '../components/ScheduleModal'
-import { ArrowLeft, Bot, Paperclip, Send, Eye, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Bot, Paperclip, Send, Eye, ChevronRight, PenTool, ChevronDown } from 'lucide-react'
 
 // Types (Recipient is imported from RecipientInput)
 interface Attachment {
@@ -35,6 +35,13 @@ interface RecipientListDetail {
   id: number
   name: string
   members: { email: string; name?: string; department?: string }[]
+}
+
+interface Signature {
+  id: number
+  name: string
+  content: string
+  is_default: boolean
 }
 
 type ComposeMode = 'template' | 'manual' | 'ai'
@@ -74,6 +81,10 @@ export default function ComposePage() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
 
+  // Signatures
+  const [signatures, setSignatures] = useState<Signature[]>([])
+  const [showSignatureDropdown, setShowSignatureDropdown] = useState(false)
+
   // Recipient list modal target
   // (search is now handled inside RecipientInput component)
 
@@ -81,6 +92,8 @@ export default function ComposePage() {
   const [aiMessages, setAiMessages] = useState<{ role: string; content: string }[]>([])
   const [aiInput, setAiInput] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
+  const [isComposing, setIsComposing] = useState(false)  // IME変換中フラグ
+  const chatMessagesRef = useRef<HTMLDivElement>(null)  // チャット履歴スクロール用
   const [generatedEmail, setGeneratedEmail] = useState<{
     subject: string
     body: string
@@ -97,10 +110,11 @@ export default function ComposePage() {
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
 
-  // Fetch templates and recipient lists on mount
+  // Fetch templates, recipient lists, and signatures on mount
   useEffect(() => {
     fetchTemplates()
     fetchRecipientLists()
+    fetchSignatures()
   }, [])
 
   // Poll for auto-attached files from external agents
@@ -153,6 +167,31 @@ export default function ComposePage() {
     } catch (e) {
       console.error('Failed to fetch recipient lists:', e)
     }
+  }
+
+  const fetchSignatures = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/signatures`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setSignatures(data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch signatures:', e)
+    }
+  }
+
+  // AIチャット履歴の自動スクロール
+  useEffect(() => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight
+    }
+  }, [aiMessages, aiLoading])
+
+  const insertSignature = (signature: Signature) => {
+    const separator = body.trim() ? '\n\n' : ''
+    setBody(prev => prev + separator + signature.content)
+    setShowSignatureDropdown(false)
   }
 
   const importFromList = async (listId: number) => {
@@ -265,9 +304,10 @@ export default function ComposePage() {
     }
   }
 
-  const sendAiMessage = async () => {
-    if (!aiInput.trim()) return
-    const userMessage = { role: 'user', content: aiInput }
+  const sendAiMessage = async (quickMessage?: string) => {
+    const messageContent = quickMessage || aiInput
+    if (!messageContent.trim()) return
+    const userMessage = { role: 'user', content: messageContent }
     setAiMessages(prev => [...prev, userMessage])
     setAiInput('')
     setAiLoading(true)
@@ -408,7 +448,7 @@ export default function ComposePage() {
   const glassCardStatic = "backdrop-blur-xl bg-white/5 border border-white/10"
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+    <div className="h-screen bg-slate-950 flex flex-col relative overflow-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 -z-10">
         <div className="absolute top-20 -left-40 w-80 h-80 bg-blue-600/20 rounded-full blur-[100px]" />
@@ -440,7 +480,7 @@ export default function ComposePage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex">
+      <main className="flex-1 flex min-h-0 overflow-hidden">
         <div className="flex-1 overflow-auto pb-20">
           {/* Alerts */}
           {success && (
@@ -527,6 +567,52 @@ export default function ComposePage() {
             <div className="px-4 py-3">
               <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="メール本文を入力..." rows={10} className="w-full bg-transparent outline-none text-sm text-slate-200 placeholder-slate-500 resize-none leading-relaxed" />
             </div>
+            {/* Signature Insert */}
+            <div className="px-4 py-2 border-t border-white/5 flex justify-end relative">
+              <div className="relative">
+                <button
+                  onClick={() => setShowSignatureDropdown(!showSignatureDropdown)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-slate-400 hover:text-white text-sm transition-colors"
+                >
+                  <PenTool size={14} />
+                  署名を挿入
+                  <ChevronDown size={14} className={`transition-transform ${showSignatureDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                {showSignatureDropdown && (
+                  <div className="absolute bottom-full right-0 mb-1 w-56 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-xl overflow-hidden z-10">
+                    {signatures.length === 0 ? (
+                      <div className="p-3 text-center">
+                        <p className="text-xs text-slate-500 mb-2">署名がありません</p>
+                        <button
+                          onClick={() => { setShowSignatureDropdown(false); window.open('/signatures', '_blank') }}
+                          className="text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          署名を作成 →
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {signatures.map(sig => (
+                          <button
+                            key={sig.id}
+                            onClick={() => insertSignature(sig)}
+                            className="w-full text-left px-3 py-2.5 hover:bg-white/5 border-b border-white/5 last:border-b-0 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-white">{sig.name}</span>
+                              {sig.is_default && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 rounded">デフォルト</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5 truncate">{sig.content.split('\n')[0]}</div>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Attachments Card - Glass */}
@@ -580,7 +666,7 @@ export default function ComposePage() {
 
         {/* AI Panel - Glass */}
         {showAiPanel && (
-          <div className="w-80 border-l border-white/10 backdrop-blur-xl bg-slate-900/50 flex flex-col">
+          <div className="w-80 h-full border-l border-white/10 backdrop-blur-xl bg-slate-900/50 flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
@@ -635,7 +721,7 @@ export default function ComposePage() {
             </div>
 
             {/* Chat Messages */}
-            <div className="flex-1 min-h-0 p-3 overflow-y-auto">
+            <div ref={chatMessagesRef} className="flex-1 min-h-0 p-3 overflow-y-auto">
               {aiMessages.length === 0 && (
                 <div className="text-slate-500 text-sm space-y-3 text-center py-8">
                   <div className="w-16 h-16 mx-auto rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
@@ -685,11 +771,40 @@ export default function ComposePage() {
               </div>
             )}
 
-            {/* Input */}
-            <div className="p-3 border-t border-white/10">
-              <div className="flex gap-2">
-                <input type="text" value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendAiMessage()} placeholder="メッセージを入力..." className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm text-white outline-none placeholder-slate-500 focus:border-blue-400/50 transition-colors" />
-                <button onClick={sendAiMessage} disabled={aiLoading} className="w-10 h-10 flex items-center justify-center bg-blue-500/30 text-white rounded-full hover:bg-blue-400/30 disabled:opacity-30 transition-all border border-blue-400/30">
+            {/* Input - Teams風操作感 */}
+            <div className="p-3 border-t border-white/10 flex-shrink-0">
+              <div className="flex gap-2 items-end">
+                <textarea
+                  value={aiInput}
+                  onChange={e => setAiInput(e.target.value)}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
+                  onKeyDown={e => {
+                    // IME変換中は送信しない
+                    if (isComposing) return
+                    // Shift+Enter → 改行（デフォルト動作）
+                    if (e.key === 'Enter' && e.shiftKey) return
+                    // Enter → 送信
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      // 空文字・空白のみは送信しない
+                      if (!aiInput.trim()) return
+                      sendAiMessage()
+                    }
+                  }}
+                  placeholder="メッセージを入力...（Shift+Enterで改行）"
+                  rows={1}
+                  className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-2xl text-sm text-white outline-none placeholder-slate-500 focus:border-blue-400/50 transition-colors resize-none max-h-32 overflow-y-auto"
+                  style={{ minHeight: '40px' }}
+                />
+                <button
+                  onClick={() => {
+                    if (!aiInput.trim()) return
+                    sendAiMessage()
+                  }}
+                  disabled={aiLoading || !aiInput.trim()}
+                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-blue-500/30 text-white rounded-full hover:bg-blue-400/30 disabled:opacity-30 transition-all border border-blue-400/30"
+                >
                   <Send size={16} />
                 </button>
               </div>

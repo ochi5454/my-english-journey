@@ -1,22 +1,35 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
-.venv/
+# Environment variables
 .env
-data/
-.github/
-.vscode/
-__pycache__/
-./__pycache__/
-./node_modules/
-/frontend/node_modules/
-node_modules/
-package-lock.json
-package.json
-./package-lock.json
-./package.json
+backend/.env
+
+# Python
 venv/
-./dist/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Node.js
+node_modules/
+
+# Next.js
+frontend/.next/
+
+# Data (database, uploads, etc.)
+data/
+
+# Build artifacts
 dist/
 build/
-./build/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Firebase
 .firebase/
-./.firebase/
+
+# OS
+.DS_Store
+Thumbs.db

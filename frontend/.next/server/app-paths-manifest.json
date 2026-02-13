@@ -1,6 +1,10 @@
 {
+  "/page": "app/page.js",
+  "/recipients/page": "app/recipients/page.js",
   "/compose/page": "app/compose/page.js",
+  "/templates/page": "app/templates/page.js",
+  "/scheduled/page": "app/scheduled/page.js",
   "/api/proxy/[...path]/route": "app/api/proxy/[...path]/route.js",
   "/login/page": "app/login/page.js",
-  "/page": "app/page.js"
+  "/auth/callback/page": "app/auth/callback/page.js"
 }

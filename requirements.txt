@@ -1,48 +1,44 @@
-O365
-PyPDF2
-aiofiles
-alembic
-apscheduler>=3.10.0
-chromadb
-deep_translator
-docx2txt
-faiss-cpu
+# Web Framework
 fastapi
-fitz
-httpx
-janome
-langchain
-langchain-community
+uvicorn[standard]
+python-multipart
+slowapi
+
+# Database
+sqlalchemy
+alembic
+
+# Data Processing
+pandas
+numpy
+pyarrow
+openpyxl
+rapidfuzz
+
+# AI / LLM
+openai
 langchain-core
 langchain-openai
-langdetect
-numpy
-openai
-openpyxl
-pandas
-pyarrow
-pdf2image
-pdfplumber
-pip>=23
+
+# Audio
+gtts
+pydub
+
+# HTTP Client
+httpx
+
+# Configuration & Validation
 pydantic
 pydantic-settings
-pymupdf
-pypdf
-pytesseract
-python-docx
-python-dotenv
-python-multipart
-python-pptx
-rapidfuzz
-requests
-sentence_transformers
-setuptools>=65
-slowapi
-sqlalchemy
-structlog
-torch
-transformers
-typing-extensions
-uvicorn[standard]
-wheel
 cryptography
+
+# Scheduling
+apscheduler>=3.10.0
+
+# Logging
+structlog
+
+# Build Tools
+pip>=23
+setuptools>=65
+wheel

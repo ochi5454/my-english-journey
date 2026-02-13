@@ -8,6 +8,7 @@ from backend.models.recipient import RecipientList, RecipientListMember  # noqa:
 from backend.models.mail_log import MailSendLog  # noqa: F401
 from backend.models.attachment import TempAttachment  # noqa: F401
 from backend.models.scheduled_mail import ScheduledMail  # noqa: F401
+from backend.models.signature import Signature  # noqa: F401
 
 # 組織・従業員モデル（部署単位での宛先指定用）
 from backend.models.organization import (  # noqa: F401

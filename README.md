@@ -1,98 +1,104 @@
-# 時間外労働管理システム / Tournament Ops MVP
+# AIメール送信エージェント
 
-Next.js（App Router）フロントと FastAPI バックエンドで構成された、勤務データのインポート・集計・エクスポートを行うアプリです。docker-compose で一括起動、またはそれぞれローカル起動できます。
-
-## 構成とスタック
-- frontend: Next.js 14 (App Router) + TypeScript + Tailwind
-- backend: FastAPI + SQLite（`backend/data/app.db`）
-- docker-compose: frontend 5175→3000, backend 8000→8000
-- 認証なしのローカル開発前提（API ベース URL は `NEXT_PUBLIC_API_BASE`）
-
-## セットアップ
-1) 環境変数を用意  
-   ```
-   cp backend/.env.example backend/.env
-   cp frontend/.env.example frontend/.env
-   ```
-   backend 側 `.env` に `OPENAI_API_KEY` を設定（必要な場合のみ）。
-
-2) 依存インストール  
-   - backend: `pip install -r requirements.txt`（または `pip install -r backend/requirements.txt`）  
-   - frontend: `cd frontend && npm install`
-
-## 起動方法
-### docker-compose で起動
-```
-docker-compose up --build
-```
-- Backend: http://localhost:8000/docs  
-- Frontend: http://localhost:5175/
-
-### ローカル個別起動
-Backend:
-```
-cd backend
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
-```
-Frontend:
-```
-cd frontend
-npm run dev
-```
-API ベース URL は `.env` の `NEXT_PUBLIC_API_BASE` で指定（デフォルト http://127.0.0.1:8000）。
+Next.js（App Router）フロントエンドとFastAPIバックエンドで構成された、AIアシスト付きメール送信システムです。
 
 ## 主要機能
-- Excel/CSV アップロード（複数シート：勤務予定入力、出退社時刻、日数項目、日次実績、勤務予定進捗一覧、所属情報）
-- 実所定外時間 推計データの集計・表示・Excelダウンロード
-- 残業時間詳細の表示・Excelダウンロード
-- バックエンド `/export/all` でカーソル型エクスポート（JSON/CSV/ZIP）
-- ローカルストレージを使ったインポートプレビューの保持
 
-## よく使うコマンド
-- フロント開発サーバ: `cd frontend && npm run dev`
-- Lint: `cd frontend && npm run lint`
-- バックエンド起動: `cd backend && uvicorn app:app --reload`
-- エクスポート API 例: `curl "http://localhost:8000/export/all?format=json&limit=5"`
-- OAuth ログイン画面: `http://localhost:3000/login`（Entra ID 認証画面へリダイレクト）
+- **ファジー検索**: タイプミス許容の宛先検索（Entra ID + ローカル宛先リスト）
+- **AIメール生成**: Langchain連携によるメール本文・件名の自動生成
+- **予約送信**: 指定日時にメールを自動送信
+- **組織管理**: 部署単位での宛先指定
+- **署名管理**: 複数署名の登録・切り替え
+- **テンプレート**: メールテンプレートの管理・適用
 
-## OAuth (Microsoft Entra ID) 用の環境変数（例）
-`.env`（backend 配下）に設定してください。
+## 構成
+
 ```
+├── backend/          # FastAPI + SQLite
+├── frontend/         # Next.js 14 (App Router) + TypeScript + Tailwind
+├── docs/
+│   ├── deployment/   # デプロイ手順
+│   │   ├── AD/
+│   │   └── PROTHENTIA/
+│   ├── setup/        # セットアップ手順
+│   ├── design/       # 設計ドキュメント
+│   ├── manuals/      # 運用マニュアル
+│   ├── auth/         # 認証関連
+│   └── ai-reference/ # AI向けリファレンス
+└── scripts/          # ユーティリティスクリプト
+```
+
+## セットアップ
+
+### 1. 環境変数を用意
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+### 2. 依存インストール
+
+```bash
+# Backend
+pip install -r requirements.txt
+
+# Frontend
+cd frontend && npm install
+```
+
+## 起動方法
+
+### ローカル起動
+
+```bash
+# Backend
+cd backend && uvicorn app:app --reload --port 8000
+
+# Frontend
+cd frontend && npm run dev
+```
+
+- Backend: http://localhost:8000/docs
+- Frontend: http://localhost:3000
+
+### Docker Compose
+
+```bash
+docker-compose up --build
+```
+
+## 環境変数
+
+### Backend (.env)
+
+```
+# OpenAI (AIメール生成用)
+OPENAI_API_KEY=<your_openai_api_key>
+
+# Microsoft Entra ID
 ENTRA_TENANT_ID=<your_tenant_id>
 ENTRA_CLIENT_ID=<app_client_id>
 ENTRA_CLIENT_SECRET=<app_client_secret>
 ENTRA_REDIRECT_URI=http://localhost:3000/auth/callback
-ENTRA_SCOPE="openid profile email offline_access User.Read"
+
+# セッション
 SESSION_SECRET_KEY=<random_session_secret>
-SESSION_COOKIE_NAME=session
-SESSION_MAX_AGE=86400
-ENCRYPTION_KEY=<base64-encoded-32-byte-key>  # AES-256-GCM for session/JWT encryption
+ENCRYPTION_KEY=<base64-encoded-32-byte-key>
 ```
 
-### ビルトイン管理者（ローカル/デモ用）
-- 初回起動時に `ADMIN_EMAIL` で指定したユーザーが自動作成され、`/auth/login/basic` にメール+パスワードでログインできます。
-- `.env` 例（backend）
-  ```
-  ADMIN_EMAIL=admin@example.com
-  ADMIN_PASSWORD=admin123!
-  ADMIN_NAME=Admin User
-  ADMIN_BOOTSTRAP_ENABLED=true
-  ```
-  既存ユーザーがある場合は再作成しません。認証後は Entra 同様 `SESSION_COOKIE_NAME` でセッションが発行されます。
+## ドキュメント
 
-## データファイル
-サンプル入力は `docs/11_TIM_勤務予定入力.xlsx` などに配置。エクスポート結果はブラウザから Excel ダウンロードまたは API 経由で取得できます。
-
-## 参考ドキュメント（docs/）
-- `ai-architecture-reference.md` バックエンド設計ガイド
-- `ai-frontend-architecture-reference.md` フロント設計ガイド
-- `ai-encryption-implementation-reference.md` 暗号化データ実装
-- `ai-oauth2-implementation-reference.md` OAuth2 実装
-- `ai-azure-deployment-reference.md` Azure へのデプロイ
-- `ai-sharepoint-integration-reference.md` SharePoint 連携
-- `ai-design-fundamentals-reference.md` 設計基礎ガイド
+| カテゴリ | 場所 |
+|---------|------|
+| 設計書 | `docs/design/` |
+| デプロイ手順 | `docs/deployment/` |
+| 運用マニュアル | `docs/manuals/` |
+| 認証設定 | `docs/auth/` |
+| AI向けリファレンス | `docs/ai-reference/` |
 
 ## 開発メモ
-- DB は SQLite。マイグレーション未導入（必要なら Alembic を追加）。
-- API プロンプトは backend `PROMPTS` に集約。
-- OpenAI キーは環境変数でのみ扱い、ソースにハードコードしない。
+
+- DB: SQLite（`backend/data/app.db`）
+- 認証: Microsoft Entra ID（OAuth2）
+- AI: OpenAI GPT via Langchain
