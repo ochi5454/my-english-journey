@@ -81,7 +81,7 @@
 
 | 項目 | 設定値 |
 |------|--------|
-| **名前** | `勤怠管理システム` |
+| **名前** | `AI Mail` |
 | **サポートされているアカウントの種類** | `この組織ディレクトリのみに含まれるアカウント (シングルテナント)` |
 | **リダイレクトURI** | 種類: `Web` <br> URI: `http://localhost:3001/auth/callback` |
 
@@ -287,7 +287,7 @@ ENTRA_CLIENT_ID=【クライアントID】
 
 1. **エンタープライズアプリケーションを開く**
    - Azure Portal のホームから「エンタープライズアプリケーション」を選択
-   - 検索ボックスに「勤怠管理システム」と入力
+   - 検索ボックスに「AI Mail」と入力
    - 該当するアプリケーションをクリック
 
 2. **ユーザーとグループを管理**
@@ -369,7 +369,7 @@ SESSION_MAX_AGE=86400
 
 # メール送信設定（Microsoft Graph API）
 # MAIL_FROM は不要（ログインユーザーのメールが自動的に使用されます）
-MAIL_FROM_NAME=勤怠管理システム
+MAIL_FROM_NAME=AI Mail
 ```
 
 ### 本番環境用設定例
@@ -391,7 +391,7 @@ SESSION_MAX_AGE=86400
 
 # メール送信設定（Microsoft Graph API）
 # MAIL_FROM は不要（ログインユーザーのメールが自動的に使用されます）
-MAIL_FROM_NAME=勤怠管理システム
+MAIL_FROM_NAME=AI Mail
 ```
 
 ---
@@ -474,7 +474,7 @@ npm run dev
 **解決策**:
 1. Azure Portal にアクセス
 2. 「Microsoft Entra ID」→「アプリの登録」を選択
-3. 「勤怠管理システム」を検索
+3. 「AI Mail」を検索
 4. 「概要」ページに表示されています
 
 ---
@@ -548,7 +548,7 @@ npm run dev
 1. **Mail.Send 権限を追加**（セクション5参照）
 2. **環境変数を設定**（任意）
    ```bash
-   MAIL_FROM_NAME=勤怠管理システム
+   MAIL_FROM_NAME=AI Mail
    ```
 
 ### メール送信フロー

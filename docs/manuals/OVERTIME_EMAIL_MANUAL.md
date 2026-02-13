@@ -181,7 +181,7 @@ https://ms-bbs.coo-kai.jp/a/aeondelightjp.onmicrosoft.com/topic/4368531060
 | `ENTRA_TENANT_ID` | Azure ADテナントID | 必須 | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
 | `ENTRA_CLIENT_ID` | アプリケーションクライアントID | 必須 | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
 | `ENTRA_CLIENT_SECRET` | クライアントシークレット | 必須 | `xxxxxxxxxxxxxxxxxxxxx` |
-| `MAIL_FROM_NAME` | 送信者名（任意） | 任意 | `勤怠管理システム` |
+| `MAIL_FROM_NAME` | 送信者名（任意） | 任意 | `AI Mail` |
 
 ※ `MAIL_FROM`は不要です。ログインユーザーのメールアドレスが自動的に使用されます。
 

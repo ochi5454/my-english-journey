@@ -92,7 +92,7 @@ ENTRA_REDIRECT_URI=http://localhost:3000/auth/callback
 
 # メール設定
 MAIL_USE_GRAPH=true
-MAIL_FROM_NAME=勤怠管理システム
+MAIL_FROM_NAME=AI Mail
 ```
 
 **キーの生成方法：**

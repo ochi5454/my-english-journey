@@ -705,7 +705,7 @@ export function SortableTable({ data, columns }: Props) {
 ```markdown
 # docs/USER_MANUAL.md (新規作成)
 
-# 勤怠管理システム ユーザーマニュアル
+# AI Mail ユーザーマニュアル
 
 ## 目次
 1. [ログイン方法](#ログイン方法)

@@ -51,7 +51,7 @@
 | `SMTP_PASSWORD` | SMTP認証パスワード | 空文字 | `xxx...` |
 | `SMTP_USE_TLS` | TLS使用フラグ | `true` | `false` |
 | `MAIL_FROM` | 送信元メールアドレス | `hi3-ochi@aeondelight.jp` | `noreply@example.com` |
-| `MAIL_FROM_NAME` | 送信元表示名 | 空文字 | `勤怠管理システム` |
+| `MAIL_FROM_NAME` | 送信元表示名 | 空文字 | `AI Mail` |
 | `MAIL_COMPANY` | 会社名（メール本文用） | 空文字 | `株式会社Example` |
 | `MAIL_DEPARTMENT` | 部署名（メール本文用） | 空文字 | `人事部` |
 | `MAIL_SENDER_NAME` | 送信者名（メール本文用） | 空文字 | `山田太郎` |
@@ -128,7 +128,7 @@ SMTP_PORT=587
 SMTP_USERNAME=service@example.com
 SMTP_PASSWORD=xxx...
 MAIL_FROM=noreply@example.com
-MAIL_FROM_NAME=勤怠管理システム
+MAIL_FROM_NAME=AI Mail
 
 # フロントエンド
 NEXT_PUBLIC_API_BASE=https://api.example.com

@@ -257,7 +257,7 @@ Azure Container Apps にデプロイされたアプリケーションでは、�
 | 変数名 | 説明 | デフォルト値 |
 |--------|------|-------------|
 | `MAIL_USE_GRAPH` | Microsoft Graph API 使用 | `true` |
-| `MAIL_FROM_NAME` | 送信者名 | `勤怠管理システム` |
+| `MAIL_FROM_NAME` | 送信者名 | `AI Mail` |
 
 ### フロントエンド環境変数
 

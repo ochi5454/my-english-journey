@@ -1,4 +1,4 @@
-# 勤怠管理システム マルチエージェント設計書
+# AI Mail マルチエージェント設計書
 > Tournament Ops MVP - AI Agent Integration Design | v1.1
 
 ---
@@ -876,7 +876,7 @@ class ChatAgent(BaseAgent):
     DBアクセス不要、LLMのみ使用
     """
 
-    SYSTEM_PROMPT = """あなたは勤怠管理システムのアシスタントです。
+    SYSTEM_PROMPT = """あなたはAI Mailのアシスタントです。
 
 ## システムの機能
 - 勤怠データのアップロード（Excel/CSV）
