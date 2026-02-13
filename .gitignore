@@ -1,6 +1,10 @@
-# Environment variables
+# Environment variables (keep .env.example only)
 .env
+.env.local
+.env*.local
 backend/.env
+frontend/.env
+frontend/.env.local
 
 # Python
 venv/
