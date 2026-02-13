@@ -6,13 +6,14 @@
 
 ## 概要
 
-| 環境 | 構成 | Dockerfile | 用途 |
-|------|------|------------|------|
-| **ローカル開発（分離）** | 分離コンテナ | `backend/Dockerfile` + `frontend/Dockerfile` | 開発・デバッグ |
-| **ローカル開発（All-in-One）** | 単一コンテナ | `Dockerfile.linux` | 本番環境テスト |
-| **本番（Azure）** | 単一コンテナ | `Dockerfile.linux` | Azure Container Apps |
+| 環境 | 構成 | Dockerfile | 用途 | ステータス |
+|------|------|------------|------|----------|
+| **ローカル開発（分離）** | 分離コンテナ | `backend/Dockerfile` + `frontend/Dockerfile` | 開発・デバッグ | ✅ 実装済み |
+| **ローカル開発（All-in-One）** | 単一コンテナ | `Dockerfile.linux` | 本番環境テスト | 📄 参考資料のみ |
+| **本番（Azure 分離）** | 分離コンテナ | `Dockerfile.frontend` + `Dockerfile.backend` | Azure Container Apps | ⏳ 準備中（メイン） |
+| **本番（Azure All-in-One）** | 単一コンテナ | `Dockerfile.linux` | Azure Container Apps | 📄 参考資料のみ |
 
-> 💡 **Tip**: All-in-One 構成（ローカル開発 All-in-One / 本番 Azure）は現在未実装です。ローカル開発には分離コンテナ構成を使用してください。
+> 💡 **Tip**: ローカル開発にはオプション A（ネイティブ実行）または B（分離コンテナ）を使用してください。本番環境へのデプロイは**分離アーキテクチャがメイン**です。All-in-One 構成はドキュメントに参考資料として残していますが、実装予定はありません。
 
 ---
 
@@ -101,10 +102,9 @@ docker-compose down -v  # -v オプションでボリューム削除
 
 ## All-in-One 構成
 
-> 💡 **Tip**: このセクションは参考情報です。All-in-One 構成は現在未実装です。
+> 📄 **注意**: このセクションは参考資料です。All-in-One 構成は未実装であり、実装予定もありません。ローカル開発には分離コンテナ構成を、本番デプロイには分離アーキテクチャを使用してください。
 
-All-in-One 構成は、すべてのサービスを単一コンテナに統合して実行します。
-ローカルテストと Azure 本番デプロイの両方で使用できます。
+All-in-One 構成は、すべてのサービスを単一コンテナに統合して実行する設計です（参考情報）。
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -121,9 +121,9 @@ All-in-One 構成は、すべてのサービスを単一コンテナに統合し
 
 ## ローカルで All-in-One を使用する
 
-> 💡 **Tip**: このセクションは参考情報です。All-in-One 構成は現在未実装です。
+> 📄 **注意**: このセクションは参考資料です。All-in-One 構成は未実装であり、実装予定もありません。
 
-本番環境に近い状態でテストしたい場合、All-in-One コンテナをローカルで実行できます。
+本番環境に近い状態でテストしたい場合の参考情報です。
 
 ### ビルドコマンド
 
@@ -194,11 +194,63 @@ docker rm mailagent_allinone
 
 ## 本番環境（Azure）：デプロイ方式
 
-> 💡 **Tip**: このセクションは参考情報です。Azure デプロイは現在未実装です。
+本番環境では、Azure Container Apps を使用してデプロイします。**分離アーキテクチャがメインのデプロイ方式**です。
 
-本番環境では、Azure Container Apps を使用して All-in-One コンテナをデプロイします。
+### Azure Container Apps：分離アーキテクチャ（推奨・メイン）
 
-### Azure Container Apps：All-in-One
+Frontend と Backend を別々のコンテナでデプロイし、データベースは Azure PostgreSQL Flexible Server を使用します。
+
+```
+┌──────────────────────────────────────────────────────────┐
+│               Container Apps Environment                 │
+│  ┌─────────────────────┐  ┌────────────────────────┐   │
+│  │  Frontend Container │  │  Backend Container     │   │
+│  │  (Next.js)          │  │  (FastAPI)             │   │
+│  │  Port: 3000         │  │  Port: 8000            │   │
+│  └─────────────────────┘  └────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ↓
+┌──────────────────────────────────────────────────────────┐
+│           Azure PostgreSQL Flexible Server               │
+│           (外部マネージドサービス)                        │
+└──────────────────────────────────────────────────────────┘
+```
+
+**使用ファイル:**
+- `Dockerfile.frontend` - Frontend イメージ定義
+- `Dockerfile.backend` - Backend イメージ定義
+
+**ビルドコマンド（ACR）:**
+```bash
+# Frontend
+az acr build \
+  --registry <your-acr-name> \
+  --image aimail-frontend:latest \
+  --platform linux/amd64 \
+  --file Dockerfile.frontend .
+
+# Backend
+az acr build \
+  --registry <your-acr-name> \
+  --image aimail-backend:latest \
+  --platform linux/amd64 \
+  --file Dockerfile.backend .
+```
+
+**特徴:**
+- ✅ 部分的な更新が可能（変更したコンポーネントのみデプロイ）
+- ✅ 独立したスケーリング
+- ✅ データベースの完全な永続性（Azure PostgreSQL）
+- ✅ デプロイ時間が短い（2-7分）
+
+詳細は [分離アーキテクチャ デプロイガイド](../deployment/PROTHENTIA/separate_mode/DEPLOYMENT.md) を参照してください。
+
+---
+
+### Azure Container Apps：All-in-One（参考資料）
+
+> 📄 **注意**: このセクションは参考資料です。All-in-One 構成は実装予定がありません。
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -211,33 +263,24 @@ docker rm mailagent_allinone
 └─────────────────────────────────────────────────────┘
 ```
 
-**使用ファイル:**
+**使用ファイル（参考）:**
 - `Dockerfile.linux` - All-in-One イメージ定義
 - `supervisord.conf` - プロセス管理設定
 - `entrypoint.sh` - コンテナ起動スクリプト
 
-**ビルドコマンド（ACR）:**
-```bash
-az acr build \
-  --registry <your-acr-name> \
-  --image mailagent-allinone:<tag> \
-  --platform linux/amd64 \
-  --file Dockerfile.linux .
-```
-
 **特徴:**
 - 単一コンテナで管理がシンプル
 - コンテナ間通信の設定が不要
-- ⚠️ デプロイに時間がかかる
+- ⚠️ デプロイに時間がかかる（10-15分）
 - ⚠️ データベースがコンテナ内部（再デプロイでリセット）
 
 ---
 
 ## モード切り替え
 
-> 💡 **Tip**: このセクションは参考情報です。All-in-One 構成は現在未実装のため、モード切り替えは使用できません。
+> 📄 **注意**: このセクションは参考資料です。All-in-One 構成は未実装のため、モード切り替えは使用できません。ローカル開発には分離コンテナ構成のみを使用してください。
 
-分離コンテナと All-in-One コンテナを切り替えて使用できます。各モードのデータは独立しています。
+参考情報として、分離コンテナと All-in-One コンテナを切り替えて使用する場合の手順を記載しています。
 
 ### 分離コンテナ → All-in-One に切り替え
 
@@ -298,20 +341,19 @@ docker-compose up -d
 
 | 環境 | PostgreSQL | ファイル | 永続性 |
 |------|------------|----------|--------|
-| **All-in-One（Azure）** | コンテナ内部 | コンテナ内部 | ⚠️ 再デプロイでリセット |
+| **分離アーキテクチャ（メイン）** | Azure PostgreSQL Flexible Server | Azure Storage | ✅ 完全永続 |
+| **All-in-One（参考資料）** | コンテナ内部 | コンテナ内部 | ⚠️ 再デプロイでリセット |
 
 ### 本番環境（Azure）でのデータについて
 
-All-in-One 環境では PostgreSQL がコンテナ内部に保存されます。
+**分離アーキテクチャ（推奨）** では、Azure PostgreSQL Flexible Server を使用するため、データは完全に永続化されます。
 
 | イベント | PostgreSQL | ファイル |
 |---------|------------|----------|
-| コンテナ再起動 | ⚠️ 保持される可能性あり | ⚠️ 保持される可能性あり |
-| 新イメージのデプロイ | ❌ **リセット** | ❌ **リセット** |
+| コンテナ再起動 | ✅ **保持される** | ✅ **保持される** |
+| 新イメージのデプロイ | ✅ **保持される** | ✅ **保持される** |
 
-**注意**: All-in-One 環境でデータを永続化するには、以下の対応が必要です：
-- **Azure Database for PostgreSQL** の使用（推奨）
-- **Azure Storage** のマウント（ファイル用）
+All-in-One 環境（参考資料）では PostgreSQL がコンテナ内部に保存されるため、データの永続性に注意が必要です。
 
 ---
 
@@ -325,11 +367,18 @@ All-in-One 環境では PostgreSQL がコンテナ内部に保存されます。
 | `mailagent-frontend:latest` | ~500MB | `frontend/Dockerfile` | フロントエンド（docker-compose） |
 | `postgres:16-alpine` | ~230MB | (公式イメージ) | データベース |
 
-### 本番デプロイ用
+### 本番デプロイ用（分離アーキテクチャ・メイン）
 
 | イメージ名 | サイズ | Dockerfile | 用途 |
 |-----------|--------|------------|------|
-| `mailagent-allinone` | ~2.5GB | `Dockerfile.linux` | All-in-One（FE+BE+DB） |
+| `aimail-frontend` | ~500MB | `Dockerfile.frontend` | Frontend（Next.js） |
+| `aimail-backend` | ~1.5GB | `Dockerfile.backend` | Backend（FastAPI） |
+
+### 本番デプロイ用（All-in-One・参考資料）
+
+| イメージ名 | サイズ | Dockerfile | 用途 |
+|-----------|--------|------------|------|
+| `mailagent-allinone` | ~2.5GB | `Dockerfile.linux` | All-in-One（FE+BE+DB）※実装予定なし |
 
 ---
 
@@ -356,7 +405,30 @@ FROM node:20-alpine             # 実行ステージ
 # - ポート: 3000
 ```
 
-### Dockerfile.linux（本番用 All-in-One）
+### Dockerfile.frontend（本番用・分離）
+
+```dockerfile
+FROM node:20-alpine AS builder  # ビルドステージ
+FROM node:20-alpine             # 実行ステージ
+# Frontend のみ
+# - Next.js アプリをビルド
+# - Node.js で SSR 実行
+# - ポート: 3000
+```
+
+### Dockerfile.backend（本番用・分離）
+
+```dockerfile
+FROM python:3.11-slim
+# Backend のみ
+# - FastAPI アプリケーション
+# - Python 依存関係
+# - ポート: 8000
+```
+
+### Dockerfile.linux（本番用 All-in-One・参考資料）
+
+> 📄 **注意**: このファイルは参考資料です。実装予定はありません。
 
 ```dockerfile
 FROM ubuntu:22.04
@@ -428,6 +500,8 @@ sed -i 's/\r$//' entrypoint.sh
 - [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md) - 環境変数の詳細ガイド
 - [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) - ローカル開発ガイド
 - [DATABASE_MIGRATION.md](DATABASE_MIGRATION.md) - SQLite から PostgreSQL への移行
+- [分離アーキテクチャ デプロイガイド](../deployment/PROTHENTIA/separate_mode/DEPLOYMENT.md) - Azure 本番環境デプロイ（メイン）
+- [アーキテクチャ比較](../deployment/PROTHENTIA/ARCHITECTURE_COMPARISON.md) - All-in-One vs 分離の比較
 
 ---
 

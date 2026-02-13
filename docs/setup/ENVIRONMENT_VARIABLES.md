@@ -20,12 +20,15 @@
 
 ### 📋 全環境一覧
 
-| 環境 | アーキテクチャ | Dockerfile | 環境変数ファイル | 用途 |
-|------|-------------|-----------|---------------|------|
-| **ローカル開発（ネイティブ）** | なし | - | `backend/.env`<br>`frontend/.env.local` | VS Code + ターミナル |
-| **ローカル開発（分離）** | 分離コンテナ | `backend/Dockerfile`<br>`frontend/Dockerfile` | `backend/.env`<br>`frontend/.env.local` | Docker-compose開発 |
-| **ローカル開発（All-in-One）** | 単一コンテナ | `Dockerfile.linux` | `backend/.env`<br>`frontend/.env.docker` | 本番環境テスト |
-| **Azure 本番（All-in-One）** | 単一コンテナ | `Dockerfile.linux` | `backend/.env.prod`<br>`frontend/.env.prod` | Azure Container Apps |
+| 環境 | アーキテクチャ | Dockerfile | 環境変数ファイル | 用途 | ステータス |
+|------|-------------|-----------|---------------|------|----------|
+| **ローカル開発（ネイティブ）** | なし | - | `backend/.env`<br>`frontend/.env.local` | VS Code + ターミナル | ✅ 実装済み |
+| **ローカル開発（分離）** | 分離コンテナ | `backend/Dockerfile`<br>`frontend/Dockerfile` | `backend/.env`<br>`frontend/.env.local` | Docker-compose開発 | ✅ 実装済み |
+| **ローカル開発（All-in-One）** | 単一コンテナ | `Dockerfile.linux` | `backend/.env`<br>`frontend/.env.docker` | 本番環境テスト | 📄 参考資料のみ |
+| **Azure 本番（分離）** | 分離コンテナ | `Dockerfile.frontend`<br>`Dockerfile.backend` | Azure App Settings | Azure Container Apps | ⏳ 準備中（メイン） |
+| **Azure 本番（All-in-One）** | 単一コンテナ | `Dockerfile.linux` | `backend/.env.prod`<br>`frontend/.env.prod` | Azure Container Apps | 📄 参考資料のみ |
+
+> 💡 **Tip**: ローカル開発にはオプション A（ネイティブ）または オプション B（分離コンテナ）を使用してください。本番環境へのデプロイは**分離アーキテクチャ**がメインです。All-in-One 構成はドキュメントに記載していますが、実装予定はありません。
 
 ### 🔑 キーポイント
 
@@ -34,7 +37,9 @@
 - `frontend/Dockerfile` - docker-compose用
 
 **本番デプロイ用Dockerfile（ルートディレクトリ）:**
-- `Dockerfile.linux` - All-in-One（Azure デプロイ）
+- `Dockerfile.frontend` - Frontend コンテナ（分離デプロイ）
+- `Dockerfile.backend` - Backend コンテナ（分離デプロイ）
+- `Dockerfile.linux` - All-in-One（参考資料、実装予定なし）
 
 ---
 
@@ -120,9 +125,11 @@ docker-compose up --build -d
 
 ### 🏗️ All-in-One コンテナ（ローカルテスト）
 
-本番環境に近い構成でローカルテストする場合。
+> 📄 **注意**: このセクションは参考資料です。All-in-One 構成は未実装であり、実装予定もありません。ローカル開発にはオプション A（ネイティブ）または B（分離コンテナ）を使用してください。
 
-#### セットアップ手順
+本番環境に近い構成でローカルテストする場合（参考情報）。
+
+#### セットアップ手順（参考）
 
 ```bash
 # 1. バックエンド設定
@@ -152,36 +159,50 @@ docker run -d \
 
 ### ☁️ Azure 本番環境（Container Apps）
 
-Azure Container Apps へのデプロイ。
+Azure Container Apps へのデプロイ。**分離アーキテクチャがメインのデプロイ方式**です。
 
-#### セットアップ手順
+#### 分離アーキテクチャ（推奨）
+
+Frontend と Backend を別々のコンテナでデプロイします。
 
 ```bash
-# 1. バックエンド本番設定
-cp backend/.env.example backend/.env.prod
-# 編集: 本番環境の OPENAI_API_KEY, ENTRA_*, DATABASE_URL などを設定
+# 1. Frontend イメージビルド
+az acr build \
+  --registry <your-acr-name> \
+  --image aimail-frontend:latest \
+  --platform linux/amd64 \
+  --file Dockerfile.frontend .
 
-# 2. フロントエンド本番設定
-cp frontend/.env.example frontend/.env.prod
-# 編集: 本番環境の URL（https://your-app...）を設定
+# 2. Backend イメージビルド
+az acr build \
+  --registry <your-acr-name> \
+  --image aimail-backend:latest \
+  --platform linux/amd64 \
+  --file Dockerfile.backend .
 
-# 3. イメージビルド（ACR で直接ビルド推奨）
+# 3. Container Apps 更新
+az containerapp update --name aimail-frontend --resource-group <resource-group>
+az containerapp update --name aimail-backend --resource-group <resource-group>
+```
+
+**使用されるファイル:**
+- 環境変数は Azure Container Apps の **App Settings** で設定
+- シークレットは Azure Container Apps の **Secrets** で管理
+
+詳細は [分離アーキテクチャ デプロイガイド](../deployment/PROTHENTIA/separate_mode/DEPLOYMENT.md) を参照してください。
+
+#### All-in-One アーキテクチャ（参考資料）
+
+> 📄 **注意**: このセクションは参考資料です。All-in-One 構成は実装予定がありません。
+
+```bash
+# 参考: All-in-One イメージビルド
 az acr build \
   --registry <your-acr-name> \
   --image mailagent-allinone:<tag> \
   --platform linux/amd64 \
   --file Dockerfile.linux .
-
-# 4. Container App 更新
-az containerapp update \
-  --name <app-name> \
-  --resource-group <resource-group>
 ```
-
-#### 使用されるファイル
-
-- `backend/.env.prod` - Docker イメージにビルドされる（デフォルト値）
-- `frontend/.env.prod` - Docker イメージにビルドされる（Next.js ビルド時にコンパイル）
 
 #### 重要な注意点
 
@@ -193,12 +214,13 @@ Azure Container Apps では、**App Settings（環境変数）** が Docker イ�
 
 ### モード別の使用ファイル
 
-| モード | Dockerfile | Backend 環境変数 | Frontend 環境変数 |
-|--------|-----------|----------------|-----------------|
-| **ネイティブローカル** | - | `backend/.env` | `frontend/.env.local` |
-| **Docker-compose（分離）** | `backend/Dockerfile`<br>`frontend/Dockerfile` | `backend/.env` | `frontend/.env.local` |
-| **All-in-One ローカル** | `Dockerfile.linux` | `backend/.env` | `frontend/.env.docker` |
-| **Azure 本番** | `Dockerfile.linux` | `backend/.env.prod` | `frontend/.env.prod` |
+| モード | Dockerfile | Backend 環境変数 | Frontend 環境変数 | ステータス |
+|--------|-----------|----------------|-----------------|----------|
+| **ネイティブローカル** | - | `backend/.env` | `frontend/.env.local` | ✅ 実装済み |
+| **Docker-compose（分離）** | `backend/Dockerfile`<br>`frontend/Dockerfile` | `backend/.env` | `frontend/.env.local` | ✅ 実装済み |
+| **All-in-One ローカル** | `Dockerfile.linux` | `backend/.env` | `frontend/.env.docker` | 📄 参考資料 |
+| **Azure 本番（分離）** | `Dockerfile.frontend`<br>`Dockerfile.backend` | Azure App Settings | Azure App Settings | ⏳ メイン |
+| **Azure 本番（All-in-One）** | `Dockerfile.linux` | `backend/.env.prod` | `frontend/.env.prod` | 📄 参考資料 |
 
 ### Azure 本番環境での優先順位
 
@@ -446,6 +468,7 @@ docker-compose up postgres -d
 - [DOCKER_ARCHITECTURE.md](DOCKER_ARCHITECTURE.md) - Docker 構成と環境変数の使用
 - [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) - ローカル開発環境のセットアップ
 - [DATABASE_MIGRATION.md](DATABASE_MIGRATION.md) - SQLite から PostgreSQL への移行
+- [分離アーキテクチャ デプロイガイド](../deployment/PROTHENTIA/separate_mode/DEPLOYMENT.md) - Azure 本番環境デプロイ
 
 ---
 
