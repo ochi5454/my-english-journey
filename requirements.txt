@@ -20,10 +20,6 @@ openai
 langchain-core
 langchain-openai
 
-# Audio
-gtts
-pydub
-
 # HTTP Client
 httpx
 
