@@ -1,0 +1,68 @@
+services:
+  # =====================================================
+  # PostgreSQL Database
+  # =====================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: mailagent_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mailagent_user
+      POSTGRES_PASSWORD: mailagent_password
+      POSTGRES_DB: mailagent_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailagent_user -d mailagent_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================================================
+  # Backend (FastAPI)
+  # =====================================================
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: mailagent_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - backend/.env
+    environment:
+      # Override DATABASE_URL for Docker (use PostgreSQL instead of SQLite)
+      DATABASE_URL: postgresql://mailagent_user:mailagent_password@postgres:5432/mailagent_db
+    ports:
+      - "8000:8000"
+
+  # =====================================================
+  # Frontend (Next.js)
+  # =====================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: mailagent_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Server-side API proxy (used by Next.js server)
+      BACKEND_URL: http://backend:8000
+      # Client-side API base (used by browser)
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+# =====================================================
+# Volumes
+# =====================================================
+volumes:
+  postgres_data:
+    name: mailagent_postgres_data

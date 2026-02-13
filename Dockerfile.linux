@@ -1,0 +1,143 @@
+# =====================================================
+# AI Mail Agent - All-in-One Dockerfile
+# =====================================================
+# Single container with PostgreSQL + Backend + Frontend
+# For Azure deployment and local testing
+# =====================================================
+# Build arguments:
+#   BUILD_MODE: local | production (default: production)
+# =====================================================
+
+FROM ubuntu:22.04
+
+# Build arguments
+ARG BUILD_MODE=production
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# =====================================================
+# Install System Dependencies
+# =====================================================
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Python
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    # PostgreSQL
+    postgresql-16 \
+    postgresql-client-16 \
+    # Node.js
+    curl \
+    gnupg \
+    # Build tools
+    build-essential \
+    libpq-dev \
+    # Supervisor (process manager)
+    supervisor \
+    # Utils
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+
+# =====================================================
+# Setup Working Directory
+# =====================================================
+
+WORKDIR /app
+
+# =====================================================
+# Install Python Dependencies
+# =====================================================
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir psycopg2-binary
+
+# =====================================================
+# Build Frontend
+# =====================================================
+
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+WORKDIR /app/frontend
+RUN npm ci
+
+COPY frontend/ .
+
+# Set API URL based on build mode
+RUN if [ "$BUILD_MODE" = "local" ]; then \
+        echo "NEXT_PUBLIC_API_BASE=http://localhost:8000" > .env.local; \
+    else \
+        echo "NEXT_PUBLIC_API_BASE=" > .env.local; \
+    fi
+
+RUN npm run build
+
+# =====================================================
+# Copy Backend
+# =====================================================
+
+WORKDIR /app
+COPY backend/ ./backend/
+
+# =====================================================
+# Setup PostgreSQL
+# =====================================================
+
+COPY docker/init-db/ /docker-entrypoint-initdb.d/
+
+# =====================================================
+# Create Data Directories
+# =====================================================
+
+RUN mkdir -p /app/data/uploads /app/data/attachments /app/data/reports && \
+    mkdir -p /var/run/postgresql && \
+    chown -R postgres:postgres /var/run/postgresql && \
+    chmod 2775 /var/run/postgresql
+
+# =====================================================
+# Setup Supervisor
+# =====================================================
+
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# =====================================================
+# Copy Entrypoint Script
+# =====================================================
+
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# =====================================================
+# Expose Ports
+# =====================================================
+
+EXPOSE 3000 8000 5432
+
+# =====================================================
+# Health Check
+# =====================================================
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health && curl -f http://localhost:3000/ || exit 1
+
+# =====================================================
+# Entrypoint
+# =====================================================
+
+ENTRYPOINT ["/entrypoint.sh"]
