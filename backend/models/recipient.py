@@ -29,7 +29,10 @@ class RecipientListMember(Base):
     email = Column(String(255), nullable=False, index=True)
     name = Column(String(255), nullable=True)
     department = Column(String(255), nullable=True)
+    position = Column(String(255), nullable=True)  # 役職（チーフ、マネージャー等）
+    employee_id = Column(String(50), nullable=True, index=True)  # 社員番号
     note = Column(Text, nullable=True)
+    recipient_type = Column(String(3), nullable=False, default='to')  # 'to', 'cc', 'bcc'
 
     # リレーション
     list = relationship("RecipientList", back_populates="members")

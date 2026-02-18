@@ -62,6 +62,8 @@ async def send_mail_via_graph(
     to: List[str],
     subject: str,
     body: str,
+    cc: Optional[List[str]] = None,
+    bcc: Optional[List[str]] = None,
     attachments: Optional[List[GraphMailAttachment]] = None,
     access_token: str = None,
     refresh_token: str = None,
@@ -78,6 +80,8 @@ async def send_mail_via_graph(
         to: 宛先メールアドレスのリスト
         subject: メール件名
         body: メール本文
+        cc: Ccメールアドレスのリスト
+        bcc: Bccメールアドレスのリスト
         attachments: 添付ファイルのリスト
         access_token: ユーザーのアクセストークン（Entra IDログイン時に取得）
         refresh_token: リフレッシュトークン（トークン更新用）
@@ -129,6 +133,18 @@ async def send_mail_via_graph(
         },
         "saveToSentItems": "true",
     }
+
+    # Cc を追加
+    if cc:
+        message["message"]["ccRecipients"] = [
+            {"emailAddress": {"address": addr}} for addr in cc
+        ]
+
+    # Bcc を追加
+    if bcc:
+        message["message"]["bccRecipients"] = [
+            {"emailAddress": {"address": addr}} for addr in bcc
+        ]
 
     # 添付ファイルを追加
     if attachments:

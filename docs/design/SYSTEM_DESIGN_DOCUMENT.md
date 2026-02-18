@@ -70,6 +70,70 @@
 
 ---
 
+## UI/機能整合性チェックリスト（2026-02-16 調査）
+
+以下は、指示された設計と実装の整合性を調査した結果発見された問題点です。
+
+### 🔴 優先度高（即時対応推奨）
+
+| 状態 | カテゴリ | 問題 | 対象ファイル | 詳細 |
+|:---:|---------|------|-------------|------|
+| ✅ | UIテーマ | 旧テーマ使用 | `frontend/app/templates/page.tsx` | Glassmorphism適用完了 (2026-02-16) |
+| ✅ | UIテーマ | 旧テーマ使用 | `frontend/app/history/page.tsx` | Glassmorphism適用完了 (2026-02-16) |
+| ✅ | ページ未作成 | 予約編集ページ不在 | `frontend/app/scheduled/[id]/edit/page.tsx` | 新規作成完了 (2026-02-16) |
+
+### 🟡 優先度中（機能不完全）
+
+| 状態 | カテゴリ | 問題 | 対象ファイル | 詳細 |
+|:---:|---------|------|-------------|------|
+| ✅ | UI不足 | 削除ボタン未実装 | `frontend/app/history/page.tsx` | 削除ボタンUI追加完了 (2026-02-16) |
+| ✅ | API未連携 | Cc/Bcc未送信 | `frontend/app/compose/page.tsx` | Graph API Cc/Bcc対応完了 (2026-02-16) |
+| ✅ | 機能不足 | 署名自動読込なし | `frontend/app/compose/page.tsx` | デフォルト署名自動読込完了 (2026-02-16) |
+| ✅ | API未使用 | カテゴリ一覧 | `backend/routers/templates.py` | カテゴリフィルタUI追加完了 (2026-02-16) |
+| ✅ | API未使用 | デフォルト署名取得 | `backend/routers/signatures.py` | compose画面で使用開始 (2026-02-16) |
+| ❌ | フィールド未使用 | テンプレート変数 | `backend/models/template.py` | `variables`フィールドがDBにあるがフロントUIで設定・表示されない |
+| ✅ | ヘッダーボタン | 作成ボタン不在 | `frontend/app/scheduled/page.tsx` | 新規作成ボタン追加完了 (2026-02-16) |
+
+### 🟢 優先度低（改善推奨）
+
+| 状態 | カテゴリ | 問題 | 対象ファイル | 詳細 |
+|:---:|---------|------|-------------|------|
+| ✅ | コード品質 | 空のdestructuring | `frontend/app/templates/page.tsx` | 不要コード削除完了 (2026-02-16) |
+| ⚠️ | 一貫性 | エラーハンドリング | 複数ファイル | ページによってtry-catch有無やトースト表示方法が異なる |
+| ⚠️ | UI一貫性 | ボタンスタイル | `frontend/app/signatures/page.tsx` | 「新規作成」ボタンが紫色（他ページは青/グラデーション） |
+
+### ✅ 正常動作確認済み（ヘッダーボタン配置）
+
+| ページ | ヘッダー右側ボタン | 状態 |
+|-------|------------------|------|
+| テンプレート管理 (`/templates`) | 「新規」ボタンあり | ✅ 正常 |
+| 宛先リスト管理 (`/recipients`) | 「新規」ボタンあり | ✅ 正常 |
+| 署名管理 (`/signatures`) | 「新規作成」ボタンあり | ✅ 正常 |
+| メール作成 (`/compose`) | 該当なし（作成ページ自体） | ✅ 正常 |
+| 送信履歴 (`/history`) | 該当なし（履歴閲覧のみ） | ✅ 正常 |
+| 予約一覧 (`/scheduled`) | 「更新」+「新規」ボタンあり | ✅ 正常 |
+
+---
+
+## 修正実施記録
+
+### Phase 5: UI/機能整合性修正（2026-02-16〜）
+
+| 状態 | 対応内容 | 完了日 |
+|:---:|---------|-------|
+| ✅ | templates/page.tsx Glassmorphismテーマ適用 | 2026-02-16 |
+| ✅ | history/page.tsx Glassmorphismテーマ適用 | 2026-02-16 |
+| ✅ | scheduled/[id]/edit/page.tsx 新規作成 | 2026-02-16 |
+| ✅ | history/page.tsx 削除ボタンUI追加 | 2026-02-16 |
+| ✅ | compose/page.tsx Cc/Bcc API連携修正 | 2026-02-16 |
+| ✅ | compose/page.tsx デフォルト署名自動読込 | 2026-02-16 |
+| ✅ | scheduled/page.tsx ヘッダーに新規作成ボタン追加 | 2026-02-16 |
+| ✅ | templates/page.tsx カテゴリ選択UI追加 | 2026-02-16 |
+
+**Phase 5 進捗: 8/8 完了 ✅**
+
+---
+
 ### ✅ Phase 1: 緊急対応（1-2週間）【完了】
 
 | 状態 | カテゴリ | 機能 | 説明 | 優先度 |
@@ -1104,4 +1168,4 @@ def process_file_task(self, job_id: str, file_path: str, file_key: str):
 ---
 
 **作成者**: Claude Code
-**最終更新**: 2026-02-03（Phase 4: 18/30項目完了、行選択/PDFエクスポート/メール添付/セキュリティテスト追加）
+**最終更新**: 2026-02-16（Phase 5: 全8件完了）

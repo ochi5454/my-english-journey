@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import { API_BASE } from '../constants/excel'
 import {
   ArrowLeft, Clock, CheckCircle, XCircle, Ban,
-  Edit2, Trash2, Loader, RefreshCw
+  Edit2, Trash2, Loader, RefreshCw, Plus
 } from 'lucide-react'
 
 interface ScheduledMail {
@@ -20,7 +20,7 @@ interface ScheduledMail {
 }
 
 export default function ScheduledPage() {
-  const { } = useAuth()
+  useAuth()
   const router = useRouter()
 
   const [mails, setMails] = useState<ScheduledMail[]>([])
@@ -141,19 +141,37 @@ export default function ScheduledPage() {
           <h1 className="text-base font-semibold text-white absolute left-1/2 -translate-x-1/2">
             📅 予約送信
           </h1>
-          <button
-            onClick={fetchScheduledMails}
-            className="text-slate-400 hover:text-white transition-colors p-2"
-            title="更新"
-          >
-            <RefreshCw size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchScheduledMails}
+              className="text-slate-400 hover:text-white transition-colors p-2"
+              title="更新"
+            >
+              <RefreshCw size={18} />
+            </button>
+            <button
+              onClick={() => router.push('/compose')}
+              className="flex items-center gap-1 px-3 py-1.5 bg-purple-500/30 hover:bg-purple-400/30 border border-purple-400/30 rounded-lg text-white text-sm font-medium transition-colors"
+              title="新規作成"
+            >
+              <Plus size={16} />
+              新規作成
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-2xl mx-auto px-4 py-6">
+          {/* Page Description */}
+          <div className="mb-4 flex justify-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-400/20 rounded-full">
+              <span className="text-base">💡</span>
+              <p className="text-sm text-purple-300">忙しい時間を避けて送信できます</p>
+            </div>
+          </div>
+
           {error && (
             <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-xl text-sm text-red-200 flex justify-between items-center">
               <span>{error}</span>
@@ -195,12 +213,7 @@ export default function ScheduledPage() {
             <div className="text-center py-12">
               <Clock size={48} className="mx-auto text-slate-600 mb-4" />
               <p className="text-slate-400">予約送信がありません</p>
-              <button
-                onClick={() => router.push('/compose')}
-                className="mt-4 px-4 py-2 bg-purple-500/30 hover:bg-purple-400/30 border border-purple-400/30 rounded-xl text-white text-sm font-medium transition-colors"
-              >
-                メールを作成
-              </button>
+              <p className="text-sm text-slate-500 mt-2">右上の「新規」からメールを作成できます</p>
             </div>
           ) : (
             <div>

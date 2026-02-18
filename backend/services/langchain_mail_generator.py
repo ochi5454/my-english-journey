@@ -21,6 +21,7 @@ class RecipientInfo:
     email: str
     name: Optional[str] = None
     department: Optional[str] = None
+    field: Optional[str] = None  # 'to' / 'cc' / 'bcc'
 
 
 @dataclass
@@ -100,29 +101,29 @@ MAIL_GENERATION_SYSTEM_TEMPLATE = """あなたはビジネスメール作成ア�
 ---
 """
 
-# チャット用システムプロンプトテンプレート（段階的質問フロー）
+# チャット用システムプロンプトテンプレート（即座にドラフト生成）
 CHAT_SYSTEM_TEMPLATE = """あなたは日本のビジネスメール作成を支援するアシスタントです。
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【重要：段階的な質問フロー】
+【重要：即座にドラフト生成】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-メールを生成する前に、以下の情報を2-3回のやり取りで確認してください。
-一度に全部聞かず、会話形式で自然に聞き出すこと。
+ユーザーからメールの要件を受けたら、【質問せずに】すぐにドラフトを作成してください。
 
-【確認すべき情報】
-1. メールの目的・用件（何を伝えたいか）
-2. 具体的な内容・詳細（日時、場所、理由など）
-3. 相手に求めるアクション（返信期限、確認事項など）
+【動作ルール】
+1. 最初のメッセージでいきなりメールのドラフトを生成する
+2. 不明な点があっても、一般的な内容で仮のドラフトを作成する
+3. ドラフトの後に「以下の点を調整できます」と提案する
 
-【会話の流れ】
-- 1回目: ユーザーの最初のメッセージを受けて、用件を理解し、不足している詳細を1つ質問する
-- 2回目: 回答を受けて、さらに必要な情報を1つ質問する（または確認する）
-- 3回目: 十分な情報が集まったら、メールを生成する
+【調整可能な点の例】
+- 会議の具体的な日時
+- 参加者の名前
+- 会議の目的の詳細
+- トーンの変更
 
-【注意】
-- 質問は1回に1つだけ。複数の質問を一度にしない
-- 短く簡潔な質問を心がける
-- ユーザーが「生成して」「作成して」と言ったら、その時点でメールを生成する
+【なぜこうするか】
+- ユーザーはドラフトを先に見たい
+- 質問が多いと面倒に感じる
+- ドラフトを見てから修正点を指示する方が楽
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【必須ルール - メール生成時に絶対に守ること】
@@ -144,6 +145,7 @@ CHAT_SYSTEM_TEMPLATE = """あなたは日本のビジネスメール作成を支
 2. 日本のビジネスマナーに沿った丁寧な文章を書く
 3. 件名は簡潔かつ内容が分かるようにする
 4. 本文は適切な挨拶から始める
+5. 語尾のバリエーションを持たせる（「思います」「存じます」「いたします」の連続を避ける）
 
 メールを提案する時は以下の形式で出力してください：
 
@@ -153,16 +155,31 @@ CHAT_SYSTEM_TEMPLATE = """あなたは日本のビジネスメール作成を支
 [本文をここに]
 ---
 
+その後、短く「上記で調整したい点があればお知らせください」と添える。
 ユーザーが修正を求めたら、修正版を提案してください。
 """
 
 
-def _build_name_rules(recipient: Optional[RecipientInfo], sender: Optional[SenderInfo]) -> str:
-    """名前挿入ルールを構築"""
+def _build_name_rules(recipients: Optional[List[RecipientInfo]], sender: Optional[SenderInfo]) -> str:
+    """名前挿入ルールを構築（全宛先対応）"""
     rules = []
 
-    if recipient and recipient.name:
-        rules.append(f"1. 宛先名「{recipient.name}」を本文の冒頭に必ず入れること（{recipient.name}様）")
+    if recipients:
+        # 名前がある宛先を抽出
+        named_recipients = [r for r in recipients if r.name]
+        if named_recipients:
+            if len(named_recipients) == 1:
+                r = named_recipients[0]
+                rules.append(f"1. 宛先名「{r.name}」を本文の冒頭に必ず入れること（{r.name}様）")
+            else:
+                # 複数人の場合
+                names = [r.name for r in named_recipients[:5]]
+                names_str = "、".join(names)
+                if len(named_recipients) > 5:
+                    names_str += f" 他{len(named_recipients) - 5}名"
+                rules.append(f"1. 複数の宛先がいるため、本文冒頭に「{names_str} 様」または「皆様」を入れること")
+        else:
+            rules.append("1. 宛先名が不明の場合は「ご担当者様」を使用すること")
     else:
         rules.append("1. 宛先名が不明の場合は「ご担当者様」を使用すること")
 
@@ -178,24 +195,47 @@ def _build_name_rules(recipient: Optional[RecipientInfo], sender: Optional[Sende
 
 
 def _format_recipient_info(recipients: Optional[List[RecipientInfo]]) -> str:
-    """宛先情報の文字列を構築"""
+    """宛先情報の文字列を構築（To/Cc/Bcc別）"""
     if not recipients:
         return ""
 
-    recipient_names = []
-    for r in recipients[:5]:  # 最大5名まで表示
-        if r.name:
-            info = r.name
-            if r.department:
-                info += f"（{r.department}）"
-            recipient_names.append(info)
-        else:
-            recipient_names.append(r.email)
+    # To/Cc/Bccで分類
+    to_list = []
+    cc_list = []
+    bcc_list = []
 
-    if len(recipients) > 5:
-        recipient_names.append(f"他{len(recipients) - 5}名")
+    for r in recipients:
+        name_str = r.name if r.name else r.email
+        if r.department and r.name:
+            name_str += f"（{r.department}）"
+        field = r.field or 'to'
+        if field == 'to':
+            to_list.append(name_str)
+        elif field == 'cc':
+            cc_list.append(name_str)
+        elif field == 'bcc':
+            bcc_list.append(name_str)
 
-    return f"\n【宛先情報】\n送信先: {', '.join(recipient_names)}"
+    recipient_lines = []
+    if to_list:
+        names = ', '.join(to_list[:5])
+        if len(to_list) > 5:
+            names += f" 他{len(to_list) - 5}名"
+        recipient_lines.append(f"To: {names}")
+    if cc_list:
+        names = ', '.join(cc_list[:5])
+        if len(cc_list) > 5:
+            names += f" 他{len(cc_list) - 5}名"
+        recipient_lines.append(f"Cc: {names}")
+    if bcc_list:
+        names = ', '.join(bcc_list[:5])
+        if len(bcc_list) > 5:
+            names += f" 他{len(bcc_list) - 5}名"
+        recipient_lines.append(f"Bcc: {names}")
+
+    if recipient_lines:
+        return "\n【宛先情報】\n" + "\n".join(recipient_lines)
+    return ""
 
 
 def _format_sender_info(sender: Optional[SenderInfo]) -> str:
@@ -258,17 +298,28 @@ def parse_email_response(content: str) -> tuple:
     return subject, body
 
 
-def verify_name_insertion(body: str, recipient_name: Optional[str], sender_name: Optional[str]) -> tuple:
-    """名前が正しく挿入されているか検証"""
+def verify_name_insertion(body: str, recipients: Optional[List[RecipientInfo]], sender_name: Optional[str]) -> tuple:
+    """名前が正しく挿入されているか検証（全宛先対応）"""
     recipient_used = False
     sender_used = False
 
-    if recipient_name:
-        # 宛先名が本文に含まれているか
-        recipient_used = recipient_name in body or f"{recipient_name}様" in body
+    if recipients:
+        named_recipients = [r for r in recipients if r.name]
+        if named_recipients:
+            # 少なくとも1人の名前が含まれているか、または「皆様」が使われているか
+            for r in named_recipients:
+                if r.name in body or f"{r.name}様" in body:
+                    recipient_used = True
+                    break
+            if not recipient_used:
+                # 複数人の場合は「皆様」でもOK
+                recipient_used = "皆様" in body or "各位" in body
+        else:
+            # 宛先名が不明の場合、「ご担当者様」が使われているか
+            recipient_used = "ご担当者様" in body or "様" in body[:50]
     else:
-        # 宛先名が不明の場合、「ご担当者様」が使われているか
-        recipient_used = "ご担当者様" in body or "様" in body[:50]  # 冒頭50文字以内に「様」があるか
+        # 宛先が不明の場合、「ご担当者様」が使われているか
+        recipient_used = "ご担当者様" in body or "様" in body[:50]
 
     if sender_name:
         # 送信者名が本文に含まれているか
@@ -341,10 +392,11 @@ class LangchainMailGenerator:
         if not subject:
             subject = f"{keywords[0]}について" if keywords else "ご連絡"
 
-        # 名前挿入の検証
+        # 名前挿入の検証（単一宛先をリストに変換）
+        recipient_list = [recipient] if recipient else None
         recipient_name_used, sender_name_used = verify_name_insertion(
             body,
-            recipient.name if recipient else None,
+            recipient_list,
             sender.name if sender else None,
         )
 
@@ -368,11 +420,8 @@ class LangchainMailGenerator:
         tone_desc = TONE_MAP.get(tone, "丁寧")
         recipient_type_desc = RECIPIENT_TYPE_MAP.get(recipient_type, "ビジネス相手")
 
-        # 最初の宛先を取得
-        primary_recipient = recipients[0] if recipients else None
-
-        # 名前挿入ルールを構築
-        name_rules = _build_name_rules(primary_recipient, sender)
+        # 名前挿入ルールを構築（全宛先を渡す）
+        name_rules = _build_name_rules(recipients, sender)
 
         # システムプロンプトを構築
         system_content = CHAT_SYSTEM_TEMPLATE.format(
@@ -405,10 +454,10 @@ class LangchainMailGenerator:
         if "件名:" in content or "件名：" in content:
             subject, body = parse_email_response(content)
             if subject and body:
-                # 名前挿入の検証
+                # 名前挿入の検証（全宛先を渡す）
                 recipient_name_used, sender_name_used = verify_name_insertion(
                     body,
-                    primary_recipient.name if primary_recipient else None,
+                    recipients,
                     sender.name if sender else None,
                 )
 

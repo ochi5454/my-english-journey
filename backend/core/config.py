@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = ""  # e.g., "redis://localhost:6379/0"
     redis_job_ttl: int = 604800  # 7 days in seconds
+    # Company domains for external mail warning
+    company_domains: str = ""  # カンマ区切り例: "example.co.jp,example.com"
+
+    @property
+    def company_domains_list(self) -> list[str]:
+        """会社ドメインのリスト（外部送信警告用）"""
+        return [d.strip().lower() for d in self.company_domains.split(",") if d.strip()]
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -62,7 +69,14 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Settings の依存性注入用キャッシュ付きヘルパー"""
-    return Settings()
+    s = Settings()
+    # Debug: Print if OpenAI key is loaded
+    if s.openai_api_key:
+        print(f"[Config] OpenAI API key loaded (length: {len(s.openai_api_key)})")
+    else:
+        print(f"[Config] WARNING: OpenAI API key is NOT loaded!")
+        print(f"[Config] Checked env files: {BASE_DIR / '.env'}, {BASE_DIR.parent / '.env'}")
+    return s
 
 
 DATA_DIR = (BASE_DIR.parent / "data").resolve()

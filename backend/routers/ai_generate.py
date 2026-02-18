@@ -54,6 +54,7 @@ class RecipientInfo(BaseModel):
     email: str
     name: Optional[str] = None
     department: Optional[str] = None
+    field: Optional[str] = None  # 'to' / 'cc' / 'bcc'
 
 
 class SenderInfo(BaseModel):
@@ -226,21 +227,43 @@ def build_chat_system_prompt(tone: str, recipient_type: str, recipients: list = 
     tone_desc = TONE_MAP.get(tone, "丁寧")
     recipient_desc = RECIPIENT_TYPE_MAP.get(recipient_type, "ビジネス相手")
 
-    # 宛先情報の文字列を構築
+    # 宛先情報の文字列を構築（To/Cc/Bcc別）
     recipient_info = ""
     if recipients:
-        recipient_names = []
-        for r in recipients[:5]:  # 最大5名まで表示
-            if r.name:
-                info = r.name
-                if r.department:
-                    info += f"（{r.department}）"
-                recipient_names.append(info)
-            else:
-                recipient_names.append(r.email)
-        if len(recipients) > 5:
-            recipient_names.append(f"他{len(recipients) - 5}名")
-        recipient_info = f"\n\n【宛先情報】\n送信先: {', '.join(recipient_names)}"
+        to_list = []
+        cc_list = []
+        bcc_list = []
+        for r in recipients:
+            name_str = r.name if r.name else r.email
+            if r.department and r.name:
+                name_str += f"（{r.department}）"
+            field = getattr(r, 'field', None) or 'to'
+            if field == 'to':
+                to_list.append(name_str)
+            elif field == 'cc':
+                cc_list.append(name_str)
+            elif field == 'bcc':
+                bcc_list.append(name_str)
+
+        recipient_lines = []
+        if to_list:
+            names = ', '.join(to_list[:5])
+            if len(to_list) > 5:
+                names += f" 他{len(to_list) - 5}名"
+            recipient_lines.append(f"To: {names}")
+        if cc_list:
+            names = ', '.join(cc_list[:5])
+            if len(cc_list) > 5:
+                names += f" 他{len(cc_list) - 5}名"
+            recipient_lines.append(f"Cc: {names}")
+        if bcc_list:
+            names = ', '.join(bcc_list[:5])
+            if len(bcc_list) > 5:
+                names += f" 他{len(bcc_list) - 5}名"
+            recipient_lines.append(f"Bcc: {names}")
+
+        if recipient_lines:
+            recipient_info = f"\n\n【宛先情報】\n" + "\n".join(recipient_lines)
 
     return f"""あなたは日本のビジネスメール作成を支援するアシスタントです。
 以下の設定に基づいてメール作成をサポートしてください：
@@ -350,3 +373,41 @@ async def chat_for_email(
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+
+# === トーン自動判定 ===
+
+class DetermineToneRequest(BaseModel):
+    to: List[str]
+    cc: Optional[List[str]] = None
+    bcc: Optional[List[str]] = None
+
+
+class DetermineToneResponse(BaseModel):
+    suggested_tone: str
+    reason: str
+    details: List[dict]
+    external_count: Optional[int] = None
+    internal_count: Optional[int] = None
+
+
+@router.post("/determine-tone", response_model=DetermineToneResponse)
+async def determine_tone(
+    request: DetermineToneRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    宛先からトーン（敬語レベル）を自動判定
+
+    - 外部ドメインが含まれる場合: formal
+    - 内部のみの場合: polite
+    """
+    from backend.services.tone_detector import determine_tone_from_recipients
+
+    result = determine_tone_from_recipients(
+        to=request.to,
+        cc=request.cc,
+        bcc=request.bcc,
+    )
+
+    return DetermineToneResponse(**result)

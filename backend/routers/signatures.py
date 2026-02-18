@@ -165,7 +165,7 @@ async def update_signature(
     )
 
 
-@router.delete("/{signature_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{signature_id}")
 async def delete_signature(
     signature_id: int,
     db: Session = Depends(get_db),
@@ -182,6 +182,7 @@ async def delete_signature(
 
     db.delete(signature)
     db.commit()
+    return {"message": "削除しました"}
 
 
 @router.get("/default/current", response_model=Optional[SignatureResponse])

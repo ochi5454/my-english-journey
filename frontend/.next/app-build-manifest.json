@@ -21,15 +21,30 @@
       "static/chunks/main-app.js",
       "static/chunks/app/auth/callback/page.js"
     ],
+    "/recipients/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/recipients/page.js"
+    ],
     "/compose/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/compose/page.js"
     ],
-    "/recipients/page": [
+    "/templates/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/recipients/page.js"
+      "static/chunks/app/templates/page.js"
+    ],
+    "/scheduled/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/scheduled/page.js"
+    ],
+    "/signatures/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/signatures/page.js"
     ]
   }
 }

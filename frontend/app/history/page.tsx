@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '../hooks/useAuth'
 import { API_BASE } from '../constants/excel'
-import { ArrowLeft, Clock, CheckCircle, XCircle, Loader, X, Mail, ChevronRight, Trash2 } from 'lucide-react'
+import { ArrowLeft, Clock, CheckCircle, XCircle, Loader, X, Mail, ChevronRight, Trash2, Users } from 'lucide-react'
 
 interface MailLog {
   id: number
@@ -19,7 +18,6 @@ interface MailLog {
 }
 
 export default function HistoryPage() {
-  const { } = useAuth()
   const router = useRouter()
 
   const [logs, setLogs] = useState<MailLog[]>([])
@@ -119,19 +117,30 @@ export default function HistoryPage() {
     }
   }
 
+  const glassCard = "backdrop-blur-xl bg-white/5 border border-white/10"
+
   return (
-    <div className="min-h-screen bg-[#0F1C2E] flex flex-col">
+    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute top-20 -left-40 w-80 h-80 bg-amber-600/20 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 -right-40 w-80 h-80 bg-blue-600/15 rounded-full blur-[100px]" />
+        <div className="absolute -bottom-20 left-1/4 w-80 h-80 bg-purple-600/15 rounded-full blur-[100px]" />
+      </div>
+
       {/* Header */}
-      <header className="bg-[#0A1628] border-b border-[#1E3A5F] sticky top-0 z-20">
+      <header className="backdrop-blur-xl bg-white/5 border-b border-white/10 sticky top-0 z-20">
         <div className="flex items-center justify-between px-4 h-14">
           <button
             onClick={() => router.push('/')}
-            className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             <ArrowLeft size={20} />
             <span className="text-sm font-medium">ホーム</span>
           </button>
-          <h1 className="text-white font-semibold">送信履歴</h1>
+          <h1 className="text-base font-semibold text-white absolute left-1/2 -translate-x-1/2">
+            📨 送信履歴
+          </h1>
           <div className="w-16" /> {/* Spacer for centering */}
         </div>
       </header>
@@ -139,16 +148,24 @@ export default function HistoryPage() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-2xl mx-auto px-4 py-6">
+          {/* Page Description */}
+          <div className="mb-4 flex justify-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-400/20 rounded-full">
+              <span className="text-base">💡</span>
+              <p className="text-sm text-amber-300">過去のメールを参考に再利用できます</p>
+            </div>
+          </div>
+
           {error && (
-            <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-xl text-sm text-red-200">
-              {error}
-              <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-300">×</button>
+            <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-xl text-sm text-red-200 flex justify-between items-center">
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300">×</button>
             </div>
           )}
 
           {/* Filter */}
           <div className="mb-6">
-            <div className="bg-[#1A2942] rounded-xl border border-[#2A3F5F] p-1 flex">
+            <div className={`${glassCard} rounded-xl p-1 flex`}>
               {[
                 { value: '', label: 'すべて' },
                 { value: 'success', label: '完了' },
@@ -160,7 +177,7 @@ export default function HistoryPage() {
                   onClick={() => setStatusFilter(option.value)}
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                     statusFilter === option.value
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-amber-500/30 text-white border border-amber-400/30'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -171,7 +188,10 @@ export default function HistoryPage() {
           </div>
 
           {loading ? (
-            <div className="text-center py-12 text-slate-400">読み込み中...</div>
+            <div className="text-center py-12 text-slate-400">
+              <Loader size={32} className="animate-spin mx-auto mb-4" />
+              読み込み中...
+            </div>
           ) : logs.length === 0 ? (
             <div className="text-center py-12">
               <Clock size={48} className="mx-auto text-slate-600 mb-4" />
@@ -182,13 +202,13 @@ export default function HistoryPage() {
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">
                 送信履歴 ({logs.length}件)
               </h2>
-              <div className="bg-[#1A2942] rounded-xl border border-[#2A3F5F] overflow-hidden">
+              <div className={`${glassCard} rounded-xl overflow-hidden`}>
                 {logs.map((log, index) => (
                   <div
                     key={log.id}
                     onClick={() => openDetail(log)}
-                    className={`flex items-center justify-between p-4 cursor-pointer hover:bg-[#243550] transition-colors ${
-                      index !== logs.length - 1 ? 'border-b border-[#2A3F5F]' : ''
+                    className={`flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors ${
+                      index !== logs.length - 1 ? 'border-b border-white/5' : ''
                     }`}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -209,6 +229,13 @@ export default function HistoryPage() {
                     </div>
                     <div className="flex items-center gap-2 ml-2">
                       {getStatusBadge(log.status)}
+                      <button
+                        onClick={(e) => deleteLog(log.id, e)}
+                        className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                        title="削除"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                       <ChevronRight size={20} className="text-slate-500" />
                     </div>
                   </div>
@@ -222,9 +249,9 @@ export default function HistoryPage() {
       {/* Detail Modal */}
       {showDetailModal && selectedLog && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1A2942] rounded-2xl border border-[#2A3F5F] w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <div className={`${glassCard} rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col`}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[#2A3F5F]">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-white">送信詳細</h2>
                 {getStatusBadge(selectedLog.status)}
@@ -291,16 +318,46 @@ export default function HistoryPage() {
 
               <div>
                 <label className="block text-sm text-slate-400 mb-2">件名</label>
-                <div className="p-3 bg-[#0F1C2E] rounded-xl text-white">
+                <div className="p-3 bg-white/5 rounded-xl text-white">
                   {selectedLog.subject || '(件名なし)'}
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm text-slate-400 mb-2">本文</label>
-                <div className="p-3 bg-[#0F1C2E] rounded-xl whitespace-pre-wrap text-sm text-white">
+                <div className="p-3 bg-white/5 rounded-xl whitespace-pre-wrap text-sm text-white">
                   {selectedLog.body}
                 </div>
+              </div>
+
+              {/* リストに保存ボタン */}
+              <div className="pt-4 border-t border-white/10">
+                <div className="p-3 bg-blue-500/10 border border-blue-400/20 rounded-xl mb-3">
+                  <p className="text-xs text-blue-300">
+                    この送信履歴の宛先を元に、新しい宛先リストを作成できます。
+                    <br />
+                    ※ システムからリストは自動生成しません。ご自身で管理してください。
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    // 宛先をJSON化してURLパラメータで渡す
+                    const allAddresses = [
+                      ...selectedLog.to_addresses,
+                      ...(selectedLog.cc_addresses || []),
+                      ...(selectedLog.bcc_addresses || []),
+                    ]
+                    const params = new URLSearchParams({
+                      from_history: selectedLog.id.toString(),
+                      emails: JSON.stringify(allAddresses),
+                    })
+                    router.push(`/recipients?${params.toString()}`)
+                  }}
+                  className="w-full py-3 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 rounded-xl text-blue-300 font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <Users size={18} />
+                  この宛先をリストに保存
+                </button>
               </div>
             </div>
           </div>

@@ -27,7 +27,7 @@ export default function DashboardPage() {
       glowColor: 'emerald',
     },
     {
-      title: '宛先管理',
+      title: 'メーリングリスト',
       description: '宛先を管理',
       emoji: '👥',
       href: '/recipients',
@@ -41,18 +41,18 @@ export default function DashboardPage() {
       glowColor: 'pink',
     },
     {
-      title: '送信履歴',
-      description: '送信ログを確認',
-      emoji: '📤',
-      href: '/history',
-      glowColor: 'amber',
-    },
-    {
       title: '署名管理',
       description: '署名を管理',
       emoji: '✍️',
       href: '/signatures',
       glowColor: 'cyan',
+    },
+    {
+      title: '送信履歴',
+      description: '送信ログを確認',
+      emoji: '📤',
+      href: '/history',
+      glowColor: 'amber',
     },
   ]
 

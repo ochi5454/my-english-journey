@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '../hooks/useAuth'
 import { API_BASE } from '../constants/excel'
-import { ArrowLeft, Plus, FileText, Trash2, Edit3, X, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Plus, FileText, Trash2, Edit3, X, ChevronRight, Filter } from 'lucide-react'
 
 interface Template {
   id: number
@@ -18,7 +17,6 @@ interface Template {
 }
 
 export default function TemplatesPage() {
-  const { } = useAuth()
   const router = useRouter()
 
   const [templates, setTemplates] = useState<Template[]>([])
@@ -37,15 +35,28 @@ export default function TemplatesPage() {
   // Modal state
   const [showModal, setShowModal] = useState(false)
 
-  // Fetch templates on mount
+  // Category filter
+  const [categories, setCategories] = useState<string[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
+
+  // Fetch templates and categories on mount
   useEffect(() => {
     fetchTemplates()
+    fetchCategories()
   }, [])
+
+  // Refetch when category filter changes
+  useEffect(() => {
+    fetchTemplates()
+  }, [selectedCategory])
 
   const fetchTemplates = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/templates`, { credentials: 'include' })
+      const url = selectedCategory
+        ? `${API_BASE}/templates?category=${encodeURIComponent(selectedCategory)}`
+        : `${API_BASE}/templates`
+      const res = await fetch(url, { credentials: 'include' })
       if (res.ok) {
         const data = await res.json()
         setTemplates(data)
@@ -56,6 +67,18 @@ export default function TemplatesPage() {
       setError('テンプレートの取得に失敗しました')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/templates/categories/list`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setCategories(data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch categories:', e)
     }
   }
 
@@ -166,25 +189,36 @@ export default function TemplatesPage() {
     return acc
   }, {} as Record<string, Template[]>)
 
+  const glassCard = "backdrop-blur-xl bg-white/5 border border-white/10"
+
   return (
-    <div className="min-h-screen bg-[#0F1C2E] flex flex-col">
+    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute top-20 -left-40 w-80 h-80 bg-emerald-600/20 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 -right-40 w-80 h-80 bg-blue-600/15 rounded-full blur-[100px]" />
+        <div className="absolute -bottom-20 left-1/4 w-80 h-80 bg-purple-600/15 rounded-full blur-[100px]" />
+      </div>
+
       {/* Header */}
-      <header className="bg-[#0A1628] border-b border-[#1E3A5F] sticky top-0 z-20">
+      <header className="backdrop-blur-xl bg-white/5 border-b border-white/10 sticky top-0 z-20">
         <div className="flex items-center justify-between px-4 h-14">
           <button
             onClick={() => router.push('/')}
-            className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             <ArrowLeft size={20} />
             <span className="text-sm font-medium">ホーム</span>
           </button>
-          <h1 className="text-white font-semibold">テンプレート管理</h1>
+          <h1 className="text-base font-semibold text-white absolute left-1/2 -translate-x-1/2">
+            📝 テンプレート管理
+          </h1>
           <button
             onClick={startNewTemplate}
-            className="flex items-center gap-1 text-blue-400 hover:text-blue-300 transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/30 hover:bg-emerald-400/30 border border-emerald-400/30 rounded-lg text-white text-sm font-medium transition-colors"
           >
-            <Plus size={20} />
-            <span className="text-sm font-medium">新規</span>
+            <Plus size={16} />
+            新規作成
           </button>
         </div>
       </header>
@@ -192,10 +226,53 @@ export default function TemplatesPage() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-2xl mx-auto px-4 py-6">
+          {/* Page Description */}
+          <div className="mb-4 flex justify-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-400/20 rounded-full">
+              <span className="text-base">💡</span>
+              <p className="text-sm text-emerald-300">よく使う文面を保存して時短できます</p>
+            </div>
+          </div>
+
           {error && (
-            <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-xl text-sm text-red-200">
-              {error}
-              <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-300">×</button>
+            <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-xl text-sm text-red-200 flex justify-between items-center">
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300">×</button>
+            </div>
+          )}
+
+          {/* Category Filter */}
+          {categories.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter size={14} className="text-slate-500" />
+                <span className="text-xs text-slate-500 uppercase tracking-wider">カテゴリで絞り込み</span>
+              </div>
+              <div className={`${glassCard} rounded-xl p-1 flex flex-wrap gap-1`}>
+                <button
+                  onClick={() => setSelectedCategory('')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    selectedCategory === ''
+                      ? 'bg-emerald-500/30 text-white border border-emerald-400/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  すべて
+                </button>
+                {categories.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      selectedCategory === cat
+                        ? 'bg-emerald-500/30 text-white border border-emerald-400/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -204,13 +281,8 @@ export default function TemplatesPage() {
           ) : templates.length === 0 ? (
             <div className="text-center py-12">
               <FileText size={48} className="mx-auto text-slate-600 mb-4" />
-              <p className="text-slate-400 mb-4">テンプレートがありません</p>
-              <button
-                onClick={startNewTemplate}
-                className="px-6 py-3 bg-blue-600 rounded-xl text-white font-medium hover:bg-blue-500 transition-colors"
-              >
-                最初のテンプレートを作成
-              </button>
+              <p className="text-slate-400">テンプレートがありません</p>
+              <p className="text-sm text-slate-500 mt-2">右上の「新規」から作成できます</p>
             </div>
           ) : (
             Object.entries(groupedTemplates).map(([category, items]) => (
@@ -218,13 +290,13 @@ export default function TemplatesPage() {
                 <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">
                   {category}
                 </h2>
-                <div className="bg-[#1A2942] rounded-xl border border-[#2A3F5F] overflow-hidden">
+                <div className={`${glassCard} rounded-xl overflow-hidden`}>
                   {items.map((template, index) => (
                     <div
                       key={template.id}
                       onClick={() => openTemplate(template)}
-                      className={`flex items-center justify-between p-4 cursor-pointer hover:bg-[#243550] transition-colors ${
-                        index !== items.length - 1 ? 'border-b border-[#2A3F5F]' : ''
+                      className={`flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors ${
+                        index !== items.length - 1 ? 'border-b border-white/5' : ''
                       }`}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -257,9 +329,9 @@ export default function TemplatesPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1A2942] rounded-2xl border border-[#2A3F5F] w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <div className={`${glassCard} rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col`}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[#2A3F5F]">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h2 className="text-lg font-semibold text-white">
                 {selectedTemplate && !editMode ? 'テンプレート詳細' : editMode && selectedTemplate ? 'テンプレート編集' : '新規テンプレート'}
               </h2>
@@ -267,7 +339,7 @@ export default function TemplatesPage() {
                 {selectedTemplate && !editMode && (
                   <button
                     onClick={() => setEditMode(true)}
-                    className="p-2 text-blue-400 hover:text-blue-300 transition-colors"
+                    className="p-2 text-emerald-400 hover:text-emerald-300 transition-colors"
                   >
                     <Edit3 size={20} />
                   </button>
@@ -292,7 +364,7 @@ export default function TemplatesPage() {
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
                       placeholder="例: 会議日程調整"
-                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/50"
                     />
                   </div>
                   <div>
@@ -302,7 +374,7 @@ export default function TemplatesPage() {
                       value={editCategory}
                       onChange={e => setEditCategory(e.target.value)}
                       placeholder="例: 定期連絡"
-                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/50"
                     />
                   </div>
                   <div>
@@ -312,7 +384,7 @@ export default function TemplatesPage() {
                       value={editSubject}
                       onChange={e => setEditSubject(e.target.value)}
                       placeholder="メールの件名"
-                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/50"
                     />
                   </div>
                   <div>
@@ -322,7 +394,7 @@ export default function TemplatesPage() {
                       onChange={e => setEditBody(e.target.value)}
                       placeholder="メールの本文"
                       rows={10}
-                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-900 resize-none placeholder-slate-400"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white resize-none placeholder-slate-500 focus:outline-none focus:border-emerald-400/50"
                     />
                   </div>
                 </div>
@@ -340,11 +412,11 @@ export default function TemplatesPage() {
                   )}
                   <div>
                     <label className="block text-sm text-slate-400 mb-1">件名</label>
-                    <div className="p-3 bg-[#0F1C2E] rounded-xl text-white">{selectedTemplate.subject}</div>
+                    <div className="p-3 bg-white/5 rounded-xl text-white">{selectedTemplate.subject}</div>
                   </div>
                   <div>
                     <label className="block text-sm text-slate-400 mb-1">本文</label>
-                    <div className="p-3 bg-[#0F1C2E] rounded-xl whitespace-pre-wrap text-sm text-white">
+                    <div className="p-3 bg-white/5 rounded-xl whitespace-pre-wrap text-sm text-white">
                       {selectedTemplate.body}
                     </div>
                   </div>
@@ -359,11 +431,11 @@ export default function TemplatesPage() {
 
             {/* Modal Footer */}
             {editMode && (
-              <div className="p-4 border-t border-[#2A3F5F] flex gap-3">
+              <div className="p-4 border-t border-white/10 flex gap-3">
                 <button
                   onClick={saveTemplate}
                   disabled={saving}
-                  className="flex-1 py-3 bg-blue-600 rounded-xl text-white font-medium hover:bg-blue-500 disabled:opacity-50 transition-colors"
+                  className="flex-1 py-3 bg-emerald-500/30 hover:bg-emerald-400/30 border border-emerald-400/30 rounded-xl text-white font-medium disabled:opacity-50 transition-colors"
                 >
                   {saving ? '保存中...' : '保存'}
                 </button>
@@ -375,7 +447,7 @@ export default function TemplatesPage() {
                       setShowModal(false)
                     }
                   }}
-                  className="flex-1 py-3 bg-[#2A3F5F] rounded-xl text-white font-medium hover:bg-[#3A4F6F] transition-colors"
+                  className="flex-1 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-medium transition-colors"
                 >
                   キャンセル
                 </button>

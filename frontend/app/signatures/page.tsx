@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../hooks/useAuth'
 import { API_BASE } from '../constants/excel'
 import {
-  ArrowLeft, Plus, Edit2, Trash2, Star, Loader, X, Check
+  ArrowLeft, Plus, Edit2, Trash2, Star, Loader, X
 } from 'lucide-react'
 
 interface Signature {
@@ -18,7 +18,7 @@ interface Signature {
 }
 
 export default function SignaturesPage() {
-  const { } = useAuth()
+  useAuth()
   const router = useRouter()
 
   const [signatures, setSignatures] = useState<Signature[]>([])
@@ -171,7 +171,7 @@ export default function SignaturesPage() {
           </h1>
           <button
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-purple-500/30 hover:bg-purple-400/30 border border-purple-400/30 rounded-lg text-white text-sm font-medium transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 bg-teal-500/30 hover:bg-teal-400/30 border border-teal-400/30 rounded-lg text-white text-sm font-medium transition-colors"
           >
             <Plus size={16} />
             新規作成
@@ -182,6 +182,14 @@ export default function SignaturesPage() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-2xl mx-auto px-4 py-6">
+          {/* Page Description */}
+          <div className="mb-4 flex justify-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-500/10 border border-teal-400/20 rounded-full">
+              <span className="text-base">💡</span>
+              <p className="text-sm text-teal-300">デフォルト設定で自動挿入されます</p>
+            </div>
+          </div>
+
           {error && (
             <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-xl text-sm text-red-200 flex justify-between items-center">
               <span>{error}</span>
@@ -260,13 +268,8 @@ export default function SignaturesPage() {
           ) : signatures.length === 0 && !isCreating ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">✍️</div>
-              <p className="text-slate-400 mb-4">署名がありません</p>
-              <button
-                onClick={() => setIsCreating(true)}
-                className="px-4 py-2 bg-purple-500/30 hover:bg-purple-400/30 border border-purple-400/30 rounded-xl text-white text-sm font-medium transition-colors"
-              >
-                署名を作成
-              </button>
+              <p className="text-slate-400">署名がありません</p>
+              <p className="text-sm text-slate-500 mt-2">右上の「新規作成」から作成できます</p>
             </div>
           ) : (
             <div className="space-y-4">

@@ -13,6 +13,7 @@ from backend.models.mail_log import MailSendLog
 from backend.models.attachment import TempAttachment
 from backend.models.scheduled_mail import ScheduledMail
 from backend.services.graph_mail_service import send_mail_via_graph, GraphMailAttachment
+from backend.services.entra_validation_service import EntraValidationService
 from backend.routers.attachments import get_attachment_data
 
 router = APIRouter(prefix="/mail", tags=["mail"])
@@ -56,6 +57,163 @@ class MailLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ValidateRecipientsRequest(BaseModel):
+    """送信前宛先チェックリクエスト"""
+    to: List[str]
+    cc: Optional[List[str]] = None
+    bcc: Optional[List[str]] = None
+
+
+class CheckExternalRequest(BaseModel):
+    """外部宛先チェックリクエスト"""
+    to: List[str]
+    cc: Optional[List[str]] = None
+    bcc: Optional[List[str]] = None
+
+
+class ExternalRecipient(BaseModel):
+    """外部宛先情報"""
+    email: str
+    domain: str
+
+
+class CheckExternalResponse(BaseModel):
+    """外部宛先チェックレスポンス"""
+    has_external: bool
+    external_recipients: List[ExternalRecipient]
+    internal_count: int
+    external_count: int
+
+
+class RecipientValidationWarning(BaseModel):
+    """宛先警告"""
+    email: str
+    warning_type: str
+    message: str
+    details: Optional[dict] = None
+
+
+class ValidateRecipientsResponse(BaseModel):
+    """送信前宛先チェックレスポンス"""
+    valid: bool
+    total_checked: int
+    matched: int
+    not_found: int
+    warnings: List[RecipientValidationWarning]
+    requires_confirmation: bool
+
+
+@router.post("/check-external", response_model=CheckExternalResponse)
+async def check_external_recipients(
+    data: CheckExternalRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    外部宛先をチェック
+
+    会社ドメイン以外の宛先（外部送信）があるかどうかを確認します。
+    company_domains が設定されていない場合は、外部チェックをスキップします。
+    """
+    company_domains = settings.company_domains_list
+
+    # 会社ドメインが設定されていない場合は外部チェックをスキップ
+    if not company_domains:
+        return CheckExternalResponse(
+            has_external=False,
+            external_recipients=[],
+            internal_count=0,
+            external_count=0,
+        )
+
+    # 全ての宛先を結合
+    all_emails = list(data.to)
+    if data.cc:
+        all_emails.extend(data.cc)
+    if data.bcc:
+        all_emails.extend(data.bcc)
+
+    external = []
+    internal_count = 0
+
+    for email in all_emails:
+        if "@" not in email:
+            continue
+        domain = email.split("@")[-1].lower()
+        if domain not in company_domains:
+            external.append(ExternalRecipient(email=email, domain=domain))
+        else:
+            internal_count += 1
+
+    return CheckExternalResponse(
+        has_external=len(external) > 0,
+        external_recipients=external,
+        internal_count=internal_count,
+        external_count=len(external),
+    )
+
+
+@router.post("/validate-recipients", response_model=ValidateRecipientsResponse)
+async def validate_recipients(
+    data: ValidateRecipientsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    送信前に宛先をチェック
+
+    メール送信前に宛先のメールアドレスが有効かどうかを確認します。
+    """
+    # 全ての宛先を結合
+    all_emails = list(data.to)
+    if data.cc:
+        all_emails.extend(data.cc)
+    if data.bcc:
+        all_emails.extend(data.bcc)
+
+    # 重複を除去
+    unique_emails = list(set(all_emails))
+
+    if not unique_emails:
+        return ValidateRecipientsResponse(
+            valid=True,
+            total_checked=0,
+            matched=0,
+            not_found=0,
+            warnings=[],
+            requires_confirmation=False,
+        )
+
+    # アクセストークンを取得
+    tokens = get_user_tokens(db, current_user.id)
+    access_token = tokens.get("access_token") if tokens else None
+
+    # バリデーション実行
+    validation_service = EntraValidationService(db)
+    result = await validation_service.validate_emails(
+        emails=unique_emails,
+        access_token=access_token,
+    )
+
+    warnings = [
+        RecipientValidationWarning(
+            email=w.email,
+            warning_type=w.warning_type,
+            message=w.message,
+            details=w.details,
+        )
+        for w in result.warnings
+    ]
+
+    return ValidateRecipientsResponse(
+        valid=len(warnings) == 0,
+        total_checked=result.total,
+        matched=result.matched,
+        not_found=result.not_found,
+        warnings=warnings,
+        requires_confirmation=result.requires_confirmation,
+    )
 
 
 @router.post("/send", response_model=SendMailResponse)
@@ -138,15 +296,13 @@ async def send_mail(
 
     try:
         # Microsoft Graph APIでメール送信
-        # Note: Graph APIのsendMailはTo/Cc/Bccを別々に指定可能だが、
-        # 現在のgraph_mail_serviceは単純なtoリストのみ対応
-        # 必要に応じてgraph_mail_serviceを拡張
-
         result = await send_mail_via_graph(
             settings=settings,
-            to=data.to,  # Toのみ（Cc/Bccは別途対応が必要）
+            to=data.to,
             subject=data.subject,
             body=data.body,
+            cc=cc_addresses if cc_addresses else None,
+            bcc=bcc_addresses if bcc_addresses else None,
             attachments=graph_attachments if graph_attachments else None,
             access_token=access_token,
             refresh_token=refresh_token,
@@ -544,7 +700,7 @@ async def update_scheduled_mail(
     )
 
 
-@router.delete("/schedule/{schedule_id}", status_code=204)
+@router.delete("/schedule/{schedule_id}")
 async def cancel_scheduled_mail(
     schedule_id: int,
     db: Session = Depends(get_db),
@@ -568,3 +724,28 @@ async def cancel_scheduled_mail(
     scheduled_mail.status = "cancelled"
     scheduled_mail.cancelled_at = datetime.utcnow()
     db.commit()
+    return {"message": "キャンセルしました"}
+
+
+# === 丁寧語サジェスチョン ===
+
+class SuggestPoliteRequest(BaseModel):
+    text: str
+    tone: str = "polite"  # formal / polite / casual
+
+
+@router.post("/suggest-polite")
+async def suggest_polite_expressions(
+    request: SuggestPoliteRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    メール本文の丁寧語サジェスチョンを返す
+
+    - カジュアルな表現を検出
+    - より丁寧な代替表現を提案
+    """
+    from backend.services.politeness_checker import suggest_polite_alternatives
+
+    result = suggest_polite_alternatives(request.text, request.tone)
+    return result

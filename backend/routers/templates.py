@@ -171,7 +171,7 @@ async def update_template(
     )
 
 
-@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{template_id}")
 async def delete_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -188,6 +188,7 @@ async def delete_template(
 
     db.delete(template)
     db.commit()
+    return {"message": "削除しました"}
 
 
 @router.get("/categories/list", response_model=List[str])

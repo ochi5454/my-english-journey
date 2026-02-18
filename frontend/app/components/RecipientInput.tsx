@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
-import { ChevronRight, X } from 'lucide-react'
+import { X } from 'lucide-react'
 
 // Types
 export interface Recipient {
@@ -18,6 +18,7 @@ interface RecipientInputProps {
   onChange: (recipients: Recipient[]) => void
   onSearch: (query: string) => Promise<Recipient[]>
   onOpenList?: () => void
+  onDrop?: (recipient: Recipient, fromField: string) => void  // ドロップ時のコールバック
   placeholder?: string
   className?: string
 }
@@ -44,6 +45,7 @@ export function RecipientInput({
   onChange,
   onSearch,
   onOpenList,
+  onDrop,
   placeholder = '',
   className = '',
 }: RecipientInputProps) {
@@ -52,12 +54,44 @@ export function RecipientInput({
   const [isOpen, setIsOpen] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [searching, setSearching] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const colors = colorSchemes[label]
+
+  // ドラッグ&ドロップハンドラー
+  const handleDragStart = (e: React.DragEvent, recipient: Recipient) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ recipient, fromField: label }))
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragOver(false)
+  }
+
+  const handleDropOnField = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'))
+      const { recipient, fromField } = data as { recipient: Recipient; fromField: string }
+      if (fromField !== label && onDrop) {
+        // 別のフィールドからドロップされた場合
+        onDrop(recipient, fromField)
+      }
+    } catch (err) {
+      console.error('Drop failed:', err)
+    }
+  }
 
   // Search with debounce
   useEffect(() => {
@@ -195,16 +229,23 @@ export function RecipientInput({
 
   return (
     <div className={`relative ${className}`}>
-      {/* Input Row */}
-      <div className="flex items-center px-4 py-3">
+      {/* Input Row - ドロップターゲット */}
+      <div
+        className={`flex items-center px-4 py-3 transition-colors ${isDragOver ? 'bg-blue-500/10 ring-1 ring-blue-400/30' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDropOnField}
+      >
         <span className="text-slate-400 text-sm w-12">{label}:</span>
         <div className="flex-1 flex flex-wrap items-center gap-2">
-          {/* Selected Recipients (Chips) */}
+          {/* Selected Recipients (Chips) - ドラッグ可能 */}
           {value.map(r => (
             <span
               key={r.email}
-              className={`inline-flex items-center gap-1 px-3 py-1 ${colors.chip} rounded-full text-sm border backdrop-blur-sm group`}
-              title={`${r.name || ''}\n${r.email}${r.department ? `\n${r.department}` : ''}`}
+              draggable
+              onDragStart={(e) => handleDragStart(e, r)}
+              className={`inline-flex items-center gap-1 px-3 py-1 ${colors.chip} rounded-full text-sm border backdrop-blur-sm group cursor-grab active:cursor-grabbing`}
+              title={`${r.name || ''}\n${r.email}${r.department ? `\n${r.department}` : ''}\n\n💡 ドラッグして他のフィールドへ移動`}
             >
               <span className="truncate max-w-[150px]">{r.name || r.email}</span>
               <button
@@ -240,10 +281,10 @@ export function RecipientInput({
         {onOpenList && (
           <button
             onClick={onOpenList}
-            className="text-slate-500 hover:text-slate-300 transition-colors p-1"
-            aria-label="宛先リストから選択"
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 hover:bg-blue-500/10 rounded-lg whitespace-nowrap"
+            aria-label="メーリングリストから追加"
           >
-            <ChevronRight size={20} />
+            📋 メーリングリストから追加
           </button>
         )}
       </div>
