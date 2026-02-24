@@ -7,7 +7,10 @@ import { API_BASE } from '../constants/excel'
 import { RecipientInput, Recipient } from '../components/RecipientInput'
 import { SendButton } from '../components/SendButton'
 import { ScheduleModal } from '../components/ScheduleModal'
-import { ArrowLeft, Bot, Paperclip, Send, Eye, ChevronRight, PenTool, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Bot, Paperclip, Send, Eye, ChevronRight, PenTool, ChevronDown, Sparkles, Users, Check, Search, X } from 'lucide-react'
+import { AIRecipientFilter, FilteredMember } from '../components/AIRecipientFilter'
+import { RecipientValidationDialog, ValidationWarning } from '../components/RecipientValidationDialog'
+import { MailingListSuggestionDialog } from '../components/MailingListSuggestionDialog'
 
 // Types (Recipient is imported from RecipientInput)
 interface Attachment {
@@ -57,6 +60,21 @@ export default function ComposePage() {
   const [to, setTo] = useState<Recipient[]>([])
   const [cc, setCc] = useState<Recipient[]>([])
   const [bcc, setBcc] = useState<Recipient[]>([])
+
+  // 宛先をTo/Cc/Bcc間で移動する
+  const moveRecipient = (recipient: Recipient, fromField: string, toField: 'To' | 'Cc' | 'Bcc') => {
+    // 移動元から削除
+    if (fromField === 'To') setTo(prev => prev.filter(r => r.email !== recipient.email))
+    if (fromField === 'Cc') setCc(prev => prev.filter(r => r.email !== recipient.email))
+    if (fromField === 'Bcc') setBcc(prev => prev.filter(r => r.email !== recipient.email))
+    // 移動先に追加（重複チェック）
+    const addIfNotExists = (prev: Recipient[]) =>
+      prev.some(r => r.email === recipient.email) ? prev : [...prev, recipient]
+    if (toField === 'To') setTo(addIfNotExists)
+    if (toField === 'Cc') setCc(addIfNotExists)
+    if (toField === 'Bcc') setBcc(addIfNotExists)
+  }
+
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -76,6 +94,18 @@ export default function ComposePage() {
   const [showRecipientListModal, setShowRecipientListModal] = useState(false)
   const [recipientLists, setRecipientLists] = useState<RecipientList[]>([])
   const [recipientListTarget, setRecipientListTarget] = useState<'to' | 'cc' | 'bcc'>('to')
+
+  // AI filtering
+  const [showAIFilter, setShowAIFilter] = useState(false)
+  const [aiFilterListId, setAiFilterListId] = useState<number | null>(null)
+
+  // Entra validation
+  const [showValidationDialog, setShowValidationDialog] = useState(false)
+  const [validationWarnings, setValidationWarnings] = useState<ValidationWarning[]>([])
+  const [pendingImportListId, setPendingImportListId] = useState<number | null>(null)
+
+  // Mailing list suggestion (送信時にメーリングリストへ追加を提案)
+  const [showMailingListSuggestion, setShowMailingListSuggestion] = useState(false)
 
   // Templates
   const [templates, setTemplates] = useState<Template[]>([])
@@ -188,10 +218,135 @@ export default function ComposePage() {
     }
   }, [aiMessages, aiLoading])
 
+  // 成功メッセージを10秒後に自動で消す
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(false), 10000)
+      return () => clearTimeout(timer)
+    }
+  }, [success])
+
+  useEffect(() => {
+    if (scheduleSuccess) {
+      const timer = setTimeout(() => setScheduleSuccess(false), 10000)
+      return () => clearTimeout(timer)
+    }
+  }, [scheduleSuccess])
+
   const insertSignature = (signature: Signature) => {
     const separator = body.trim() ? '\n\n' : ''
     setBody(prev => prev + separator + signature.content)
     setShowSignatureDropdown(false)
+  }
+
+  // AI Filter handlers
+  const openAIFilter = (listId: number) => {
+    setAiFilterListId(listId)
+    setShowAIFilter(true)
+  }
+
+  const handleAIFilterComplete = (selectedMembers: FilteredMember[]) => {
+    const newRecipients = selectedMembers.map(m => ({
+      email: m.email,
+      name: m.name,
+      department: m.department,
+    }))
+
+    const setter = recipientListTarget === 'to' ? setTo : recipientListTarget === 'cc' ? setCc : setBcc
+    const current = recipientListTarget === 'to' ? to : recipientListTarget === 'cc' ? cc : bcc
+
+    const existingEmails = new Set(current.map(r => r.email))
+    const toAdd = newRecipients.filter(r => !existingEmails.has(r.email))
+    setter([...current, ...toAdd])
+
+    setShowAIFilter(false)
+    setAiFilterListId(null)
+    setShowRecipientListModal(false)
+  }
+
+  const cancelAIFilter = () => {
+    setShowAIFilter(false)
+    setAiFilterListId(null)
+  }
+
+  // Entra validation handlers
+  const validateAndImportFromList = async (listId: number) => {
+    try {
+      // First, validate against Entra
+      const validateRes = await fetch(`${API_BASE}/recipients/lists/${listId}/validate`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+
+      if (validateRes.ok) {
+        const validationResult = await validateRes.json()
+
+        if (validationResult.requires_confirmation && validationResult.warnings.length > 0) {
+          // Show validation dialog
+          setValidationWarnings(validationResult.warnings)
+          setPendingImportListId(listId)
+          setShowValidationDialog(true)
+          return
+        }
+      }
+
+      // No warnings or validation failed - import directly
+      await importFromList(listId)
+    } catch (e) {
+      console.error('Validation failed, importing directly:', e)
+      await importFromList(listId)
+    }
+  }
+
+  const handleValidationConfirm = async (selectedEmails: string[]) => {
+    // 送信時の検証からの確認の場合
+    if (!pendingImportListId) {
+      setShowValidationDialog(false)
+      setValidationWarnings([])
+      // 選択されたメールアドレスのみ残して送信
+      const selectedSet = new Set(selectedEmails)
+      setTo(prev => prev.filter(r => selectedSet.has(r.email)))
+      setCc(prev => prev.filter(r => selectedSet.has(r.email)))
+      setBcc(prev => prev.filter(r => selectedSet.has(r.email)))
+      // 検証をスキップして送信
+      setTimeout(() => sendEmail(true), 100)
+      return
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/recipients/lists/${pendingImportListId}`, { credentials: 'include' })
+      if (res.ok) {
+        const data: RecipientListDetail = await res.json()
+        // Only import selected emails
+        const newRecipients = data.members
+          .filter(m => selectedEmails.includes(m.email))
+          .map(m => ({
+            email: m.email,
+            name: m.name,
+            department: m.department,
+          }))
+
+        const setter = recipientListTarget === 'to' ? setTo : recipientListTarget === 'cc' ? setCc : setBcc
+        const current = recipientListTarget === 'to' ? to : recipientListTarget === 'cc' ? cc : bcc
+
+        const existingEmails = new Set(current.map(r => r.email))
+        const toAdd = newRecipients.filter(r => !existingEmails.has(r.email))
+        setter([...current, ...toAdd])
+      }
+    } catch (e) {
+      console.error('Failed to import from list:', e)
+    } finally {
+      setShowValidationDialog(false)
+      setValidationWarnings([])
+      setPendingImportListId(null)
+      setShowRecipientListModal(false)
+    }
+  }
+
+  const handleValidationClose = () => {
+    setShowValidationDialog(false)
+    setValidationWarnings([])
+    setPendingImportListId(null)
   }
 
   const importFromList = async (listId: number) => {
@@ -217,6 +372,9 @@ export default function ComposePage() {
       console.error('Failed to import from list:', e)
     }
   }
+
+  // ログインユーザーのドメインを取得（@以降）
+  const userDomain = user?.email?.split('@')[1]?.toLowerCase() || ''
 
   // Search function for RecipientInput component (returns Promise)
   const searchRecipients = useCallback(async (query: string): Promise<Recipient[]> => {
@@ -254,6 +412,40 @@ export default function ComposePage() {
       return []
     }
   }, [])
+
+  // 宛先追加時の検証（Entra + 社外チェック）
+  const validateRecipient = useCallback(async (email: string): Promise<{ isExternal: boolean; isVerified: boolean; error?: string }> => {
+    const domain = email.split('@')[1]?.toLowerCase() || ''
+    const isExternal = userDomain ? domain !== userDomain : false
+
+    try {
+      // 単一アドレスの検証API呼び出し
+      const res = await fetch(`${API_BASE}/mail/validate-recipients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          to: [email],
+          cc: [],
+          bcc: [],
+        }),
+      })
+
+      if (res.ok) {
+        const result = await res.json()
+        const warning = result.warnings?.find((w: any) => w.email === email)
+        return {
+          isExternal,
+          isVerified: !warning || warning.warning_type !== 'not_found',
+          error: warning?.message,
+        }
+      }
+      return { isExternal, isVerified: true }
+    } catch (e) {
+      console.error('Validation failed:', e)
+      return { isExternal, isVerified: true, error: '検証に失敗しました' }
+    }
+  }, [userDomain])
 
   const applyTemplate = (template: Template) => {
     setSubject(template.subject)
@@ -363,9 +555,52 @@ export default function ComposePage() {
     }
   }
 
-  const sendEmail = async () => {
+  // 送信前の宛先検証（Entra + 社外チェック）
+  const validateRecipientsBeforeSend = async (): Promise<boolean> => {
+    if (to.length === 0) return true
+
+    try {
+      const res = await fetch(`${API_BASE}/mail/validate-recipients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          to: to.map(r => r.email),
+          cc: cc.length > 0 ? cc.map(r => r.email) : [],
+          bcc: bcc.length > 0 ? bcc.map(r => r.email) : [],
+        }),
+      })
+
+      if (res.ok) {
+        const result = await res.json()
+        if (result.requires_confirmation && result.warnings?.length > 0) {
+          setValidationWarnings(result.warnings)
+          setShowValidationDialog(true)
+          return false // ダイアログで確認待ち
+        }
+      }
+      return true
+    } catch (e) {
+      console.error('Validation failed:', e)
+      return true // 検証失敗時は送信を許可
+    }
+  }
+
+  const sendEmail = async (skipValidation = false, skipMailingListSuggestion = false) => {
     if (to.length === 0) { setError('宛先を指定してください'); return }
     if (!subject.trim()) { setError('件名を入力してください'); return }
+
+    // 検証をスキップしない場合は事前チェック
+    if (!skipValidation) {
+      const canProceed = await validateRecipientsBeforeSend()
+      if (!canProceed) return
+    }
+
+    // メーリングリスト追加提案（スキップしない場合）
+    if (!skipMailingListSuggestion && (to.length > 0 || cc.length > 0 || bcc.length > 0)) {
+      setShowMailingListSuggestion(true)
+      return
+    }
 
     setSending(true)
     setError(null)
@@ -400,6 +635,13 @@ export default function ComposePage() {
     } finally {
       setSending(false)
     }
+  }
+
+  // メーリングリスト追加後の送信処理
+  const handleMailingListConfirm = (addedToList: boolean) => {
+    setShowMailingListSuggestion(false)
+    // 検証とメーリングリスト提案をスキップして実際に送信
+    sendEmail(true, true)
   }
 
   const scheduleEmail = async (scheduledAt: Date, timezone: string) => {
@@ -470,7 +712,7 @@ export default function ComposePage() {
             ✉️ 新規メール
           </h1>
           <button
-            onClick={sendEmail}
+            onClick={() => sendEmail()}
             disabled={sending || to.length === 0}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-500/80 backdrop-blur-sm text-white disabled:opacity-30 hover:bg-blue-400/80 transition-all border border-blue-400/30"
           >
@@ -482,17 +724,7 @@ export default function ComposePage() {
       {/* Main Content */}
       <main className="flex-1 flex min-h-0 overflow-hidden">
         <div className="flex-1 overflow-auto pb-20">
-          {/* Alerts */}
-          {success && (
-            <div className={`mx-4 mt-4 p-4 ${glassCardStatic} rounded-xl text-emerald-300 text-sm bg-emerald-500/10`}>
-              ✅ メールを送信しました
-            </div>
-          )}
-          {scheduleSuccess && (
-            <div className={`mx-4 mt-4 p-4 ${glassCardStatic} rounded-xl text-purple-300 text-sm bg-purple-500/10`}>
-              📅 メールを予約しました
-            </div>
-          )}
+          {/* Error Alert (エラーは上部に表示) */}
           {error && (
             <div className={`mx-4 mt-4 p-4 ${glassCardStatic} rounded-xl text-red-300 text-sm bg-red-500/10`}>
               ⚠️ {error}
@@ -507,7 +739,10 @@ export default function ComposePage() {
               value={to}
               onChange={setTo}
               onSearch={searchRecipients}
+              onValidateRecipient={validateRecipient}
+              userDomain={userDomain}
               onOpenList={() => { setRecipientListTarget('to'); setShowRecipientListModal(true) }}
+              onDrop={(recipient, fromField) => moveRecipient(recipient, fromField, 'To')}
               placeholder="宛先を追加..."
               className="border-b border-white/5"
             />
@@ -518,7 +753,10 @@ export default function ComposePage() {
               value={cc}
               onChange={setCc}
               onSearch={searchRecipients}
+              onValidateRecipient={validateRecipient}
+              userDomain={userDomain}
               onOpenList={() => { setRecipientListTarget('cc'); setShowRecipientListModal(true) }}
+              onDrop={(recipient, fromField) => moveRecipient(recipient, fromField, 'Cc')}
               className="border-b border-white/5"
             />
 
@@ -528,7 +766,10 @@ export default function ComposePage() {
               value={bcc}
               onChange={setBcc}
               onSearch={searchRecipients}
+              onValidateRecipient={validateRecipient}
+              userDomain={userDomain}
               onOpenList={() => { setRecipientListTarget('bcc'); setShowRecipientListModal(true) }}
+              onDrop={(recipient, fromField) => moveRecipient(recipient, fromField, 'Bcc')}
             />
           </div>
 
@@ -643,18 +884,30 @@ export default function ComposePage() {
           </div>
 
           {/* Action Buttons - Glass */}
-          <div className="mx-4 mt-4 mb-6 flex gap-3">
+          <div className="mx-4 mt-4 mb-2 flex gap-3">
             <button onClick={() => setShowPreview(true)} className={`flex-1 flex items-center justify-center gap-2 py-3 ${glassCard} rounded-2xl text-slate-300 font-medium transition-all`}>
               <Eye size={18} />
               プレビュー
             </button>
             <SendButton
-              onSendNow={sendEmail}
+              onSendNow={() => sendEmail()}
               onSchedule={() => setShowScheduleModal(true)}
               sending={sending}
               disabled={to.length === 0}
             />
           </div>
+
+          {/* Success Messages - 送信ボタン付近に表示、10秒で自動消去 */}
+          {success && (
+            <div className={`mx-4 mb-4 p-4 ${glassCardStatic} rounded-xl text-emerald-300 text-sm bg-emerald-500/10 animate-pulse`}>
+              ✅ メールを送信しました
+            </div>
+          )}
+          {scheduleSuccess && (
+            <div className={`mx-4 mb-4 p-4 ${glassCardStatic} rounded-xl text-purple-300 text-sm bg-purple-500/10 animate-pulse`}>
+              📅 メールを予約しました
+            </div>
+          )}
 
           {/* Schedule Modal */}
           <ScheduleModal
@@ -878,29 +1131,57 @@ export default function ComposePage() {
       {/* Recipient List Import Modal - Glass */}
       {showRecipientListModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className={`${glassCardStatic} rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl`}>
-            <div className="px-5 py-4 border-b border-white/10 flex justify-between items-center">
-              <span className="text-base font-semibold text-white">📋 {recipientListTarget.toUpperCase()}に追加</span>
+          <div className={`${glassCardStatic} rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[85vh]`}>
+            <div className="px-5 py-4 border-b border-white/10 flex justify-between items-center flex-shrink-0">
+              <span className="text-base font-semibold text-white">📋 宛先({recipientListTarget.toUpperCase()})に追加</span>
               <button onClick={() => setShowRecipientListModal(false)} className="text-blue-400 hover:text-blue-300 transition-colors">完了</button>
             </div>
-            <div className="max-h-80 overflow-auto">
+            <div className="flex-1 overflow-auto">
               {recipientLists.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-slate-500 text-sm mb-4">宛先リストがありません</p>
                   <button onClick={() => { setShowRecipientListModal(false); router.push('/recipients') }} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-blue-400 text-sm font-medium transition-colors">
-                    宛先管理で作成
+                    メーリングリストで作成
                   </button>
                 </div>
               ) : (
-                <div>
+                <div className="p-3 space-y-2">
                   {recipientLists.map(list => (
-                    <button key={list.id} onClick={() => importFromList(list.id)} className="w-full text-left px-5 py-4 border-b border-white/5 hover:bg-white/5 flex items-center justify-between transition-colors">
-                      <div>
-                        <div className="text-sm text-white">{list.name}</div>
-                        <div className="text-xs text-slate-500">{list.member_count}件</div>
+                    <div
+                      key={list.id}
+                      className="p-3 bg-white/5 border border-white/10 rounded-xl hover:border-white/20 transition-all"
+                    >
+                      {/* リスト情報 */}
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-9 h-9 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
+                          <Users size={16} className="text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-white">{list.name}</div>
+                          <div className="text-xs text-slate-500">{list.member_count}名のメンバー</div>
+                        </div>
                       </div>
-                      <ChevronRight size={20} className="text-slate-600" />
-                    </button>
+
+                      {/* アクションボタン */}
+                      <div className="flex gap-2">
+                        {/* AIフィルタボタン */}
+                        <button
+                          onClick={() => openAIFilter(list.id)}
+                          className="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/30 rounded-lg text-purple-300 text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <Sparkles size={12} />
+                          AIで絞り込み
+                        </button>
+                        {/* 全員追加ボタン (Entra検証付き) */}
+                        <button
+                          onClick={() => validateAndImportFromList(list.id)}
+                          className="flex-1 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 rounded-lg text-emerald-300 text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <Check size={12} />
+                          全員を追加
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -908,6 +1189,35 @@ export default function ComposePage() {
           </div>
         </div>
       )}
+
+      {/* AI Filter Modal */}
+      {showAIFilter && aiFilterListId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className={`${glassCardStatic} rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[85vh]`}>
+            <AIRecipientFilter
+              listId={aiFilterListId}
+              onFilterComplete={handleAIFilterComplete}
+              onCancel={cancelAIFilter}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Entra Validation Dialog */}
+      <RecipientValidationDialog
+        isOpen={showValidationDialog}
+        onClose={handleValidationClose}
+        onConfirm={handleValidationConfirm}
+        warnings={validationWarnings}
+      />
+
+      {/* Mailing List Suggestion Dialog */}
+      <MailingListSuggestionDialog
+        isOpen={showMailingListSuggestion}
+        onClose={() => setShowMailingListSuggestion(false)}
+        onConfirm={handleMailingListConfirm}
+        recipients={{ to, cc, bcc }}
+      />
     </div>
   )
 }

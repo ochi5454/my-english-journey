@@ -69,6 +69,7 @@ export default function DashboardPage() {
       amber: 'hover:shadow-amber-500/30',
       pink: 'hover:shadow-pink-500/30',
       cyan: 'hover:shadow-cyan-500/30',
+      violet: 'hover:shadow-violet-500/30',
     }
     return colors[color] || colors.blue
   }
@@ -81,6 +82,7 @@ export default function DashboardPage() {
       amber: 'from-amber-500/20 to-amber-600/10',
       pink: 'from-pink-500/20 to-pink-600/10',
       cyan: 'from-cyan-500/20 to-cyan-600/10',
+      violet: 'from-violet-500/20 to-violet-600/10',
     }
     return colors[color] || colors.blue
   }
