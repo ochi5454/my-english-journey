@@ -1,45 +1,25 @@
 {
-  "name": "frontend-mvp",
+  "name": "my-english-journey",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui",
-    "e2e:debug": "playwright test --debug",
-    "e2e:report": "playwright show-report"
+    "start": "next start"
   },
   "dependencies": {
-    "axios": "^1.6.0",
-    "class-variance-authority": "^0.7.0",
-    "clsx": "^2.0.0",
     "lucide-react": "^0.368.0",
     "next": "14.2.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-window": "^2.2.5",
-    "shadcn-ui": "0.8.0",
     "swr": "^2.2.0",
-    "tailwindcss": "3.4.1",
-    "xlsx": "^0.18.5"
+    "tailwindcss": "3.4.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.1",
-    "@testing-library/jest-dom": "^6.4.0",
-    "@testing-library/react": "^14.2.0",
-    "@types/jest": "^29.5.12",
     "@types/node": "20.12.7",
     "@types/react": "18.2.21",
     "@types/react-dom": "18.2.7",
-    "@types/react-window": "^1.8.8",
     "autoprefixer": "10.4.16",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
     "postcss": "8.4.31",
     "typescript": "5.3.3"
   }
