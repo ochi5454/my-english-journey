@@ -1,27 +1,28 @@
 # My English Journey
 
 iPhone向けモバイルファーストの英語学習進捗管理Webアプリ。
-チャットで学習内容を入力すると、Claude APIが自動でカテゴリと時間を判断して記録する。
+チャットで学習内容を入力すると、キーワード解析で自動でカテゴリと時間を判断して記録する。
 
 ## チェックリスト
 
 ### Phase 1: 基盤構築
-- [ ] 不要ファイル削除・プロジェクト初期化
-- [ ] DB スキーマ作成（study_records / study_goals）
-- [ ] BE: FastAPI エンドポイント実装（records CRUD / progress / goals）
-- [ ] FE: Next.js 4画面の骨組み作成
+- [x] 不要ファイル削除・プロジェクト初期化
+- [x] DB スキーマ作成（study_records / study_goals）
+- [x] BE: FastAPI エンドポイント実装（records CRUD / progress / goals）
+- [x] FE: Next.js 4画面の骨組み作成
 
 ### Phase 2: コア画面
-- [ ] ホーム画面（富士山SVG + 総進捗 + 基礎/運用内訳）
-- [ ] 定義画面（目標時間の設定・変更）
-- [ ] 記録画面（チャット入力 + 確認カード + 編集フォーム）
-- [ ] 履歴画面（日/週/月タブ + 編集・削除）
+- [x] ホーム画面（BE連携 + 総進捗 + 基礎/運用内訳 + サブカテゴリ内訳）
+- [x] 定義画面（目標時間の編集・保存）
+- [x] 記録画面（手動入力フォーム + 保存 / チャット入力はPhase 3）
+- [x] 履歴画面（日/週/月タブ + 編集・削除）
+- [ ] ホーム画面に富士山SVGプログレスビジュアル追加
 
-### Phase 3: Claude API チャット記録
-- [ ] BE: Claude API 連携エンドポイント（POST /api/chat）
-- [ ] BE: プロンプト設計（カテゴリ判定・時間抽出・聞き返し）
-- [ ] FE: チャット入力UI → 確認カード → 保存フロー
-- [ ] FE: 修正時の編集フォーム
+### Phase 3: チャット記録（キーワード解析）
+- [x] FE: チャット入力UI → 確認カード → 保存フロー
+- [x] FE: 修正時の編集フォーム
+- [x] BE: キーワードベースのカテゴリ自動判定（Claude API不要）
+- [x] 実動作確認
 
 ### Phase 4: 仕上げ
 - [ ] ダークテーマ・ゴールドアクセント（#c9a84c）適用
@@ -33,7 +34,7 @@ iPhone向けモバイルファーストの英語学習進捗管理Webアプリ�
 ## 技術スタック
 - FE: Next.js 14 (App Router) + TypeScript + Tailwind CSS
 - BE: FastAPI + SQLite
-- AI: Claude API（Anthropic）
+- AI: キーワード解析（API不要）
 - デプロイ: ローカル（Mac → iPhone 同一Wi-Fi）
 
 ## カテゴリ体系
@@ -60,11 +61,11 @@ iPhone向けモバイルファーストの英語学習進捗管理Webアプリ�
 
 ### 記録 (/record)
 - チャット入力欄（メイン機能）
-- Claude APIが判定 → 確認カード表示
+- キーワード解析で自動判定 → 確認カード表示
   - 日付 / カテゴリ / サブカテゴリ / 時間
   - [記録する] [修正する]
 - 修正時: 編集フォーム（カテゴリ・サブカテゴリ・時間・日付を手動修正）
-- 判定不能時: Claudeが聞き返す
+- 判定不能時: 聞き返しメッセージ表示
 
 ### 履歴 (/history)
 - 日 / 週 / 月 タブ切替
@@ -75,11 +76,11 @@ iPhone向けモバイルファーストの英語学習進捗管理Webアプリ�
 ```
 ユーザー: 「昨日TOEICリスニング1時間やった」
     ↓
-FE → BE POST /api/chat { message, date_context }
+FE → BE POST /api/chat { message }
     ↓
-BE → Claude API（カテゴリ判定・時間抽出）
+BE: キーワード解析（カテゴリ判定・時間抽出）
     ↓
-BE ← Claude: { category, subcategory, minutes, date }
+BE → FE: { category, subcategory, minutes, date }
     ↓（判定不能なら { needs_clarification: true, question: "..." }）
 FE ← 確認カード表示
     ↓
@@ -153,6 +154,7 @@ iPhoneからは同一Wi-Fi上で `http://<MacのIP>:3000` にアクセス。
 
 ```bash
 # backend/.env
-ANTHROPIC_API_KEY=sk-ant-...
 DATABASE_URL=sqlite:///data/journey.db
 ```
+
+※ Claude API は使用しません（キーワード解析で代替）
